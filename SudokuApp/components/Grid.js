@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, PanResponder } from 'react-native';
+import React from 'react';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import Cell from './Cell';
 
 const Grid = ({ 
@@ -11,98 +11,33 @@ const Grid = ({
   showFeedback = false, 
   cellFeedback = {} 
 }) => {
-  // Keep track of which cell is currently being touched
-  const [touchedCell, setTouchedCell] = useState(null);
-  const gridRef = useRef(null);
-  
-  // Create pan responder for tracking finger movement across cells
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onStartShouldSetPanResponderCapture: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponderCapture: () => true,
-
-      onPanResponderGrant: (evt, gestureState) => {
-        // Initial touch - find which cell was touched
-        const { locationX, locationY } = evt.nativeEvent;
-        const { row, col } = getCellFromPoint(locationX, locationY);
-        if (row !== null && col !== null) {
-          setTouchedCell({ row, col });
-        }
-      },
-
-      onPanResponderMove: (evt, gestureState) => {
-        // Move touch - update highlighted cell as finger moves
-        const { locationX, locationY } = evt.nativeEvent;
-        const { row, col } = getCellFromPoint(locationX, locationY);
-        
-        if (row !== null && col !== null) {
-          // Only update if we're on a different cell
-          if (!touchedCell || touchedCell.row !== row || touchedCell.col !== col) {
-            setTouchedCell({ row, col });
-          }
-        } else {
-          // If we moved outside the grid, clear touched cell
-          setTouchedCell(null);
-        }
-      },
-
-      onPanResponderRelease: (evt, gestureState) => {
-        // Touch ended - select the currently touched cell
-        if (touchedCell) {
-          onCellPress(touchedCell.row, touchedCell.col);
-        }
-        setTouchedCell(null);
-      },
-
-      onPanResponderTerminate: () => {
-        setTouchedCell(null);
-      }
-    })
-  ).current;
-
-  // Function to determine which cell is at a given point
-  const getCellFromPoint = (x, y) => {
-    const cellSize = 36; // Must match cell container size
-    const borderOffset = 2; // Account for grid border
-    
-    // Adjust for grid border
-    const adjustedX = x - borderOffset;
-    const adjustedY = y - borderOffset;
-    
-    // Calculate row and column from touch point
-    const col = Math.floor(adjustedX / cellSize);
-    const row = Math.floor(adjustedY / cellSize);
-    
-    // Check if we're within the grid bounds
-    if (row >= 0 && row < 9 && col >= 0 && col < 9) {
-      return { row, col };
-    }
-    
-    return { row: null, col: null };
-  };
-  
   // Calculate related cells based on selected cell
-  const getRelatedCells = (row, col) => {
-    const relatedCells = new Set();
+  const getRelatedCellsMap = (row, col) => {
+    // Create a map to store relations with types
+    const relations = {};
     
     // No related cells if nothing is selected
-    if (row === null || col === null) return relatedCells;
+    if (row === null || col === null) return relations;
+    
+    // Define relation types
+    const ROW = 'row';
+    const COLUMN = 'column';
+    const BOX = 'box';
+    const SAME_VALUE = 'sameValue';
     
     const currentValue = board[row][col];
     
     // Add all cells in the same row
     for (let c = 0; c < 9; c++) {
       if (c !== col) {
-        relatedCells.add(`${row}-${c}`);
+        relations[`${row}-${c}`] = ROW;
       }
     }
     
     // Add all cells in the same column
     for (let r = 0; r < 9; r++) {
       if (r !== row) {
-        relatedCells.add(`${r}-${col}`);
+        relations[`${r}-${col}`] = COLUMN;
       }
     }
     
@@ -112,7 +47,7 @@ const Grid = ({
     for (let r = boxStartRow; r < boxStartRow + 3; r++) {
       for (let c = boxStartCol; c < boxStartCol + 3; c++) {
         if (r !== row || c !== col) {
-          relatedCells.add(`${r}-${c}`);
+          relations[`${r}-${c}`] = BOX;
         }
       }
     }
@@ -122,23 +57,22 @@ const Grid = ({
       board.forEach((rowValues, r) => {
         rowValues.forEach((cellValue, c) => {
           if ((r !== row || c !== col) && cellValue === currentValue) {
-            relatedCells.add(`${r}-${c}`);
+            relations[`${r}-${c}`] = SAME_VALUE;
           }
         });
       });
     }
     
-    return relatedCells;
+    return relations;
   };
   
   // Get related cells for currently selected cell
-  const relatedCells = selectedCell 
-    ? getRelatedCells(selectedCell.row, selectedCell.col) 
-    : new Set();
+  const relatedCellsMap = selectedCell 
+    ? getRelatedCellsMap(selectedCell.row, selectedCell.col) 
+    : {};
 
   return (
     <View 
-      ref={gridRef}
       style={[
         styles.grid, 
         { 
@@ -147,7 +81,6 @@ const Grid = ({
           borderWidth: 2,
         }
       ]}
-      {...panResponder.panHandlers}
     >
       {board.map((row, rowIndex) => (
         <View key={`row-${rowIndex}`} style={styles.row}>
@@ -156,11 +89,10 @@ const Grid = ({
             const isSelected = selectedCell && 
               selectedCell.row === rowIndex && 
               selectedCell.col === colIndex;
-            const isTouched = touchedCell && 
-              touchedCell.row === rowIndex && 
-              touchedCell.col === colIndex;
             const isInitialCell = initialCells.includes(cellKey);
-            const isRelated = relatedCells.has(cellKey);
+            
+            // Get the relation type for this cell (if any)
+            const relationType = relatedCellsMap[cellKey];
             
             // Get feedback for this cell
             const isCorrect = showFeedback ? cellFeedback[cellKey] : null;
@@ -183,22 +115,23 @@ const Grid = ({
             };
 
             return (
-              <View
+              <TouchableOpacity
                 key={`${rowIndex}-${colIndex}`}
                 style={styles.cellContainer}
+                onPress={() => onCellPress(rowIndex, colIndex)}
+                activeOpacity={1}
               >
                 <Cell 
                   value={num} 
                   isSelected={isSelected}
-                  isTouched={isTouched}
                   isInitialCell={isInitialCell}
-                  isRelated={isRelated}
+                  relationType={relationType}
                   isCorrect={isCorrect}
                   showFeedback={showFeedback && !isInitialCell && num !== 0}
                   extraStyle={borderStyles}
                   theme={theme}
                 />
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>

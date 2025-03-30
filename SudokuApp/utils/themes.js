@@ -24,6 +24,11 @@ export const THEMES = {
         hoverBackground: '#e1f5fe', // Light blue hover effect
         touchedBackground: '#d4e9fd', // Slightly dimmer than selected
         relatedBackground: '#ecf5fe', // Very light blue for related cells
+        boxRelatedBackground: '#edf8ff', // Very light blue for box highlighting
+        rowRelatedBackground: '#f3f9ff', // Even lighter blue for row highlighting
+        columnRelatedBackground: '#f0f6ff', // Slightly different for column highlighting
+        sameValueBackground: '#e6f4ff', // Another shade for same value highlighting
+        initialCellBackground: '#e6f2e6', // Light green tint for initial cells
       },
       numberPad: {
         background: '#f0f0f0',
@@ -58,6 +63,11 @@ export const THEMES = {
         hoverBackground: '#263238', // Dark blue hover effect
         touchedBackground: '#34465a', // Slightly dimmer than selected
         relatedBackground: '#2d3745', // Subtle highlight for dark theme
+        boxRelatedBackground: '#2a394a', // Darker blue-gray for box highlighting
+        rowRelatedBackground: '#293645', // Slightly different for row highlighting
+        columnRelatedBackground: '#2d3c4e', // Different shade for column highlighting
+        sameValueBackground: '#303f51', // Another shade for same value highlighting
+        initialCellBackground: '#264026', // Dark green tint for initial cells
       },
       numberPad: {
         background: '#333333',
@@ -85,6 +95,7 @@ export const THEMES = {
         initialValueText: '#5b6a87',
         userValueText: '#638ecb',
         textFont: 'normal',
+        initialCellBackground: '#ebf5eb', // Light green tint for initial cells
       },
       numberPad: {
         background: '#edf2f7',
@@ -119,6 +130,11 @@ export const THEMES = {
         hoverBackground: '#fff8e1', // Light yellow hover effect
         touchedBackground: '#ffedc9', // Light orange for touched
         relatedBackground: '#fff3e0', // Very light orange for related
+        boxRelatedBackground: '#fff6e6', // Light warm yellow for box highlighting
+        rowRelatedBackground: '#fff8ed', // Very light warm yellow for row highlighting
+        columnRelatedBackground: '#fff5e0', // Slightly different for column highlighting
+        sameValueBackground: '#fff0d6', // Another shade for same value highlighting
+        initialCellBackground: '#e6f0e2', // Light warm green tint for initial cells
       },
       numberPad: {
         background: '#ffe0b2',
@@ -153,6 +169,11 @@ export const THEMES = {
         hoverBackground: '#fef5e7', // Light peach hover effect
         touchedBackground: '#fce2c4', // Light peach for touched
         relatedBackground: '#fef0e2', // Very light peach for related
+        boxRelatedBackground: '#fef0e4', // Light peach for box highlighting
+        rowRelatedBackground: '#fef4eb', // Very light peach for row highlighting
+        columnRelatedBackground: '#feefe0', // Slightly different for column highlighting
+        sameValueBackground: '#fee8d5', // Another shade for same value highlighting
+        initialCellBackground: '#e5f0e2', // Light green tint with sunrise warmth
       },
       numberPad: {
         background: '#fef2cc',
@@ -187,6 +208,11 @@ export const THEMES = {
         hoverBackground: '#e1f5fe', // Light blue hover effect
         touchedBackground: '#b4e0fc', // Medium blue for touched
         relatedBackground: '#e0f4fe', // Very light blue for related
+        boxRelatedBackground: '#e1f5fd', // Light blue for box highlighting
+        rowRelatedBackground: '#e8f8fe', // Very light blue for row highlighting
+        columnRelatedBackground: '#e4f6fd', // Slightly different for column highlighting
+        sameValueBackground: '#d9f0fa', // Another shade for same value highlighting
+        initialCellBackground: '#d9efe8', // Light teal-green tint for initial cells
       },
       numberPad: {
         background: '#b3e5fc',
@@ -221,6 +247,11 @@ export const THEMES = {
         hoverBackground: '#4a4169', // Slightly lighter purple for hover
         touchedBackground: '#473e6d', // Medium purple for touched
         relatedBackground: '#3c3854', // Subtle highlight for dark theme
+        boxRelatedBackground: '#383550', // Purple for box highlighting
+        rowRelatedBackground: '#353347', // Slightly different for row highlighting
+        columnRelatedBackground: '#3a3852', // Another shade for column highlighting
+        sameValueBackground: '#3e3c59', // Another shade for same value highlighting
+        initialCellBackground: '#2e3c2e', // Dark green tint for initial cells
       },
       numberPad: {
         background: '#4a4462',

@@ -126,6 +126,30 @@ export const BUILD_NOTES = {
       'Fixed position calculations for hit testing',
       'Improved overall touch responsiveness'
     ]
+  },
+  '1.3.0': {
+    title: 'Enhanced Cell Selection & Relations',
+    date: '2023-11-04',
+    notes: [
+      'Improved cell selection system with simple touch interaction',
+      'Added visual highlighting for cells in the same row as selected cell',
+      'Added visual highlighting for cells in the same column as selected cell',
+      'Added visual highlighting for cells in the same 3x3 box as selected cell',
+      'Added visual highlighting for cells with the same value as selected cell',
+      'Implemented distinct colors for different types of related cells',
+      'Enhanced theme system with new color options for cell relations'
+    ]
+  },
+  '1.3.1': {
+    title: 'Enhanced Preselected Cell Styling',
+    date: '2023-11-04',
+    notes: [
+      'Improved visual distinction between preselected cells and selected cells',
+      'Added green tint backgrounds for initial cells to make them stand out',
+      'Made initial cell numbers slightly larger and bolder',
+      'Enhanced color scheme to differentiate between initial values and user inputs',
+      'Updated all themes with dedicated initial cell styling'
+    ]
   }
 };
 

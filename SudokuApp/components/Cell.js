@@ -4,9 +4,8 @@ import { View, Text, StyleSheet } from 'react-native';
 const Cell = ({ 
   value, 
   isSelected,
-  isTouched,
   isInitialCell, 
-  isRelated,
+  relationType,
   isCorrect, 
   showFeedback, 
   extraStyle, 
@@ -16,17 +15,25 @@ const Cell = ({
   const getCellBackground = () => {
     if (isSelected) {
       return theme.colors.cell.selectedBackground;
-    } else if (isTouched) {
-      // Make sure we have a fallback color if touchedBackground isn't defined
-      return theme.colors.cell.touchedBackground || 
-             `${theme.colors.cell.selectedBackground}A0`; // Add some transparency
-    } else if (isRelated) {
-      return theme.colors.cell.relatedBackground || 
-             `${theme.colors.cell.selectedBackground}50`; // More transparent than selected
+    } else if (relationType) {
+      // Different background colors based on relation type
+      switch(relationType) {
+        case 'box':
+          return theme.colors.cell.boxRelatedBackground || theme.colors.cell.relatedBackground;
+        case 'row':
+          return theme.colors.cell.rowRelatedBackground || theme.colors.cell.relatedBackground;
+        case 'column':
+          return theme.colors.cell.columnRelatedBackground || theme.colors.cell.relatedBackground;
+        case 'sameValue':
+          return theme.colors.cell.sameValueBackground || theme.colors.cell.relatedBackground;
+        default:
+          return theme.colors.cell.relatedBackground;
+      }
     } else if (showFeedback && isCorrect === false) {
       return '#ffebee'; // Light red background
-    } else if (isInitialCell && theme.colors.cell.prefilled) {
-      return theme.colors.cell.prefilled;
+    } else if (isInitialCell) {
+      // Make initial cells more distinct with a subtle background matching the theme's "correct" color family
+      return theme.colors.cell.initialCellBackground;
     }
     return theme.colors.cell.background;
   };
@@ -34,6 +41,7 @@ const Cell = ({
   // Determine text color based on cell status
   const getTextColor = () => {
     if (isInitialCell) {
+      // Use a more prominent color for initial values
       return theme.colors.cell.initialValueText;
     } else if (showFeedback) {
       return isCorrect 
@@ -57,6 +65,7 @@ const Cell = ({
           { 
             color: getTextColor(),
             fontWeight: isInitialCell ? 'bold' : '500',
+            fontSize: isInitialCell ? 19 : 18, // Make initial values slightly larger
           }
         ]}>
           {value}
