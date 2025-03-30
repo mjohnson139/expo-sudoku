@@ -21,6 +21,9 @@ export const THEMES = {
         correctValueText: '#006400', // Dark green for correct values
         incorrectValueText: '#cc0000', // Red for incorrect values
         textFont: 'normal',
+        hoverBackground: '#e1f5fe', // Light blue hover effect
+        touchedBackground: '#d4e9fd', // Slightly dimmer than selected
+        relatedBackground: '#ecf5fe', // Very light blue for related cells
       },
       numberPad: {
         background: '#f0f0f0',
@@ -52,6 +55,9 @@ export const THEMES = {
         correctValueText: '#4caf50', // Green for correct values
         incorrectValueText: '#ff5252', // Red for incorrect values
         textFont: 'normal',
+        hoverBackground: '#263238', // Dark blue hover effect
+        touchedBackground: '#34465a', // Slightly dimmer than selected
+        relatedBackground: '#2d3745', // Subtle highlight for dark theme
       },
       numberPad: {
         background: '#333333',
@@ -110,6 +116,9 @@ export const THEMES = {
         correctValueText: '#2e7d32', // Dark green for correct values
         incorrectValueText: '#d50000', // Red for incorrect values
         textFont: 'normal',
+        hoverBackground: '#fff8e1', // Light yellow hover effect
+        touchedBackground: '#ffedc9', // Light orange for touched
+        relatedBackground: '#fff3e0', // Very light orange for related
       },
       numberPad: {
         background: '#ffe0b2',
@@ -141,6 +150,9 @@ export const THEMES = {
         correctValueText: '#27ae60', // Green for correct values
         incorrectValueText: '#c0392b', // Red for incorrect values
         textFont: 'normal',
+        hoverBackground: '#fef5e7', // Light peach hover effect
+        touchedBackground: '#fce2c4', // Light peach for touched
+        relatedBackground: '#fef0e2', // Very light peach for related
       },
       numberPad: {
         background: '#fef2cc',
@@ -172,6 +184,9 @@ export const THEMES = {
         correctValueText: '#00897b', // Teal for correct values
         incorrectValueText: '#d32f2f', // Red for incorrect values
         textFont: 'normal',
+        hoverBackground: '#e1f5fe', // Light blue hover effect
+        touchedBackground: '#b4e0fc', // Medium blue for touched
+        relatedBackground: '#e0f4fe', // Very light blue for related
       },
       numberPad: {
         background: '#b3e5fc',
@@ -203,6 +218,9 @@ export const THEMES = {
         correctValueText: '#81c784', // Green for correct values
         incorrectValueText: '#e57373', // Red for incorrect values
         textFont: 'normal',
+        hoverBackground: '#4a4169', // Slightly lighter purple for hover
+        touchedBackground: '#473e6d', // Medium purple for touched
+        relatedBackground: '#3c3854', // Subtle highlight for dark theme
       },
       numberPad: {
         background: '#4a4462',

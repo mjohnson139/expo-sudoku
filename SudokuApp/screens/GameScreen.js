@@ -7,7 +7,7 @@ import THEMES from '../utils/themes';
 import { isCorrectValue } from '../utils/solution';
 
 // Build number to track versions in screenshots
-const BUILD_NUMBER = "1.0.6";
+const BUILD_NUMBER = "1.2.1";
 
 // Valid initial Sudoku board with unique numbers in rows, columns and boxes
 const initialBoard = [
@@ -138,30 +138,33 @@ const GameScreen = () => {
         cellFeedback={cellFeedback}
       />
       
-      <View style={styles.controlsRow}>
-        <View style={styles.feedbackControl}>
-          <Text style={[styles.feedbackLabel, { color: theme.colors.title }]}>
-            Feedback
-          </Text>
-          <Switch
-            value={showFeedback}
-            onValueChange={toggleFeedback}
-            trackColor={{ 
-              false: '#d3d3d3', 
-              true: theme.colors.cell.correctValueText 
-            }}
-            thumbColor={showFeedback ? theme.colors.numberPad.background : '#f4f3f4'}
-          />
-        </View>
+      {/* Updated centered controls */}
+      <View style={styles.controlsContainer}>
+        <View style={styles.controlsRow}>
+          <View style={styles.feedbackControl}>
+            <Text style={[styles.feedbackLabel, { color: theme.colors.title }]}>
+              Feedback
+            </Text>
+            <Switch
+              value={showFeedback}
+              onValueChange={toggleFeedback}
+              trackColor={{ 
+                false: '#d3d3d3', 
+                true: theme.colors.cell.correctValueText 
+              }}
+              thumbColor={showFeedback ? theme.colors.numberPad.background : '#f4f3f4'}
+            />
+          </View>
 
-        <TouchableOpacity 
-          style={[styles.themeButton, { backgroundColor: theme.colors.numberPad.background }]} 
-          onPress={cycleTheme}
-        >
-          <Text style={{ color: theme.colors.numberPad.text }}>
-            Theme: {theme.name}
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.themeButton, { backgroundColor: theme.colors.numberPad.background }]} 
+            onPress={cycleTheme}
+          >
+            <Text style={{ color: theme.colors.numberPad.text }}>
+              Theme: {theme.name}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
       
       <NumberPad onSelectNumber={handleNumberSelect} theme={theme} />
@@ -203,13 +206,17 @@ const styles = StyleSheet.create({
   buildNumber: {
     fontSize: 12,
   },
-  controlsRow: {
-    flexDirection: 'row',
+  controlsContainer: {
+    width: '100%',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    width: '90%',
     marginTop: 20,
     marginBottom: 10,
+  },
+  controlsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 20, // Add space between the controls
   },
   feedbackControl: {
     flexDirection: 'row',

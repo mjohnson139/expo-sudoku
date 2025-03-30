@@ -1,13 +1,29 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 
-const Cell = ({ value, onPress, isSelected, isInitialCell, isCorrect, showFeedback, extraStyle, theme }) => {
+const Cell = ({ 
+  value, 
+  isSelected,
+  isTouched,
+  isInitialCell, 
+  isRelated,
+  isCorrect, 
+  showFeedback, 
+  extraStyle, 
+  theme 
+}) => {
   // Determine the background color based on cell status
   const getCellBackground = () => {
     if (isSelected) {
       return theme.colors.cell.selectedBackground;
+    } else if (isTouched) {
+      // Make sure we have a fallback color if touchedBackground isn't defined
+      return theme.colors.cell.touchedBackground || 
+             `${theme.colors.cell.selectedBackground}A0`; // Add some transparency
+    } else if (isRelated) {
+      return theme.colors.cell.relatedBackground || 
+             `${theme.colors.cell.selectedBackground}50`; // More transparent than selected
     } else if (showFeedback && isCorrect === false) {
-      // Show light pink background for incorrect values when feedback is on
       return '#ffebee'; // Light red background
     } else if (isInitialCell && theme.colors.cell.prefilled) {
       return theme.colors.cell.prefilled;
@@ -20,7 +36,6 @@ const Cell = ({ value, onPress, isSelected, isInitialCell, isCorrect, showFeedba
     if (isInitialCell) {
       return theme.colors.cell.initialValueText;
     } else if (showFeedback) {
-      // Use different colors based on correctness
       return isCorrect 
         ? theme.colors.cell.correctValueText 
         : theme.colors.cell.incorrectValueText;
@@ -29,13 +44,12 @@ const Cell = ({ value, onPress, isSelected, isInitialCell, isCorrect, showFeedba
   };
 
   return (
-    <TouchableOpacity 
+    <View 
       style={[
         styles.cell, 
         { backgroundColor: getCellBackground() },
         extraStyle
       ]} 
-      onPress={onPress}
     >
       {value !== 0 && (
         <Text style={[
@@ -48,14 +62,14 @@ const Cell = ({ value, onPress, isSelected, isInitialCell, isCorrect, showFeedba
           {value}
         </Text>
       )}
-    </TouchableOpacity>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
   cell: {
-    width: 36, // Slightly increased to accommodate thicker borders
-    height: 36, // Slightly increased to accommodate thicker borders
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },

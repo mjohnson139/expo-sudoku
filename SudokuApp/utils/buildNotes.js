@@ -69,6 +69,63 @@ export const BUILD_NOTES = {
       'Fixed potential port conflicts with existing Expo processes',
       'Improved startup reliability across different environments'
     ]
+  },
+  '1.0.9': {
+    title: 'UI Enhancement - Centered Controls',
+    date: '2023-11-03',
+    notes: [
+      'Centered the feedback and theme controls together for better usability',
+      'Improved spacing between UI elements',
+      'Added gap between controls for cleaner layout',
+      'Enhanced UI organization and visual hierarchy',
+      'Fixed alignment issues in the control panel'
+    ]
+  },
+  '1.1.0': {
+    title: 'Touch Highlighting & Gesture Controls',
+    date: '2023-11-03',
+    notes: [
+      'Added touch-based cell highlighting when sliding finger across board',
+      'Implemented gesture tracking system for responsive UI feedback',
+      'Enhanced cell interaction with hover effects for all themes',
+      'Improved user experience through tactile gesture feedback',
+      'Optimized touch responsiveness across the game grid'
+    ]
+  },
+  '1.1.1': {
+    title: 'Improved Touch Tracking',
+    date: '2023-11-03',
+    notes: [
+      'Fixed touch tracking when sliding finger across the game board',
+      'Simplified cell highlighting system for better performance',
+      'Improved hover effect responsiveness during play',
+      'Optimized PanResponder implementation for smoother interaction',
+      'Enhanced visual feedback when navigating the board with touch'
+    ]
+  },
+  '1.2.0': {
+    title: 'Enhanced Touch & Related Cell Highlighting',
+    date: '2023-11-03',
+    notes: [
+      'Completely redesigned touch tracking system for accurate cell selection',
+      'Added highlighting for related cells (same row, column, and 3x3 box)',
+      'Added highlighting for cells with the same number as the selected cell',
+      'Improved touch response during finger sliding across the board',
+      'Added distinct visual states for touched vs. selected vs. related cells',
+      'Enhanced theme system with new color options for all cell states'
+    ]
+  },
+  '1.2.1': {
+    title: 'Touch Tracking System Fix',
+    date: '2023-11-03',
+    notes: [
+      'Fixed touch tracking when sliding finger across the board',
+      'Implemented accurate hit detection for cell highlighting',
+      'Touch now properly highlights cells as finger moves over them',
+      'Cell stays selected when finger is lifted',
+      'Fixed position calculations for hit testing',
+      'Improved overall touch responsiveness'
+    ]
   }
 };
 
