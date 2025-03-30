@@ -11,65 +11,41 @@ const Grid = ({
   showFeedback = false, 
   cellFeedback = {} 
 }) => {
-  // Calculate related cells based on selected cell
-  const getRelatedCellsMap = (row, col) => {
-    // Create a map to store relations with types
-    const relations = {};
+  // Helper function to determine relation type between cells
+  const getRelationType = (rowIndex, colIndex) => {
+    if (!selectedCell) return null;
     
-    // No related cells if nothing is selected
-    if (row === null || col === null) return relations;
+    const { row, col } = selectedCell;
     
-    // Define relation types
-    const ROW = 'row';
-    const COLUMN = 'column';
-    const BOX = 'box';
-    const SAME_VALUE = 'sameValue';
-    
-    const currentValue = board[row][col];
-    
-    // Add all cells in the same row
-    for (let c = 0; c < 9; c++) {
-      if (c !== col) {
-        relations[`${row}-${c}`] = ROW;
-      }
+    // Same value (non-zero)
+    const selectedValue = board[row][col];
+    const currentValue = board[rowIndex][colIndex];
+    if (selectedValue !== 0 && currentValue === selectedValue) {
+      return 'sameValue';
     }
     
-    // Add all cells in the same column
-    for (let r = 0; r < 9; r++) {
-      if (r !== row) {
-        relations[`${r}-${col}`] = COLUMN;
-      }
+    // Same box
+    const selectedBoxRow = Math.floor(row / 3);
+    const selectedBoxCol = Math.floor(col / 3);
+    const cellBoxRow = Math.floor(rowIndex / 3);
+    const cellBoxCol = Math.floor(colIndex / 3);
+    
+    if (selectedBoxRow === cellBoxRow && selectedBoxCol === cellBoxCol) {
+      return 'box';
     }
     
-    // Add all cells in the same 3x3 box
-    const boxStartRow = Math.floor(row / 3) * 3;
-    const boxStartCol = Math.floor(col / 3) * 3;
-    for (let r = boxStartRow; r < boxStartRow + 3; r++) {
-      for (let c = boxStartCol; c < boxStartCol + 3; c++) {
-        if (r !== row || c !== col) {
-          relations[`${r}-${c}`] = BOX;
-        }
-      }
+    // Same row
+    if (rowIndex === row) {
+      return 'row';
     }
     
-    // Add all cells with the same value (if it's not empty)
-    if (currentValue !== 0) {
-      board.forEach((rowValues, r) => {
-        rowValues.forEach((cellValue, c) => {
-          if ((r !== row || c !== col) && cellValue === currentValue) {
-            relations[`${r}-${c}`] = SAME_VALUE;
-          }
-        });
-      });
+    // Same column
+    if (colIndex === col) {
+      return 'column';
     }
     
-    return relations;
+    return null;
   };
-  
-  // Get related cells for currently selected cell
-  const relatedCellsMap = selectedCell 
-    ? getRelatedCellsMap(selectedCell.row, selectedCell.col) 
-    : {};
 
   return (
     <View 
@@ -92,7 +68,7 @@ const Grid = ({
             const isInitialCell = initialCells.includes(cellKey);
             
             // Get the relation type for this cell (if any)
-            const relationType = relatedCellsMap[cellKey];
+            const relationType = getRelationType(rowIndex, colIndex);
             
             // Get feedback for this cell
             const isCorrect = showFeedback ? cellFeedback[cellKey] : null;

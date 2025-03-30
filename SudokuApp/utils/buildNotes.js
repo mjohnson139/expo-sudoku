@@ -161,6 +161,17 @@ export const BUILD_NOTES = {
       'Improved visual clarity by relying on text styling for prefilled cells',
       'Enhanced overall board consistency'
     ]
+  },
+  '1.4.0': {
+    title: 'Invisible Joystick Navigation',
+    date: '2023-11-05',
+    notes: [
+      'Added gesture-based navigation system that works like an invisible joystick',
+      'Press anywhere on the grid and slide in a direction to move the selected cell',
+      'Added toggle switch to enable/disable the joystick feature',
+      'Joystick activates from any touch point, making one-handed play easier',
+      'Cell selection moves in the direction of finger movement'
+    ]
   }
 };
 

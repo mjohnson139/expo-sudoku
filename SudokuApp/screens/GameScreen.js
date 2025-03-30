@@ -3,11 +3,12 @@ import { View, StyleSheet, Text, TouchableOpacity, Switch } from 'react-native';
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
+import JoystickNavigator from '../components/JoystickNavigator';
 import THEMES from '../utils/themes';
 import { isCorrectValue } from '../utils/solution';
 
 // Build number to track versions in screenshots
-const BUILD_NUMBER = "1.3.2";
+const BUILD_NUMBER = "1.4.0";
 
 // Valid initial Sudoku board with unique numbers in rows, columns and boxes
 const initialBoard = [
@@ -33,6 +34,9 @@ const GameScreen = () => {
   // New state for feedback feature
   const [showFeedback, setShowFeedback] = useState(false);
   const [cellFeedback, setCellFeedback] = useState({});
+
+  // New state for joystick toggle
+  const [joystickEnabled, setJoystickEnabled] = useState(true);
 
   // Initialize initialCells on component mount
   useEffect(() => {
@@ -75,6 +79,39 @@ const GameScreen = () => {
     }
   };
 
+  // Handle joystick movement
+  const handleJoystickMove = (direction) => {
+    if (!selectedCell) {
+      // If no cell is selected, select the center cell
+      setSelectedCell({ row: 4, col: 4 });
+      return;
+    }
+
+    const { row, col } = selectedCell;
+    let newRow = row;
+    let newCol = col;
+
+    switch (direction) {
+      case 'up':
+        newRow = Math.max(0, row - 1);
+        break;
+      case 'down':
+        newRow = Math.min(8, row + 1);
+        break;
+      case 'left':
+        newCol = Math.max(0, col - 1);
+        break;
+      case 'right':
+        newCol = Math.min(8, col + 1);
+        break;
+    }
+
+    // Only update if the position actually changed
+    if (newRow !== row || newCol !== col) {
+      setSelectedCell({ row: newRow, col: newCol });
+    }
+  };
+
   // Toggle feedback feature
   const toggleFeedback = (value) => {
     setShowFeedback(value);
@@ -114,6 +151,11 @@ const GameScreen = () => {
     setShowBuildNotes(!showBuildNotes);
   };
 
+  // Toggle joystick feature
+  const toggleJoystick = () => {
+    setJoystickEnabled(!joystickEnabled);
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
@@ -128,17 +170,25 @@ const GameScreen = () => {
         </TouchableOpacity>
       </View>
       
-      <Grid 
-        board={board} 
-        onCellPress={handleCellPress} 
-        selectedCell={selectedCell}
-        initialCells={initialCells}
-        theme={theme}
-        showFeedback={showFeedback}
-        cellFeedback={cellFeedback}
-      />
+      <View style={styles.gridContainer}>
+        <Grid 
+          board={board} 
+          onCellPress={handleCellPress} 
+          selectedCell={selectedCell}
+          initialCells={initialCells}
+          theme={theme}
+          showFeedback={showFeedback}
+          cellFeedback={cellFeedback}
+        />
+        
+        {/* Add invisible joystick layer over the grid */}
+        <JoystickNavigator
+          onMove={handleJoystickMove}
+          active={joystickEnabled}
+        />
+      </View>
       
-      {/* Updated centered controls */}
+      {/* Updated controls */}
       <View style={styles.controlsContainer}>
         <View style={styles.controlsRow}>
           <View style={styles.feedbackControl}>
@@ -164,6 +214,21 @@ const GameScreen = () => {
               Theme: {theme.name}
             </Text>
           </TouchableOpacity>
+
+          <View style={styles.feedbackControl}>
+            <Text style={[styles.feedbackLabel, { color: theme.colors.title }]}>
+              Joystick
+            </Text>
+            <Switch
+              value={joystickEnabled}
+              onValueChange={setJoystickEnabled}
+              trackColor={{ 
+                false: '#d3d3d3', 
+                true: theme.colors.cell.correctValueText 
+              }}
+              thumbColor={joystickEnabled ? theme.colors.numberPad.background : '#f4f3f4'}
+            />
+          </View>
         </View>
       </View>
       
@@ -206,6 +271,11 @@ const styles = StyleSheet.create({
   buildNumber: {
     fontSize: 12,
   },
+  gridContainer: {
+    width: 324, // Match grid width
+    height: 324, // Match grid height
+    position: 'relative', // For positioning the joystick
+  },
   controlsContainer: {
     width: '100%',
     alignItems: 'center',
@@ -216,7 +286,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 20, // Add space between the controls
+    gap: 15, // Reduced gap for three controls
+    flexWrap: 'wrap', // Allow wrapping on smaller screens
   },
   feedbackControl: {
     flexDirection: 'row',
