@@ -9,7 +9,8 @@ const Grid = ({
   initialCells = [], 
   theme, 
   showFeedback = false, 
-  cellFeedback = {} 
+  cellFeedback = {}, 
+  cellNotes = {}  // Add cellNotes parameter
 }) => {
   // Helper function to determine relation type between cells
   const getRelationType = (rowIndex, colIndex) => {
@@ -73,6 +74,9 @@ const Grid = ({
             // Get feedback for this cell
             const isCorrect = showFeedback ? cellFeedback[cellKey] : null;
             
+            // Get notes for this cell (if any)
+            const notes = cellNotes[cellKey] || [];
+            
             // Border styling for 3x3 boxes
             const borderRight = (colIndex + 1) % 3 === 0 ? 2 : 1;
             const borderBottom = (rowIndex + 1) % 3 === 0 ? 2 : 1;
@@ -106,6 +110,7 @@ const Grid = ({
                   showFeedback={showFeedback && !isInitialCell && num !== 0}
                   extraStyle={borderStyles}
                   theme={theme}
+                  notes={notes} // Pass notes to the Cell component
                 />
               </TouchableOpacity>
             );

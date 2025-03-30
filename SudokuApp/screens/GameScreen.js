@@ -8,7 +8,7 @@ import THEMES from '../utils/themes';
 import { isCorrectValue } from '../utils/solution';
 
 // Update build number
-const BUILD_NUMBER = "1.5.4";
+const BUILD_NUMBER = "1.6.1";
 
 // Valid initial Sudoku board with unique numbers in rows, columns and boxes
 const initialBoard = [
@@ -39,6 +39,10 @@ const GameScreen = () => {
   const [joystickEnabled, setJoystickEnabled] = useState(true);
   const [joystickThreshold, setJoystickThreshold] = useState(12.0);
 
+  // State for notes feature
+  const [notesMode, setNotesMode] = useState(false);
+  const [cellNotes, setCellNotes] = useState({});
+
   // Initialize initialCells on component mount
   useEffect(() => {
     const initialPositions = [];
@@ -57,6 +61,63 @@ const GameScreen = () => {
     setSelectedCell({ row, col });
   };
 
+  // Implement a function to check if cells are related
+  const areCellsRelated = (cell1Row, cell1Col, cell2Row, cell2Col) => {
+    // Same row
+    if (cell1Row === cell2Row) return true;
+    
+    // Same column
+    if (cell1Col === cell2Col) return true;
+    
+    // Same 3x3 box
+    const box1Row = Math.floor(cell1Row / 3);
+    const box1Col = Math.floor(cell1Col / 3);
+    const box2Row = Math.floor(cell2Row / 3);
+    const box2Col = Math.floor(cell2Col / 3);
+    
+    return box1Row === box2Row && box1Col === box2Col;
+  };
+
+  // Function to update notes when a value is placed in a cell
+  const updateRelatedNotes = (row, col, value) => {
+    // Don't update notes if value is 0 (clearing a cell) or if value is invalid
+    if (value <= 0 || value > 9) return;
+    
+    const updatedNotes = { ...cellNotes };
+    let hasChanges = false;
+    
+    // Go through all cells with notes
+    Object.keys(updatedNotes).forEach(cellKey => {
+      const [cellRow, cellCol] = cellKey.split('-').map(Number);
+      
+      // Check if this cell is related to the cell where a value was placed
+      if (areCellsRelated(row, col, cellRow, cellCol)) {
+        const notes = updatedNotes[cellKey];
+        
+        // If the notes include the value that was placed, remove it
+        if (notes.includes(value)) {
+          const newNotes = notes.filter(n => n !== value);
+          
+          if (newNotes.length === 0) {
+            // If no notes left, remove the entry
+            delete updatedNotes[cellKey];
+          } else {
+            // Otherwise update with the new notes array
+            updatedNotes[cellKey] = newNotes;
+          }
+          
+          hasChanges = true;
+        }
+      }
+    });
+    
+    // Only update state if there were actual changes
+    if (hasChanges) {
+      setCellNotes(updatedNotes);
+    }
+  };
+
+  // Handle number selection based on current mode (regular or notes)
   const handleNumberSelect = (num) => {
     if (!selectedCell) return;
     
@@ -67,25 +128,65 @@ const GameScreen = () => {
       return;
     }
 
-    const newBoard = [...board];
-    const currentValue = newBoard[selectedCell.row][selectedCell.col];
-    
-    // Toggle the number - if it's already in the cell, clear it
-    const newValue = (currentValue === num) ? 0 : num;
-    newBoard[selectedCell.row][selectedCell.col] = newValue;
-    setBoard(newBoard);
+    if (notesMode) {
+      // Notes mode - toggle notes for this number in the cell
+      const currentNotes = cellNotes[cellKey] || [];
+      let newNotes;
+      
+      if (currentNotes.includes(num)) {
+        // Remove the number from notes
+        newNotes = currentNotes.filter(n => n !== num);
+      } else {
+        // Add the number to notes
+        newNotes = [...currentNotes, num];
+      }
+      
+      // Update notes state
+      const newCellNotes = { ...cellNotes };
+      
+      if (newNotes.length === 0) {
+        // If no notes left, remove the entry
+        delete newCellNotes[cellKey];
+      } else {
+        newCellNotes[cellKey] = newNotes;
+      }
+      
+      setCellNotes(newCellNotes);
+    } else {
+      // Regular mode - set/toggle the actual number in the cell
+      const newBoard = [...board];
+      const currentValue = newBoard[selectedCell.row][selectedCell.col];
+      
+      // Toggle the number - if it's already in the cell, clear it
+      const newValue = (currentValue === num) ? 0 : num;
+      newBoard[selectedCell.row][selectedCell.col] = newValue;
+      
+      // Clear any notes for this cell when setting an actual number
+      if (newValue !== 0 && cellNotes[cellKey]) {
+        const newCellNotes = { ...cellNotes };
+        delete newCellNotes[cellKey];
+        setCellNotes(newCellNotes);
+      }
+      
+      // If a number was placed (not cleared), update related notes
+      if (newValue !== 0) {
+        updateRelatedNotes(selectedCell.row, selectedCell.col, newValue);
+      }
+      
+      setBoard(newBoard);
 
-    // Check if the value is correct and update feedback if feedback is enabled
-    if (showFeedback && newValue !== 0) {
-      const isCorrect = isCorrectValue(selectedCell.row, selectedCell.col, newValue);
-      const newFeedback = { ...cellFeedback };
-      newFeedback[cellKey] = isCorrect;
-      setCellFeedback(newFeedback);
-    } else if (showFeedback && newValue === 0) {
-      // If cell was cleared, remove the feedback
-      const newFeedback = { ...cellFeedback };
-      delete newFeedback[cellKey];
-      setCellFeedback(newFeedback);
+      // Check if the value is correct and update feedback if feedback is enabled
+      if (showFeedback && newValue !== 0) {
+        const isCorrect = isCorrectValue(selectedCell.row, selectedCell.col, newValue);
+        const newFeedback = { ...cellFeedback };
+        newFeedback[cellKey] = isCorrect;
+        setCellFeedback(newFeedback);
+      } else if (showFeedback && newValue === 0) {
+        // If cell was cleared, remove the feedback
+        const newFeedback = { ...cellFeedback };
+        delete newFeedback[cellKey];
+        setCellFeedback(newFeedback);
+      }
     }
   };
 
@@ -173,6 +274,11 @@ const GameScreen = () => {
     setJoystickThreshold(parseFloat(newValue.toFixed(1))); // Round to 1 decimal place
   };
 
+  // Toggle between regular and notes mode
+  const toggleNotesMode = () => {
+    setNotesMode(!notesMode);
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
@@ -196,6 +302,7 @@ const GameScreen = () => {
           theme={theme}
           showFeedback={showFeedback}
           cellFeedback={cellFeedback}
+          cellNotes={cellNotes}  // Pass cell notes to Grid
         />
         
         {/* Joystick Navigator on the grid only */}
@@ -249,36 +356,41 @@ const GameScreen = () => {
           </View>
         </View>
 
-        {/* Joystick Threshold Control */}
-        {joystickEnabled && (
-          <View style={styles.thresholdContainer}>
-            <Text style={[styles.thresholdLabel, { color: theme.colors.title }]}>
-              Joystick Sensitivity: {joystickThreshold.toFixed(1)}
-            </Text>
-            <View style={styles.thresholdControls}>
-              <TouchableOpacity 
-                style={[styles.thresholdButton, { backgroundColor: theme.colors.numberPad.background }]}
-                onPress={() => adjustThreshold(-0.5)}
-              >
-                <Text style={{ color: theme.colors.numberPad.text }}>-</Text>
-              </TouchableOpacity>
-              
-              <TouchableOpacity 
-                style={[styles.thresholdButton, { backgroundColor: theme.colors.numberPad.background }]}
-                onPress={() => adjustThreshold(0.5)}
-              >
-                <Text style={{ color: theme.colors.numberPad.text }}>+</Text>
-              </TouchableOpacity>
+        {/* Second row with joystick and notes controls */}
+        <View style={styles.controlsRow}>
+          {/* Joystick Threshold Control */}
+          {joystickEnabled && (
+            <View style={styles.thresholdContainer}>
+              <Text style={[styles.thresholdLabel, { color: theme.colors.title }]}>
+                Joystick Sensitivity: {joystickThreshold.toFixed(1)}
+              </Text>
+              <View style={styles.thresholdControls}>
+                <TouchableOpacity 
+                  style={[styles.thresholdButton, { backgroundColor: theme.colors.numberPad.background }]}
+                  onPress={() => adjustThreshold(-0.5)}
+                >
+                  <Text style={{ color: theme.colors.numberPad.text }}>-</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[styles.thresholdButton, { backgroundColor: theme.colors.numberPad.background }]}
+                  onPress={() => adjustThreshold(0.5)}
+                >
+                  <Text style={{ color: theme.colors.numberPad.text }}>+</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        )}
+          )}
+        </View>
       </View>
       
       <NumberPad 
         onSelectNumber={handleNumberSelect} 
+        toggleNotesMode={toggleNotesMode}
         theme={theme} 
         board={board}
         selectedCell={selectedCell}
+        notesMode={notesMode}
       />
 
       {/* Build Notes Component */}
@@ -373,6 +485,16 @@ const styles = StyleSheet.create({
     marginHorizontal: 5,
     borderWidth: 1,
     borderColor: '#ddd',
+  },
+  notesControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    marginLeft: 15,
+  },
+  notesLabel: {
+    marginRight: 10,
+    fontSize: 16,
   },
 });
 

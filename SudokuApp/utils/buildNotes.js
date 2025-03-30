@@ -220,6 +220,33 @@ export const BUILD_NOTES = {
       'Simplified the architecture for better reliability and performance',
       'Enhanced focus on gameplay within the board area'
     ]
+  },
+  '1.6.0': {
+    title: 'Cell Notes Feature',
+    date: '2023-11-10',
+    notes: [
+      'Added the ability to place notes in empty cells',
+      'Cell notes display as small numbers in a 3×3 grid within each cell',
+      'Added a toggle switch for "Notes Mode" that changes number input behavior',
+      'In Notes Mode, tapping a number adds/removes it from selected cell\'s notes',
+      'Visual indicators show when Notes Mode is active (button styling and label)',
+      'Notes are automatically removed when a cell value is set',
+      'Number pad is fully usable in Notes Mode even for maxed-out digits',
+      'Added theme support with appropriate colors for notes in all themes'
+    ]
+  },
+  '1.6.1': {
+    title: 'Enhanced Notes with Smart Auto-Clearing',
+    date: '2023-11-11',
+    notes: [
+      'Added pencil icon toggle for notes mode in a compact toolbar',
+      'Implemented smart auto-clearing of notes when related cells are filled',
+      'Notes are now removed when a number is placed in the same row, column, or 3×3 box',
+      'Improved visual styling of notes mode toggle button',
+      'Simplified the UI by moving notes toggle to the number pad area',
+      'Reduced screen space usage of controls for better gameplay experience',
+      'Improved overall notes management for better Sudoku solving workflow'
+    ]
   }
 };
 

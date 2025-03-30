@@ -1,7 +1,14 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 
-const NumberPad = ({ onSelectNumber, theme, board, selectedCell }) => {
+const NumberPad = ({ 
+  onSelectNumber, 
+  theme, 
+  board, 
+  selectedCell,
+  notesMode = false,
+  toggleNotesMode
+}) => {
   const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9];
   
   // Track how many times each number appears on the board
@@ -32,6 +39,33 @@ const NumberPad = ({ onSelectNumber, theme, board, selectedCell }) => {
   
   return (
     <View style={styles.container}>
+      {/* Toolbar for Notes Mode toggle and other controls */}
+      <View style={[
+        styles.toolbar, 
+        { 
+          backgroundColor: theme.colors.numberPad.background,
+          borderColor: theme.colors.numberPad.border 
+        }
+      ]}>
+        <TouchableOpacity 
+          style={[
+            styles.toolbarButton,
+            notesMode && { 
+              backgroundColor: theme.colors.numberPad.notesBackground || theme.colors.numberPad.background,
+              borderWidth: 2
+            }
+          ]} 
+          onPress={toggleNotesMode}
+        >
+          <Text style={[
+            styles.pencilIcon, 
+            { color: theme.colors.numberPad.text }
+          ]}>
+            ✏️
+          </Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.numberRow}>
         {numbers.map((num) => {
           // Check if this number has been used 9 times
@@ -40,11 +74,12 @@ const NumberPad = ({ onSelectNumber, theme, board, selectedCell }) => {
           // Allow interaction if the selected cell contains this number (for clearing)
           const canClearSelected = selectedCellValue === num;
           
-          // Only fully disable if maxed out AND not in the selected cell
-          const isDisabled = isMaxedOut && !canClearSelected;
+          // Only fully disable if not in notes mode, maxed out AND not in the selected cell
+          const isDisabled = !notesMode && isMaxedOut && !canClearSelected;
           
           // Visual treatment for maxed-out numbers (regardless of whether they can be cleared)
-          const isMaxedOutStyle = isMaxedOut;
+          // In notes mode we don't visually indicate maxed out numbers
+          const isMaxedOutStyle = !notesMode && isMaxedOut;
           
           return (
             <TouchableOpacity 
@@ -53,11 +88,15 @@ const NumberPad = ({ onSelectNumber, theme, board, selectedCell }) => {
                 styles.button, 
                 {
                   backgroundColor: isMaxedOutStyle 
-                    ? theme.colors.numberPad.clearButton // Always use the red background if maxed out
-                    : theme.colors.numberPad.background,
+                    ? theme.colors.numberPad.clearButton
+                    : notesMode 
+                      ? theme.colors.numberPad.notesBackground || theme.colors.numberPad.background 
+                      : theme.colors.numberPad.background,
                   borderColor: theme.colors.numberPad.border,
                   shadowColor: theme.colors.numberPad.shadow,
                   opacity: isMaxedOutStyle && !canClearSelected ? 0.5 : 1, // Lower opacity if disabled
+                  // Add a subtle indication when in notes mode
+                  borderWidth: notesMode ? 2 : 1,
                 }
               ]} 
               onPress={() => onSelectNumber(num)}
@@ -65,20 +104,56 @@ const NumberPad = ({ onSelectNumber, theme, board, selectedCell }) => {
             >
               <Text style={[
                 styles.text, 
-                { color: theme.colors.numberPad.text }
+                { 
+                  color: theme.colors.numberPad.text,
+                  // Font styling for notes mode
+                  fontWeight: notesMode ? '600' : '500',
+                }
               ]}>{num}</Text>
             </TouchableOpacity>
           );
         })}
       </View>
+      
+      {/* Optional: Add an indicator for notes mode */}
+      {notesMode && (
+        <Text style={[
+          styles.modeIndicator, 
+          { color: theme.colors.title }
+        ]}>
+          Notes Mode
+        </Text>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 30,
+    marginTop: 20,
     alignItems: 'center',
+  },
+  toolbar: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 5,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+  },
+  toolbarButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    marginHorizontal: 5,
+  },
+  pencilIcon: {
+    fontSize: 18,
   },
   numberRow: {
     flexDirection: 'row',
@@ -106,6 +181,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '500',
   },
+  modeIndicator: {
+    marginTop: 10,
+    fontSize: 14,
+    fontWeight: '500',
+  }
 });
 
 export default NumberPad;

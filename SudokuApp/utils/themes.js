@@ -29,6 +29,7 @@ export const THEMES = {
         columnRelatedBackground: '#f0f6ff', // Slightly different for column highlighting
         sameValueBackground: '#e6f4ff', // Another shade for same value highlighting
         initialCellBackground: '#e6f2e6', // Light green tint for initial cells
+        notesText: '#6d81ad', // Light blue for notes
       },
       numberPad: {
         background: '#f0f0f0',
@@ -36,6 +37,7 @@ export const THEMES = {
         text: '#333333',
         shadow: '#000000',
         clearButton: '#ffe0e0',
+        notesBackground: '#e6f2fd', // Light blue background for notes mode
       }
     }
   },
@@ -68,6 +70,7 @@ export const THEMES = {
         columnRelatedBackground: '#2d3c4e', // Different shade for column highlighting
         sameValueBackground: '#303f51', // Another shade for same value highlighting
         initialCellBackground: '#264026', // Dark green tint for initial cells
+        notesText: '#8ab4f8', // Light blue for notes in dark mode
       },
       numberPad: {
         background: '#333333',
@@ -75,6 +78,7 @@ export const THEMES = {
         text: '#ffffff',
         shadow: '#000000',
         clearButton: '#b71c1c',
+        notesBackground: '#263c5a', // Darker blue background for notes mode
       }
     }
   },
@@ -96,6 +100,7 @@ export const THEMES = {
         userValueText: '#638ecb',
         textFont: 'normal',
         initialCellBackground: '#ebf5eb', // Light green tint for initial cells
+        notesText: '#8ca2c0', // Soft blue for notes
       },
       numberPad: {
         background: '#edf2f7',
@@ -103,6 +108,7 @@ export const THEMES = {
         text: '#5b6a87',
         shadow: '#d0d8e6',
         clearButton: '#ffd6d6',
+        notesBackground: '#e6eef7', // Soft blue background for notes mode
       }
     }
   },
@@ -135,6 +141,7 @@ export const THEMES = {
         columnRelatedBackground: '#fff5e0', // Slightly different for column highlighting
         sameValueBackground: '#fff0d6', // Another shade for same value highlighting
         initialCellBackground: '#e6f0e2', // Light warm green tint for initial cells
+        notesText: '#ff9800', // Orange for notes
       },
       numberPad: {
         background: '#ffe0b2',
@@ -142,6 +149,7 @@ export const THEMES = {
         text: '#e65100',
         shadow: '#ffcc80',
         clearButton: '#ffab91',
+        notesBackground: '#fff0d9', // Light orange background for notes mode
       }
     }
   },
@@ -174,6 +182,7 @@ export const THEMES = {
         columnRelatedBackground: '#feefe0', // Slightly different for column highlighting
         sameValueBackground: '#fee8d5', // Another shade for same value highlighting
         initialCellBackground: '#e5f0e2', // Light green tint with sunrise warmth
+        notesText: '#e67e22', // Orange for notes
       },
       numberPad: {
         background: '#fef2cc',
@@ -181,6 +190,7 @@ export const THEMES = {
         text: '#d35400',
         shadow: '#f39c12',
         clearButton: '#f1c40f',
+        notesBackground: '#fdf1e0', // Light orange background for notes mode
       }
     }
   },
@@ -213,6 +223,7 @@ export const THEMES = {
         columnRelatedBackground: '#e4f6fd', // Slightly different for column highlighting
         sameValueBackground: '#d9f0fa', // Another shade for same value highlighting
         initialCellBackground: '#d9efe8', // Light teal-green tint for initial cells
+        notesText: '#039be5', // Blue for notes
       },
       numberPad: {
         background: '#b3e5fc',
@@ -220,6 +231,7 @@ export const THEMES = {
         text: '#01579b',
         shadow: '#4fc3f7',
         clearButton: '#80deea',
+        notesBackground: '#dbf0fa', // Light blue background for notes mode
       }
     }
   },
@@ -252,6 +264,7 @@ export const THEMES = {
         columnRelatedBackground: '#3a3852', // Another shade for column highlighting
         sameValueBackground: '#3e3c59', // Another shade for same value highlighting
         initialCellBackground: '#2e3c2e', // Dark green tint for initial cells
+        notesText: '#b39ddb', // Purple for notes
       },
       numberPad: {
         background: '#4a4462',
@@ -259,6 +272,7 @@ export const THEMES = {
         text: '#b39ddb',
         shadow: '#1a1625',
         clearButton: '#7986cb',
+        notesBackground: '#3a3558', // Dark purple background for notes mode
       }
     }
   }

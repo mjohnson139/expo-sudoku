@@ -9,7 +9,8 @@ const Cell = ({
   isCorrect, 
   showFeedback, 
   extraStyle, 
-  theme 
+  theme,
+  notes = [] // Array of numbers 1-9 that are notes for this cell
 }) => {
   // Determine the background color based on cell status
   const getCellBackground = () => {
@@ -49,6 +50,44 @@ const Cell = ({
     return theme.colors.cell.userValueText;
   };
 
+  // Notes grid rendering
+  const renderNotes = () => {
+    // Create a 3x3 grid of possible numbers
+    const grid = [];
+    
+    // Define note positions: 0-based index for positions [0,0] to [2,2]
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        // Calculate the number for this position (1-9)
+        const num = row * 3 + col + 1;
+        
+        grid.push(
+          <View 
+            key={num} 
+            style={[
+              styles.noteCell,
+              { 
+                left: `${col * 33.33}%`, 
+                top: `${row * 33.33}%` 
+              }
+            ]}
+          >
+            {notes.includes(num) && (
+              <Text style={[
+                styles.noteText,
+                { color: theme.colors.cell.notesText || theme.colors.cell.userValueText }
+              ]}>
+                {num}
+              </Text>
+            )}
+          </View>
+        );
+      }
+    }
+    
+    return grid;
+  };
+
   return (
     <View 
       style={[
@@ -57,7 +96,8 @@ const Cell = ({
         extraStyle
       ]} 
     >
-      {value !== 0 && (
+      {value !== 0 ? (
+        // If cell has a value, render the number
         <Text style={[
           styles.text,
           { 
@@ -68,6 +108,11 @@ const Cell = ({
         ]}>
           {value}
         </Text>
+      ) : (
+        // If cell is empty, potentially render notes
+        <View style={styles.notesContainer}>
+          {renderNotes()}
+        </View>
       )}
     </View>
   );
@@ -82,6 +127,22 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 18,
+  },
+  notesContainer: {
+    position: 'relative',
+    width: '100%',
+    height: '100%',
+  },
+  noteCell: {
+    position: 'absolute',
+    width: '33.33%',
+    height: '33.33%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noteText: {
+    fontSize: 9,
+    fontWeight: '500',
   }
 });
 
