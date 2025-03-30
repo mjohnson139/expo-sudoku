@@ -7,8 +7,8 @@ import JoystickNavigator from '../components/JoystickNavigator';
 import THEMES from '../utils/themes';
 import { isCorrectValue } from '../utils/solution';
 
-// Build number to track versions in screenshots
-const BUILD_NUMBER = "1.5.0";
+// Update build number
+const BUILD_NUMBER = "1.5.4";
 
 // Valid initial Sudoku board with unique numbers in rows, columns and boxes
 const initialBoard = [
@@ -31,12 +31,13 @@ const GameScreen = () => {
   const [theme, setTheme] = useState(THEMES.classic);
   const [showBuildNotes, setShowBuildNotes] = useState(false);
   
-  // New state for feedback feature
+  // State for feedback feature
   const [showFeedback, setShowFeedback] = useState(false);
   const [cellFeedback, setCellFeedback] = useState({});
 
-  // New state for joystick toggle
+  // State for joystick toggle and sensitivity
   const [joystickEnabled, setJoystickEnabled] = useState(true);
+  const [joystickThreshold, setJoystickThreshold] = useState(12.0);
 
   // Initialize initialCells on component mount
   useEffect(() => {
@@ -165,6 +166,13 @@ const GameScreen = () => {
     setJoystickEnabled(!joystickEnabled);
   };
 
+  // Adjust joystick threshold with larger increments
+  const adjustThreshold = (increment) => {
+    // Ensure threshold stays within reasonable bounds (0.5 to 20.0)
+    const newValue = Math.max(0.5, Math.min(20.0, joystickThreshold + increment));
+    setJoystickThreshold(parseFloat(newValue.toFixed(1))); // Round to 1 decimal place
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
@@ -190,14 +198,15 @@ const GameScreen = () => {
           cellFeedback={cellFeedback}
         />
         
-        {/* Add invisible joystick layer over the grid */}
+        {/* Joystick Navigator on the grid only */}
         <JoystickNavigator
           onMove={handleJoystickMove}
           active={joystickEnabled}
+          threshold={joystickThreshold}
         />
       </View>
       
-      {/* Updated controls */}
+      {/* Controls */}
       <View style={styles.controlsContainer}>
         <View style={styles.controlsRow}>
           <View style={styles.feedbackControl}>
@@ -239,6 +248,30 @@ const GameScreen = () => {
             />
           </View>
         </View>
+
+        {/* Joystick Threshold Control */}
+        {joystickEnabled && (
+          <View style={styles.thresholdContainer}>
+            <Text style={[styles.thresholdLabel, { color: theme.colors.title }]}>
+              Joystick Sensitivity: {joystickThreshold.toFixed(1)}
+            </Text>
+            <View style={styles.thresholdControls}>
+              <TouchableOpacity 
+                style={[styles.thresholdButton, { backgroundColor: theme.colors.numberPad.background }]}
+                onPress={() => adjustThreshold(-0.5)}
+              >
+                <Text style={{ color: theme.colors.numberPad.text }}>-</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.thresholdButton, { backgroundColor: theme.colors.numberPad.background }]}
+                onPress={() => adjustThreshold(0.5)}
+              >
+                <Text style={{ color: theme.colors.numberPad.text }}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
       
       <NumberPad 
@@ -317,7 +350,30 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     borderWidth: 1,
     borderColor: '#ddd',
-  }
+  },
+  thresholdContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  thresholdLabel: {
+    fontSize: 14,
+    marginRight: 10,
+  },
+  thresholdControls: {
+    flexDirection: 'row',
+  },
+  thresholdButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 5,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
 });
 
 export default GameScreen;

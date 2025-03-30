@@ -184,6 +184,42 @@ export const BUILD_NOTES = {
       'Visual feedback shows disabled numbers with reduced opacity',
       'Improved overall game flow and usability'
     ]
+  },
+  '1.5.1': {
+    title: 'Adjustable Joystick Sensitivity',
+    date: '2023-11-07',
+    notes: [
+      'Added controls to adjust joystick sensitivity',
+      'Sensitivity can be increased or decreased in increments of 0.1',
+      'Lower values make the joystick more sensitive (responds to smaller movements)',
+      'Higher values make the joystick less sensitive (requires larger movements)',
+      'Sensitivity setting is only shown when joystick is enabled',
+      'Valid range from 0.5 to 20.0 for different user preferences'
+    ]
+  },
+  '1.5.2': {
+    title: 'Global Joystick & Enhanced Controls',
+    date: '2023-11-08',
+    notes: [
+      'Implemented full-screen joystick navigation that works everywhere on the screen',
+      'Changed joystick sensitivity increments to 0.5 for faster adjustments',
+      'Updated default joystick sensitivity to 12.0 for better control',
+      'Smart touch detection avoids interfering with buttons and controls',
+      'Improved user experience with one-handed gameplay anywhere on screen',
+      'Added measurement system to determine interactive vs. joystick areas'
+    ]
+  },
+  '1.5.4': {
+    title: 'Restored Board-Only Joystick',
+    date: '2023-11-09',
+    notes: [
+      'Reverted to the original joystick implementation that works only on the game board',
+      'Maintained the adjustable sensitivity controls (0.5 increments)',
+      'Kept the default sensitivity value of 12.0 for optimal control',
+      'Removed the global overlay joystick that caused interaction issues',
+      'Simplified the architecture for better reliability and performance',
+      'Enhanced focus on gameplay within the board area'
+    ]
   }
 };
 

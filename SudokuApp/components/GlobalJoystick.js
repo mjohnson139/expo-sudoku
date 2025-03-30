@@ -1,16 +1,48 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, PanResponder } from 'react-native';
+import { View, StyleSheet, PanResponder, Dimensions } from 'react-native';
 
-const JoystickNavigator = ({ onMove, active = true, threshold = 12.0 }) => {
+const GlobalJoystick = ({ onMove, active = true, threshold = 12.0, ignoredAreas = [] }) => {
   const [touchStartPosition, setTouchStartPosition] = useState(null);
   const [currentDirection, setCurrentDirection] = useState(null);
-  
-  // Use the threshold parameter passed from parent instead of a constant
-  const MOVEMENT_THRESHOLD = threshold;
 
+  // Helper function to check if a touch point is within any of the ignored areas
+  const isTouchInIgnoredArea = (x, y) => {
+    return ignoredAreas.some(area => {
+      return (
+        x >= area.x &&
+        x <= area.x + area.width &&
+        y >= area.y &&
+        y <= area.y + area.height
+      );
+    });
+  };
+  
   const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => active,
-    onMoveShouldSetPanResponder: () => active,
+    onStartShouldSetPanResponder: (evt) => {
+      if (!active) return false;
+      
+      // Get touch coordinates
+      const touch = evt.nativeEvent.touches[0];
+      
+      // Check if touch is within any ignored area
+      if (isTouchInIgnoredArea(touch.pageX, touch.pageY)) {
+        return false; // Don't capture the touch if it's in an ignored area
+      }
+      
+      return true; // Capture the touch if not in an ignored area
+    },
+    
+    onMoveShouldSetPanResponder: (evt) => {
+      if (!active) return false;
+      
+      // Similar logic for move events
+      const touch = evt.nativeEvent.touches[0];
+      if (isTouchInIgnoredArea(touch.pageX, touch.pageY)) {
+        return false;
+      }
+      
+      return true;
+    },
     
     // When touch starts, store the start position
     onPanResponderGrant: (evt) => {
@@ -39,7 +71,7 @@ const JoystickNavigator = ({ onMove, active = true, threshold = 12.0 }) => {
       
       let newDirection = null;
       
-      if (absX > MOVEMENT_THRESHOLD || absY > MOVEMENT_THRESHOLD) {
+      if (absX > threshold || absY > threshold) {
         // Determine which axis is dominant (x or y)
         if (absX > absY) {
           // X-axis movement is stronger
@@ -49,9 +81,8 @@ const JoystickNavigator = ({ onMove, active = true, threshold = 12.0 }) => {
           newDirection = dy > 0 ? 'down' : 'up';
         }
         
-        // Always call onMove as long as we're above threshold
-        // This enables continuous movement while finger is moving
-        if (newDirection) {
+        // Only call onMove if direction has changed
+        if (newDirection && newDirection !== currentDirection) {
           setCurrentDirection(newDirection);
           onMove(newDirection);
         }
@@ -76,6 +107,7 @@ const JoystickNavigator = ({ onMove, active = true, threshold = 12.0 }) => {
   return (
     <View 
       style={styles.container} 
+      pointerEvents="box-none" // This allows touches to pass through to underlying components if not handled
       {...panResponder.panHandlers}
     />
   );
@@ -89,7 +121,8 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: 'transparent', // Makes the joystick invisible
+    zIndex: 100, // High z-index to be above other components
   }
 });
 
-export default JoystickNavigator;
+export default GlobalJoystick;
