@@ -50,8 +50,9 @@ const JoystickNavigator = ({ onMove, active = true }) => {
           newDirection = dy > 0 ? 'down' : 'up';
         }
         
-        // Only call onMove if the direction has changed
-        if (newDirection !== currentDirection) {
+        // Always call onMove as long as we're above threshold
+        // This enables continuous movement while finger is moving
+        if (newDirection) {
           setCurrentDirection(newDirection);
           onMove(newDirection);
         }
