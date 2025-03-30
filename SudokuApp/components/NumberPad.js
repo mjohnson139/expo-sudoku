@@ -144,16 +144,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   toolbarButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    marginHorizontal: 5,
+    paddingVertical: 3,
+    paddingHorizontal: 3,
   },
   pencilIcon: {
-    fontSize: 18,
+    fontSize: 14,
   },
   numberRow: {
     flexDirection: 'row',
