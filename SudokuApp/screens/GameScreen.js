@@ -8,7 +8,7 @@ import THEMES from '../utils/themes';
 import { isCorrectValue } from '../utils/solution';
 
 // Build number to track versions in screenshots
-const BUILD_NUMBER = "1.4.0";
+const BUILD_NUMBER = "1.5.0";
 
 // Valid initial Sudoku board with unique numbers in rows, columns and boxes
 const initialBoard = [
@@ -67,14 +67,23 @@ const GameScreen = () => {
     }
 
     const newBoard = [...board];
-    newBoard[selectedCell.row][selectedCell.col] = num;
+    const currentValue = newBoard[selectedCell.row][selectedCell.col];
+    
+    // Toggle the number - if it's already in the cell, clear it
+    const newValue = (currentValue === num) ? 0 : num;
+    newBoard[selectedCell.row][selectedCell.col] = newValue;
     setBoard(newBoard);
 
     // Check if the value is correct and update feedback if feedback is enabled
-    if (showFeedback && num !== 0) {
-      const isCorrect = isCorrectValue(selectedCell.row, selectedCell.col, num);
+    if (showFeedback && newValue !== 0) {
+      const isCorrect = isCorrectValue(selectedCell.row, selectedCell.col, newValue);
       const newFeedback = { ...cellFeedback };
       newFeedback[cellKey] = isCorrect;
+      setCellFeedback(newFeedback);
+    } else if (showFeedback && newValue === 0) {
+      // If cell was cleared, remove the feedback
+      const newFeedback = { ...cellFeedback };
+      delete newFeedback[cellKey];
       setCellFeedback(newFeedback);
     }
   };
@@ -232,7 +241,12 @@ const GameScreen = () => {
         </View>
       </View>
       
-      <NumberPad onSelectNumber={handleNumberSelect} theme={theme} />
+      <NumberPad 
+        onSelectNumber={handleNumberSelect} 
+        theme={theme} 
+        board={board}
+        selectedCell={selectedCell}
+      />
 
       {/* Build Notes Component */}
       <BuildNotes 

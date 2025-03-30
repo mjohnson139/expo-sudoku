@@ -172,6 +172,18 @@ export const BUILD_NOTES = {
       'Joystick activates from any touch point, making one-handed play easier',
       'Cell selection moves in the direction of finger movement'
     ]
+  },
+  '1.5.0': {
+    title: 'Improved Number Pad Interaction',
+    date: '2023-11-06',
+    notes: [
+      'Updated number pad to toggle numbers in cells instead of just setting them',
+      'Tapping a number that already exists in a cell now clears the cell',
+      'Removed the clear button for cleaner interface',
+      'Added automatic disabling of number buttons when a number has been used 9 times',
+      'Visual feedback shows disabled numbers with reduced opacity',
+      'Improved overall game flow and usability'
+    ]
   }
 };
 
