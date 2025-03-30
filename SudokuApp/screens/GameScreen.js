@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
+import BuildNotes from '../components/BuildNotes';
 import THEMES from '../utils/themes';
 
 // Build number to track versions in screenshots
-const BUILD_NUMBER = "1.0.3";
+const BUILD_NUMBER = "1.0.4";
 
 // Valid initial Sudoku board with unique numbers in rows, columns and boxes
 const initialBoard = [
@@ -28,6 +29,8 @@ const GameScreen = () => {
   // Theme state
   const [currentThemeName, setCurrentThemeName] = useState('classic');
   const [theme, setTheme] = useState(THEMES.classic);
+  // Build notes state
+  const [showBuildNotes, setShowBuildNotes] = useState(false);
 
   // Initialize initialCells on component mount
   useEffect(() => {
@@ -73,13 +76,23 @@ const GameScreen = () => {
     setTheme(THEMES[nextThemeName]);
   };
 
+  // Toggle build notes visibility
+  const toggleBuildNotes = () => {
+    setShowBuildNotes(!showBuildNotes);
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.colors.title }]}>Sudoku</Text>
-        <Text style={[styles.buildNumber, { color: theme.colors.title }]}>
-          Build {BUILD_NUMBER}
-        </Text>
+        <TouchableOpacity 
+          style={[styles.buildButton, { borderColor: theme.colors.title }]} 
+          onPress={toggleBuildNotes}
+        >
+          <Text style={[styles.buildNumber, { color: theme.colors.title }]}>
+            Build {BUILD_NUMBER} ℹ️
+          </Text>
+        </TouchableOpacity>
       </View>
       
       <Grid 
@@ -102,6 +115,22 @@ const GameScreen = () => {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Build Notes Button (visible at bottom right corner) */}
+      <TouchableOpacity 
+        style={[styles.notesButton, { backgroundColor: theme.colors.numberPad.background }]}
+        onPress={toggleBuildNotes}
+      >
+        <Text style={{ color: theme.colors.numberPad.text }}>📝 Notes</Text>
+      </TouchableOpacity>
+
+      {/* Build Notes Component */}
+      <BuildNotes 
+        version={BUILD_NUMBER}
+        isVisible={showBuildNotes} 
+        onClose={() => setShowBuildNotes(false)} 
+        theme={theme}
+      />
     </View>
   );
 };
@@ -122,10 +151,15 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
   },
+  buildButton: {
+    marginLeft: 10,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
   buildNumber: {
     fontSize: 12,
-    marginLeft: 10,
-    opacity: 0.7,
   },
   themeContainer: {
     marginTop: 20,
@@ -133,6 +167,16 @@ const styles = StyleSheet.create({
   themeButton: {
     paddingVertical: 10,
     paddingHorizontal: 20,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  notesButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: 5,
     borderWidth: 1,
     borderColor: '#ddd',
