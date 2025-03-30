@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 
-const NumberPad = ({ onSelectNumber }) => {
+const NumberPad = ({ onSelectNumber, theme }) => {
   const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9];
   
   return (
@@ -10,18 +10,39 @@ const NumberPad = ({ onSelectNumber }) => {
         {numbers.map((num) => (
           <TouchableOpacity 
             key={num} 
-            style={styles.button} 
+            style={[
+              styles.button, 
+              {
+                backgroundColor: theme.colors.numberPad.background,
+                borderColor: theme.colors.numberPad.border,
+                shadowColor: theme.colors.numberPad.shadow,
+              }
+            ]} 
             onPress={() => onSelectNumber(num)}
           >
-            <Text style={styles.text}>{num}</Text>
+            <Text style={[
+              styles.text, 
+              { color: theme.colors.numberPad.text }
+            ]}>{num}</Text>
           </TouchableOpacity>
         ))}
       </View>
       <TouchableOpacity 
-        style={[styles.button, styles.clearButton]} 
+        style={[
+          styles.button, 
+          styles.clearButton, 
+          {
+            backgroundColor: theme.colors.numberPad.clearButton,
+            borderColor: theme.colors.numberPad.border,
+            shadowColor: theme.colors.numberPad.shadow,
+          }
+        ]} 
         onPress={() => onSelectNumber(0)}
       >
-        <Text style={styles.text}>Clear</Text>
+        <Text style={[
+          styles.text,
+          { color: theme.colors.numberPad.text }
+        ]}>Clear</Text>
       </TouchableOpacity>
     </View>
   );
@@ -45,10 +66,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#555',
     borderRadius: 5,
-    backgroundColor: '#f0f0f0',
-    shadowColor: "#000",
     shadowOffset: {
       width: 0,
       height: 1,
@@ -59,7 +77,6 @@ const styles = StyleSheet.create({
   },
   clearButton: {
     marginTop: 10,
-    backgroundColor: '#ffe0e0',
     width: 120,
   },
   text: {
