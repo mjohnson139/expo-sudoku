@@ -46,6 +46,29 @@ export const BUILD_NOTES = {
       'Improved non-intrusive UI for notes display',
       'Notes are now stored in repo for historical tracking'
     ]
+  },
+  '1.0.5': {
+    title: 'Cell Feedback & Theme Expansion',
+    date: '2023-11-02',
+    notes: [
+      'Added cell feedback feature to show correct/incorrect answers',
+      'Added feedback toggle switch on game screen',
+      'Removed bottom Notes button for cleaner UI',
+      'Added three new themes: Sunrise, Ocean, and Twilight',
+      'Enhanced theme colors and consistency',
+      'Added solution checker for real-time feedback',
+    ]
+  },
+  '1.0.6': {
+    title: 'Improved Startup Experience',
+    date: '2023-11-02',
+    notes: [
+      'Added custom startup script (start-app.sh) for consistent port usage',
+      'Implemented automatic detection of previous Expo processes',
+      'Added option to kill previous processes when starting the app',
+      'Fixed potential port conflicts with existing Expo processes',
+      'Improved startup reliability across different environments'
+    ]
   }
 };
 

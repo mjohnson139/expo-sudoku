@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import Cell from './Cell';
 
-const Grid = ({ board, onCellPress, selectedCell, initialCells = [], theme }) => {
+const Grid = ({ board, onCellPress, selectedCell, initialCells = [], theme, showFeedback = false, cellFeedback = {} }) => {
   return (
     <View style={[
       styles.grid, 
@@ -20,6 +20,9 @@ const Grid = ({ board, onCellPress, selectedCell, initialCells = [], theme }) =>
               selectedCell.row === rowIndex && 
               selectedCell.col === colIndex;
             const isInitialCell = initialCells.includes(cellKey);
+            
+            // Get feedback for this cell
+            const isCorrect = showFeedback ? cellFeedback[cellKey] : null;
             
             // Better border styling for 3x3 boxes
             const borderRight = (colIndex + 1) % 3 === 0 ? 2 : 1;
@@ -45,6 +48,8 @@ const Grid = ({ board, onCellPress, selectedCell, initialCells = [], theme }) =>
                 onPress={() => onCellPress(rowIndex, colIndex)}
                 isSelected={isSelected}
                 isInitialCell={isInitialCell}
+                isCorrect={isCorrect}
+                showFeedback={showFeedback && !isInitialCell && num !== 0}
                 extraStyle={borderStyles}
                 theme={theme}
               />

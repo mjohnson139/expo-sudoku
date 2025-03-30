@@ -1,11 +1,14 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 
-const Cell = ({ value, onPress, isSelected, isInitialCell, extraStyle, theme }) => {
+const Cell = ({ value, onPress, isSelected, isInitialCell, isCorrect, showFeedback, extraStyle, theme }) => {
   // Determine the background color based on cell status
   const getCellBackground = () => {
     if (isSelected) {
       return theme.colors.cell.selectedBackground;
+    } else if (showFeedback && isCorrect === false) {
+      // Show light pink background for incorrect values when feedback is on
+      return '#ffebee'; // Light red background
     } else if (isInitialCell && theme.colors.cell.prefilled) {
       return theme.colors.cell.prefilled;
     }
@@ -16,6 +19,11 @@ const Cell = ({ value, onPress, isSelected, isInitialCell, extraStyle, theme }) 
   const getTextColor = () => {
     if (isInitialCell) {
       return theme.colors.cell.initialValueText;
+    } else if (showFeedback) {
+      // Use different colors based on correctness
+      return isCorrect 
+        ? theme.colors.cell.correctValueText 
+        : theme.colors.cell.incorrectValueText;
     }
     return theme.colors.cell.userValueText;
   };

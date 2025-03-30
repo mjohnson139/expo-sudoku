@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, Switch } from 'react-native';
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
 import THEMES from '../utils/themes';
+import { isCorrectValue } from '../utils/solution';
 
 // Build number to track versions in screenshots
-const BUILD_NUMBER = "1.0.4";
+const BUILD_NUMBER = "1.0.6";
 
 // Valid initial Sudoku board with unique numbers in rows, columns and boxes
 const initialBoard = [
@@ -24,13 +25,14 @@ const initialBoard = [
 const GameScreen = () => {
   const [board, setBoard] = useState(initialBoard);
   const [selectedCell, setSelectedCell] = useState(null);
-  // Track initial board to prevent changing initial numbers
   const [initialCells, setInitialCells] = useState([]);
-  // Theme state
   const [currentThemeName, setCurrentThemeName] = useState('classic');
   const [theme, setTheme] = useState(THEMES.classic);
-  // Build notes state
   const [showBuildNotes, setShowBuildNotes] = useState(false);
+  
+  // New state for feedback feature
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [cellFeedback, setCellFeedback] = useState({});
 
   // Initialize initialCells on component mount
   useEffect(() => {
@@ -63,6 +65,37 @@ const GameScreen = () => {
     const newBoard = [...board];
     newBoard[selectedCell.row][selectedCell.col] = num;
     setBoard(newBoard);
+
+    // Check if the value is correct and update feedback if feedback is enabled
+    if (showFeedback && num !== 0) {
+      const isCorrect = isCorrectValue(selectedCell.row, selectedCell.col, num);
+      const newFeedback = { ...cellFeedback };
+      newFeedback[cellKey] = isCorrect;
+      setCellFeedback(newFeedback);
+    }
+  };
+
+  // Toggle feedback feature
+  const toggleFeedback = (value) => {
+    setShowFeedback(value);
+    if (!value) {
+      // Clear feedback when turning off
+      setCellFeedback({});
+    } else {
+      // Re-check all user-entered cells
+      const newFeedback = {};
+      board.forEach((row, rowIndex) => {
+        row.forEach((value, colIndex) => {
+          const cellKey = `${rowIndex}-${colIndex}`;
+          
+          // Only check user-entered values (not initial or empty)
+          if (!initialCells.includes(cellKey) && value !== 0) {
+            newFeedback[cellKey] = isCorrectValue(rowIndex, colIndex, value);
+          }
+        });
+      });
+      setCellFeedback(newFeedback);
+    }
   };
 
   // Cycle through available themes
@@ -101,11 +134,26 @@ const GameScreen = () => {
         selectedCell={selectedCell}
         initialCells={initialCells}
         theme={theme}
+        showFeedback={showFeedback}
+        cellFeedback={cellFeedback}
       />
       
-      <NumberPad onSelectNumber={handleNumberSelect} theme={theme} />
-      
-      <View style={styles.themeContainer}>
+      <View style={styles.controlsRow}>
+        <View style={styles.feedbackControl}>
+          <Text style={[styles.feedbackLabel, { color: theme.colors.title }]}>
+            Feedback
+          </Text>
+          <Switch
+            value={showFeedback}
+            onValueChange={toggleFeedback}
+            trackColor={{ 
+              false: '#d3d3d3', 
+              true: theme.colors.cell.correctValueText 
+            }}
+            thumbColor={showFeedback ? theme.colors.numberPad.background : '#f4f3f4'}
+          />
+        </View>
+
         <TouchableOpacity 
           style={[styles.themeButton, { backgroundColor: theme.colors.numberPad.background }]} 
           onPress={cycleTheme}
@@ -115,14 +163,8 @@ const GameScreen = () => {
           </Text>
         </TouchableOpacity>
       </View>
-
-      {/* Build Notes Button (visible at bottom right corner) */}
-      <TouchableOpacity 
-        style={[styles.notesButton, { backgroundColor: theme.colors.numberPad.background }]}
-        onPress={toggleBuildNotes}
-      >
-        <Text style={{ color: theme.colors.numberPad.text }}>📝 Notes</Text>
-      </TouchableOpacity>
+      
+      <NumberPad onSelectNumber={handleNumberSelect} theme={theme} />
 
       {/* Build Notes Component */}
       <BuildNotes 
@@ -161,22 +203,25 @@ const styles = StyleSheet.create({
   buildNumber: {
     fontSize: 12,
   },
-  themeContainer: {
+  controlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '90%',
     marginTop: 20,
+    marginBottom: 10,
+  },
+  feedbackControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  feedbackLabel: {
+    marginRight: 10,
+    fontSize: 16,
   },
   themeButton: {
     paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  notesButton: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
     borderRadius: 5,
     borderWidth: 1,
     borderColor: '#ddd',
