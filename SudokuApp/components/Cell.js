@@ -17,7 +17,7 @@ const Cell = ({
     if (isSelected) {
       return theme.colors.cell.selectedBackground;
     } else if (relationType) {
-      // Different background colors based on relation type
+      // Make sure theme has all the necessary colors with fallbacks
       switch(relationType) {
         case 'box':
           return theme.colors.cell.boxRelatedBackground || theme.colors.cell.relatedBackground;
@@ -28,12 +28,11 @@ const Cell = ({
         case 'sameValue':
           return theme.colors.cell.sameValueBackground || theme.colors.cell.relatedBackground;
         default:
-          return theme.colors.cell.relatedBackground;
+          return theme.colors.cell.background;
       }
     } else if (showFeedback && isCorrect === false) {
-      return '#ffebee'; // Light red background
+      return theme.colors.cell.incorrectBackground || '#ffebee';
     }
-    // Use the same background for all cells, including initial/prefilled cells
     return theme.colors.cell.background;
   };
 

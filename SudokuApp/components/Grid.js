@@ -18,14 +18,10 @@ const Grid = ({
     
     const { row, col } = selectedCell;
     
-    // Same value (non-zero)
-    const selectedValue = board[row][col];
-    const currentValue = board[rowIndex][colIndex];
-    if (selectedValue !== 0 && currentValue === selectedValue) {
-      return 'sameValue';
-    }
+    // Return early if we're checking the selected cell itself
+    if (rowIndex === row && colIndex === col) return null;
     
-    // Same box
+    // Same box (checking this first as it's the most specific relation)
     const selectedBoxRow = Math.floor(row / 3);
     const selectedBoxCol = Math.floor(col / 3);
     const cellBoxRow = Math.floor(rowIndex / 3);
@@ -43,6 +39,13 @@ const Grid = ({
     // Same column
     if (colIndex === col) {
       return 'column';
+    }
+    
+    // Same value (non-zero) - checking last as it's the least specific relation
+    const selectedValue = board[row][col];
+    const currentValue = board[rowIndex][colIndex];
+    if (selectedValue !== 0 && currentValue === selectedValue) {
+      return 'sameValue';
     }
     
     return null;
