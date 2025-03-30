@@ -150,6 +150,17 @@ export const BUILD_NOTES = {
       'Enhanced color scheme to differentiate between initial values and user inputs',
       'Updated all themes with dedicated initial cell styling'
     ]
+  },
+  '1.3.2': {
+    title: 'Simplified Cell Background Styling',
+    date: '2023-11-04',
+    notes: [
+      'Removed distinct background color for prefilled cells',
+      'Maintained larger and bolder text for prefilled numbers',
+      'Unified background appearance across all regular cells',
+      'Improved visual clarity by relying on text styling for prefilled cells',
+      'Enhanced overall board consistency'
+    ]
   }
 };
 

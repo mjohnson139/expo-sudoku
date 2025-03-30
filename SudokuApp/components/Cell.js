@@ -31,10 +31,8 @@ const Cell = ({
       }
     } else if (showFeedback && isCorrect === false) {
       return '#ffebee'; // Light red background
-    } else if (isInitialCell) {
-      // Make initial cells more distinct with a subtle background matching the theme's "correct" color family
-      return theme.colors.cell.initialCellBackground;
     }
+    // Use the same background for all cells, including initial/prefilled cells
     return theme.colors.cell.background;
   };
 
@@ -65,7 +63,7 @@ const Cell = ({
           { 
             color: getTextColor(),
             fontWeight: isInitialCell ? 'bold' : '500',
-            fontSize: isInitialCell ? 19 : 18, // Make initial values slightly larger
+            fontSize: isInitialCell ? 19 : 18, // Keep initial values slightly larger
           }
         ]}>
           {value}
