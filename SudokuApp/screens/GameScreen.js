@@ -8,7 +8,7 @@ import THEMES from '../utils/themes';
 import { isCorrectValue } from '../utils/solution';
 
 // Update build number
-const BUILD_NUMBER = "1.6.1";
+const BUILD_NUMBER = "1.6.2";
 
 // Valid initial Sudoku board with unique numbers in rows, columns and boxes
 const initialBoard = [

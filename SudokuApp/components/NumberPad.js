@@ -39,32 +39,23 @@ const NumberPad = ({
   
   return (
     <View style={styles.container}>
-      {/* Toolbar for Notes Mode toggle and other controls */}
-      <View style={[
-        styles.toolbar, 
-        { 
-          backgroundColor: theme.colors.numberPad.background,
-          borderColor: theme.colors.numberPad.border 
-        }
-      ]}>
-        <TouchableOpacity 
-          style={[
-            styles.toolbarButton,
-            notesMode && { 
-              backgroundColor: theme.colors.numberPad.notesBackground || theme.colors.numberPad.background,
-              borderWidth: 2
-            }
-          ]} 
-          onPress={toggleNotesMode}
-        >
-          <Text style={[
-            styles.pencilIcon, 
-            { color: theme.colors.numberPad.text }
-          ]}>
-            ✏️
-          </Text>
-        </TouchableOpacity>
-      </View>
+      {/* Notes button styled like build info button, but with pencil icon */}
+      <TouchableOpacity 
+        style={[
+          styles.notesButton, 
+          { 
+            borderColor: theme.colors.title,
+            backgroundColor: notesMode 
+              ? theme.colors.numberPad.notesBackground 
+              : 'transparent'
+          }
+        ]} 
+        onPress={toggleNotesMode}
+      >
+        <Text style={[styles.notesText, { color: theme.colors.title }]}>
+          ✏️
+        </Text>
+      </TouchableOpacity>
 
       <View style={styles.numberRow}>
         {numbers.map((num) => {
@@ -114,16 +105,6 @@ const NumberPad = ({
           );
         })}
       </View>
-      
-      {/* Optional: Add an indicator for notes mode */}
-      {notesMode && (
-        <Text style={[
-          styles.modeIndicator, 
-          { color: theme.colors.title }
-        ]}>
-          Notes Mode
-        </Text>
-      )}
     </View>
   );
 };
@@ -132,6 +113,16 @@ const styles = StyleSheet.create({
   container: {
     marginTop: 20,
     alignItems: 'center',
+  },
+  notesButton: {
+    marginBottom: 10,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  notesText: {
+    fontSize: 10,
   },
   toolbar: {
     flexDirection: 'row',

@@ -247,6 +247,18 @@ export const BUILD_NOTES = {
       'Reduced screen space usage of controls for better gameplay experience',
       'Improved overall notes management for better Sudoku solving workflow'
     ]
+  },
+  '1.6.2': {
+    title: 'Compact Notes Button Redesign',
+    date: '2023-11-12',
+    notes: [
+      'Redesigned the notes toggle to match the build info button style',
+      'Added a small pencil icon (✏️) for the notes mode button',
+      'Made the notes button more compact and space-efficient',
+      'Notes button now shows active state with highlighted background',
+      'Removed redundant UI elements to create a more streamlined interface',
+      'Better visual consistency with other UI controls'
+    ]
   }
 };
 
