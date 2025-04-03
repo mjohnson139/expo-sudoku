@@ -1,14 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, Switch } from 'react-native';
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
-import JoystickNavigator from '../components/JoystickNavigator';
 import THEMES from '../utils/themes';
 import { isCorrectValue } from '../utils/solution';
 
 // Update build number
-const BUILD_NUMBER = "1.6.2";
+const BUILD_NUMBER = "1.7.0";
 
 // Valid initial Sudoku board with unique numbers in rows, columns and boxes
 const initialBoard = [
@@ -35,9 +34,6 @@ const GameScreen = () => {
   const [showFeedback, setShowFeedback] = useState(false);
   const [cellFeedback, setCellFeedback] = useState({});
 
-  // State for joystick toggle
-  const [joystickEnabled, setJoystickEnabled] = useState(true);
-
   // State for notes feature
   const [notesMode, setNotesMode] = useState(false);
   const [cellNotes, setCellNotes] = useState({});
@@ -55,10 +51,11 @@ const GameScreen = () => {
     setInitialCells(initialPositions);
   }, []);
 
-  const handleCellPress = (row, col) => {
+  // Memoize the handleCellPress function to improve performance
+  const handleCellPress = useCallback((row, col) => {
     // Allow selecting any cell, but will prevent modifying initial cells
     setSelectedCell({ row, col });
-  };
+  }, []);
 
   // Implement a function to check if cells are related
   const areCellsRelated = (cell1Row, cell1Col, cell2Row, cell2Col) => {
@@ -189,39 +186,6 @@ const GameScreen = () => {
     }
   };
 
-  // Handle joystick movement
-  const handleJoystickMove = (direction) => {
-    if (!selectedCell) {
-      // If no cell is selected, select the center cell
-      setSelectedCell({ row: 4, col: 4 });
-      return;
-    }
-
-    const { row, col } = selectedCell;
-    let newRow = row;
-    let newCol = col;
-
-    switch (direction) {
-      case 'up':
-        newRow = Math.max(0, row - 1);
-        break;
-      case 'down':
-        newRow = Math.min(8, row + 1);
-        break;
-      case 'left':
-        newCol = Math.max(0, col - 1);
-        break;
-      case 'right':
-        newCol = Math.min(8, col + 1);
-        break;
-    }
-
-    // Only update if the position actually changed
-    if (newRow !== row || newCol !== col) {
-      setSelectedCell({ row: newRow, col: newCol });
-    }
-  };
-
   // Toggle feedback feature
   const toggleFeedback = (value) => {
     setShowFeedback(value);
@@ -261,11 +225,6 @@ const GameScreen = () => {
     setShowBuildNotes(!showBuildNotes);
   };
 
-  // Toggle joystick feature
-  const toggleJoystick = () => {
-    setJoystickEnabled(!joystickEnabled);
-  };
-
   // Toggle between regular and notes mode
   const toggleNotesMode = () => {
     setNotesMode(!notesMode);
@@ -294,14 +253,10 @@ const GameScreen = () => {
           theme={theme}
           showFeedback={showFeedback}
           cellFeedback={cellFeedback}
-          cellNotes={cellNotes}  // Pass cell notes to Grid
+          cellNotes={cellNotes}
         />
         
-        {/* Joystick Navigator on the grid only */}
-        <JoystickNavigator
-          onMove={handleJoystickMove}
-          active={joystickEnabled}
-        />
+        {/* Remove JoystickNavigator component */}
       </View>
       
       {/* Controls */}
@@ -331,23 +286,10 @@ const GameScreen = () => {
             </Text>
           </TouchableOpacity>
 
-          <View style={styles.feedbackControl}>
-            <Text style={[styles.feedbackLabel, { color: theme.colors.title }]}>
-              Joystick
-            </Text>
-            <Switch
-              value={joystickEnabled}
-              onValueChange={setJoystickEnabled}
-              trackColor={{ 
-                false: '#d3d3d3', 
-                true: theme.colors.cell.correctValueText 
-              }}
-              thumbColor={joystickEnabled ? theme.colors.numberPad.background : '#f4f3f4'}
-            />
-          </View>
+          {/* Remove joystick toggle switch */}
         </View>
 
-        {/* Second row with joystick and notes controls */}
+        {/* Second row with controls */}
         <View style={styles.controlsRow}>
         </View>
       </View>

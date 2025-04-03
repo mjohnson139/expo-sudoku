@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
+// Performance-optimized Cell component
 const Cell = ({ 
   value, 
   isSelected,
@@ -59,68 +60,69 @@ const Cell = ({
     }
   ], [textColor, isInitialCell]);
 
-  // Memoize the notes rendering
+  // Optimized notes rendering - only create when needed
   const notesElements = useMemo(() => {
+    // Skip unnecessary calculations if no notes or value exists
     if (value !== 0 || notes.length === 0) return null;
     
-    const grid = [];
+    // Pre-compute notes color to avoid repetition in the loop
+    const notesColor = theme.colors.cell.notesText || theme.colors.cell.userValueText;
     
-    // Define note positions: 0-based index for positions [0,0] to [2,2]
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 3; col++) {
-        // Calculate the number for this position (1-9)
-        const num = row * 3 + col + 1;
-        
-        grid.push(
-          <View 
-            key={num} 
-            style={[
-              styles.noteCell,
-              { 
-                left: `${col * 33.33}%`, 
-                top: `${row * 33.33}%` 
-              }
-            ]}
-          >
-            {notes.includes(num) && (
-              <Text style={[
-                styles.noteText,
-                { color: theme.colors.cell.notesText || theme.colors.cell.userValueText }
-              ]}>
-                {num}
-              </Text>
-            )}
-          </View>
-        );
-      }
-    }
-    
-    return grid;
+    // Create a 3×3 grid of possible notes
+    return (
+      <View style={styles.notesContainer}>
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(num => {
+          // Calculate position in the 3×3 grid
+          const row = Math.floor((num - 1) / 3);
+          const col = (num - 1) % 3;
+          
+          // Only render if this note exists
+          return (
+            <View 
+              key={num} 
+              style={[
+                styles.noteCell,
+                { 
+                  left: `${col * 33.33}%`, 
+                  top: `${row * 33.33}%` 
+                }
+              ]}
+            >
+              {notes.includes(num) && (
+                <Text style={[styles.noteText, { color: notesColor }]}>
+                  {num}
+                </Text>
+              )}
+            </View>
+          );
+        })}
+      </View>
+    );
   }, [value, notes, theme.colors.cell.notesText, theme.colors.cell.userValueText]);
 
-  return (
-    <View 
-      style={[
-        styles.cell, 
-        { backgroundColor: backgroundColor },
-        extraStyle
-      ]} 
-    >
-      {value !== 0 ? (
-        // If cell has a value, render the number
-        <Text style={textStyle}>
-          {value}
-        </Text>
-      ) : (
-        // If cell is empty, potentially render notes
-        notesElements && (
-          <View style={styles.notesContainer}>
-            {notesElements}
-          </View>
-        )
-      )}
-    </View>
-  );
+  // Combine all styles for the cell container
+  const cellStyle = useMemo(() => [
+    styles.cell, 
+    { backgroundColor }, 
+    extraStyle
+  ], [backgroundColor, extraStyle]);
+
+  // Render optimization: Conditionally render content based on value
+  if (value !== 0) {
+    // Cell has a value
+    return (
+      <View style={cellStyle}>
+        <Text style={textStyle}>{value}</Text>
+      </View>
+    );
+  } else {
+    // Empty cell - may contain notes
+    return (
+      <View style={cellStyle}>
+        {notesElements}
+      </View>
+    );
+  }
 };
 
 const styles = StyleSheet.create({
@@ -151,4 +153,5 @@ const styles = StyleSheet.create({
   }
 });
 
+// Use React.memo to prevent unnecessary re-renders
 export default React.memo(Cell);

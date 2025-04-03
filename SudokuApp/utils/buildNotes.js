@@ -270,6 +270,18 @@ export const BUILD_NOTES = {
       'Documented folder structure and build notes guidelines',
       'Improved version management procedures'
     ]
+  },
+  '1.7.0': {
+    title: 'Android Performance Optimization',
+    date: '2025-04-02',
+    notes: [
+      'Removed joystick navigation feature to improve performance on Android devices',
+      'Optimized Grid component with enhanced memoization to reduce unnecessary renders',
+      'Improved Cell component rendering with conditional optimizations',
+      'Added useCallback for event handlers to prevent function recreation',
+      'Restructured component hierarchy for better performance',
+      'Reduced lag when tapping cells and inputting numbers'
+    ]
   }
 };
 

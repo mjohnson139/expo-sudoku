@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import Cell from './Cell';
 
@@ -82,6 +82,64 @@ const Grid = ({
     return styles;
   }, [theme.colors.grid.boxBorder, theme.colors.grid.cellBorder]);
 
+  // Create a memoized cell renderer to improve performance
+  const renderCell = useCallback((rowIndex, colIndex, num) => {
+    const cellKey = `${rowIndex}-${colIndex}`;
+    const isSelected = selectedCell && 
+      selectedCell.row === rowIndex && 
+      selectedCell.col === colIndex;
+    const isInitialCell = initialCells.includes(cellKey);
+    
+    // Get the relation type from our memoized object
+    const relationType = cellRelations[cellKey] || null;
+    
+    // Get feedback for this cell
+    const isCorrect = showFeedback ? cellFeedback[cellKey] : null;
+    
+    // Get notes for this cell (if any)
+    const notes = cellNotes[cellKey] || [];
+
+    return (
+      <TouchableOpacity
+        key={cellKey}
+        style={styles.cellContainer}
+        onPress={() => onCellPress(rowIndex, colIndex)}
+        activeOpacity={0.7}
+      >
+        <Cell 
+          value={num} 
+          isSelected={isSelected}
+          isInitialCell={isInitialCell}
+          relationType={relationType}
+          isCorrect={isCorrect}
+          showFeedback={showFeedback && !isInitialCell && num !== 0}
+          extraStyle={cellBorderStyles[cellKey]}
+          theme={theme}
+          notes={notes}
+        />
+      </TouchableOpacity>
+    );
+  }, [
+    selectedCell, 
+    initialCells, 
+    cellRelations, 
+    showFeedback, 
+    cellFeedback, 
+    cellBorderStyles, 
+    theme,
+    cellNotes,
+    onCellPress
+  ]);
+
+  // Pre-render all rows and cells for better performance
+  const renderedRows = useMemo(() => {
+    return board.map((row, rowIndex) => (
+      <View key={`row-${rowIndex}`} style={styles.row}>
+        {row.map((num, colIndex) => renderCell(rowIndex, colIndex, num))}
+      </View>
+    ));
+  }, [board, renderCell]);
+
   return (
     <View 
       style={[
@@ -93,47 +151,7 @@ const Grid = ({
         }
       ]}
     >
-      {board.map((row, rowIndex) => (
-        <View key={`row-${rowIndex}`} style={styles.row}>
-          {row.map((num, colIndex) => {
-            const cellKey = `${rowIndex}-${colIndex}`;
-            const isSelected = selectedCell && 
-              selectedCell.row === rowIndex && 
-              selectedCell.col === colIndex;
-            const isInitialCell = initialCells.includes(cellKey);
-            
-            // Get the relation type from our memoized object
-            const relationType = cellRelations[cellKey] || null;
-            
-            // Get feedback for this cell
-            const isCorrect = showFeedback ? cellFeedback[cellKey] : null;
-            
-            // Get notes for this cell (if any)
-            const notes = cellNotes[cellKey] || [];
-
-            return (
-              <TouchableOpacity
-                key={`${rowIndex}-${colIndex}`}
-                style={styles.cellContainer}
-                onPress={() => onCellPress(rowIndex, colIndex)}
-                activeOpacity={1}
-              >
-                <Cell 
-                  value={num} 
-                  isSelected={isSelected}
-                  isInitialCell={isInitialCell}
-                  relationType={relationType}
-                  isCorrect={isCorrect}
-                  showFeedback={showFeedback && !isInitialCell && num !== 0}
-                  extraStyle={cellBorderStyles[cellKey]}
-                  theme={theme}
-                  notes={notes}
-                />
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      ))}
+      {renderedRows}
     </View>
   );
 };
