@@ -1,0 +1,63 @@
+// React Native Expo best practices
+
+const reactNativeExpoBestPractices = [
+  "Use functional components with hooks",
+  "Utilize Expo SDK features and APIs",
+  "Implement proper navigation using React Navigation",
+  "Use Expo's asset system for images and fonts",
+  "Implement proper error handling and crash reporting",
+  "Utilize Expo's push notification system",
+];
+
+// Folder structure
+
+const folderStructure = `
+assets/
+src/
+  components/
+  screens/
+  navigation/
+  hooks/
+  utils/
+App.js
+app.json
+`;
+
+// Build Notes and Version Management
+
+const buildNotesGuidelines = `
+When implementing new features or fixing bugs:
+
+1. Update the build notes in '/SudokuApp/utils/buildNotes.js'
+2. Create a new version entry with an incremented build number
+   - Use 1.x.1 for minor changes (e.g., 1.4.0 → 1.4.1)
+   - Use 1.x+1.0 for significant features (e.g., 1.4.0 → 1.5.0)
+3. Include a descriptive title and list all changes in bullet points
+4. Example:
+   '1.5.0': {
+     title: 'Feature Name or Bug Fix',
+     date: '2023-11-XX', // Update with current date
+     notes: [
+       'Added new feature description',
+       'Fixed specific bug description',
+       'Improved specific component description',
+       'Other notable changes'
+     ]
+   }
+5. Add your entry at the end of the BUILD_NOTES object
+6. Ensure the app's version in other relevant files is consistent
+`;
+
+// Additional instructions
+
+const additionalInstructions = `
+1. Use TypeScript for type safety
+2. Implement proper styling using StyleSheet
+3. Utilize Expo's vector icons
+4. Use Expo's secure store for sensitive data
+5. Implement proper offline support
+6. Follow React Native best practices for performance
+7. Use Expo's OTA updates for quick deployments
+8. Always test changes thoroughly on multiple devices before committing
+9. Follow the Git workflow: git commit -m "vX.Y.Z: Brief description of changes"
+`;

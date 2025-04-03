@@ -259,6 +259,17 @@ export const BUILD_NOTES = {
       'Removed redundant UI elements to create a more streamlined interface',
       'Better visual consistency with other UI controls'
     ]
+  },
+  '1.6.3': {
+    title: 'Development Guidelines Update',
+    date: '2025-04-02',
+    notes: [
+      'Added comprehensive custom coding instructions',
+      'Updated development workflow documentation',
+      'Added best practices for React Native Expo development',
+      'Documented folder structure and build notes guidelines',
+      'Improved version management procedures'
+    ]
   }
 };
 
