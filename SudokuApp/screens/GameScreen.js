@@ -35,9 +35,8 @@ const GameScreen = () => {
   const [showFeedback, setShowFeedback] = useState(false);
   const [cellFeedback, setCellFeedback] = useState({});
 
-  // State for joystick toggle and sensitivity
+  // State for joystick toggle
   const [joystickEnabled, setJoystickEnabled] = useState(true);
-  const [joystickThreshold, setJoystickThreshold] = useState(12.0);
 
   // State for notes feature
   const [notesMode, setNotesMode] = useState(false);
@@ -267,13 +266,6 @@ const GameScreen = () => {
     setJoystickEnabled(!joystickEnabled);
   };
 
-  // Adjust joystick threshold with larger increments
-  const adjustThreshold = (increment) => {
-    // Ensure threshold stays within reasonable bounds (0.5 to 20.0)
-    const newValue = Math.max(0.5, Math.min(20.0, joystickThreshold + increment));
-    setJoystickThreshold(parseFloat(newValue.toFixed(1))); // Round to 1 decimal place
-  };
-
   // Toggle between regular and notes mode
   const toggleNotesMode = () => {
     setNotesMode(!notesMode);
@@ -309,7 +301,6 @@ const GameScreen = () => {
         <JoystickNavigator
           onMove={handleJoystickMove}
           active={joystickEnabled}
-          threshold={joystickThreshold}
         />
       </View>
       
@@ -358,29 +349,6 @@ const GameScreen = () => {
 
         {/* Second row with joystick and notes controls */}
         <View style={styles.controlsRow}>
-          {/* Joystick Threshold Control */}
-          {joystickEnabled && (
-            <View style={styles.thresholdContainer}>
-              <Text style={[styles.thresholdLabel, { color: theme.colors.title }]}>
-                Joystick Sensitivity: {joystickThreshold.toFixed(1)}
-              </Text>
-              <View style={styles.thresholdControls}>
-                <TouchableOpacity 
-                  style={[styles.thresholdButton, { backgroundColor: theme.colors.numberPad.background }]}
-                  onPress={() => adjustThreshold(-0.5)}
-                >
-                  <Text style={{ color: theme.colors.numberPad.text }}>-</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[styles.thresholdButton, { backgroundColor: theme.colors.numberPad.background }]}
-                  onPress={() => adjustThreshold(0.5)}
-                >
-                  <Text style={{ color: theme.colors.numberPad.text }}>+</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
         </View>
       </View>
       
@@ -460,29 +428,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 5,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  thresholdContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 10,
-  },
-  thresholdLabel: {
-    fontSize: 14,
-    marginRight: 10,
-  },
-  thresholdControls: {
-    flexDirection: 'row',
-  },
-  thresholdButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginHorizontal: 5,
     borderWidth: 1,
     borderColor: '#ddd',
   },
