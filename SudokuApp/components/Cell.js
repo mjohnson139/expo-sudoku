@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 
 const Cell = ({ 
@@ -12,8 +12,8 @@ const Cell = ({
   theme,
   notes = [] // Array of numbers 1-9 that are notes for this cell
 }) => {
-  // Determine the background color based on cell status
-  const getCellBackground = () => {
+  // Memoize background color calculation
+  const backgroundColor = useMemo(() => {
     if (isSelected) {
       return theme.colors.cell.selectedBackground;
     } else if (relationType) {
@@ -34,10 +34,10 @@ const Cell = ({
       return theme.colors.cell.incorrectBackground || '#ffebee';
     }
     return theme.colors.cell.background;
-  };
+  }, [isSelected, relationType, showFeedback, isCorrect, theme.colors.cell]);
 
-  // Determine text color based on cell status
-  const getTextColor = () => {
+  // Memoize text color calculation
+  const textColor = useMemo(() => {
     if (isInitialCell) {
       // Use a more prominent color for initial values
       return theme.colors.cell.initialValueText;
@@ -47,11 +47,22 @@ const Cell = ({
         : theme.colors.cell.incorrectValueText;
     }
     return theme.colors.cell.userValueText;
-  };
+  }, [isInitialCell, showFeedback, isCorrect, theme.colors.cell]);
 
-  // Notes grid rendering
-  const renderNotes = () => {
-    // Create a 3x3 grid of possible numbers
+  // Memoize text style
+  const textStyle = useMemo(() => [
+    styles.text,
+    { 
+      color: textColor,
+      fontWeight: isInitialCell ? 'bold' : '500',
+      fontSize: isInitialCell ? 19 : 18, // Keep initial values slightly larger
+    }
+  ], [textColor, isInitialCell]);
+
+  // Memoize the notes rendering
+  const notesElements = useMemo(() => {
+    if (value !== 0 || notes.length === 0) return null;
+    
     const grid = [];
     
     // Define note positions: 0-based index for positions [0,0] to [2,2]
@@ -85,33 +96,28 @@ const Cell = ({
     }
     
     return grid;
-  };
+  }, [value, notes, theme.colors.cell.notesText, theme.colors.cell.userValueText]);
 
   return (
     <View 
       style={[
         styles.cell, 
-        { backgroundColor: getCellBackground() },
+        { backgroundColor: backgroundColor },
         extraStyle
       ]} 
     >
       {value !== 0 ? (
         // If cell has a value, render the number
-        <Text style={[
-          styles.text,
-          { 
-            color: getTextColor(),
-            fontWeight: isInitialCell ? 'bold' : '500',
-            fontSize: isInitialCell ? 19 : 18, // Keep initial values slightly larger
-          }
-        ]}>
+        <Text style={textStyle}>
           {value}
         </Text>
       ) : (
         // If cell is empty, potentially render notes
-        <View style={styles.notesContainer}>
-          {renderNotes()}
-        </View>
+        notesElements && (
+          <View style={styles.notesContainer}>
+            {notesElements}
+          </View>
+        )
       )}
     </View>
   );
@@ -145,4 +151,4 @@ const styles = StyleSheet.create({
   }
 });
 
-export default Cell;
+export default React.memo(Cell);

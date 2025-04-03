@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import Cell from './Cell';
 
@@ -10,46 +10,77 @@ const Grid = ({
   theme, 
   showFeedback = false, 
   cellFeedback = {}, 
-  cellNotes = {}  // Add cellNotes parameter
+  cellNotes = {}
 }) => {
-  // Helper function to determine relation type between cells
-  const getRelationType = (rowIndex, colIndex) => {
-    if (!selectedCell) return null;
+  // Memoize all the cell relations based on the selected cell and board state
+  // This prevents recalculating relations for all 81 cells on every render
+  const cellRelations = useMemo(() => {
+    if (!selectedCell) return {};
     
     const { row, col } = selectedCell;
+    const selectedValue = board[row][col];
+    const relations = {};
     
-    // Return early if we're checking the selected cell itself
-    if (rowIndex === row && colIndex === col) return null;
-    
-    // Same box (checking this first as it's the most specific relation)
+    // Pre-calculate box coordinates
     const selectedBoxRow = Math.floor(row / 3);
     const selectedBoxCol = Math.floor(col / 3);
-    const cellBoxRow = Math.floor(rowIndex / 3);
-    const cellBoxCol = Math.floor(colIndex / 3);
     
-    if (selectedBoxRow === cellBoxRow && selectedBoxCol === cellBoxCol) {
-      return 'box';
+    // Calculate relations for all cells at once
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        // Skip the selected cell itself
+        if (r === row && c === col) continue;
+        
+        const cellKey = `${r}-${c}`;
+        const cellBoxRow = Math.floor(r / 3);
+        const cellBoxCol = Math.floor(c / 3);
+        const cellValue = board[r][c];
+        
+        // Determine relation (prioritize in order: box, row, column, sameValue)
+        if (cellBoxRow === selectedBoxRow && cellBoxCol === selectedBoxCol) {
+          relations[cellKey] = 'box';
+        } else if (r === row) {
+          relations[cellKey] = 'row';
+        } else if (c === col) {
+          relations[cellKey] = 'column';
+        } else if (selectedValue !== 0 && cellValue === selectedValue) {
+          relations[cellKey] = 'sameValue';
+        }
+      }
     }
     
-    // Same row
-    if (rowIndex === row) {
-      return 'row';
+    return relations;
+  }, [selectedCell, board]);
+
+  // Memoize border styles for all cells to avoid recreating them on every render
+  const cellBorderStyles = useMemo(() => {
+    const styles = {};
+    
+    for (let r = 0; r < 9; r++) {
+      for (let c = 0; c < 9; c++) {
+        const cellKey = `${r}-${c}`;
+        
+        // Border styling for 3x3 boxes
+        const borderRight = (c + 1) % 3 === 0 ? 2 : 1;
+        const borderBottom = (r + 1) % 3 === 0 ? 2 : 1;
+        const borderLeft = c === 0 ? 2 : 1;
+        const borderTop = r === 0 ? 2 : 1;
+
+        styles[cellKey] = {
+          borderRightWidth: borderRight,
+          borderBottomWidth: borderBottom,
+          borderLeftWidth: borderLeft,
+          borderTopWidth: borderTop,
+          borderRightColor: (c + 1) % 3 === 0 ? theme.colors.grid.boxBorder : theme.colors.grid.cellBorder,
+          borderBottomColor: (r + 1) % 3 === 0 ? theme.colors.grid.boxBorder : theme.colors.grid.cellBorder,
+          borderLeftColor: c === 0 ? theme.colors.grid.boxBorder : theme.colors.grid.cellBorder,
+          borderTopColor: r === 0 ? theme.colors.grid.boxBorder : theme.colors.grid.cellBorder,
+        };
+      }
     }
     
-    // Same column
-    if (colIndex === col) {
-      return 'column';
-    }
-    
-    // Same value (non-zero) - checking last as it's the least specific relation
-    const selectedValue = board[row][col];
-    const currentValue = board[rowIndex][colIndex];
-    if (selectedValue !== 0 && currentValue === selectedValue) {
-      return 'sameValue';
-    }
-    
-    return null;
-  };
+    return styles;
+  }, [theme.colors.grid.boxBorder, theme.colors.grid.cellBorder]);
 
   return (
     <View 
@@ -71,31 +102,14 @@ const Grid = ({
               selectedCell.col === colIndex;
             const isInitialCell = initialCells.includes(cellKey);
             
-            // Get the relation type for this cell (if any)
-            const relationType = getRelationType(rowIndex, colIndex);
+            // Get the relation type from our memoized object
+            const relationType = cellRelations[cellKey] || null;
             
             // Get feedback for this cell
             const isCorrect = showFeedback ? cellFeedback[cellKey] : null;
             
             // Get notes for this cell (if any)
             const notes = cellNotes[cellKey] || [];
-            
-            // Border styling for 3x3 boxes
-            const borderRight = (colIndex + 1) % 3 === 0 ? 2 : 1;
-            const borderBottom = (rowIndex + 1) % 3 === 0 ? 2 : 1;
-            const borderLeft = colIndex === 0 ? 2 : 1;
-            const borderTop = rowIndex === 0 ? 2 : 1;
-
-            const borderStyles = {
-              borderRightWidth: borderRight,
-              borderBottomWidth: borderBottom,
-              borderLeftWidth: borderLeft,
-              borderTopWidth: borderTop,
-              borderRightColor: (colIndex + 1) % 3 === 0 ? theme.colors.grid.boxBorder : theme.colors.grid.cellBorder,
-              borderBottomColor: (rowIndex + 1) % 3 === 0 ? theme.colors.grid.boxBorder : theme.colors.grid.cellBorder,
-              borderLeftColor: colIndex === 0 ? theme.colors.grid.boxBorder : theme.colors.grid.cellBorder,
-              borderTopColor: rowIndex === 0 ? theme.colors.grid.boxBorder : theme.colors.grid.cellBorder,
-            };
 
             return (
               <TouchableOpacity
@@ -111,9 +125,9 @@ const Grid = ({
                   relationType={relationType}
                   isCorrect={isCorrect}
                   showFeedback={showFeedback && !isInitialCell && num !== 0}
-                  extraStyle={borderStyles}
+                  extraStyle={cellBorderStyles[cellKey]}
                   theme={theme}
-                  notes={notes} // Pass notes to the Cell component
+                  notes={notes}
                 />
               </TouchableOpacity>
             );
@@ -138,4 +152,4 @@ const styles = StyleSheet.create({
   }
 });
 
-export default Grid;
+export default React.memo(Grid);
