@@ -14,7 +14,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mjohnson139.sudokuapp"
+      "bundleIdentifier": "com.mjohnson139.sudokuapp",
+      "infoPlist.ITSAppUsesNonExemptEncryption": false
     },
     "android": {
       "adaptiveIcon": {
