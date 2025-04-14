@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "SudokuApp",
-    "slug": "SudokuApp",
+    "slug": "expo-sudoku",
     "version": "1.7.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -23,6 +23,12 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "e6c3fb8f-7922-4b6d-8721-3d52df091af9"
+      }
+    },
+    "owner": "mjohnson139"
   }
 }

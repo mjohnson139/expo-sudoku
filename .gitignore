@@ -137,3 +137,14 @@ dist
 
 # macOS specific
 .DS_Store
+
+# EAS Build specific
+android/
+ios/
+.expo-shared/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*

@@ -282,6 +282,17 @@ export const BUILD_NOTES = {
       'Restructured component hierarchy for better performance',
       'Reduced lag when tapping cells and inputting numbers'
     ]
+  },
+  '1.7.1': {
+    title: 'EAS Build from GitHub Setup',
+    date: '2025-04-14',
+    notes: [
+      'Added EAS build configuration for GitHub Actions',
+      'Created workflow for automated builds on main branch updates',
+      'Added support for building both Android and iOS platforms',
+      'Configured project for CI/CD pipeline integration',
+      'Setup proper directory structure for EAS builds'
+    ]
   }
 };
 
