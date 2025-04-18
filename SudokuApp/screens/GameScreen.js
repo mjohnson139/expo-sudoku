@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, Switch } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, Switch, Modal } from 'react-native';
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
@@ -22,6 +22,43 @@ const initialBoard = [
   [0, 0, 0, 0, 8, 0, 0, 7, 9],
 ];
 
+// Hardcoded boards for each difficulty
+const BOARDS = {
+  easy: [
+    [5, 3, 0, 0, 7, 0, 0, 0, 0],
+    [6, 0, 0, 1, 9, 5, 0, 0, 0],
+    [0, 9, 8, 0, 0, 0, 0, 6, 0],
+    [8, 0, 0, 0, 6, 0, 0, 0, 3],
+    [4, 0, 0, 8, 0, 3, 0, 0, 1],
+    [7, 0, 0, 0, 2, 0, 0, 0, 6],
+    [0, 6, 0, 0, 0, 0, 2, 8, 0],
+    [0, 0, 0, 4, 1, 9, 0, 0, 5],
+    [0, 0, 0, 0, 8, 0, 0, 7, 9],
+  ],
+  challenge: [
+    [0, 0, 0, 0, 0, 0, 2, 0, 0],
+    [0, 8, 0, 0, 0, 7, 0, 9, 0],
+    [6, 0, 2, 0, 0, 0, 5, 0, 0],
+    [0, 7, 0, 0, 6, 0, 0, 0, 0],
+    [0, 0, 0, 9, 0, 1, 0, 0, 0],
+    [0, 0, 0, 0, 2, 0, 0, 4, 0],
+    [0, 0, 5, 0, 0, 0, 6, 0, 3],
+    [0, 9, 0, 4, 0, 0, 0, 7, 0],
+    [0, 0, 6, 0, 0, 0, 0, 0, 0],
+  ],
+  superhard: [
+    [0, 0, 0, 0, 0, 0, 0, 1, 2],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 1, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+  ],
+};
+
 const GameScreen = () => {
   const [board, setBoard] = useState(initialBoard);
   const [selectedCell, setSelectedCell] = useState(null);
@@ -37,6 +74,9 @@ const GameScreen = () => {
   // State for notes feature
   const [notesMode, setNotesMode] = useState(false);
   const [cellNotes, setCellNotes] = useState({});
+
+  // State for menu modal
+  const [showMenu, setShowMenu] = useState(true);
 
   // Initialize initialCells on component mount
   useEffect(() => {
@@ -230,9 +270,70 @@ const GameScreen = () => {
     setNotesMode(!notesMode);
   };
 
+  // Helper to get initial cells for a board
+  const getInitialCells = (board) => {
+    const initialPositions = [];
+    board.forEach((row, rowIndex) => {
+      row.forEach((value, colIndex) => {
+        if (value !== 0) {
+          initialPositions.push(`${rowIndex}-${colIndex}`);
+        }
+      });
+    });
+    return initialPositions;
+  };
+
+  // Start a new game with selected difficulty
+  const startNewGame = (difficulty) => {
+    const newBoard = BOARDS[difficulty].map(row => [...row]);
+    setBoard(newBoard);
+    setInitialCells(getInitialCells(newBoard));
+    setSelectedCell(null);
+    setCellNotes({});
+    setCellFeedback({});
+    setShowFeedback(false);
+    setNotesMode(false);
+    setShowMenu(false);
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>  
+      {/* Game Menu Modal */}
+      <Modal
+        visible={showMenu}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.menuOverlay}>
+          <View style={[styles.menuBox, { backgroundColor: theme.colors.numberPad.background, borderColor: theme.colors.numberPad.border }]}> 
+            <TouchableOpacity style={styles.menuCloseButton} onPress={() => setShowMenu(false)}>
+              <Text style={styles.menuCloseText}>✕</Text>
+            </TouchableOpacity>
+            <Text style={[styles.menuTitle, { color: theme.colors.title }]}>🧩 Sudoku</Text>
+            <Text style={[styles.menuSubtitle, { color: theme.colors.title }]}>Select Difficulty</Text>
+            <TouchableOpacity style={[styles.menuButton, styles.menuButtonEasy]} onPress={() => startNewGame('easy')}>
+              <Text style={styles.menuButtonEmoji}>😊</Text>
+              <Text style={styles.menuButtonText}>Easy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.menuButton, styles.menuButtonChallenge]} onPress={() => startNewGame('challenge')}>
+              <Text style={styles.menuButtonEmoji}>😎</Text>
+              <Text style={styles.menuButtonText}>Challenge Me</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.menuButton, styles.menuButtonHard]} onPress={() => startNewGame('superhard')}>
+              <Text style={styles.menuButtonEmoji}>🔥</Text>
+              <Text style={styles.menuButtonText}>Super Hard</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      
       <View style={styles.header}>
+        <TouchableOpacity
+          style={[styles.menuIcon, { borderColor: theme.colors.title }]}
+          onPress={() => setShowMenu(true)}
+        >
+          <Text style={{ color: theme.colors.title, fontSize: 18 }}>☰</Text>
+        </TouchableOpacity>
         <Text style={[styles.title, { color: theme.colors.title }]}>Sudoku</Text>
         <TouchableOpacity 
           style={[styles.buildButton, { borderColor: theme.colors.title }]} 
@@ -255,8 +356,6 @@ const GameScreen = () => {
           cellFeedback={cellFeedback}
           cellNotes={cellNotes}
         />
-        
-        {/* Remove JoystickNavigator component */}
       </View>
       
       {/* Controls */}
@@ -285,8 +384,6 @@ const GameScreen = () => {
               Theme: {theme.name}
             </Text>
           </TouchableOpacity>
-
-          {/* Remove joystick toggle switch */}
         </View>
 
         {/* Second row with controls */}
@@ -340,6 +437,13 @@ const styles = StyleSheet.create({
   buildNumber: {
     fontSize: 12,
   },
+  menuIcon: {
+    marginRight: 10,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
   gridContainer: {
     width: 324, // Match grid width
     height: 324, // Match grid height
@@ -382,6 +486,71 @@ const styles = StyleSheet.create({
   notesLabel: {
     marginRight: 10,
     fontSize: 16,
+  },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  menuBox: {
+    width: 260,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  menuCloseButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    padding: 5,
+  },
+  menuCloseText: {
+    fontSize: 18,
+    color: '#333',
+  },
+  menuTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  menuSubtitle: {
+    fontSize: 16,
+    marginBottom: 18,
+  },
+  menuButton: {
+    width: 180,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  menuButtonEasy: {
+    backgroundColor: '#d4edda',
+  },
+  menuButtonChallenge: {
+    backgroundColor: '#ffeeba',
+  },
+  menuButtonHard: {
+    backgroundColor: '#f8d7da',
+  },
+  menuButtonEmoji: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  menuButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
   },
 });
 
