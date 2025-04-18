@@ -328,21 +328,23 @@ const GameScreen = () => {
       </Modal>
       
       <View style={styles.header}>
-        <TouchableOpacity
-          style={[styles.menuIcon, { borderColor: theme.colors.title }]}
-          onPress={() => setShowMenu(true)}
-        >
-          <Text style={{ color: theme.colors.title, fontSize: 18 }}>☰</Text>
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.colors.title }]}>Sudoku</Text>
-        <TouchableOpacity 
-          style={[styles.buildButton, { borderColor: theme.colors.title }]} 
-          onPress={toggleBuildNotes}
-        >
-          <Text style={[styles.buildNumber, { color: theme.colors.title }]}>
-            Build {BUILD_NUMBER} ℹ️
-          </Text>
-        </TouchableOpacity>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            style={[styles.menuIcon, { borderColor: theme.colors.title }]}
+            onPress={() => setShowMenu(true)}
+          >
+            <Text style={{ color: theme.colors.title, fontSize: 18 }}>☰</Text>
+          </TouchableOpacity>
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={[styles.title, { color: theme.colors.title }]}>Sudoku</Text>
+          </View>
+          <TouchableOpacity 
+            style={[styles.buildButton, { borderColor: theme.colors.title }]} 
+            onPress={toggleBuildNotes}
+          >
+            <Text style={[styles.buildNumber, { color: theme.colors.title }]}>Build {BUILD_NUMBER} ℹ️</Text>
+          </TouchableOpacity>
+        </View>
       </View>
       
       <View style={styles.gridContainer}>
