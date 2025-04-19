@@ -7,7 +7,7 @@ import THEMES from '../utils/themes';
 import { isCorrectValue } from '../utils/solution';
 
 // Update build number
-const BUILD_NUMBER = "1.7.0";
+const BUILD_NUMBER = "1.7.1";
 
 // Valid initial Sudoku board with unique numbers in rows, columns and boxes
 const initialBoard = [
@@ -449,7 +449,6 @@ const styles = StyleSheet.create({
   gridContainer: {
     width: 324, // Match grid width
     height: 324, // Match grid height
-    position: 'relative', // For positioning the joystick
   },
   controlsContainer: {
     width: '100%',
