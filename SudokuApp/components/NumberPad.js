@@ -7,7 +7,11 @@ const NumberPad = ({
   board, 
   selectedCell,
   notesMode = false,
-  toggleNotesMode
+  toggleNotesMode,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo
 }) => {
   const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9];
   
@@ -39,23 +43,49 @@ const NumberPad = ({
   
   return (
     <View style={styles.container}>
-      {/* Notes button styled like build info button, but with pencil icon */}
-      <TouchableOpacity 
-        style={[
-          styles.notesButton, 
-          { 
-            borderColor: theme.colors.title,
-            backgroundColor: notesMode 
-              ? theme.colors.numberPad.notesBackground 
-              : 'transparent'
-          }
-        ]} 
-        onPress={toggleNotesMode}
-      >
-        <Text style={[styles.notesText, { color: theme.colors.title }]}>
-          ✏️
-        </Text>
-      </TouchableOpacity>
+      {/* Toolbar for notes, undo, redo */}
+      <View style={[styles.toolbar, { borderColor: theme.colors.title, backgroundColor: theme.colors.numberPad.background }]}> 
+        {/* Undo Button */}
+        <TouchableOpacity
+          style={[
+            styles.toolbarButton, 
+            styles.toolbarButtonLeft, 
+            { opacity: canUndo ? 1 : 0.5, borderColor: theme.colors.title }
+          ]}
+          onPress={onUndo}
+          disabled={!canUndo}
+        >
+          <Text style={{ color: theme.colors.title, fontSize: 22, fontWeight: 'bold' }}>↶</Text>
+        </TouchableOpacity>
+        {/* Notes Button */}
+        <TouchableOpacity 
+          style={[
+            styles.toolbarButton, 
+            styles.toolbarButtonMiddle, 
+            { 
+              borderColor: theme.colors.title,
+              backgroundColor: notesMode 
+                ? styles.toolbarButtonActive.backgroundColor 
+                : 'transparent'
+            }
+          ]} 
+          onPress={toggleNotesMode}
+        >
+          <Text style={{ color: theme.colors.title, fontSize: 16 }}>✏️</Text>
+        </TouchableOpacity>
+        {/* Redo Button */}
+        <TouchableOpacity
+          style={[
+            styles.toolbarButton, 
+            styles.toolbarButtonRight, 
+            { opacity: canRedo ? 1 : 0.5, borderColor: theme.colors.title }
+          ]}
+          onPress={onRedo}
+          disabled={!canRedo}
+        >
+          <Text style={{ color: theme.colors.title, fontSize: 22, fontWeight: 'bold' }}>↷</Text>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.numberRow}>
         {numbers.map((num) => {
@@ -128,21 +158,48 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 5,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
     marginBottom: 10,
-    borderWidth: 1,
+    // Remove border/background from container, let buttons create the bar look
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    gap: 0,
   },
   toolbarButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 40,
+    height: 40,
+    borderRadius: 0,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    paddingVertical: 3,
-    paddingHorizontal: 3,
+    borderColor: '#bbb',
+    backgroundColor: '#f5f5f5',
+    marginHorizontal: 0,
+    // Raised effect
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.18,
+    shadowRadius: 3,
+    elevation: 4,
+    // Always show border, even when disabled
+    // (no opacity or borderColor changes for disabled state)
+  },
+  toolbarButtonActive: {
+    backgroundColor: '#e6f2fd', // subtle highlight for active (notes)
+  },
+  toolbarButtonLeft: {
+    borderTopLeftRadius: 10,
+    borderBottomLeftRadius: 10,
+    borderRightWidth: 0,
+  },
+  toolbarButtonMiddle: {
+    borderRadius: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+  },
+  toolbarButtonRight: {
+    borderTopRightRadius: 10,
+    borderBottomRightRadius: 10,
+    borderLeftWidth: 0,
   },
   pencilIcon: {
     fontSize: 14,

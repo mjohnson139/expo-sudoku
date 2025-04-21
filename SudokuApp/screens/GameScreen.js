@@ -12,6 +12,17 @@ const BUILD_NUMBER = "1.9.0";
 // Empty initial Sudoku board
 const emptyBoard = Array.from({ length: 9 }, () => Array(9).fill(0));
 
+// --- Undo/Redo Action Schema ---
+// Each action is an object:
+// {
+//   type: 'setValue' | 'clearValue' | 'addNote' | 'removeNote',
+//   cellKey: string, // e.g. 'row-col'
+//   previousValue: number, // for value changes
+//   newValue: number,      // for value changes
+//   previousNotes: number[] | undefined, // for notes changes
+//   newNotes: number[] | undefined      // for notes changes
+// }
+
 const GameScreen = () => {
   const [board, setBoard] = useState(emptyBoard);
   const [solutionBoard, setSolutionBoard] = useState(emptyBoard);
@@ -33,6 +44,10 @@ const GameScreen = () => {
 
   // State for menu modal
   const [showMenu, setShowMenu] = useState(true);
+
+  // Undo/Redo stacks
+  const [undoStack, setUndoStack] = useState([]); // Array of action objects
+  const [redoStack, setRedoStack] = useState([]); // Array of action objects
 
   // Initialize immutable cells when puzzle starts or initial board changes
   useEffect(() => {
@@ -107,7 +122,6 @@ const GameScreen = () => {
     if (!selectedCell) return;
     
     const cellKey = `${selectedCell.row}-${selectedCell.col}`;
-    
     // Prevent modifying initial board cells
     if (initialCells.includes(cellKey)) {
       return;
@@ -117,49 +131,68 @@ const GameScreen = () => {
       // Notes mode - toggle notes for this number in the cell
       const currentNotes = cellNotes[cellKey] || [];
       let newNotes;
-      
+      let actionType;
       if (currentNotes.includes(num)) {
         // Remove the number from notes
         newNotes = currentNotes.filter(n => n !== num);
+        actionType = 'removeNote';
       } else {
         // Add the number to notes
         newNotes = [...currentNotes, num];
+        actionType = 'addNote';
       }
-      
+      // Record action for undo
+      setUndoStack(prev => [
+        ...prev,
+        {
+          type: actionType,
+          cellKey,
+          previousNotes: currentNotes,
+          newNotes,
+        }
+      ]);
+      // Clear redo stack
+      setRedoStack([]);
       // Update notes state
       const newCellNotes = { ...cellNotes };
-      
       if (newNotes.length === 0) {
-        // If no notes left, remove the entry
         delete newCellNotes[cellKey];
       } else {
         newCellNotes[cellKey] = newNotes;
       }
-      
       setCellNotes(newCellNotes);
     } else {
       // Regular mode - set/toggle the actual number in the cell
       const newBoard = [...board];
       const currentValue = newBoard[selectedCell.row][selectedCell.col];
-      
       // Toggle the number - if it's already in the cell, clear it
       const newValue = (currentValue === num) ? 0 : num;
+      // Record action for undo
+      setUndoStack(prev => [
+        ...prev,
+        {
+          type: newValue === 0 ? 'clearValue' : 'setValue',
+          cellKey,
+          previousValue: currentValue,
+          newValue,
+          previousNotes: cellNotes[cellKey],
+          newNotes: undefined,
+        }
+      ]);
+      // Clear redo stack
+      setRedoStack([]);
       newBoard[selectedCell.row][selectedCell.col] = newValue;
-      
       // Clear any notes for this cell when setting an actual number
       if (newValue !== 0 && cellNotes[cellKey]) {
         const newCellNotes = { ...cellNotes };
         delete newCellNotes[cellKey];
         setCellNotes(newCellNotes);
       }
-      
       // If a number was placed (not cleared), update related notes
       if (newValue !== 0) {
         updateRelatedNotes(selectedCell.row, selectedCell.col, newValue);
       }
-      
       setBoard(newBoard);
-
       // Check if the value is correct and update feedback if feedback is enabled
       if (showFeedback && newValue !== 0) {
         const isCorrect = checkCorrectValue(solutionBoard, selectedCell.row, selectedCell.col, newValue);
@@ -172,6 +205,108 @@ const GameScreen = () => {
         delete newFeedback[cellKey];
         setCellFeedback(newFeedback);
       }
+    }
+  };
+
+  // Undo last action
+  const handleUndo = () => {
+    if (undoStack.length === 0) return;
+    const lastAction = undoStack[undoStack.length - 1];
+    setUndoStack(prev => prev.slice(0, -1));
+    setRedoStack(prev => [...prev, lastAction]);
+
+    const { type, cellKey, previousValue, newValue, previousNotes, newNotes } = lastAction;
+    const [row, col] = cellKey.split('-').map(Number);
+
+    if (type === 'setValue' || type === 'clearValue') {
+      // Restore previous value
+      setBoard(prevBoard => {
+        const newBoard = [...prevBoard];
+        newBoard[row] = [...newBoard[row]];
+        newBoard[row][col] = previousValue;
+        return newBoard;
+      });
+      // Restore previous notes
+      setCellNotes(prevNotes => {
+        const updated = { ...prevNotes };
+        if (previousNotes && previousNotes.length > 0) {
+          updated[cellKey] = previousNotes;
+        } else {
+          delete updated[cellKey];
+        }
+        return updated;
+      });
+      // Remove feedback for this cell if needed
+      setCellFeedback(prevFeedback => {
+        const updated = { ...prevFeedback };
+        delete updated[cellKey];
+        return updated;
+      });
+    } else if (type === 'addNote' || type === 'removeNote') {
+      // Restore previous notes
+      setCellNotes(prevNotes => {
+        const updated = { ...prevNotes };
+        if (previousNotes && previousNotes.length > 0) {
+          updated[cellKey] = previousNotes;
+        } else {
+          delete updated[cellKey];
+        }
+        return updated;
+      });
+    }
+  };
+
+  // Redo last undone action
+  const handleRedo = () => {
+    if (redoStack.length === 0) return;
+    const lastAction = redoStack[redoStack.length - 1];
+    setRedoStack(prev => prev.slice(0, -1));
+    setUndoStack(prev => [...prev, lastAction]);
+
+    const { type, cellKey, previousValue, newValue, previousNotes, newNotes } = lastAction;
+    const [row, col] = cellKey.split('-').map(Number);
+
+    if (type === 'setValue' || type === 'clearValue') {
+      // Reapply new value
+      setBoard(prevBoard => {
+        const newBoard = [...prevBoard];
+        newBoard[row] = [...newBoard[row]];
+        newBoard[row][col] = newValue;
+        return newBoard;
+      });
+      // Remove notes for this cell if value is set
+      setCellNotes(prevNotes => {
+        const updated = { ...prevNotes };
+        if (newValue !== 0) {
+          delete updated[cellKey];
+        }
+        return updated;
+      });
+      // Update feedback if enabled
+      if (showFeedback && newValue !== 0) {
+        setCellFeedback(prevFeedback => {
+          const updated = { ...prevFeedback };
+          updated[cellKey] = checkCorrectValue(solutionBoard, row, col, newValue);
+          return updated;
+        });
+      } else if (showFeedback && newValue === 0) {
+        setCellFeedback(prevFeedback => {
+          const updated = { ...prevFeedback };
+          delete updated[cellKey];
+          return updated;
+        });
+      }
+    } else if (type === 'addNote' || type === 'removeNote') {
+      // Reapply new notes
+      setCellNotes(prevNotes => {
+        const updated = { ...prevNotes };
+        if (newNotes && newNotes.length > 0) {
+          updated[cellKey] = newNotes;
+        } else {
+          delete updated[cellKey];
+        }
+        return updated;
+      });
     }
   };
 
@@ -342,10 +477,6 @@ const GameScreen = () => {
             </Text>
           </TouchableOpacity>
         </View>
-
-        {/* Second row with controls */}
-        <View style={styles.controlsRow}>
-        </View>
       </View>
       
       <NumberPad 
@@ -355,6 +486,10 @@ const GameScreen = () => {
         board={board}
         selectedCell={selectedCell}
         notesMode={notesMode}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={undoStack.length > 0}
+        canRedo={redoStack.length > 0}
       />
 
       {/* Build Notes Component */}
@@ -504,6 +639,20 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   menuButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  undoRedoButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#bbb',
+    backgroundColor: '#f5f5f5',
+    marginLeft: 8,
+  },
+  undoRedoText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
