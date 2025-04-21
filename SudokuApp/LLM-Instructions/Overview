@@ -1,7 +1,33 @@
-I'm ready to help you build your Sudoku app. When you provide specific requirements, I can assist with:
+    This is an Expo/React‑Native Sudoku game with:
 
-Setting up the game board UI with React Native components
-Implementing game logic (puzzle generation, validation, solving)
-Creating user interactions (number input, hints, difficulty levels)
-Adding features like timers, score tracking, or difficulty settings
-Just let me know what part of the Sudoku app you'd like to work on first, and I'll provide the relevant code and guidance.
+    • Puzzle‑generation & solution via the sudoku‑gen library
+    • A 9×9 Grid component that:
+      – Renders each cell, handles selection, highlights
+    row/col/box/same‑value relations
+      – Supports “notes” mode (pencil‐in small candidate numbers)
+      – Supports “feedback” mode (mark correct vs. incorrect entries)
+      – Applies customizable themes (classic, dark, pastel, etc.)
+    • A NumberPad component for entering digits or toggling notes
+    • A simple menu to pick difficulty (easy/medium/hard/expert) and
+    start/reset a game
+    • A BuildNotes modal for release‐notes / version info
+
+    What’s missing / good next tasks:
+
+    • Win detection & end‑game UI
+      – Watch for the board matching the solution, then show a
+    “congratulations” dialog or animation.
+    • Timer / stopwatch
+      – Display elapsed solve time; pause/continue when app goes
+    background.
+    • Hint button
+      – Fill one correct cell on demand (and potentially track hint‑usage).
+    • Persisting game state
+      – Save in AsyncStorage so players can resume after closing the app.
+    • Undo/redo
+      – Maintain a history stack for cell changes and notes.
+    • Stats / Leaderboard
+      – Track best times by difficulty, number of mistakes, etc.
+
+    Any of these would be a natural next feature to polish out your Sudoku
+    experience.
