@@ -1,51 +1,19 @@
 # Current Feature Work
-Add full AsyncStorage–based persistence so players can close and later resume their current puzzle:
 
-    • Add dependency
-      – Install @react-native-async-storage/async-storage (or expo’s
-    equivalent)
-      – Import AsyncStorage where needed
+Win detection & end‑game UI
 
-    • Create a storage helper (e.g. utils/storage.js)
-      – export saveGameState(gameStateObj) → AsyncStorage.setItem(…)
-      – export loadGameState() → AsyncStorage.getItem(…) + JSON.parse
-      – export clearGameState() → AsyncStorage.removeItem(…)
+      – Watch for the board matching the solution, then show a
+    “congratulations” dialog or animation.
 
-    • Define your persisted shape
-      – board, solutionBoard, initialBoardState
-      – cellNotes, cellFeedback
-      – undoStack, redoStack (optional)
-      – showFeedback, notesMode
-      – maybe timestamp or version tag
+### Implementation Steps for Win Detection
 
-    • On GameScreen mount
-      – call loadGameState()
-        – if result exists, allow user to “Resume Game”
-        – otherwise show “New Game” menu only
-      – if resuming, populate all matching state vars and hide menu
-
-    • UI for resume vs new
-      – In your menu modal, insert a “Resume last game” button when saved
-    state found
-      – Wire it to restore state and close the menu
-
-    • Hook into state changes to persist
-      – In effects watching board, cellNotes, undoStack, etc., call
-    saveGameState(debounced)
-      – Use a small debounce (200–500ms) so you’re not writing on every
-    keystroke
-
-    • Clear or migrate persisted state
-      – When user starts a brand‑new game, call clearGameState() first
-      – You may want to store a version key in the saved object to handle
-    future migrations
-
-    • Error handling & fallback
-      – Wrap all AsyncStorage calls in try/catch
-      – If parse error or version mismatch, clear storage and fall back to
-    new game
-
-    • Testing & verification
-      – Close and restart the app to ensure resume works end‑to‑end
-      – Test edge cases: partial entries, notes, undo/redo stacks
-      – Verify that state resets on “New Game”
+1. Store the complete solved grid when a new puzzle is generated.
+2. After each user input (cell value change), run a check:
+   - Compare the current board state to the stored solution grid.
+   - Optionally, bail early if any cell is empty or incorrect.
+3. If all cells match:
+   - Emit a “win” event in your game state or context.
+4. Listen for the “win” event in your UI component:
+   - Show a congratulations dialog or animation.
+   - Disable further cell edits.
+5. (Optional) Offer buttons to start a new game or review the solution.

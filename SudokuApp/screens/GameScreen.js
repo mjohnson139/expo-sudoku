@@ -44,6 +44,11 @@ const GameScreen = () => {
 
   // State for menu modal
   const [showMenu, setShowMenu] = useState(true);
+  
+  // Track number of filled cells for win detection
+  const [filledCount, setFilledCount] = useState(0);
+  // State for win modal
+  const [showWinModal, setShowWinModal] = useState(false);
 
   // Undo/Redo stacks
   const [undoStack, setUndoStack] = useState([]); // Array of action objects
@@ -54,6 +59,25 @@ const GameScreen = () => {
     const initialPositions = getInitialCells(initialBoardState);
     setInitialCells(initialPositions);
   }, [initialBoardState]);
+  
+  // Win detection: only check when board is full
+  useEffect(() => {
+    if (filledCount === 81) {
+      let won = true;
+      for (let i = 0; i < 9; i++) {
+        for (let j = 0; j < 9; j++) {
+          if (board[i][j] !== solutionBoard[i][j]) {
+            won = false;
+            break;
+          }
+        }
+        if (!won) break;
+      }
+      if (won) {
+        setShowWinModal(true);
+      }
+    }
+  }, [filledCount, board, solutionBoard]);
 
   // Memoize the handleCellPress function to improve performance
   const handleCellPress = useCallback((row, col) => {
@@ -193,6 +217,15 @@ const GameScreen = () => {
         updateRelatedNotes(selectedCell.row, selectedCell.col, newValue);
       }
       setBoard(newBoard);
+      // Update filled cell count for win detection
+      const prevCount = filledCount;
+      let newCount = prevCount;
+      if (currentValue === 0 && newValue !== 0) {
+        newCount = prevCount + 1;
+      } else if (currentValue !== 0 && newValue === 0) {
+        newCount = prevCount - 1;
+      }
+      setFilledCount(newCount);
       // Check if the value is correct and update feedback if feedback is enabled
       if (showFeedback && newValue !== 0) {
         const isCorrect = checkCorrectValue(solutionBoard, selectedCell.row, selectedCell.col, newValue);
@@ -380,6 +413,46 @@ const GameScreen = () => {
     setShowFeedback(false);
     setNotesMode(false);
     setShowMenu(false);
+    // Initialize filled count based on initial clues and reset win state
+    const initialCount = newBoard.flat().filter(v => v !== 0).length;
+    setFilledCount(initialCount);
+    setShowWinModal(false);
+  };
+  // Debug: fill board except last cell (for testing win detection)
+  const debugFillBoard = () => {
+    // Fill all user-editable cells (original blanks) except one final blank
+    // Start from the initial puzzle state
+    const newBoard = initialBoardState.map(row => [...row]);
+    // Find all blank positions in the initial puzzle
+    const blanks = [];
+    initialBoardState.forEach((row, r) => {
+      row.forEach((v, c) => {
+        if (v === 0) blanks.push({ r, c });
+      });
+    });
+    if (blanks.length === 0) return;
+    // Leave the last blank unfilled
+    const last = blanks[blanks.length - 1];
+    // Fill all other blanks with the solution values
+    blanks.forEach(({ r, c }) => {
+      if (r === last.r && c === last.c) return;
+      newBoard[r][c] = solutionBoard[r][c];
+    });
+    // Apply board and reset related state
+    setBoard(newBoard);
+    setCellNotes({});
+    setCellFeedback({});
+    setShowFeedback(false);
+    setNotesMode(false);
+    setShowMenu(false);
+    // Clear undo/redo history
+    setUndoStack([]);
+    setRedoStack([]);
+    // Compute filled count: initial clues + filled blanks
+    const initialCount = initialBoardState.flat().filter(v => v !== 0).length;
+    const filledBlanks = blanks.length - 1;
+    setFilledCount(initialCount + filledBlanks);
+    setShowWinModal(false);
   };
 
   return (
@@ -413,6 +486,12 @@ const GameScreen = () => {
               <Text style={styles.menuButtonEmoji}>😈</Text>
               <Text style={styles.menuButtonText}>Expert</Text>
             </TouchableOpacity>
+            {__DEV__ && (
+              <TouchableOpacity style={[styles.menuButton, { backgroundColor: '#d0d0d0' }]} onPress={debugFillBoard}>
+                <Text style={styles.menuButtonEmoji}>🐞</Text>
+                <Text style={styles.menuButtonText}>Debug Fill</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
       </Modal>
@@ -499,6 +578,17 @@ const GameScreen = () => {
         onClose={() => setShowBuildNotes(false)} 
         theme={theme}
       />
+      {/* Win Modal */}
+      <Modal visible={showWinModal} transparent animationType="slide">
+        <View style={styles.winOverlay}>
+          <View style={[styles.winBox, { backgroundColor: theme.colors.numberPad.background }]}>            
+            <Text style={[styles.winText, { color: theme.colors.title }]}>🎉 Congratulations! 🎉</Text>
+            <TouchableOpacity style={[styles.winButton, { backgroundColor: theme.colors.numberPad.background }]} onPress={() => { setShowWinModal(false); setShowMenu(true); }}>
+              <Text style={[styles.winButtonText, { color: theme.colors.numberPad.text }]}>New Game</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -656,6 +746,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+  },
+  // Win modal styles
+  winOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  winBox: {
+    width: 240,
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 8,
+  },
+  winText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  winButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 5,
+    marginTop: 8,
+  },
+  winButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 
