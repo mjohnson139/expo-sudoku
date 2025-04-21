@@ -293,6 +293,32 @@ export const BUILD_NOTES = {
       'Configured project for CI/CD pipeline integration',
       'Setup proper directory structure for EAS builds'
     ]
+  },
+  '1.7.2': {
+    title: 'Removed Hard-coded Boards',
+    date: '2025-04-20',
+    notes: [
+      'Removed hard-coded initialBoard and BOARDS constants in GameScreen.js',
+      'Introduced emptyBoard placeholder for sudoku-gen integration'
+    ]
+  },
+  '1.8.0': {
+    title: 'Dynamic Puzzle Generation',
+    date: '2025-04-20',
+    notes: [
+      'Integrated sudoku-gen library for dynamic puzzle generation',
+      'Implemented boardFactory utility with puzzle and solution generation',
+      'Updated GameScreen to use boardFactory and dynamic boards and solutions'
+    ]
+  },
+  '1.9.0': {
+    title: 'Expanded Difficulty Levels',
+    date: '2025-04-20',
+    notes: [
+      'Added Medium and Expert difficulty options to game menu',
+      'Updated UI to select Easy, Medium, Hard, Expert',
+      'Bumped build number to 1.9.0'
+    ]
   }
 };
 

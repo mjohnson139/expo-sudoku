@@ -4,63 +4,19 @@ import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
 import THEMES from '../utils/themes';
-import { isCorrectValue } from '../utils/solution';
+import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
 
 // Update build number
-const BUILD_NUMBER = "1.7.1";
+const BUILD_NUMBER = "1.9.0";
 
-// Valid initial Sudoku board with unique numbers in rows, columns and boxes
-const initialBoard = [
-  [5, 3, 0, 0, 7, 0, 0, 0, 0],
-  [6, 0, 0, 1, 9, 5, 0, 0, 0],
-  [0, 9, 8, 0, 0, 0, 0, 6, 0],
-  [8, 0, 0, 0, 6, 0, 0, 0, 3],
-  [4, 0, 0, 8, 0, 3, 0, 0, 1],
-  [7, 0, 0, 0, 2, 0, 0, 0, 6],
-  [0, 6, 0, 0, 0, 0, 2, 8, 0],
-  [0, 0, 0, 4, 1, 9, 0, 0, 5],
-  [0, 0, 0, 0, 8, 0, 0, 7, 9],
-];
-
-// Hardcoded boards for each difficulty
-const BOARDS = {
-  easy: [
-    [5, 3, 0, 0, 7, 0, 0, 0, 0],
-    [6, 0, 0, 1, 9, 5, 0, 0, 0],
-    [0, 9, 8, 0, 0, 0, 0, 6, 0],
-    [8, 0, 0, 0, 6, 0, 0, 0, 3],
-    [4, 0, 0, 8, 0, 3, 0, 0, 1],
-    [7, 0, 0, 0, 2, 0, 0, 0, 6],
-    [0, 6, 0, 0, 0, 0, 2, 8, 0],
-    [0, 0, 0, 4, 1, 9, 0, 0, 5],
-    [0, 0, 0, 0, 8, 0, 0, 7, 9],
-  ],
-  challenge: [
-    [0, 0, 0, 0, 0, 0, 2, 0, 0],
-    [0, 8, 0, 0, 0, 7, 0, 9, 0],
-    [6, 0, 2, 0, 0, 0, 5, 0, 0],
-    [0, 7, 0, 0, 6, 0, 0, 0, 0],
-    [0, 0, 0, 9, 0, 1, 0, 0, 0],
-    [0, 0, 0, 0, 2, 0, 0, 4, 0],
-    [0, 0, 5, 0, 0, 0, 6, 0, 3],
-    [0, 9, 0, 4, 0, 0, 0, 7, 0],
-    [0, 0, 6, 0, 0, 0, 0, 0, 0],
-  ],
-  superhard: [
-    [0, 0, 0, 0, 0, 0, 0, 1, 2],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 1, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-  ],
-};
+// Empty initial Sudoku board
+const emptyBoard = Array.from({ length: 9 }, () => Array(9).fill(0));
 
 const GameScreen = () => {
-  const [board, setBoard] = useState(initialBoard);
+  const [board, setBoard] = useState(emptyBoard);
+  const [solutionBoard, setSolutionBoard] = useState(emptyBoard);
+  // Store puzzle's initial board to identify immutable cells
+  const [initialBoardState, setInitialBoardState] = useState(emptyBoard);
   const [selectedCell, setSelectedCell] = useState(null);
   const [initialCells, setInitialCells] = useState([]);
   const [currentThemeName, setCurrentThemeName] = useState('classic');
@@ -78,18 +34,11 @@ const GameScreen = () => {
   // State for menu modal
   const [showMenu, setShowMenu] = useState(true);
 
-  // Initialize initialCells on component mount
+  // Initialize immutable cells when puzzle starts or initial board changes
   useEffect(() => {
-    const initialPositions = [];
-    initialBoard.forEach((row, rowIndex) => {
-      row.forEach((value, colIndex) => {
-        if (value !== 0) {
-          initialPositions.push(`${rowIndex}-${colIndex}`);
-        }
-      });
-    });
+    const initialPositions = getInitialCells(initialBoardState);
     setInitialCells(initialPositions);
-  }, []);
+  }, [initialBoardState]);
 
   // Memoize the handleCellPress function to improve performance
   const handleCellPress = useCallback((row, col) => {
@@ -213,7 +162,7 @@ const GameScreen = () => {
 
       // Check if the value is correct and update feedback if feedback is enabled
       if (showFeedback && newValue !== 0) {
-        const isCorrect = isCorrectValue(selectedCell.row, selectedCell.col, newValue);
+        const isCorrect = checkCorrectValue(solutionBoard, selectedCell.row, selectedCell.col, newValue);
         const newFeedback = { ...cellFeedback };
         newFeedback[cellKey] = isCorrect;
         setCellFeedback(newFeedback);
@@ -233,15 +182,14 @@ const GameScreen = () => {
       // Clear feedback when turning off
       setCellFeedback({});
     } else {
-      // Re-check all user-entered cells
+      // Re-check all user-entered cells against the generated solution
       const newFeedback = {};
       board.forEach((row, rowIndex) => {
         row.forEach((value, colIndex) => {
           const cellKey = `${rowIndex}-${colIndex}`;
-          
           // Only check user-entered values (not initial or empty)
           if (!initialCells.includes(cellKey) && value !== 0) {
-            newFeedback[cellKey] = isCorrectValue(rowIndex, colIndex, value);
+            newFeedback[cellKey] = checkCorrectValue(solutionBoard, rowIndex, colIndex, value);
           }
         });
       });
@@ -285,9 +233,12 @@ const GameScreen = () => {
 
   // Start a new game with selected difficulty
   const startNewGame = (difficulty) => {
-    const newBoard = BOARDS[difficulty].map(row => [...row]);
+    // Generate puzzle and solution using boardFactory
+    const { board: newBoard, solution } = generateSudoku(difficulty);
+    // Set up puzzle initial state, board, and solution
+    setInitialBoardState(newBoard);
     setBoard(newBoard);
-    setInitialCells(getInitialCells(newBoard));
+    setSolutionBoard(solution);
     setSelectedCell(null);
     setCellNotes({});
     setCellFeedback({});
@@ -315,13 +266,17 @@ const GameScreen = () => {
               <Text style={styles.menuButtonEmoji}>😊</Text>
               <Text style={styles.menuButtonText}>Easy</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.menuButton, styles.menuButtonChallenge]} onPress={() => startNewGame('challenge')}>
-              <Text style={styles.menuButtonEmoji}>😎</Text>
-              <Text style={styles.menuButtonText}>Challenge Me</Text>
+            <TouchableOpacity style={[styles.menuButton, styles.menuButtonChallenge]} onPress={() => startNewGame('medium')}>
+              <Text style={styles.menuButtonEmoji}>😐</Text>
+              <Text style={styles.menuButtonText}>Medium</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.menuButton, styles.menuButtonHard]} onPress={() => startNewGame('superhard')}>
-              <Text style={styles.menuButtonEmoji}>🔥</Text>
-              <Text style={styles.menuButtonText}>Super Hard</Text>
+            <TouchableOpacity style={[styles.menuButton, styles.menuButtonHard]} onPress={() => startNewGame('hard')}>
+              <Text style={styles.menuButtonEmoji}>😎</Text>
+              <Text style={styles.menuButtonText}>Hard</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.menuButton, styles.menuButtonHard]} onPress={() => startNewGame('expert')}>
+              <Text style={styles.menuButtonEmoji}>😈</Text>
+              <Text style={styles.menuButtonText}>Expert</Text>
             </TouchableOpacity>
           </View>
         </View>
