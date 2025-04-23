@@ -1,0 +1,35 @@
+name: EAS Publish
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'preview/**'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Log in to Expo
+        run: eas whoami || echo "// no login needed with token"
+
+      - name: Publish to EAS Update
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          BRANCH_NAME=$(echo "${GITHUB_REF##*/}" | tr / -)
+          eas update --branch $BRANCH_NAME --message "Auto-publish from $BRANCH_NAME"
