@@ -3,8 +3,8 @@ name: EAS Publish
 on:
   push:
     branches:
+      - main
       - 'feature/**'
-      - 'preview/**'
 
 jobs:
   publish:
