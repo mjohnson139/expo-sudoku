@@ -319,6 +319,17 @@ export const BUILD_NOTES = {
       'Updated UI to select Easy, Medium, Hard, Expert',
       'Bumped build number to 1.9.0'
     ]
+  },
+  '2.0.0': {
+    title: 'Switch to EAS Update Workflow',
+    date: '2025-04-23',
+    notes: [
+      'Major workflow change: migrated from EAS Build to EAS Update for CI/CD',
+      'Removed failing iOS build process from GitHub Actions',
+      'Now using branch-based EAS Update for instant over-the-air updates',
+      'Improved release process and simplified build management',
+      'This marks the start of a new, more agile development workflow'
+    ]
   }
 };
 
