@@ -5,9 +5,10 @@ import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
 import THEMES from '../utils/themes';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
+import appJson from '../app.json';
 
 // Update build number
-const BUILD_NUMBER = "1.9.0";
+const BUILD_NUMBER = appJson.expo.version;
 
 // Empty initial Sudoku board
 const emptyBoard = Array.from({ length: 9 }, () => Array(9).fill(0));
