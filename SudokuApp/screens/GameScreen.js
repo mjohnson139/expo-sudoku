@@ -3,6 +3,7 @@ import { View, StyleSheet, Text, TouchableOpacity, Switch, Modal } from 'react-n
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
+import DebugCrosshair from '../components/DebugCrosshair';
 import THEMES from '../utils/themes';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
 import appJson from '../app.json';
@@ -458,6 +459,9 @@ const GameScreen = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>  
+      {/* Debug Crosshair Overlay - always show for testing purposes */}
+      <DebugCrosshair />
+      
       {/* Game Menu Modal */}
       <Modal
         visible={showMenu}
