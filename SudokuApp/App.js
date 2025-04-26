@@ -41,12 +41,12 @@ export default function App() {
       }
     };
     
-    // Make this listener available globally
-    global.touchHandler = handleTouch;
+    // Use a React ref to store the touch handler
+    const touchHandlerRef = React.useRef(handleTouch);
     
     return () => {
       appStateSubscription.remove();
-      global.touchHandler = null;
+      touchHandlerRef.current = null;
     };
   }, []);
 
@@ -55,8 +55,8 @@ export default function App() {
       style={{ flex: 1 }}
       onTouchStart={(e) => {
         // Call the touch handler to capture simulator taps
-        if (global.touchHandler) {
-          global.touchHandler(e);
+        if (touchHandlerRef.current) {
+          touchHandlerRef.current(e);
         }
       }}
     >
