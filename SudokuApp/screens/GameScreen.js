@@ -460,7 +460,7 @@ const GameScreen = () => {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>  
       {/* Debug Crosshair Overlay - always show for testing purposes */}
-      {__DEV__ && <DebugCrosshair />}
+      <DebugCrosshair />
       
       {/* Game Menu Modal */}
       <Modal
