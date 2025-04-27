@@ -111,14 +111,14 @@ const Cell = ({
   if (value !== 0) {
     // Cell has a value
     return (
-      <View style={cellStyle}>
+      <View style={cellStyle} accessibilityLabel={`Cell value: ${value}`}>
         <Text style={textStyle}>{value}</Text>
       </View>
     );
   } else {
     // Empty cell - may contain notes
     return (
-      <View style={cellStyle}>
+      <View style={cellStyle} accessibilityLabel="Empty cell">
         {notesElements}
       </View>
     );

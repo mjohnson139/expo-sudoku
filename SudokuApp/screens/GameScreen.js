@@ -3,11 +3,13 @@ import { View, StyleSheet, Text, TouchableOpacity, Switch, Modal } from 'react-n
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
+import DebugCrosshair from '../components/DebugCrosshair';
 import THEMES from '../utils/themes';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
+import appJson from '../app.json';
 
 // Update build number
-const BUILD_NUMBER = "1.9.0";
+const BUILD_NUMBER = appJson.expo.version;
 
 // Empty initial Sudoku board
 const emptyBoard = Array.from({ length: 9 }, () => Array(9).fill(0));
@@ -457,6 +459,9 @@ const GameScreen = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>  
+      {/* Debug Crosshair Overlay - always show for testing purposes */}
+      <DebugCrosshair />
+      
       {/* Game Menu Modal */}
       <Modal
         visible={showMenu}

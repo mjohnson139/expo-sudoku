@@ -3,8 +3,8 @@ name: EAS Publish
 on:
   push:
     branches:
+      - main
       - 'feature/**'
-      - 'preview/**'
 
 jobs:
   publish:
@@ -19,13 +19,16 @@ jobs:
           node-version: 18
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
+        working-directory: ./SudokuApp
 
       - name: Install EAS CLI
         run: npm install -g eas-cli
+        working-directory: ./SudokuApp
 
       - name: Log in to Expo
         run: eas whoami || echo "// no login needed with token"
+        working-directory: ./SudokuApp
 
       - name: Publish to EAS Update
         env:
@@ -33,3 +36,4 @@ jobs:
         run: |
           BRANCH_NAME=$(echo "${GITHUB_REF##*/}" | tr / -)
           eas update --branch $BRANCH_NAME --message "Auto-publish from $BRANCH_NAME"
+        working-directory: ./SudokuApp
