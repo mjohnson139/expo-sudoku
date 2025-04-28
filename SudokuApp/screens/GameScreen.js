@@ -576,14 +576,13 @@ const GameScreen = () => {
       </Modal>
       
       <View style={styles.header}>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+        <View style={styles.headerRow}>
           <TouchableOpacity
             style={[styles.menuIcon, { borderColor: theme.colors.title }]}
             onPress={() => setShowMenu(true)}
           >
             <Text style={{ color: theme.colors.title, fontSize: 18 }}>☰</Text>
           </TouchableOpacity>
-          {/* Pause Button */}
           <TouchableOpacity
             style={styles.pauseButton}
             onPress={() => setShowMenu(true)}
@@ -591,8 +590,10 @@ const GameScreen = () => {
           >
             <Text style={{ color: theme.colors.title, fontSize: 18 }}>⏸️</Text>
           </TouchableOpacity>
-          <View style={{ flex: 1, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}>
+          <View style={styles.headerTitleBox}>
             <Text style={[styles.title, { color: theme.colors.title }]}>Sudoku</Text>
+          </View>
+          <View style={styles.timerBox}>
             <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
           </View>
           <TouchableOpacity 
@@ -691,7 +692,23 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 20,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    minHeight: 48,
+    marginBottom: 8,
+    gap: 0,
+  },
+  headerTitleBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
   },
   title: {
     fontSize: 24,
@@ -873,15 +890,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  timerBox: {
+    width: 64,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 4,
+    marginRight: 4,
+  },
   timerText: {
-    marginLeft: 12,
     fontSize: 18,
     fontWeight: 'bold',
     color: '#888',
+    width: 56,
+    textAlign: 'center',
+    letterSpacing: 1,
   },
   pauseButton: {
-    marginLeft: 8,
-    marginRight: 8,
+    marginLeft: 4,
+    marginRight: 4,
     padding: 4,
   },
 });
