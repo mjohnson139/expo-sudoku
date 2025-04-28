@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, Switch, Modal, Animated } from 'react-native';
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
@@ -98,6 +98,41 @@ const GameScreen = () => {
       }
     }
   }, [filledCount, board, solutionBoard]);
+
+  // Timer state
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const timerRef = useRef(null);
+
+  // Start/stop timer based on menu and win state
+  useEffect(() => {
+    if (!showMenu && !showWinModal) {
+      // Start timer
+      if (!timerRef.current) {
+        timerRef.current = setInterval(() => {
+          setElapsedSeconds((s) => s + 1);
+        }, 1000);
+      }
+    } else {
+      // Pause timer
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [showMenu, showWinModal]);
+
+  // Format timer as mm:ss
+  const formatTime = (secs) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
 
   // Memoize the handleCellPress function to improve performance
   const handleCellPress = useCallback((row, col) => {
@@ -437,6 +472,7 @@ const GameScreen = () => {
     const initialCount = newBoard.flat().filter(v => v !== 0).length;
     setFilledCount(initialCount);
     setShowWinModal(false);
+    setElapsedSeconds(0);
   };
   // Debug: fill board except last cell (for testing win detection)
   const debugFillBoard = () => {
@@ -542,8 +578,9 @@ const GameScreen = () => {
           >
             <Text style={{ color: theme.colors.title, fontSize: 18 }}>☰</Text>
           </TouchableOpacity>
-          <View style={{ flex: 1, alignItems: 'center' }}>
+          <View style={{ flex: 1, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}>
             <Text style={[styles.title, { color: theme.colors.title }]}>Sudoku</Text>
+            <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
           </View>
           <TouchableOpacity 
             style={[styles.buildButton, { borderColor: theme.colors.title }]} 
@@ -822,6 +859,12 @@ const styles = StyleSheet.create({
   winButtonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  timerText: {
+    marginLeft: 12,
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#888',
   },
 });
 
