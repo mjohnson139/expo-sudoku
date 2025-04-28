@@ -542,6 +542,11 @@ const GameScreen = () => {
             <TouchableOpacity style={styles.menuCloseButton} onPress={() => setShowMenu(false)}>
               <Text style={styles.menuCloseText}>✕</Text>
             </TouchableOpacity>
+            {/* Resume Button */}
+            <TouchableOpacity style={styles.menuButton} onPress={() => setShowMenu(false)}>
+              <Text style={styles.menuButtonEmoji}>▶️</Text>
+              <Text style={styles.menuButtonText}>Resume</Text>
+            </TouchableOpacity>
             <Text style={[styles.menuTitle, { color: theme.colors.title }]}>🧩 Sudoku</Text>
             <Text style={[styles.menuSubtitle, { color: theme.colors.title }]}>Select Difficulty</Text>
             <TouchableOpacity style={[styles.menuButton, styles.menuButtonEasy]} onPress={() => startNewGame('easy')}>
@@ -577,6 +582,14 @@ const GameScreen = () => {
             onPress={() => setShowMenu(true)}
           >
             <Text style={{ color: theme.colors.title, fontSize: 18 }}>☰</Text>
+          </TouchableOpacity>
+          {/* Pause Button */}
+          <TouchableOpacity
+            style={styles.pauseButton}
+            onPress={() => setShowMenu(true)}
+            accessibilityLabel="Pause Game"
+          >
+            <Text style={{ color: theme.colors.title, fontSize: 18 }}>⏸️</Text>
           </TouchableOpacity>
           <View style={{ flex: 1, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}>
             <Text style={[styles.title, { color: theme.colors.title }]}>Sudoku</Text>
@@ -865,6 +878,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#888',
+  },
+  pauseButton: {
+    marginLeft: 8,
+    marginRight: 8,
+    padding: 4,
   },
 });
 
