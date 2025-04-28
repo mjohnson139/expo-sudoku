@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, Switch, Modal } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, StyleSheet, Text, TouchableOpacity, Switch, Modal, Animated } from 'react-native';
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
@@ -56,6 +56,24 @@ const GameScreen = () => {
   const [undoStack, setUndoStack] = useState([]); // Array of action objects
   const [redoStack, setRedoStack] = useState([]); // Array of action objects
 
+  // Animation for menu modal
+  const [menuAnim] = useState(new Animated.Value(0));
+  useEffect(() => {
+    if (showMenu) {
+      Animated.timing(menuAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(menuAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showMenu]);
+
   // Initialize immutable cells when puzzle starts or initial board changes
   useEffect(() => {
     const initialPositions = getInitialCells(initialBoardState);
@@ -80,6 +98,41 @@ const GameScreen = () => {
       }
     }
   }, [filledCount, board, solutionBoard]);
+
+  // Timer state
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const timerRef = useRef(null);
+
+  // Start/stop timer based on menu and win state
+  useEffect(() => {
+    if (!showMenu && !showWinModal) {
+      // Start timer
+      if (!timerRef.current) {
+        timerRef.current = setInterval(() => {
+          setElapsedSeconds((s) => s + 1);
+        }, 1000);
+      }
+    } else {
+      // Pause timer
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [showMenu, showWinModal]);
+
+  // Format timer as mm:ss
+  const formatTime = (secs) => {
+    const m = Math.floor(secs / 60).toString().padStart(2, '0');
+    const s = (secs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
 
   // Memoize the handleCellPress function to improve performance
   const handleCellPress = useCallback((row, col) => {
@@ -419,6 +472,7 @@ const GameScreen = () => {
     const initialCount = newBoard.flat().filter(v => v !== 0).length;
     setFilledCount(initialCount);
     setShowWinModal(false);
+    setElapsedSeconds(0);
   };
   // Debug: fill board except last cell (for testing win detection)
   const debugFillBoard = () => {
@@ -460,18 +514,38 @@ const GameScreen = () => {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>  
       {/* Debug Crosshair Overlay - always show for testing purposes */}
-      <DebugCrosshair />
-      
+      {/* <DebugCrosshair /> */}
       {/* Game Menu Modal */}
       <Modal
         visible={showMenu}
         transparent
         animationType="fade"
       >
-        <View style={styles.menuOverlay}>
+        {/* Blurred/Dimmed background overlay */}
+        <Animated.View
+          style={{
+            ...styles.menuOverlay,
+            opacity: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
+          }}
+        >
+          {/* Animated element (can be replaced with Lottie or other animation) */}
+          <Animated.View
+            style={{
+              transform: [{ scale: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }],
+              marginBottom: 16,
+            }}
+          >
+            {/* Placeholder for animation: replace with LottieView for advanced animation */}
+            <Text style={{ fontSize: 48, textAlign: 'center' }}>⏸️</Text>
+          </Animated.View>
           <View style={[styles.menuBox, { backgroundColor: theme.colors.numberPad.background, borderColor: theme.colors.numberPad.border }]}> 
             <TouchableOpacity style={styles.menuCloseButton} onPress={() => setShowMenu(false)}>
               <Text style={styles.menuCloseText}>✕</Text>
+            </TouchableOpacity>
+            {/* Resume Button */}
+            <TouchableOpacity style={styles.menuButton} onPress={() => setShowMenu(false)}>
+              <Text style={styles.menuButtonEmoji}>▶️</Text>
+              <Text style={styles.menuButtonText}>Resume</Text>
             </TouchableOpacity>
             <Text style={[styles.menuTitle, { color: theme.colors.title }]}>🧩 Sudoku</Text>
             <Text style={[styles.menuSubtitle, { color: theme.colors.title }]}>Select Difficulty</Text>
@@ -498,18 +572,18 @@ const GameScreen = () => {
               </TouchableOpacity>
             )}
           </View>
-        </View>
+        </Animated.View>
       </Modal>
       
       <View style={styles.header}>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+        <View style={styles.headerRow}>
           <TouchableOpacity
             style={[styles.menuIcon, { borderColor: theme.colors.title }]}
             onPress={() => setShowMenu(true)}
           >
             <Text style={{ color: theme.colors.title, fontSize: 18 }}>☰</Text>
           </TouchableOpacity>
-          <View style={{ flex: 1, alignItems: 'center' }}>
+          <View style={styles.headerTitleBox}>
             <Text style={[styles.title, { color: theme.colors.title }]}>Sudoku</Text>
           </View>
           <TouchableOpacity 
@@ -520,7 +594,17 @@ const GameScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
-      
+      {/* Timer row, now just above the board, with pause button */}
+      <View style={styles.timerRow}>
+        <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
+        <TouchableOpacity
+          style={styles.pauseButton}
+          onPress={() => setShowMenu(true)}
+          accessibilityLabel="Pause Game"
+        >
+          <Text style={{ color: theme.colors.title, fontSize: 18 }}>⏸️</Text>
+        </TouchableOpacity>
+      </View>
       <View style={styles.gridContainer}>
         <Grid 
           board={board} 
@@ -608,7 +692,23 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    justifyContent: 'center',
+    marginBottom: 5,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    minHeight: 48,
+    marginBottom: 8,
+    gap: 0,
+  },
+  headerTitleBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
   },
   title: {
     fontSize: 24,
@@ -789,6 +889,28 @@ const styles = StyleSheet.create({
   winButtonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  timerRow: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingLeft: 20,
+    marginBottom: 5,
+    minHeight: 28,
+    flexDirection: 'row',
+    gap: 0,
+  },
+  timerText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#888',
+    width: 72,
+    textAlign: 'center',
+    letterSpacing: 1,
+    marginRight: 8,
+  },
+  pauseButton: {
+    padding: 4,
   },
 });
 
