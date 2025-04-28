@@ -893,7 +893,8 @@ const styles = StyleSheet.create({
   timerRow: {
     width: '100%',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    paddingLeft: 20,
     marginBottom: 5,
     minHeight: 28,
     flexDirection: 'row',
