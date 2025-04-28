@@ -900,10 +900,10 @@ const styles = StyleSheet.create({
     gap: 0,
   },
   timerText: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#888',
-    width: 64,
+    width: 72,
     textAlign: 'center',
     letterSpacing: 1,
     marginRight: 8,
