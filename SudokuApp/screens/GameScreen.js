@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, Switch, Modal } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, Switch, Modal, Animated } from 'react-native';
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
@@ -55,6 +55,24 @@ const GameScreen = () => {
   // Undo/Redo stacks
   const [undoStack, setUndoStack] = useState([]); // Array of action objects
   const [redoStack, setRedoStack] = useState([]); // Array of action objects
+
+  // Animation for menu modal
+  const [menuAnim] = useState(new Animated.Value(0));
+  useEffect(() => {
+    if (showMenu) {
+      Animated.timing(menuAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(menuAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [showMenu]);
 
   // Initialize immutable cells when puzzle starts or initial board changes
   useEffect(() => {
@@ -461,14 +479,29 @@ const GameScreen = () => {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>  
       {/* Debug Crosshair Overlay - always show for testing purposes */}
       <DebugCrosshair />
-      
       {/* Game Menu Modal */}
       <Modal
         visible={showMenu}
         transparent
         animationType="fade"
       >
-        <View style={styles.menuOverlay}>
+        {/* Blurred/Dimmed background overlay */}
+        <Animated.View
+          style={{
+            ...styles.menuOverlay,
+            opacity: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
+          }}
+        >
+          {/* Animated element (can be replaced with Lottie or other animation) */}
+          <Animated.View
+            style={{
+              transform: [{ scale: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }],
+              marginBottom: 16,
+            }}
+          >
+            {/* Placeholder for animation: replace with LottieView for advanced animation */}
+            <Text style={{ fontSize: 48, textAlign: 'center' }}>⏸️</Text>
+          </Animated.View>
           <View style={[styles.menuBox, { backgroundColor: theme.colors.numberPad.background, borderColor: theme.colors.numberPad.border }]}> 
             <TouchableOpacity style={styles.menuCloseButton} onPress={() => setShowMenu(false)}>
               <Text style={styles.menuCloseText}>✕</Text>
@@ -498,7 +531,7 @@ const GameScreen = () => {
               </TouchableOpacity>
             )}
           </View>
-        </View>
+        </Animated.View>
       </Modal>
       
       <View style={styles.header}>

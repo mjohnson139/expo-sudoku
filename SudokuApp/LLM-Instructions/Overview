@@ -1,4 +1,4 @@
-    This is an Expo/React‑Native Sudoku game with:
+This is an Expo/React‑Native Sudoku game with:
 
     • Puzzle‑generation & solution via the sudoku‑gen library
     • A 9×9 Grid component that:
@@ -31,3 +31,8 @@
 
     Any of these would be a natural next feature to polish out your Sudoku
     experience.
+
+---
+
+## Pause Screen (Menu Modal) Animations
+See `LLM-Instructions/PauseScreenAnimations.md` for how to add or modify engaging animations to the pause/menu modal, including Lottie integration and best practices.
