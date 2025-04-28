@@ -583,18 +583,8 @@ const GameScreen = () => {
           >
             <Text style={{ color: theme.colors.title, fontSize: 18 }}>☰</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.pauseButton}
-            onPress={() => setShowMenu(true)}
-            accessibilityLabel="Pause Game"
-          >
-            <Text style={{ color: theme.colors.title, fontSize: 18 }}>⏸️</Text>
-          </TouchableOpacity>
           <View style={styles.headerTitleBox}>
             <Text style={[styles.title, { color: theme.colors.title }]}>Sudoku</Text>
-          </View>
-          <View style={styles.timerBox}>
-            <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
           </View>
           <TouchableOpacity 
             style={[styles.buildButton, { borderColor: theme.colors.title }]} 
@@ -604,7 +594,17 @@ const GameScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
-      
+      {/* Timer row, now just above the board, with pause button */}
+      <View style={styles.timerRow}>
+        <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
+        <TouchableOpacity
+          style={styles.pauseButton}
+          onPress={() => setShowMenu(true)}
+          accessibilityLabel="Pause Game"
+        >
+          <Text style={{ color: theme.colors.title, fontSize: 18 }}>⏸️</Text>
+        </TouchableOpacity>
+      </View>
       <View style={styles.gridContainer}>
         <Grid 
           board={board} 
@@ -890,24 +890,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  timerBox: {
-    width: 64,
+  timerRow: {
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 4,
-    marginRight: 4,
+    marginBottom: 8,
+    minHeight: 32,
+    flexDirection: 'row',
+    gap: 0,
   },
   timerText: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#888',
-    width: 56,
+    width: 64,
     textAlign: 'center',
     letterSpacing: 1,
+    marginRight: 8,
   },
   pauseButton: {
-    marginLeft: 4,
-    marginRight: 4,
     padding: 4,
   },
 });
