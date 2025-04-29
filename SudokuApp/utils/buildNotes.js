@@ -330,6 +330,20 @@ export const BUILD_NOTES = {
       'Improved release process and simplified build management',
       'This marks the start of a new, more agile development workflow'
     ]
+  },
+  '2.1.0': {
+    title: 'Major Code Refactoring',
+    date: '2025-04-28',
+    notes: [
+      'Complete refactoring of GameScreen component using context-based architecture',
+      'Added GameContext with reducer pattern for centralized state management',
+      'Extracted UI into dedicated components: GameHeader, GameTimer, GameOptions, GameToolBar',
+      'Created separate modal components: GameMenuModal and WinModal',
+      'Implemented utility files for game logic and undo/redo management',
+      'Redesigned GameToolBar with improved layout including undo, notes, pause and redo buttons',
+      'Reduced GameScreen from ~1000 lines to under 100 lines for better maintainability',
+      'Prepared architecture for upcoming AsyncStorage implementation'
+    ]
   }
 };
 

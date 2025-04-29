@@ -6,12 +6,7 @@ const NumberPad = ({
   theme, 
   board, 
   selectedCell,
-  notesMode = false,
-  toggleNotesMode,
-  onUndo,
-  onRedo,
-  canUndo,
-  canRedo
+  notesMode = false
 }) => {
   const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9];
   
@@ -43,50 +38,6 @@ const NumberPad = ({
   
   return (
     <View style={styles.container}>
-      {/* Toolbar for notes, undo, redo */}
-      <View style={[styles.toolbar, { borderColor: theme.colors.title, backgroundColor: theme.colors.numberPad.background }]}> 
-        {/* Undo Button */}
-        <TouchableOpacity
-          style={[
-            styles.toolbarButton, 
-            styles.toolbarButtonLeft, 
-            { opacity: canUndo ? 1 : 0.5, borderColor: theme.colors.title }
-          ]}
-          onPress={onUndo}
-          disabled={!canUndo}
-        >
-          <Text style={{ color: theme.colors.title, fontSize: 22, fontWeight: 'bold' }}>↶</Text>
-        </TouchableOpacity>
-        {/* Notes Button */}
-        <TouchableOpacity 
-          style={[
-            styles.toolbarButton, 
-            styles.toolbarButtonMiddle, 
-            { 
-              borderColor: theme.colors.title,
-              backgroundColor: notesMode 
-                ? styles.toolbarButtonActive.backgroundColor 
-                : 'transparent'
-            }
-          ]} 
-          onPress={toggleNotesMode}
-        >
-          <Text style={{ color: theme.colors.title, fontSize: 16 }}>✏️</Text>
-        </TouchableOpacity>
-        {/* Redo Button */}
-        <TouchableOpacity
-          style={[
-            styles.toolbarButton, 
-            styles.toolbarButtonRight, 
-            { opacity: canRedo ? 1 : 0.5, borderColor: theme.colors.title }
-          ]}
-          onPress={onRedo}
-          disabled={!canRedo}
-        >
-          <Text style={{ color: theme.colors.title, fontSize: 22, fontWeight: 'bold' }}>↷</Text>
-        </TouchableOpacity>
-      </View>
-
       <View style={styles.numberRow}>
         {numbers.map((num) => {
           // Check if this number has been used 9 times
@@ -141,68 +92,7 @@ const NumberPad = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 20,
     alignItems: 'center',
-  },
-  notesButton: {
-    marginBottom: 10,
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  notesText: {
-    fontSize: 10,
-  },
-  toolbar: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 10,
-    // Remove border/background from container, let buttons create the bar look
-    borderWidth: 0,
-    backgroundColor: 'transparent',
-    gap: 0,
-  },
-  toolbarButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#bbb',
-    backgroundColor: '#f5f5f5',
-    marginHorizontal: 0,
-    // Raised effect
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 3,
-    elevation: 4,
-    // Always show border, even when disabled
-    // (no opacity or borderColor changes for disabled state)
-  },
-  toolbarButtonActive: {
-    backgroundColor: '#e6f2fd', // subtle highlight for active (notes)
-  },
-  toolbarButtonLeft: {
-    borderTopLeftRadius: 10,
-    borderBottomLeftRadius: 10,
-    borderRightWidth: 0,
-  },
-  toolbarButtonMiddle: {
-    borderRadius: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-  },
-  toolbarButtonRight: {
-    borderTopRightRadius: 10,
-    borderBottomRightRadius: 10,
-    borderLeftWidth: 0,
-  },
-  pencilIcon: {
-    fontSize: 14,
   },
   numberRow: {
     flexDirection: 'row',
@@ -228,11 +118,6 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 22,
-    fontWeight: '500',
-  },
-  modeIndicator: {
-    marginTop: 10,
-    fontSize: 14,
     fontWeight: '500',
   }
 });
