@@ -1,28 +1,16 @@
 import React from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import { useGameContext } from '../contexts/GameContext';
-import { ACTIONS } from '../contexts/GameContext';
 
 /**
- * GameTimer component displaying elapsed time with pause button
+ * GameTimer component displaying elapsed time
  */
 const GameTimer = () => {
-  const { elapsedSeconds, formatTime, theme, dispatch } = useGameContext();
-
-  const handlePause = () => {
-    dispatch({ type: ACTIONS.SHOW_MENU });
-  };
+  const { elapsedSeconds, formatTime } = useGameContext();
 
   return (
     <View style={styles.timerRow}>
       <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
-      <TouchableOpacity
-        style={styles.pauseButton}
-        onPress={handlePause}
-        accessibilityLabel="Pause Game"
-      >
-        <Text style={{ color: theme.colors.title, fontSize: 18 }}>⏸️</Text>
-      </TouchableOpacity>
     </View>
   );
 };
@@ -45,10 +33,6 @@ const styles = StyleSheet.create({
     width: 72,
     textAlign: 'center',
     letterSpacing: 1,
-    marginRight: 8,
-  },
-  pauseButton: {
-    padding: 4,
   },
 });
 
