@@ -72,7 +72,7 @@ export const applyNotesAction = (cellNotes, action) => {
   const { cellKey, previousNotes, newNotes, type } = action;
   const updatedNotes = { ...cellNotes };
   
-  const notesToApply = type === 'undo' ? previousNotes : newNotes;
+  const notesToApply = action.isUndo ? previousNotes : newNotes;
   
   if (notesToApply && notesToApply.length > 0) {
     updatedNotes[cellKey] = notesToApply;
