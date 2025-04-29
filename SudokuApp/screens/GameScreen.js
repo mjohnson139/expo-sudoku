@@ -10,6 +10,10 @@ import GameToolBar from '../components/GameToolBar';
 import GameMenuModal from '../components/modals/GameMenuModal';
 import WinModal from '../components/modals/WinModal';
 import { GameProvider, useGameContext, ACTIONS } from '../contexts/GameContext';
+import appJson from '../app.json';
+
+// Get build number from app.json
+const BUILD_NUMBER = appJson.expo.version;
 
 /**
  * Main game screen for Sudoku
@@ -83,6 +87,7 @@ const GameScreenContent = () => {
         isVisible={showBuildNotes} 
         onClose={() => dispatch({ type: ACTIONS.HIDE_BUILD_NOTES })} 
         theme={theme}
+        version={BUILD_NUMBER} // Add the version prop
       />
     </View>
   );
