@@ -5,10 +5,11 @@ import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
 import GameHeader from '../components/GameHeader';
 import GameTimer from '../components/GameTimer';
+import GameOptions from '../components/GameOptions';
 import GameToolBar from '../components/GameToolBar';
 import GameMenuModal from '../components/modals/GameMenuModal';
 import WinModal from '../components/modals/WinModal';
-import { GameProvider, useGameContext } from '../contexts/GameContext';
+import { GameProvider, useGameContext, ACTIONS } from '../contexts/GameContext';
 
 /**
  * Main game screen for Sudoku
@@ -25,24 +26,15 @@ const GameScreenContent = () => {
     cellNotes, 
     dispatch,
     handleNumberSelect,
-    undoStack,
-    redoStack,
+    notesMode,
     showBuildNotes
   } = useGameContext();
 
   const handleCellPress = (row, col) => {
     dispatch({ 
-      type: 'SELECT_CELL', 
+      type: ACTIONS.SELECT_CELL, 
       payload: { row, col } 
     });
-  };
-
-  const handleUndo = () => {
-    dispatch({ type: 'UNDO' });
-  };
-
-  const handleRedo = () => {
-    dispatch({ type: 'REDO' });
   };
 
   return (
@@ -67,7 +59,10 @@ const GameScreenContent = () => {
         />
       </View>
       
-      {/* Game controls toolbar (above number pad) */}
+      {/* Game options (feedback toggle and theme selector) */}
+      <GameOptions />
+      
+      {/* Game toolbar (undo, notes toggle, redo) */}
       <GameToolBar />
       
       {/* Number pad */}
@@ -76,10 +71,7 @@ const GameScreenContent = () => {
         theme={theme} 
         board={board}
         selectedCell={selectedCell}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        canUndo={undoStack.length > 0}
-        canRedo={redoStack.length > 0}
+        notesMode={notesMode}
       />
       
       {/* Modals */}
@@ -89,7 +81,7 @@ const GameScreenContent = () => {
       {/* Build notes */}
       <BuildNotes 
         isVisible={showBuildNotes} 
-        onClose={() => dispatch({ type: 'HIDE_BUILD_NOTES' })} 
+        onClose={() => dispatch({ type: ACTIONS.HIDE_BUILD_NOTES })} 
         theme={theme}
       />
     </View>
