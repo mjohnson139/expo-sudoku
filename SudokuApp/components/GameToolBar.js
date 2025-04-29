@@ -5,15 +5,15 @@ import { ACTIONS } from '../contexts/GameContext';
 
 /**
  * GameToolBar component containing game controls displayed above the number pad
- * Includes: feedback toggle, theme selector, notes mode toggle
+ * Includes: feedback toggle and theme selector
+ * Note: Notes mode is controlled by the pencil icon in the NumberPad
  */
 const GameToolBar = () => {
   const { 
     theme, 
     showFeedback, 
     dispatch, 
-    cycleTheme,
-    notesMode 
+    cycleTheme
   } = useGameContext();
 
   const handleToggleFeedback = (value) => {
@@ -21,10 +21,6 @@ const GameToolBar = () => {
       type: ACTIONS.TOGGLE_FEEDBACK, 
       payload: value 
     });
-  };
-
-  const handleToggleNotesMode = () => {
-    dispatch({ type: ACTIONS.TOGGLE_NOTES_MODE });
   };
 
   return (
@@ -53,23 +49,6 @@ const GameToolBar = () => {
         >
           <Text style={{ color: theme.colors.numberPad.text }}>
             Theme: {theme.name}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Notes Mode Toggle */}
-        <TouchableOpacity
-          style={[
-            styles.notesButton,
-            notesMode ? 
-              { backgroundColor: theme.colors.cell.correctValueText } : 
-              { backgroundColor: theme.colors.numberPad.background }
-          ]}
-          onPress={handleToggleNotesMode}
-        >
-          <Text style={{ 
-            color: notesMode ? '#fff' : theme.colors.numberPad.text
-          }}>
-            Notes: {notesMode ? 'ON' : 'OFF'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -105,14 +84,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     borderWidth: 1,
     borderColor: '#ddd',
-  },
-  notesButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
+  }
 });
 
 export default GameToolBar;
