@@ -28,10 +28,10 @@ export const ACTIONS = {
   // UI actions
   SHOW_MENU: 'SHOW_MENU',
   HIDE_MENU: 'HIDE_MENU',
+  PAUSE_GAME: 'PAUSE_GAME',
+  RESUME_GAME: 'RESUME_GAME',
+  QUIT_GAME: 'QUIT_GAME',
   SHOW_WIN_MODAL: 'SHOW_WIN_MODAL',
-  HIDE_WIN_MODAL: 'HIDE_WIN_MODAL',
-  SHOW_BUILD_NOTES: 'SHOW_BUILD_NOTES',
-  HIDE_BUILD_NOTES: 'HIDE_BUILD_NOTES',
   
   // Future - for AsyncStorage
   RESTORE_SAVED_GAME: 'RESTORE_SAVED_GAME',
@@ -67,6 +67,7 @@ const initialState = {
   
   // Modal state
   showMenu: true,
+  isPaused: false,
   showWinModal: false,
   showBuildNotes: false,
 };
@@ -158,6 +159,7 @@ function gameReducer(state, action) {
         notesMode: false,
         filledCount: initialCount,
         showMenu: false,
+        isPaused: false,
         showWinModal: false,
         elapsedSeconds: 0,
         timerActive: true,
@@ -514,6 +516,27 @@ function gameReducer(state, action) {
         timerActive: false,
       };
     
+    case ACTIONS.PAUSE_GAME:
+      return {
+        ...state,
+        isPaused: true,
+        timerActive: false, // Pause timer
+      };
+    
+    case ACTIONS.RESUME_GAME:
+      return {
+        ...state,
+        isPaused: false,
+        timerActive: true, // Resume timer
+      };
+    
+    case ACTIONS.QUIT_GAME:
+      return {
+        ...state,
+        isPaused: false,
+        showMenu: true,
+      };
+    
     case ACTIONS.SHOW_MENU:
       return {
         ...state,
@@ -525,7 +548,7 @@ function gameReducer(state, action) {
       return {
         ...state,
         showMenu: false,
-        timerActive: !state.showWinModal, // Resume timer if not in win state
+        timerActive: !state.showWinModal && !state.isPaused, // Resume timer if not paused or in win state
       };
     
     case ACTIONS.SHOW_WIN_MODAL:

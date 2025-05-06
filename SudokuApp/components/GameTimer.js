@@ -1,16 +1,30 @@
 import React from 'react';
-import { View, StyleSheet, Text } from 'react-native';
-import { useGameContext } from '../contexts/GameContext';
+import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { useGameContext, ACTIONS } from '../contexts/GameContext';
 
 /**
- * GameTimer component displaying elapsed time
+ * GameTimer component displaying elapsed time and pause button
  */
 const GameTimer = () => {
-  const { elapsedSeconds, formatTime } = useGameContext();
+  const { elapsedSeconds, formatTime, dispatch, theme, isPaused } = useGameContext();
+
+  const handlePausePress = () => {
+    dispatch({ type: ACTIONS.PAUSE_GAME });
+  };
 
   return (
     <View style={styles.timerRow}>
       <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
+      
+      {/* Pause button */}
+      <TouchableOpacity 
+        style={styles.pauseButton} 
+        onPress={handlePausePress}
+        // Disable when already paused
+        disabled={isPaused}
+      >
+        <Text style={styles.pauseButtonIcon}>⏸️</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -19,20 +33,25 @@ const styles = StyleSheet.create({
   timerRow: {
     width: '100%',
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingLeft: 20,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
     marginBottom: 5,
     minHeight: 28,
     flexDirection: 'row',
-    gap: 0,
   },
   timerText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#888',
     width: 72,
-    textAlign: 'center',
+    textAlign: 'left',
     letterSpacing: 1,
+  },
+  pauseButton: {
+    padding: 5,
+  },
+  pauseButtonIcon: {
+    fontSize: 20,
   },
 });
 

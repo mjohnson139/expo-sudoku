@@ -8,6 +8,7 @@ import GameTimer from '../components/GameTimer';
 import GameOptions from '../components/GameOptions';
 import GameToolBar from '../components/GameToolBar';
 import GameMenuModal from '../components/modals/GameMenuModal';
+import PauseModal from '../components/modals/PauseModal';
 import WinModal from '../components/modals/WinModal';
 import { GameProvider, useGameContext, ACTIONS } from '../contexts/GameContext';
 import appJson from '../app.json';
@@ -80,6 +81,7 @@ const GameScreenContent = () => {
       
       {/* Modals */}
       <GameMenuModal />
+      <PauseModal />
       <WinModal />
       
       {/* Build notes */}

@@ -344,6 +344,18 @@ export const BUILD_NOTES = {
       'Reduced GameScreen from ~1000 lines to under 100 lines for better maintainability',
       'Prepared architecture for upcoming AsyncStorage implementation'
     ]
+  },
+  '2.2.0': {
+    title: 'Dedicated Pause Modal',
+    date: '2025-05-06',
+    notes: [
+      'Added separate pause modal component for game pausing functionality',
+      'Removed pause functionality from the menu modal for better separation of concerns',
+      'Added pause button to the game timer for quick access',
+      'Implemented resume and quit buttons in the pause modal',
+      'Added smooth animations for pause modal appearance',
+      'Improved overall game flow with dedicated UI components for different states'
+    ]
   }
 };
 
