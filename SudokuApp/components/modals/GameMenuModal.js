@@ -50,26 +50,21 @@ const GameMenuModal = () => {
           opacity: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
         }}
       >
-        {/* Animated element (can be replaced with Lottie or other animation) */}
+        {/* Animated element - Sudoku icon instead of pause */}
         <Animated.View
           style={{
             transform: [{ scale: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }],
             marginBottom: 16,
           }}
         >
-          {/* Placeholder for animation: replace with LottieView for advanced animation */}
-          <Text style={{ fontSize: 48, textAlign: 'center' }}>⏸️</Text>
+          <Text style={{ fontSize: 48, textAlign: 'center' }}>🧩</Text>
         </Animated.View>
         <View style={[styles.menuBox, { backgroundColor: theme.colors.numberPad.background, borderColor: theme.colors.numberPad.border }]}> 
           <TouchableOpacity style={styles.menuCloseButton} onPress={handleCloseMenu}>
             <Text style={styles.menuCloseText}>✕</Text>
           </TouchableOpacity>
-          {/* Resume Button */}
-          <TouchableOpacity style={styles.menuButton} onPress={handleCloseMenu}>
-            <Text style={styles.menuButtonEmoji}>▶️</Text>
-            <Text style={styles.menuButtonText}>Resume</Text>
-          </TouchableOpacity>
-          <Text style={[styles.menuTitle, { color: theme.colors.title }]}>🧩 Sudoku</Text>
+          
+          <Text style={[styles.menuTitle, { color: theme.colors.title }]}>Sudoku</Text>
           <Text style={[styles.menuSubtitle, { color: theme.colors.title }]}>Select Difficulty</Text>
           <TouchableOpacity 
             style={[styles.menuButton, styles.menuButtonEasy]} 

@@ -5,7 +5,7 @@ import { ACTIONS } from '../contexts/GameContext';
 
 /**
  * GameToolBar component containing game control buttons
- * Includes: undo, notes mode toggle, pause, and redo buttons
+ * Includes: undo, notes mode toggle, and redo buttons
  */
 const GameToolBar = () => {
   const { 
@@ -26,10 +26,6 @@ const GameToolBar = () => {
 
   const handleToggleNotesMode = () => {
     dispatch({ type: ACTIONS.TOGGLE_NOTES_MODE });
-  };
-
-  const handlePause = () => {
-    dispatch({ type: ACTIONS.SHOW_MENU });
   };
 
   const canUndo = undoStack.length > 0;
@@ -65,19 +61,6 @@ const GameToolBar = () => {
         onPress={handleToggleNotesMode}
       >
         <Text style={{ color: theme.colors.title, fontSize: 16 }}>✏️</Text>
-      </TouchableOpacity>
-      
-      {/* Pause Button */}
-      <TouchableOpacity
-        style={[
-          styles.toolbarButton, 
-          styles.toolbarButtonMiddle, 
-          { borderColor: theme.colors.title }
-        ]}
-        onPress={handlePause}
-        accessibilityLabel="Pause Game"
-      >
-        <Text style={{ color: theme.colors.title, fontSize: 16 }}>⏸️</Text>
       </TouchableOpacity>
       
       {/* Redo Button */}

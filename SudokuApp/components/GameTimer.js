@@ -14,17 +14,26 @@ const GameTimer = () => {
 
   return (
     <View style={styles.timerRow}>
-      <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
-      
-      {/* Pause button */}
-      <TouchableOpacity 
-        style={styles.pauseButton} 
-        onPress={handlePausePress}
-        // Disable when already paused
-        disabled={isPaused}
-      >
-        <Text style={styles.pauseButtonIcon}>⏸️</Text>
-      </TouchableOpacity>
+      <View style={styles.timerContainer}>
+        <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
+        
+        {/* Pause button - positioned next to timer */}
+        <TouchableOpacity 
+          style={[
+            styles.pauseButton,
+            { 
+              backgroundColor: theme.colors.numberPad.background,
+              borderColor: theme.colors.numberPad.border
+            }
+          ]} 
+          onPress={handlePausePress}
+          // Disable when already paused
+          disabled={isPaused}
+          accessibilityLabel="Pause Game"
+        >
+          <Text style={styles.pauseButtonIcon}>⏸️</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -33,22 +42,37 @@ const styles = StyleSheet.create({
   timerRow: {
     width: '100%',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: 20,
     marginBottom: 5,
     minHeight: 28,
+  },
+  timerContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   timerText: {
     fontSize: 16,
     fontWeight: 'bold',
     color: '#888',
-    width: 72,
-    textAlign: 'left',
+    textAlign: 'center',
     letterSpacing: 1,
+    marginRight: 8,
   },
   pauseButton: {
-    padding: 5,
+    width: 40, 
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    // Raised effect
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 3,
   },
   pauseButtonIcon: {
     fontSize: 20,
