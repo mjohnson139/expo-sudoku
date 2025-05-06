@@ -15,7 +15,9 @@ const GameTimer = () => {
   return (
     <View style={styles.timerRow}>
       <View style={styles.timerContainer}>
-        <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
+        <View style={styles.timerTextContainer}>
+          <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
+        </View>
         
         {/* Pause button - positioned next to timer */}
         <TouchableOpacity 
@@ -49,6 +51,11 @@ const styles = StyleSheet.create({
   },
   timerContainer: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timerTextContainer: {
+    width: 60, // Fixed width to prevent size changes
     alignItems: 'center',
     justifyContent: 'center',
   },

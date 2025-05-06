@@ -5,6 +5,7 @@ import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
 import GameHeader from '../components/GameHeader';
 import GameTimer from '../components/GameTimer';
+import ThemeSelector from '../components/ThemeSelector';
 import GameOptions from '../components/GameOptions';
 import GameToolBar from '../components/GameToolBar';
 import GameMenuModal from '../components/modals/GameMenuModal';
@@ -49,6 +50,9 @@ const GameScreenContent = () => {
       
       {/* Timer with pause button */}
       <GameTimer />
+      
+      {/* Theme Selector */}
+      <ThemeSelector />
       
       {/* Game board */}
       <View style={styles.gridContainer}>

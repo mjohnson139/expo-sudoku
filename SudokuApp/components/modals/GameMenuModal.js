@@ -1,6 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View } from 'react-native';
-import { useGameContext } from '../../contexts/GameContext';
+import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View, Switch } from 'react-native';
+import { useGameContext, ACTIONS } from '../../contexts/GameContext';
 
 /**
  * Game Menu Modal for game settings and difficulty selection
@@ -9,7 +9,8 @@ const GameMenuModal = () => {
   const { 
     theme, 
     showMenu, 
-    startNewGame, 
+    startNewGame,
+    showFeedback,
     dispatch,
     debugFillBoard,
   } = useGameContext();
@@ -37,6 +38,13 @@ const GameMenuModal = () => {
     dispatch({ type: 'HIDE_MENU' });
   };
 
+  const handleToggleFeedback = (value) => {
+    dispatch({ 
+      type: ACTIONS.TOGGLE_FEEDBACK, 
+      payload: value 
+    });
+  };
+
   return (
     <Modal
       visible={showMenu}
@@ -50,15 +58,6 @@ const GameMenuModal = () => {
           opacity: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
         }}
       >
-        {/* Animated element - Sudoku icon instead of pause */}
-        <Animated.View
-          style={{
-            transform: [{ scale: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }],
-            marginBottom: 16,
-          }}
-        >
-          <Text style={{ fontSize: 48, textAlign: 'center' }}>🧩</Text>
-        </Animated.View>
         <View style={[styles.menuBox, { backgroundColor: theme.colors.numberPad.background, borderColor: theme.colors.numberPad.border }]}> 
           <TouchableOpacity style={styles.menuCloseButton} onPress={handleCloseMenu}>
             <Text style={styles.menuCloseText}>✕</Text>
@@ -94,6 +93,23 @@ const GameMenuModal = () => {
             <Text style={styles.menuButtonEmoji}>😈</Text>
             <Text style={styles.menuButtonText}>Expert</Text>
           </TouchableOpacity>
+          
+          {/* Feedback toggle added to menu */}
+          <View style={styles.feedbackControl}>
+            <Text style={[styles.feedbackLabel, { color: theme.colors.title }]}>
+              Show Feedback
+            </Text>
+            <Switch
+              value={showFeedback}
+              onValueChange={handleToggleFeedback}
+              trackColor={{ 
+                false: '#d3d3d3', 
+                true: theme.colors.cell?.correctValueText || '#4caf50' 
+              }}
+              thumbColor={showFeedback ? theme.colors.numberPad.background : '#f4f3f4'}
+            />
+          </View>
+          
           {__DEV__ && (
             <TouchableOpacity 
               style={[styles.menuButton, { backgroundColor: '#d0d0d0' }]} 
@@ -174,6 +190,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+  },
+  feedbackControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  feedbackLabel: {
+    marginRight: 10,
+    fontSize: 16,
   },
 });
 
