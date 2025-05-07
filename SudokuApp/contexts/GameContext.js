@@ -32,6 +32,9 @@ export const ACTIONS = {
   RESUME_GAME: 'RESUME_GAME',
   QUIT_GAME: 'QUIT_GAME',
   SHOW_WIN_MODAL: 'SHOW_WIN_MODAL',
+  HIDE_WIN_MODAL: 'HIDE_WIN_MODAL',
+  SHOW_BUILD_NOTES: 'SHOW_BUILD_NOTES',
+  HIDE_BUILD_NOTES: 'HIDE_BUILD_NOTES',
   
   // Future - for AsyncStorage
   RESTORE_SAVED_GAME: 'RESTORE_SAVED_GAME',
@@ -772,5 +775,3 @@ export const useGameContext = () => {
   }
   return context;
 };
-
-export default GameContext;
