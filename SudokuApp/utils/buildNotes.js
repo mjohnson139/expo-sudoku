@@ -346,15 +346,17 @@ export const BUILD_NOTES = {
     ]
   },
   '2.2.0': {
-    title: 'Dedicated Pause Modal',
-    date: '2025-05-06',
+    title: 'UI and UX Improvements',
+    date: '2025-05-07',
     notes: [
-      'Added separate pause modal component for game pausing functionality',
-      'Removed pause functionality from the menu modal for better separation of concerns',
-      'Added pause button to the game timer for quick access',
-      'Implemented resume and quit buttons in the pause modal',
-      'Added smooth animations for pause modal appearance',
-      'Improved overall game flow with dedicated UI components for different states'
+      'Added dedicated GameTopStrip component that aligns perfectly with the game grid',
+      'Fixed timer to only start after a game has actually been started',
+      'Moved theme selector from top strip to the game menu for a cleaner interface',
+      'Redesigned pause button to be icon-only for minimal visual interference',
+      'Removed large pause icon from the pause modal for a cleaner design',
+      'Changed "Quit to Menu" button to "Quit Game" for clarity',
+      'Made timer text more consistent with the game\'s overall theme',
+      'Added gameStarted flag to improve game state management'
     ]
   }
 };
