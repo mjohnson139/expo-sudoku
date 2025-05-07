@@ -56,6 +56,7 @@ const initialState = {
   // Timer state
   elapsedSeconds: 0,
   timerActive: false,
+  gameStarted: false, // Added flag to track if a game has been started
   
   // Theme state
   currentThemeName: 'classic',
@@ -163,6 +164,7 @@ function gameReducer(state, action) {
         showWinModal: false,
         elapsedSeconds: 0,
         timerActive: true,
+        gameStarted: true, // Set game as started when starting a new game
         undoStack: [],
         redoStack: [],
       };
@@ -535,6 +537,8 @@ function gameReducer(state, action) {
         ...state,
         isPaused: false,
         showMenu: true,
+        timerActive: false, // Ensure timer is off when quitting
+        gameStarted: false, // Reset game started flag
       };
     
     case ACTIONS.SHOW_MENU:
@@ -548,7 +552,8 @@ function gameReducer(state, action) {
       return {
         ...state,
         showMenu: false,
-        timerActive: !state.showWinModal && !state.isPaused, // Resume timer if not paused or in win state
+        // Only resume timer if a game has been started and not paused or in win state
+        timerActive: state.gameStarted && !state.showWinModal && !state.isPaused,
       };
     
     case ACTIONS.SHOW_WIN_MODAL:
