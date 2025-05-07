@@ -54,37 +54,33 @@ const PauseModal = () => {
           opacity: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
         }}
       >
-        {/* Animated element (can be replaced with Lottie or other animation) */}
         <Animated.View
           style={{
             transform: [{ scale: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }],
-            marginBottom: 16,
           }}
         >
-          {/* Placeholder for animation: replace with LottieView for advanced animation */}
-          <Text style={{ fontSize: 48, textAlign: 'center' }}>⏸️</Text>
+          <View style={[styles.pauseBox, { backgroundColor: theme.colors.numberPad.background, borderColor: theme.colors.numberPad.border }]}> 
+            <Text style={[styles.pauseTitle, { color: theme.colors.title }]}>Game Paused</Text>
+            
+            {/* Resume Button */}
+            <TouchableOpacity 
+              style={[styles.pauseButton, styles.resumeButton]} 
+              onPress={handleResume}
+            >
+              <Text style={styles.pauseButtonEmoji}>▶️</Text>
+              <Text style={styles.pauseButtonText}>Resume</Text>
+            </TouchableOpacity>
+            
+            {/* Quit Button */}
+            <TouchableOpacity 
+              style={[styles.pauseButton, styles.quitButton]} 
+              onPress={handleQuit}
+            >
+              <Text style={styles.pauseButtonEmoji}>🏠</Text>
+              <Text style={styles.pauseButtonText}>Quit Game</Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
-        <View style={[styles.pauseBox, { backgroundColor: theme.colors.numberPad.background, borderColor: theme.colors.numberPad.border }]}> 
-          <Text style={[styles.pauseTitle, { color: theme.colors.title }]}>Game Paused</Text>
-          
-          {/* Resume Button */}
-          <TouchableOpacity 
-            style={[styles.pauseButton, styles.resumeButton]} 
-            onPress={handleResume}
-          >
-            <Text style={styles.pauseButtonEmoji}>▶️</Text>
-            <Text style={styles.pauseButtonText}>Resume</Text>
-          </TouchableOpacity>
-          
-          {/* Quit Button */}
-          <TouchableOpacity 
-            style={[styles.pauseButton, styles.quitButton]} 
-            onPress={handleQuit}
-          >
-            <Text style={styles.pauseButtonEmoji}>🏠</Text>
-            <Text style={styles.pauseButtonText}>Quit to Menu</Text>
-          </TouchableOpacity>
-        </View>
       </Animated.View>
     </Modal>
   );

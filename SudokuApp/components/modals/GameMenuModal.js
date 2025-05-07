@@ -11,6 +11,7 @@ const GameMenuModal = () => {
     showMenu, 
     startNewGame,
     showFeedback,
+    cycleTheme,
     dispatch,
     debugFillBoard,
   } = useGameContext();
@@ -93,6 +94,20 @@ const GameMenuModal = () => {
             <Text style={styles.menuButtonEmoji}>😈</Text>
             <Text style={styles.menuButtonText}>Expert</Text>
           </TouchableOpacity>
+          
+          {/* Theme selector button */}
+          <View style={styles.settingSection}>
+            <Text style={[styles.settingLabel, { color: theme.colors.title }]}>Theme</Text>
+            <TouchableOpacity 
+              style={[styles.themeButton, { backgroundColor: theme.colors.numberPad.border }]} 
+              onPress={cycleTheme}
+              accessibilityLabel="Change Theme"
+            >
+              <Text style={styles.themeButtonText}>
+                🎨 {theme.name}
+              </Text>
+            </TouchableOpacity>
+          </View>
           
           {/* Feedback toggle added to menu */}
           <View style={styles.feedbackControl}>
@@ -200,6 +215,29 @@ const styles = StyleSheet.create({
   feedbackLabel: {
     marginRight: 10,
     fontSize: 16,
+  },
+  // New styles for theme selector in menu
+  settingSection: {
+    width: '100%',
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  settingLabel: {
+    fontSize: 16,
+    marginBottom: 6,
+  },
+  themeButton: {
+    width: 180,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  themeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
   },
 });
 

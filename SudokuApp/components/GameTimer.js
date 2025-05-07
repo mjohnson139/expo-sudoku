@@ -4,6 +4,7 @@ import { useGameContext, ACTIONS } from '../contexts/GameContext';
 
 /**
  * GameTimer component displaying elapsed time and pause button
+ * Positioned on the right side of the GameTopStrip
  */
 const GameTimer = () => {
   const { elapsedSeconds, formatTime, dispatch, theme, isPaused } = useGameContext();
@@ -13,76 +14,70 @@ const GameTimer = () => {
   };
 
   return (
-    <View style={styles.timerRow}>
-      <View style={styles.timerContainer}>
-        <View style={styles.timerTextContainer}>
-          <Text style={styles.timerText}>{formatTime(elapsedSeconds)}</Text>
-        </View>
-        
-        {/* Pause button - positioned next to timer */}
-        <TouchableOpacity 
-          style={[
-            styles.pauseButton,
-            { 
-              backgroundColor: theme.colors.numberPad.background,
-              borderColor: theme.colors.numberPad.border
-            }
-          ]} 
-          onPress={handlePausePress}
-          // Disable when already paused
-          disabled={isPaused}
-          accessibilityLabel="Pause Game"
-        >
-          <Text style={styles.pauseButtonIcon}>⏸️</Text>
-        </TouchableOpacity>
+    <View style={styles.timerContainer}>
+      <View style={[
+        styles.timerTextContainer,
+        {
+          backgroundColor: theme.colors.numberPad?.background || 'transparent',
+          borderColor: theme.colors.numberPad?.border
+        }
+      ]}>
+        <Text style={[
+          styles.timerText, 
+          { color: theme.colors.numberPad?.text || theme.colors.text }
+        ]}>
+          {formatTime(elapsedSeconds)}
+        </Text>
       </View>
+      
+      {/* Pause button - icon only with minimal size but good tap target */}
+      <TouchableOpacity 
+        style={styles.pauseButton}
+        onPress={handlePausePress}
+        disabled={isPaused}
+        accessibilityLabel="Pause Game"
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} // Increase tap area without changing visible size
+      >
+        <Text style={[
+          styles.pauseButtonIcon, 
+          { 
+            color: isPaused 
+              ? theme.colors.cell?.correctValueText || theme.colors.accent || '#4caf50' 
+              : theme.colors.numberPad?.text || theme.colors.text 
+          }
+        ]}>⏸️</Text>
+      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  timerRow: {
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 5,
-    minHeight: 28,
-  },
   timerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   timerTextContainer: {
-    width: 60, // Fixed width to prevent size changes
+    minWidth: 60, // Minimum width to prevent size changes
     alignItems: 'center',
     justifyContent: 'center',
+
   },
   timerText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#888',
     textAlign: 'center',
     letterSpacing: 1,
-    marginRight: 8,
+    fontFamily: 'monospace', // Use a fixed-width font
   },
   pauseButton: {
-    width: 40, 
-    height: 40,
+    width: 30,
+    height: 30,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 8,
-    borderWidth: 1,
-    // Raised effect
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 3,
   },
   pauseButtonIcon: {
-    fontSize: 20,
+    fontSize: 22,
   },
 });
 

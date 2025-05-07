@@ -1,45 +1,35 @@
 // filepath: /Users/matthewjohnson/dev/expo-sudoku/SudokuApp/components/ThemeSelector.js
 import React from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { useGameContext } from '../contexts/GameContext';
 
 /**
  * ThemeSelector component allowing user to switch themes
- * Positioned at the top of the screen like the timer/pause button
+ * Positioned on the left side of the GameTopStrip
  */
 const ThemeSelector = () => {
   const { theme, cycleTheme } = useGameContext();
 
   return (
-    <View style={styles.themeRow}>
-      <TouchableOpacity 
-        style={[
-          styles.themeButton,
-          { 
-            backgroundColor: theme.colors.numberPad.background,
-            borderColor: theme.colors.numberPad.border
-          }
-        ]} 
-        onPress={cycleTheme}
-        accessibilityLabel="Change Theme"
-      >
-        <Text style={[styles.themeButtonText, { color: theme.colors.numberPad.text }]}>
-          🎨 {theme.name}
-        </Text>
-      </TouchableOpacity>
-    </View>
+    <TouchableOpacity 
+      style={[
+        styles.themeButton,
+        { 
+          backgroundColor: theme.colors.numberPad.background,
+          borderColor: theme.colors.numberPad.border
+        }
+      ]} 
+      onPress={cycleTheme}
+      accessibilityLabel="Change Theme"
+    >
+      <Text style={[styles.themeButtonText, { color: theme.colors.numberPad.text }]}>
+        🎨 {theme.name}
+      </Text>
+    </TouchableOpacity>
   );
 };
 
 const styles = StyleSheet.create({
-  themeRow: {
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 5,
-    minHeight: 28,
-  },
   themeButton: {
     minWidth: 100,
     height: 40,
