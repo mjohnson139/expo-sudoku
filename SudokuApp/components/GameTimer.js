@@ -15,16 +15,10 @@ const GameTimer = () => {
 
   return (
     <View style={styles.timerContainer}>
-      <View style={[
-        styles.timerTextContainer,
-        {
-          backgroundColor: theme.colors.numberPad?.background || 'transparent',
-          borderColor: theme.colors.numberPad?.border
-        }
-      ]}>
+      <View style={styles.timerTextContainer}>
         <Text style={[
           styles.timerText, 
-          { color: theme.colors.numberPad?.text || theme.colors.text }
+          { color: theme.colors.text }
         ]}>
           {formatTime(elapsedSeconds)}
         </Text>
@@ -40,11 +34,7 @@ const GameTimer = () => {
       >
         <Text style={[
           styles.pauseButtonIcon, 
-          { 
-            color: isPaused 
-              ? theme.colors.cell?.correctValueText || theme.colors.accent || '#4caf50' 
-              : theme.colors.numberPad?.text || theme.colors.text 
-          }
+          { color: theme.colors.text }
         ]}>⏸️</Text>
       </TouchableOpacity>
     </View>
@@ -61,23 +51,23 @@ const styles = StyleSheet.create({
     minWidth: 60, // Minimum width to prevent size changes
     alignItems: 'center',
     justifyContent: 'center',
-
+    marginRight: 2, // Space between timer and icon
+    // Removed background color, border, and padding to blend with main background
   },
   timerText: {
-    fontSize: 18,
+    fontSize: 16, // Increased size for better visibility
     fontWeight: 'bold',
     textAlign: 'center',
     letterSpacing: 1,
-    fontFamily: 'monospace', // Use a fixed-width font
   },
   pauseButton: {
-    width: 30,
-    height: 30,
+    width: 20,
+    height: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
   pauseButtonIcon: {
-    fontSize: 22,
+    fontSize: 12,
   },
 });
 
