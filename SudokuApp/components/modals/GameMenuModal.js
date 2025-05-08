@@ -1,6 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View } from 'react-native';
-import { useGameContext } from '../../contexts/GameContext';
+import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View, Switch } from 'react-native';
+import { useGameContext, ACTIONS } from '../../contexts/GameContext';
 
 /**
  * Game Menu Modal for game settings and difficulty selection
@@ -9,7 +9,9 @@ const GameMenuModal = () => {
   const { 
     theme, 
     showMenu, 
-    startNewGame, 
+    startNewGame,
+    showFeedback,
+    cycleTheme,
     dispatch,
     debugFillBoard,
   } = useGameContext();
@@ -37,6 +39,13 @@ const GameMenuModal = () => {
     dispatch({ type: 'HIDE_MENU' });
   };
 
+  const handleToggleFeedback = (value) => {
+    dispatch({ 
+      type: ACTIONS.TOGGLE_FEEDBACK, 
+      payload: value 
+    });
+  };
+
   return (
     <Modal
       visible={showMenu}
@@ -50,26 +59,12 @@ const GameMenuModal = () => {
           opacity: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
         }}
       >
-        {/* Animated element (can be replaced with Lottie or other animation) */}
-        <Animated.View
-          style={{
-            transform: [{ scale: menuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }],
-            marginBottom: 16,
-          }}
-        >
-          {/* Placeholder for animation: replace with LottieView for advanced animation */}
-          <Text style={{ fontSize: 48, textAlign: 'center' }}>⏸️</Text>
-        </Animated.View>
         <View style={[styles.menuBox, { backgroundColor: theme.colors.numberPad.background, borderColor: theme.colors.numberPad.border }]}> 
           <TouchableOpacity style={styles.menuCloseButton} onPress={handleCloseMenu}>
             <Text style={styles.menuCloseText}>✕</Text>
           </TouchableOpacity>
-          {/* Resume Button */}
-          <TouchableOpacity style={styles.menuButton} onPress={handleCloseMenu}>
-            <Text style={styles.menuButtonEmoji}>▶️</Text>
-            <Text style={styles.menuButtonText}>Resume</Text>
-          </TouchableOpacity>
-          <Text style={[styles.menuTitle, { color: theme.colors.title }]}>🧩 Sudoku</Text>
+          
+          <Text style={[styles.menuTitle, { color: theme.colors.title }]}>Sudoku</Text>
           <Text style={[styles.menuSubtitle, { color: theme.colors.title }]}>Select Difficulty</Text>
           <TouchableOpacity 
             style={[styles.menuButton, styles.menuButtonEasy]} 
@@ -99,6 +94,37 @@ const GameMenuModal = () => {
             <Text style={styles.menuButtonEmoji}>😈</Text>
             <Text style={styles.menuButtonText}>Expert</Text>
           </TouchableOpacity>
+          
+          {/* Theme selector button */}
+          <View style={styles.settingSection}>
+            <Text style={[styles.settingLabel, { color: theme.colors.title }]}>Theme</Text>
+            <TouchableOpacity 
+              style={[styles.themeButton, { backgroundColor: theme.colors.numberPad.border }]} 
+              onPress={cycleTheme}
+              accessibilityLabel="Change Theme"
+            >
+              <Text style={styles.themeButtonText}>
+                🎨 {theme.name}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Feedback toggle added to menu */}
+          <View style={styles.feedbackControl}>
+            <Text style={[styles.feedbackLabel, { color: theme.colors.title }]}>
+              Show Feedback
+            </Text>
+            <Switch
+              value={showFeedback}
+              onValueChange={handleToggleFeedback}
+              trackColor={{ 
+                false: '#d3d3d3', 
+                true: theme.colors.cell?.correctValueText || '#4caf50' 
+              }}
+              thumbColor={showFeedback ? theme.colors.numberPad.background : '#f4f3f4'}
+            />
+          </View>
+          
           {__DEV__ && (
             <TouchableOpacity 
               style={[styles.menuButton, { backgroundColor: '#d0d0d0' }]} 
@@ -176,6 +202,39 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   menuButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  feedbackControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    marginBottom: 12,
+  },
+  feedbackLabel: {
+    marginRight: 10,
+    fontSize: 16,
+  },
+  // New styles for theme selector in menu
+  settingSection: {
+    width: '100%',
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  settingLabel: {
+    fontSize: 16,
+    marginBottom: 6,
+  },
+  themeButton: {
+    width: 180,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  themeButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',

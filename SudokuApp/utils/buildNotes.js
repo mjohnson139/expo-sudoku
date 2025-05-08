@@ -344,6 +344,20 @@ export const BUILD_NOTES = {
       'Reduced GameScreen from ~1000 lines to under 100 lines for better maintainability',
       'Prepared architecture for upcoming AsyncStorage implementation'
     ]
+  },
+  '2.2.0': {
+    title: 'UI and UX Improvements',
+    date: '2025-05-07',
+    notes: [
+      'Added dedicated GameTopStrip component that aligns perfectly with the game grid',
+      'Fixed timer to only start after a game has actually been started',
+      'Moved theme selector from top strip to the game menu for a cleaner interface',
+      'Redesigned pause button to be icon-only for minimal visual interference',
+      'Removed large pause icon from the pause modal for a cleaner design',
+      'Changed "Quit to Menu" button to "Quit Game" for clarity',
+      'Made timer text more consistent with the game\'s overall theme',
+      'Added gameStarted flag to improve game state management'
+    ]
   }
 };
 

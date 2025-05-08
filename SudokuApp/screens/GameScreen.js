@@ -4,10 +4,11 @@ import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
 import GameHeader from '../components/GameHeader';
-import GameTimer from '../components/GameTimer';
+import GameTopStrip from '../components/GameTopStrip';
 import GameOptions from '../components/GameOptions';
 import GameToolBar from '../components/GameToolBar';
 import GameMenuModal from '../components/modals/GameMenuModal';
+import PauseModal from '../components/modals/PauseModal';
 import WinModal from '../components/modals/WinModal';
 import { GameProvider, useGameContext, ACTIONS } from '../contexts/GameContext';
 import appJson from '../app.json';
@@ -46,8 +47,8 @@ const GameScreenContent = () => {
       {/* Header with menu button, title, build info */}
       <GameHeader />
       
-      {/* Timer with pause button */}
-      <GameTimer />
+      {/* Top strip with Theme Selector (left) and Timer (right) */}
+      <GameTopStrip />
       
       {/* Game board */}
       <View style={styles.gridContainer}>
@@ -80,6 +81,7 @@ const GameScreenContent = () => {
       
       {/* Modals */}
       <GameMenuModal />
+      <PauseModal />
       <WinModal />
       
       {/* Build notes */}
