@@ -587,10 +587,22 @@ function gameReducer(state, action) {
       };
     
     case ACTIONS.RESTORE_SAVED_GAME:
-      // For future AsyncStorage integration
+      // Restore saved game from AsyncStorage
+      const restoredState = action.payload;
+      
+      // Ensure timer is activated properly based on previous state
+      const timerActive = restoredState.gameStarted && 
+        !restoredState.isPaused && 
+        !restoredState.showWinModal && 
+        !restoredState.showMenu;
+      
       return {
         ...state,
-        ...action.payload,
+        ...restoredState,
+        // Ensure we're overriding with proper UI state
+        showMenu: false,
+        gameStarted: true,
+        timerActive,
       };
     
     default:
@@ -602,19 +614,50 @@ function gameReducer(state, action) {
 const GameContext = createContext();
 
 // Game provider component
-export const GameProvider = ({ children }) => {
+export const GameProvider = ({ children, setGameStateRef, shouldAutoRestore, resetShouldAutoRestore }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const timerRef = useRef(null);
   const [hasSavedGame, setHasSavedGame] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Load saved game on mount
+  // Update the App component's reference to the current game state
+  useEffect(() => {
+    if (setGameStateRef) {
+      setGameStateRef(state);
+    }
+  }, [
+    state,
+    setGameStateRef,
+    state.board, 
+    state.cellNotes, 
+    state.cellFeedback,
+    state.elapsedSeconds,
+    state.gameStarted,
+    state.showMenu,
+    state.filledCount
+  ]);
+  
+  // Load saved game on mount - auto-restore if the app is returning from background
   useEffect(() => {
     const loadSavedGame = async () => {
       try {
         const savedState = await loadGameState();
         if (savedState) {
           setHasSavedGame(true);
+          
+          // Auto-restore the game if coming back from background
+          if (shouldAutoRestore) {
+            // Restore state and hide menu
+            dispatch({
+              type: ACTIONS.RESTORE_SAVED_GAME,
+              payload: savedState
+            });
+            
+            // Reset the auto-restore flag
+            if (resetShouldAutoRestore) {
+              resetShouldAutoRestore();
+            }
+          }
         } else {
           setHasSavedGame(false);
         }
@@ -627,7 +670,7 @@ export const GameProvider = ({ children }) => {
     };
     
     loadSavedGame();
-  }, []);
+  }, [shouldAutoRestore, resetShouldAutoRestore]);
   
   // Effect for timer
   useEffect(() => {

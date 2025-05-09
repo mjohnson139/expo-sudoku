@@ -98,9 +98,13 @@ const GameScreenContent = () => {
 /**
  * GameScreen wrapper that provides the GameProvider context
  */
-const GameScreen = () => {
+const GameScreen = ({ setGameStateRef, shouldAutoRestore, resetShouldAutoRestore }) => {
   return (
-    <GameProvider>
+    <GameProvider 
+      setGameStateRef={setGameStateRef}
+      shouldAutoRestore={shouldAutoRestore}
+      resetShouldAutoRestore={resetShouldAutoRestore}
+    >
       <GameScreenContent />
     </GameProvider>
   );

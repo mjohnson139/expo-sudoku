@@ -13,6 +13,11 @@ const STORAGE_KEYS = {
  */
 export const saveGameState = async (gameState) => {
   try {
+    // Don't save if the game is not in progress
+    if (!gameState.gameStarted || gameState.showWinModal) {
+      return;
+    }
+    
     // Define the shape of data to be persisted
     const dataToSave = {
       version: STORAGE_KEYS.VERSION,
@@ -25,18 +30,23 @@ export const saveGameState = async (gameState) => {
       cellNotes: gameState.cellNotes,
       cellFeedback: gameState.cellFeedback,
       filledCount: gameState.filledCount,
+      selectedCell: gameState.selectedCell,
       // Game UI state
       showFeedback: gameState.showFeedback,
       notesMode: gameState.notesMode,
+      isPaused: gameState.isPaused,
       // Timer state
       elapsedSeconds: gameState.elapsedSeconds,
+      timerActive: gameState.timerActive,
+      gameStarted: gameState.gameStarted,
       // Theme state
-      currentThemeName: gameState.currentThemeName,
+      currentThemeName: gameState.currentThemeName, 
       // Undo/redo state
       undoStack: gameState.undoStack,
       redoStack: gameState.redoStack,
     };
 
+    console.log('Saving game state:', dataToSave.timestamp);
     const jsonValue = JSON.stringify(dataToSave);
     await AsyncStorage.setItem(STORAGE_KEYS.GAME_STATE, jsonValue);
   } catch (error) {
@@ -81,6 +91,25 @@ export const clearGameState = async () => {
     await AsyncStorage.removeItem(STORAGE_KEYS.GAME_STATE);
   } catch (error) {
     console.error('Error clearing game state:', error);
+  }
+};
+
+/**
+ * Immediately save game state on app background/exit
+ * (Non-debounced version for use when app is backgrounding)
+ * @param {Object} gameState - The current game state to persist
+ * @returns {Promise<void>}
+ */
+export const saveGameStateImmediate = async (gameState) => {
+  try {
+    if (!gameState || !gameState.gameStarted) {
+      return;
+    }
+    
+    console.log('Immediately saving game on background/exit');
+    await saveGameState(gameState);
+  } catch (error) {
+    console.error('Error immediate saving game state:', error);
   }
 };
 

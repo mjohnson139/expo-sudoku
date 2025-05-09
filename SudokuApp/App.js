@@ -1,16 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { SafeAreaView, AppState, DeviceEventEmitter, NativeEventEmitter, NativeModules, Platform } from 'react-native';
 import GameScreen from './screens/GameScreen';
+import { saveGameStateImmediate } from './utils/storage';
 
 export default function App() {
   const [appKey, setAppKey] = useState(0);
+  // Reference to hold the current game context's state
+  const gameStateRef = useRef(null);
+  // Flag to track if we should auto-restore on next activation
+  const shouldAutoRestoreRef = useRef(false);
+
+  // Function to set the current game state reference
+  const setGameStateRef = (state) => {
+    gameStateRef.current = state;
+  };
 
   useEffect(() => {
     // Handle app state changes
     const appStateSubscription = AppState.addEventListener('change', nextState => {
-      if (nextState === 'active') {
-        // Remount GameScreen to restore UI on resume
-        setAppKey(prev => prev + 1);
+      if (nextState === 'background') {
+        // Explicitly save game state when app goes to background
+        if (gameStateRef.current && gameStateRef.current.gameStarted && !gameStateRef.current.showMenu) {
+          saveGameStateImmediate(gameStateRef.current);
+          shouldAutoRestoreRef.current = true;
+        }
+      } else if (nextState === 'active') {
+        // Set flag to auto-restore game on component remount
+        // The GameScreen component will read this flag
+        if (shouldAutoRestoreRef.current) {
+          // Remount GameScreen to restore UI on resume
+          setAppKey(prev => prev + 1);
+        }
       }
     });
     
@@ -90,7 +110,12 @@ export default function App() {
       onTouchStart={handleTouchStart}
       onClick={Platform.OS === 'web' ? handleTouchStart : undefined}
     >
-      <GameScreen key={appKey} />
+      <GameScreen 
+        key={appKey} 
+        setGameStateRef={setGameStateRef} 
+        shouldAutoRestore={shouldAutoRestoreRef.current}
+        resetShouldAutoRestore={() => { shouldAutoRestoreRef.current = false; }}
+      />
     </SafeAreaView>
   );
 }
