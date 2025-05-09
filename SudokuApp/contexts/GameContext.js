@@ -590,12 +590,12 @@ function gameReducer(state, action) {
       // Restore saved game from AsyncStorage
       const restoredState = action.payload;
       
-      // Check if game was paused when saved
-      const wasPaused = restoredState.isPaused;
+      // Determine if the game should be paused
+      const shouldBePaused = restoredState.isPaused || global.appResumedFromBackground;
       
-      // Ensure timer is activated properly based on previous state
+      // Ensure timer is properly deactivated if paused
       const timerActive = restoredState.gameStarted && 
-        !wasPaused && 
+        !shouldBePaused && 
         !restoredState.showWinModal && 
         !restoredState.showMenu;
       
@@ -606,7 +606,7 @@ function gameReducer(state, action) {
         showMenu: false,
         gameStarted: true,
         timerActive: timerActive,
-        isPaused: wasPaused, // Explicitly preserve the pause state
+        isPaused: shouldBePaused, // Always show pause screen when returning
       };
     
     default:
@@ -654,16 +654,16 @@ export const GameProvider = ({ children, setGameStateRef, shouldAutoRestore, res
             // Check if the game was paused when saved
             const wasPaused = savedState.isPaused;
             
-            // Simplified restoration logic
-            if (wasPaused && global.wasActiveBeforeBackground) {
-              // If the game was active before background, auto-unpause it
-              savedState.isPaused = false;
-              console.log('Auto-unpausing game that was active before backgrounding');
-            } else if (wasPaused) {
-              console.log('Keeping game paused as it was paused before backgrounding');
+            // Always keep the game paused when restoring from background
+            // (This is what user specifically requested - always show pause screen when returning)
+            if (!savedState.isPaused && savedState.gameStarted) {
+              console.log('Ensuring game is paused when returning from background');
+              savedState.isPaused = true;
+            } else {
+              console.log('Game was already paused, keeping pause state');
             }
             
-            // Always clean up the flag
+            // Clean up any obsolete flags
             global.wasActiveBeforeBackground = false;
             
             // Restore state and hide menu
