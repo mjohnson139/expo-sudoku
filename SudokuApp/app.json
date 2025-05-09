@@ -25,7 +25,14 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "name": "Sudoku App",
+      "shortName": "Sudoku",
+      "backgroundColor": "#ffffff",
+      "themeColor": "#000000",
+      "description": "A beautifully designed Sudoku game",
+      "lang": "en",
+      "orientation": "portrait"
     },
     "extra": {
       "eas": {

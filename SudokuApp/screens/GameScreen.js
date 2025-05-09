@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Platform, Dimensions } from 'react-native';
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
@@ -106,16 +106,54 @@ const GameScreen = () => {
   );
 };
 
+// Get responsive grid container size
+const getGridContainerSize = () => {
+  // Base size for mobile
+  const baseSize = 324;
+  
+  // For web platform, use responsive sizing based on screen width
+  if (Platform.OS === 'web') {
+    const { width, height } = Dimensions.get('window');
+    const smallerDimension = Math.min(width, height);
+    
+    // Limit grid size on web for larger screens
+    // On small screens, make it proportionally smaller
+    const maxWebSize = 450; // Maximum grid size on web
+    const minWebSize = 270; // Minimum grid size on web
+    
+    // Calculate the responsive size based on screen dimensions
+    const responsiveSize = Math.min(
+      maxWebSize,
+      Math.max(minWebSize, smallerDimension * 0.7)
+    );
+    
+    // Round to nearest pixel for clean rendering
+    return Math.floor(responsiveSize);
+  }
+  
+  // Return default size for mobile platforms
+  return baseSize;
+};
+
+// Get the dimensions based on platform
+const gridContainerSize = getGridContainerSize();
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 10,
+    ...(Platform.OS === 'web' ? {
+      paddingTop: 20, // Add extra padding on web for better layout
+      paddingBottom: 20,
+      maxWidth: 600, // Limit width on web for large screens
+      marginHorizontal: 'auto', // Center on web
+    } : {})
   },
   gridContainer: {
-    width: 324, // Match grid width
-    height: 324, // Match grid height
+    width: gridContainerSize,
+    height: gridContainerSize,
   },
 });
 
