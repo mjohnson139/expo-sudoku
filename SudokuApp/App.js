@@ -23,6 +23,9 @@ export default function App() {
         if (gameStateRef.current && gameStateRef.current.gameStarted && !gameStateRef.current.showMenu) {
           saveGameStateImmediate(gameStateRef.current);
           shouldAutoRestoreRef.current = true;
+          
+          // Remember if the game was paused when we went to background
+          global.wasPausedOnBackground = gameStateRef.current.isPaused;
         }
       } else if (nextState === 'active') {
         // Set flag to auto-restore game on component remount
@@ -34,6 +37,22 @@ export default function App() {
           
           // Remount GameScreen to restore UI on resume
           setAppKey(prev => prev + 1);
+          
+          // Set a safety timeout at the app level
+          setTimeout(() => {
+            // If the game is still paused after resuming from background,
+            // and we've already waited a bit, force unpause it as a backup mechanism
+            if (gameStateRef.current && 
+                gameStateRef.current.isPaused && 
+                global.wasPausedOnBackground) {
+              console.log('App-level safety timeout - forcing game resume');
+              if (gameStateRef.current.dispatch) {
+                gameStateRef.current.dispatch({ type: 'RESUME_GAME' });
+              }
+              global.appResumedFromBackground = false;
+              global.wasPausedOnBackground = false;
+            }
+          }, 1500);
         }
       }
     });

@@ -651,6 +651,18 @@ export const GameProvider = ({ children, setGameStateRef, shouldAutoRestore, res
           
           // Auto-restore the game if coming back from background
           if (shouldAutoRestore) {
+            // Check if the game was paused when saved
+            const wasPaused = savedState.isPaused;
+            
+            // If the game was paused when we went to background, and we're
+            // auto-restoring, let's force unpause it to avoid stuck states
+            if (wasPaused && global.wasPausedOnBackground) {
+              // Modify the saved state to ensure it's not paused on restoration
+              savedState.isPaused = false;
+              console.log('Force unpausing previously paused game on auto-restore');
+              global.wasPausedOnBackground = false;
+            }
+            
             // Restore state and hide menu
             dispatch({
               type: ACTIONS.RESTORE_SAVED_GAME,
