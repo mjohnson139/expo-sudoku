@@ -713,23 +713,25 @@ export const GameProvider = ({ children, setGameStateRef, shouldAutoRestore, res
   // Save game state when it changes
   useEffect(() => {
     // Don't save if just showing the menu or no game has started
-    if (state.showMenu || !state.gameStarted) {
+    if (state.showMenu || !state.gameStarted || global.appInBackground) {
       return;
     }
     
-    // Use our debounced save function to avoid saving on every state change
+    // Only save state on significant changes, not on timer ticks
     debouncedSaveGameState(state);
   }, [
     state.board, 
     state.cellNotes, 
     state.cellFeedback,
-    state.elapsedSeconds,
     state.currentThemeName,
     state.showFeedback,
     state.notesMode,
     state.undoStack,
     state.redoStack,
-    state.filledCount
+    state.filledCount,
+    // Removed elapsedSeconds to prevent constant saving while timer is running
+    // Only save when the game is paused instead
+    state.isPaused
   ]);
   
   // Check for win condition when filledCount changes

@@ -19,6 +19,9 @@ export default function App() {
     // Handle app state changes
     const appStateSubscription = AppState.addEventListener('change', nextState => {
       if (nextState === 'background') {
+        // Set global flag to prevent continuous saving while in background
+        global.appInBackground = true;
+        
         // Check if we have a valid game state and a game is in progress
         if (gameStateRef.current && gameStateRef.current.gameStarted) {
           console.log('App going to background - always pausing game');
@@ -35,10 +38,13 @@ export default function App() {
             }
           }
           
-          // Always save the game state
+          // Save the game state once when going to background
           saveGameStateImmediate(gameStateRef.current);
         }
       } else if (nextState === 'active') {
+        // Reset the background flag when app comes to foreground
+        global.appInBackground = false;
+        
         // Set flag to auto-restore game on component remount
         // The GameScreen component will read this flag
         if (shouldAutoRestoreRef.current) {

@@ -108,8 +108,12 @@ export const saveGameStateImmediate = async (gameState) => {
     
     console.log('Immediately saving game on background/exit');
     await saveGameState(gameState);
+    
+    // Return the savedTime to confirm when the save happened
+    return new Date().toISOString();
   } catch (error) {
     console.error('Error immediate saving game state:', error);
+    return null;
   }
 };
 
