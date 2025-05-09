@@ -148,3 +148,4 @@ ios/
 *.key
 *.mobileprovision
 *.orig.*
+**/.claude/settings.local.json

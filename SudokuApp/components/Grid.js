@@ -1,5 +1,5 @@
 import React, { useMemo, useCallback } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Platform, Dimensions } from 'react-native';
 import Cell from './Cell';
 
 const Grid = ({ 
@@ -156,17 +156,53 @@ const Grid = ({
   );
 };
 
+// Get responsive dimensions for the grid
+const getGridDimensions = () => {
+  // Base size for mobile
+  const baseSize = 324;
+  const baseCellSize = 36;
+  
+  // For web platform, use responsive sizing based on screen width
+  if (Platform.OS === 'web') {
+    const { width, height } = Dimensions.get('window');
+    const smallerDimension = Math.min(width, height);
+    
+    // Limit grid size on web for larger screens
+    // On small screens, make it proportionally smaller
+    const maxWebSize = 450; // Maximum grid size on web
+    const minWebSize = 270; // Minimum grid size on web
+    
+    // Calculate the responsive size based on screen dimensions
+    const responsiveSize = Math.min(
+      maxWebSize,
+      Math.max(minWebSize, smallerDimension * 0.7)
+    );
+    
+    // Round to nearest pixel for clean rendering
+    const gridSize = Math.floor(responsiveSize);
+    const cellSize = Math.floor(gridSize / 9);
+    
+    return { gridSize, cellSize };
+  }
+  
+  // Return default sizes for mobile platforms
+  return { gridSize: baseSize, cellSize: baseCellSize };
+};
+
+// Get the dimensions based on platform
+const { gridSize, cellSize } = getGridDimensions();
+
 const styles = StyleSheet.create({
   grid: {
-    width: 324,
-    height: 324,
+    width: gridSize,
+    height: gridSize,
   },
   row: {
     flexDirection: 'row',
   },
   cellContainer: {
-    width: 36,
-    height: 36,
+    width: cellSize,
+    height: cellSize,
   }
 });
 

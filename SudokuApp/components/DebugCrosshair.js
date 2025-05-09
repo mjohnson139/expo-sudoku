@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, Text, PanResponder, Dimensions, Animated, TouchableOpacity, DeviceEventEmitter } from 'react-native';
+import { View, StyleSheet, Text, PanResponder, Dimensions, Animated, TouchableOpacity, DeviceEventEmitter, Platform } from 'react-native';
 
 const REST_DELAY_MS = 2000; // Configurable delay in ms
 
@@ -55,15 +55,18 @@ const DebugCrosshair = () => {
 
   // Measure overlay absolute position when it lays out
   const onOverlayLayout = () => {
-    overlayRef.current?.measureInWindow((x, y) => {
-      setOverlayOffset({ x, y });
-    });
+    if (overlayRef.current?.measureInWindow) {
+      overlayRef.current.measureInWindow((x, y) => {
+        setOverlayOffset({ x, y });
+      });
+    }
   };
 
   // Adjusted helper to print debug message for LLM/IDP
   const printLLMDebugTap = (x, y, elementId) => {
     const absX = Math.round(x + overlayOffset.x);
-    const absY = Math.round(y + overlayOffset.y + 70); // Adjust Y-axis by 70
+    // Apply Y-axis adjustment based on platform
+    const absY = Math.round(y + overlayOffset.y + (Platform.OS === 'web' ? 0 : 70)); 
     console.log(
       `[LLM INSTRUCTION] Tap at coordinates: x=${absX}, y=${absY} (element: ${elementId})`
     );
@@ -148,9 +151,12 @@ const DebugCrosshair = () => {
 
   // Public method to add automated tap dots from external components
   const addAutomatedTapDot = (x, y) => {
-    // Apply Y-axis offset correction (-70) to match the actual tap location
-    // Add an additional +10 pixels to the Y axis to center the dot properly
-    const newDot = { id: Date.now(), x, y: y - 70 + 10, automated: true };
+    // Apply Y-axis offset correction based on platform
+    const adjustedY = Platform.OS === 'web' 
+      ? y  // No adjustment needed for web
+      : y - 70 + 10; // Apply mobile-specific offset
+      
+    const newDot = { id: Date.now(), x, y: adjustedY, automated: true };
     setTapDots(dots => [...dots, newDot]);
     setTimeout(() => {
       setTapDots(dots => dots.filter(dot => dot.id !== newDot.id));
@@ -161,19 +167,42 @@ const DebugCrosshair = () => {
   useEffect(() => {
     globalAddTapDot = addAutomatedTapDot;
     
-    // Listen for simulator tap events
-    const tapSubscription = DeviceEventEmitter.addListener('simulatorTap', ({x, y}) => {
-      addAutomatedTapDot(x, y);
-      console.log(`Debug dot added at (${x}, ${y})`);
-    });
+    // Platform-specific event listeners
+    let tapSubscription;
     
-    return () => {
-      globalAddTapDot = null;
-      tapSubscription.remove();
-    };
+    if (Platform.OS === 'web') {
+      // For web, use window event listener
+      const webTapHandler = (event) => {
+        const { x, y } = event.detail;
+        addAutomatedTapDot(x, y);
+        console.log(`Web Debug dot added at (${x}, ${y})`);
+      };
+      
+      if (typeof window !== 'undefined') {
+        window.addEventListener('simulatorTap', webTapHandler);
+      }
+      
+      return () => {
+        globalAddTapDot = null;
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('simulatorTap', webTapHandler);
+        }
+      };
+    } else {
+      // For native platforms, use DeviceEventEmitter
+      tapSubscription = DeviceEventEmitter.addListener('simulatorTap', ({x, y}) => {
+        addAutomatedTapDot(x, y);
+        console.log(`Debug dot added at (${x}, ${y})`);
+      });
+      
+      return () => {
+        globalAddTapDot = null;
+        tapSubscription.remove();
+      };
+    }
   }, []);
 
-  // Adjusted crosshair position display to add 70 to the Y-coordinate
+  // Adjusted crosshair position display 
   const getInfoBoxPosition = () => {
     const { width, height } = Dimensions.get('window');
     const infoBoxWidth = 200; // matches maxWidth in styles
@@ -190,6 +219,12 @@ const DebugCrosshair = () => {
     if (left < 0) left = 0;
     if (top < 0) top = 0;
     return { left, top };
+  };
+
+  // Platform-specific y-coordinate adjustment
+  const getYCoordDisplay = () => {
+    const y = Math.round(crosshairPosition.y);
+    return Platform.OS === 'web' ? y : y + 70;
   };
 
   return (
@@ -229,7 +264,7 @@ const DebugCrosshair = () => {
         {/* Info box always visible, not touchable */}
         <View style={[styles.crosshairInfo, getInfoBoxPosition()]}>
           <Text style={styles.crosshairText}>
-            X: {Math.round(crosshairPosition.x)}, Y: {Math.round(crosshairPosition.y) + 70}
+            X: {Math.round(crosshairPosition.x)}, Y: {getYCoordDisplay()}
           </Text>
         </View>
 

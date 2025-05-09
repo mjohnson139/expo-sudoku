@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 
 // Performance-optimized Cell component
 const Cell = ({ 
@@ -134,6 +134,12 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 18,
+    // Better text rendering on web
+    ...(Platform.OS === 'web' ? {
+      userSelect: 'none',
+      cursor: 'default',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    } : {})
   },
   notesContainer: {
     position: 'relative',
@@ -150,6 +156,12 @@ const styles = StyleSheet.create({
   noteText: {
     fontSize: 9,
     fontWeight: '500',
+    // Better text rendering on web
+    ...(Platform.OS === 'web' ? {
+      userSelect: 'none',
+      cursor: 'default',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+    } : {})
   }
 });
 
