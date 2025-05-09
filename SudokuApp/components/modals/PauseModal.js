@@ -28,9 +28,9 @@ const PauseModal = () => {
   
   // Add safety timeout to auto-resume if stuck
   React.useEffect(() => {
-    // Check if we're coming back from background
-    if (global.appResumedFromBackground && isPaused) {
-      console.log('App resumed from background while paused - setting safety timeout');
+    // Check if we're coming back from background or in cooldown period
+    if ((global.appResumedFromBackground || global.justResumedFromBackground) && isPaused) {
+      console.log('App resumed from background or in cooldown period and paused - setting safety timeout');
       // Set a timeout to force resume if UI is stuck
       const timeoutId = setTimeout(() => {
         console.log('Safety timeout triggered - forcing resume');

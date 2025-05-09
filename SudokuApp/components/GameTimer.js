@@ -10,9 +10,19 @@ const GameTimer = () => {
   const { elapsedSeconds, formatTime, dispatch, theme, isPaused } = useGameContext();
 
   const handlePausePress = () => {
+    // Prevent pause if we just resumed from background
+    // This avoids auto-resuming the first pause after background
+    if (global.justResumedFromBackground) {
+      console.log('Ignoring pause action during post-resume cooldown period');
+      return;
+    }
+    
     dispatch({ type: ACTIONS.PAUSE_GAME });
   };
 
+  // Determine if the pause button should be disabled
+  const pauseDisabled = isPaused || global.justResumedFromBackground;
+  
   return (
     <View style={styles.timerContainer}>
       <View style={styles.timerTextContainer}>
@@ -26,15 +36,20 @@ const GameTimer = () => {
       
       {/* Pause button - icon only with minimal size but good tap target */}
       <TouchableOpacity 
-        style={styles.pauseButton}
+        style={[
+          styles.pauseButton,
+          // Apply a subtle opacity if in cooldown period
+          global.justResumedFromBackground ? styles.cooldownButton : null
+        ]}
         onPress={handlePausePress}
-        disabled={isPaused}
+        disabled={pauseDisabled}
         accessibilityLabel="Pause Game"
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} // Increase tap area without changing visible size
       >
         <Text style={[
           styles.pauseButtonIcon, 
-          { color: theme.colors.text }
+          { color: theme.colors.text },
+          global.justResumedFromBackground ? { opacity: 0.5 } : null
         ]}>⏸️</Text>
       </TouchableOpacity>
     </View>
@@ -68,6 +83,10 @@ const styles = StyleSheet.create({
   },
   pauseButtonIcon: {
     fontSize: 12,
+  },
+  // Style for when the button is in cooldown
+  cooldownButton: {
+    opacity: 0.5,
   },
 });
 

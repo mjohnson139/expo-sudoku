@@ -35,6 +35,13 @@ export default function App() {
           // This allows components to implement safety mechanisms
           global.appResumedFromBackground = true;
           
+          // Add a cooldown timer to avoid interfering with intentional pause actions
+          // This indicates the app just resumed and will be cleared after a timeout
+          global.justResumedFromBackground = true;
+          setTimeout(() => {
+            global.justResumedFromBackground = false;
+          }, 2000);
+          
           // Remount GameScreen to restore UI on resume
           setAppKey(prev => prev + 1);
           
