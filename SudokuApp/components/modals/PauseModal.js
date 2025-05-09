@@ -34,11 +34,26 @@ const PauseModal = () => {
   }, [isPaused]);
 
   const handleResume = () => {
+    // Allow the game to be resumed
     dispatch({ type: 'RESUME_GAME' });
   };
 
   const handleQuit = () => {
+    // Quit to main menu
     dispatch({ type: 'QUIT_GAME' });
+  };
+  
+  // Force unpause if the modal is stuck (helpful after background/foreground transition)
+  const handleOverlayPress = () => {
+    // Only handle overlay press in dev mode (for debugging) or as a safety measure
+    if (__DEV__ || global.appResumedFromBackground) {
+      console.log('Force resuming game from overlay press');
+      dispatch({ type: 'RESUME_GAME' });
+      // Reset the app resumed flag if it was set
+      if (global.appResumedFromBackground) {
+        global.appResumedFromBackground = false;
+      }
+    }
   };
 
   return (
@@ -47,12 +62,14 @@ const PauseModal = () => {
       transparent
       animationType="fade"
     >
-      {/* Blurred/Dimmed background overlay */}
+      {/* Blurred/Dimmed background overlay with backup touchable functionality */}
       <Animated.View
         style={{
           ...styles.pauseOverlay,
           opacity: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
         }}
+        // Add touchable area on the modal background as a safety measure
+        onTouchStart={handleOverlayPress}
       >
         <Animated.View
           style={{
@@ -62,13 +79,14 @@ const PauseModal = () => {
           <View style={[styles.pauseBox, { backgroundColor: theme.colors.numberPad.background, borderColor: theme.colors.numberPad.border }]}> 
             <Text style={[styles.pauseTitle, { color: theme.colors.title }]}>Game Paused</Text>
             
-            {/* Resume Button */}
+            {/* Resume Button - Made larger and more prominent */}
             <TouchableOpacity 
               style={[styles.pauseButton, styles.resumeButton]} 
               onPress={handleResume}
+              activeOpacity={0.7} // More responsive feel
             >
               <Text style={styles.pauseButtonEmoji}>▶️</Text>
-              <Text style={styles.pauseButtonText}>Resume</Text>
+              <Text style={[styles.pauseButtonText, { fontSize: 18, fontWeight: 'bold' }]}>Resume Game</Text>
             </TouchableOpacity>
             
             {/* Quit Button */}
@@ -122,6 +140,8 @@ const styles = StyleSheet.create({
   },
   resumeButton: {
     backgroundColor: '#d4edda',
+    paddingVertical: 15, // Slightly larger
+    marginBottom: 18,    // More space before quit button
   },
   quitButton: {
     backgroundColor: '#f8d7da',

@@ -590,9 +590,12 @@ function gameReducer(state, action) {
       // Restore saved game from AsyncStorage
       const restoredState = action.payload;
       
+      // Check if game was paused when saved
+      const wasPaused = restoredState.isPaused;
+      
       // Ensure timer is activated properly based on previous state
       const timerActive = restoredState.gameStarted && 
-        !restoredState.isPaused && 
+        !wasPaused && 
         !restoredState.showWinModal && 
         !restoredState.showMenu;
       
@@ -602,7 +605,8 @@ function gameReducer(state, action) {
         // Ensure we're overriding with proper UI state
         showMenu: false,
         gameStarted: true,
-        timerActive,
+        timerActive: timerActive,
+        isPaused: wasPaused, // Explicitly preserve the pause state
       };
     
     default:

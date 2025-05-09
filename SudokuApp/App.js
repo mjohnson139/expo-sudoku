@@ -28,6 +28,10 @@ export default function App() {
         // Set flag to auto-restore game on component remount
         // The GameScreen component will read this flag
         if (shouldAutoRestoreRef.current) {
+          // Set a global flag to indicate coming back from background
+          // This allows components to implement safety mechanisms
+          global.appResumedFromBackground = true;
+          
           // Remount GameScreen to restore UI on resume
           setAppKey(prev => prev + 1);
         }
