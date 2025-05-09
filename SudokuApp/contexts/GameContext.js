@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useRef, useState } from 'react';
 import THEMES from '../utils/themes';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
+import { loadGameState, debouncedSaveGameState, clearGameState } from '../utils/storage';
 
 // Initialize with empty Sudoku board
 const emptyBoard = Array.from({ length: 9 }, () => Array(9).fill(0));
@@ -604,6 +605,29 @@ const GameContext = createContext();
 export const GameProvider = ({ children }) => {
   const [state, dispatch] = useReducer(gameReducer, initialState);
   const timerRef = useRef(null);
+  const [hasSavedGame, setHasSavedGame] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Load saved game on mount
+  useEffect(() => {
+    const loadSavedGame = async () => {
+      try {
+        const savedState = await loadGameState();
+        if (savedState) {
+          setHasSavedGame(true);
+        } else {
+          setHasSavedGame(false);
+        }
+      } catch (error) {
+        console.error('Error loading saved game:', error);
+        setHasSavedGame(false);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadSavedGame();
+  }, []);
   
   // Effect for timer
   useEffect(() => {
@@ -624,6 +648,28 @@ export const GameProvider = ({ children }) => {
     };
   }, [state.timerActive]);
   
+  // Save game state when it changes
+  useEffect(() => {
+    // Don't save if just showing the menu or no game has started
+    if (state.showMenu || !state.gameStarted) {
+      return;
+    }
+    
+    // Use our debounced save function to avoid saving on every state change
+    debouncedSaveGameState(state);
+  }, [
+    state.board, 
+    state.cellNotes, 
+    state.cellFeedback,
+    state.elapsedSeconds,
+    state.currentThemeName,
+    state.showFeedback,
+    state.notesMode,
+    state.undoStack,
+    state.redoStack,
+    state.filledCount
+  ]);
+  
   // Check for win condition when filledCount changes
   useEffect(() => {
     if (state.filledCount === 81) {
@@ -643,6 +689,8 @@ export const GameProvider = ({ children }) => {
 
   // Helper function to start a new game
   const startNewGame = (difficulty) => {
+    // When starting a new game, clear any saved game first
+    clearGameState();
     const { board, solution } = generateSudoku(difficulty);
     dispatch({
       type: ACTIONS.START_GAME,
@@ -749,15 +797,47 @@ export const GameProvider = ({ children }) => {
     });
   };
   
+  // Helper function to resume a saved game
+  const resumeGame = async () => {
+    try {
+      const savedState = await loadGameState();
+      if (savedState) {
+        dispatch({
+          type: ACTIONS.RESTORE_SAVED_GAME,
+          payload: savedState
+        });
+        // Close the menu after resuming
+        dispatch({ type: ACTIONS.HIDE_MENU });
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error resuming saved game:', error);
+      return false;
+    }
+  };
+  
+  // Helper function to clear saved game and start new
+  const startNewGameAndClearSaved = async (difficulty) => {
+    // Clear any saved game
+    await clearGameState();
+    // Start a new game
+    startNewGame(difficulty);
+  };
+  
   // Create the value object
   const value = {
     ...state,
     dispatch,
     startNewGame,
+    startNewGameAndClearSaved,
     handleNumberSelect,
     formatTime,
     cycleTheme,
     debugFillBoard,
+    hasSavedGame,
+    isLoading,
+    resumeGame,
   };
   
   return (

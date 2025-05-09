@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View, Switch } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View, Switch, ActivityIndicator } from 'react-native';
 import { useGameContext, ACTIONS } from '../../contexts/GameContext';
 
 /**
@@ -10,10 +10,14 @@ const GameMenuModal = () => {
     theme, 
     showMenu, 
     startNewGame,
+    startNewGameAndClearSaved,
     showFeedback,
     cycleTheme,
     dispatch,
     debugFillBoard,
+    hasSavedGame,
+    isLoading,
+    resumeGame,
   } = useGameContext();
 
   // Animation for menu modal
@@ -65,35 +69,62 @@ const GameMenuModal = () => {
           </TouchableOpacity>
           
           <Text style={[styles.menuTitle, { color: theme.colors.title }]}>Sudoku</Text>
-          <Text style={[styles.menuSubtitle, { color: theme.colors.title }]}>Select Difficulty</Text>
-          <TouchableOpacity 
-            style={[styles.menuButton, styles.menuButtonEasy]} 
-            onPress={() => startNewGame('easy')}
-          >
-            <Text style={styles.menuButtonEmoji}>😊</Text>
-            <Text style={styles.menuButtonText}>Easy</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.menuButton, styles.menuButtonChallenge]} 
-            onPress={() => startNewGame('medium')}
-          >
-            <Text style={styles.menuButtonEmoji}>😐</Text>
-            <Text style={styles.menuButtonText}>Medium</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.menuButton, styles.menuButtonHard]} 
-            onPress={() => startNewGame('hard')}
-          >
-            <Text style={styles.menuButtonEmoji}>😎</Text>
-            <Text style={styles.menuButtonText}>Hard</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.menuButton, styles.menuButtonHard]} 
-            onPress={() => startNewGame('expert')}
-          >
-            <Text style={styles.menuButtonEmoji}>😈</Text>
-            <Text style={styles.menuButtonText}>Expert</Text>
-          </TouchableOpacity>
+          
+          {/* Show loading indicator while checking for saved games */}
+          {isLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={theme.colors.title} />
+              <Text style={[styles.loadingText, { color: theme.colors.title }]}>
+                Checking for saved games...
+              </Text>
+            </View>
+          ) : (
+            <>
+              {/* Resume Game button - only show if there's a saved game */}
+              {hasSavedGame && (
+                <TouchableOpacity 
+                  style={[styles.menuButton, styles.menuButtonResume]} 
+                  onPress={resumeGame}
+                >
+                  <Text style={styles.menuButtonEmoji}>⏱️</Text>
+                  <Text style={styles.menuButtonText}>Resume Last Game</Text>
+                </TouchableOpacity>
+              )}
+              
+              <Text style={[styles.menuSubtitle, { color: theme.colors.title }]}>
+                {hasSavedGame ? 'Or Start New Game' : 'Select Difficulty'}
+              </Text>
+              
+              <TouchableOpacity 
+                style={[styles.menuButton, styles.menuButtonEasy]} 
+                onPress={() => startNewGameAndClearSaved('easy')}
+              >
+                <Text style={styles.menuButtonEmoji}>😊</Text>
+                <Text style={styles.menuButtonText}>Easy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.menuButton, styles.menuButtonChallenge]} 
+                onPress={() => startNewGameAndClearSaved('medium')}
+              >
+                <Text style={styles.menuButtonEmoji}>😐</Text>
+                <Text style={styles.menuButtonText}>Medium</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.menuButton, styles.menuButtonHard]} 
+                onPress={() => startNewGameAndClearSaved('hard')}
+              >
+                <Text style={styles.menuButtonEmoji}>😎</Text>
+                <Text style={styles.menuButtonText}>Hard</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.menuButton, styles.menuButtonHard]} 
+                onPress={() => startNewGameAndClearSaved('expert')}
+              >
+                <Text style={styles.menuButtonEmoji}>😈</Text>
+                <Text style={styles.menuButtonText}>Expert</Text>
+              </TouchableOpacity>
+            </>
+          )}
           
           {/* Theme selector button */}
           <View style={styles.settingSection}>
@@ -197,6 +228,11 @@ const styles = StyleSheet.create({
   menuButtonHard: {
     backgroundColor: '#f8d7da',
   },
+  menuButtonResume: {
+    backgroundColor: '#cce5ff', // Light blue for resume button
+    marginTop: 8,
+    marginBottom: 16,
+  },
   menuButtonEmoji: {
     fontSize: 20,
     marginRight: 8,
@@ -238,6 +274,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+  },
+  // Loading state styles
+  loadingContainer: {
+    marginVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
   },
 });
 
