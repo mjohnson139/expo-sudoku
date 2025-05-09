@@ -19,33 +19,30 @@ export default function App() {
     // Handle app state changes
     const appStateSubscription = AppState.addEventListener('change', nextState => {
       if (nextState === 'background') {
-        // Auto-pause the game when going to background
-        if (gameStateRef.current && gameStateRef.current.gameStarted && 
-            !gameStateRef.current.showMenu && !gameStateRef.current.isPaused) {
-          console.log('Auto-pausing game when going to background');
+        // Check if we have a valid game state
+        if (gameStateRef.current && gameStateRef.current.gameStarted) {
+          console.log('App going to background - handling pause and save');
           
-          // Dispatch action to pause the game
-          if (gameStateRef.current.dispatch) {
-            gameStateRef.current.dispatch({ type: 'PAUSE_GAME' });
-            
-            // Give a moment for the pause action to take effect before saving
-            setTimeout(() => {
-              // Now save the paused state
-              saveGameStateImmediate(gameStateRef.current);
-              shouldAutoRestoreRef.current = true;
-              
-              // Remember that we auto-paused
-              global.wasPausedOnBackground = true;
-              global.autoPausedOnBackground = true;
-            }, 100);
-          }
-        } else if (gameStateRef.current && gameStateRef.current.gameStarted) {
-          // Game is already paused or menu is showing
-          saveGameStateImmediate(gameStateRef.current);
+          // Flag to track if we should auto-resume
           shouldAutoRestoreRef.current = true;
           
-          // Remember if the game was paused when we went to background
-          global.wasPausedOnBackground = gameStateRef.current.isPaused;
+          // Simple approach: directly modify state for proper saving
+          if (!gameStateRef.current.isPaused && !gameStateRef.current.showMenu) {
+            // Remember the current state before saving
+            global.wasActiveBeforeBackground = true;
+            
+            // Pause the game directly through dispatch
+            if (gameStateRef.current.dispatch) {
+              console.log('Auto-pausing active game');
+              gameStateRef.current.dispatch({ type: 'PAUSE_GAME' });
+            }
+          } else {
+            // Game was already paused or showing menu
+            global.wasActiveBeforeBackground = false;
+          }
+          
+          // Always save the game state
+          saveGameStateImmediate(gameStateRef.current);
         }
       } else if (nextState === 'active') {
         // Set flag to auto-restore game on component remount

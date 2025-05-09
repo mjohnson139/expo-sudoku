@@ -654,22 +654,17 @@ export const GameProvider = ({ children, setGameStateRef, shouldAutoRestore, res
             // Check if the game was paused when saved
             const wasPaused = savedState.isPaused;
             
-            // Different handling based on whether the game was manually paused or auto-paused
-            if (wasPaused && global.wasPausedOnBackground) {
-              // Check if it was auto-paused by the system
-              if (global.autoPausedOnBackground) {
-                // If auto-paused, then we automatically unpause
-                savedState.isPaused = false;
-                console.log('Auto-unpausing game that was auto-paused when backgrounded');
-                global.wasPausedOnBackground = false;
-                global.autoPausedOnBackground = false;
-              } else {
-                // If it was manually paused before backgrounding, keep it paused
-                console.log('Keeping game paused as it was manually paused before backgrounding');
-                // But always make sure we clean up flags
-                global.wasPausedOnBackground = false;
-              }
+            // Simplified restoration logic
+            if (wasPaused && global.wasActiveBeforeBackground) {
+              // If the game was active before background, auto-unpause it
+              savedState.isPaused = false;
+              console.log('Auto-unpausing game that was active before backgrounding');
+            } else if (wasPaused) {
+              console.log('Keeping game paused as it was paused before backgrounding');
             }
+            
+            // Always clean up the flag
+            global.wasActiveBeforeBackground = false;
             
             // Restore state and hide menu
             dispatch({
