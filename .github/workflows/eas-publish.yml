@@ -82,7 +82,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./web-build  # Explicit relative path from current context
+          path: ${{ github.workspace }}/${{ env.APP_DIR }}/web-build
 
       # Only deploy from main branch
       - name: Deploy to GitHub Pages
