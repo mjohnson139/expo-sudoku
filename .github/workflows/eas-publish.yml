@@ -1,4 +1,5 @@
-name: EAS Publish
+# .github/workflows/eas-publish.yml
+name: EAS Publish & Web Deploy
 
 on:
   push:
@@ -6,87 +7,79 @@ on:
       - main
       - 'feature/**'
 
-# Add permissions for GitHub Pages
 permissions:
-  contents: write
-  pages: write
+  contents: write        # for gh-pages push
+  pages: write           # for new Pages deployment engine
+  id-token: write        # required by actions/deploy-pages
+
+env:
+  NODE_VERSION: 18
+  APP_DIR: ./SudokuApp
 
 jobs:
+# --------------------------------------------------------------------------
   publish-mobile:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+    defaults:
+      run:
+        working-directory: ${{ env.APP_DIR }}
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
 
       - name: Install dependencies
-        run: npm install
-        working-directory: ./SudokuApp
+        run: npm ci
 
       - name: Install EAS CLI
-        run: npm install -g eas-cli
-        working-directory: ./SudokuApp
+        run: npm install -g eas-cli@latest   # pin or update deliberately
 
-      - name: Log in to Expo
-        run: eas whoami || echo "// no login needed with token"
-        working-directory: ./SudokuApp
-
-      - name: Publish to EAS Update for all platforms
+      - name: Publish to EAS Update
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           BRANCH_NAME=$(echo "${GITHUB_REF##*/}" | tr / -)
-          # Publish for all platforms
-          eas update --branch $BRANCH_NAME --message "Auto-publish from $BRANCH_NAME" --platform all
-        working-directory: ./SudokuApp
+          eas update \
+            --branch "$BRANCH_NAME" \
+            --message "Auto‑publish from $BRANCH_NAME ($GITHUB_SHA)" \
+            --platform all \
+            --non-interactive
 
-  build-web:
+# --------------------------------------------------------------------------
+  build-and-deploy-web:
     runs-on: ubuntu-latest
     needs: publish-mobile
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          persist-credentials: true # This is important for the GitHub Pages deploy
+    if: github.ref == 'refs/heads/main'   # deploy only from main
+    defaults:
+      run:
+        working-directory: ${{ env.APP_DIR }}
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
 
       - name: Install dependencies
-        run: npm install
-        working-directory: ./SudokuApp
+        run: npm ci
 
-      - name: Build web version
-        run: |
-          # Use the correct export command for web platform
-          npx expo export --platform web
-        working-directory: ./SudokuApp
+      - name: Export static web build
+        run: npx expo export --platform web --output-dir web-build --non-interactive
 
-      - name: Prepare web build for deployment
-        run: |
-          # Move dist contents to web-build directory for consistency
-          mkdir -p web-build
-          cp -r dist/* web-build/
-        working-directory: ./SudokuApp
-
-      - name: Upload web build artifacts
-        uses: actions/upload-artifact@v4
+      # If using the new GitHub Pages Deployment Action (recommended 2024+)
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v2
         with:
-          name: web-build
-          path: ./SudokuApp/web-build
-          retention-days: 5
+          path: ${{ env.APP_DIR }}/web-build
 
       - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/main'
-        uses: JamesIves/github-pages-deploy-action@v4
-        with:
-          folder: ./SudokuApp/web-build
-          branch: gh-pages
-          clean: true
-          token: ${{ secrets.GITHUB_TOKEN }}
+        id: deployment
+        uses: actions/deploy-pages@v2    # official GA release
