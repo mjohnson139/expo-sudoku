@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef } from 'react';
 import THEMES from '../utils/themes';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
+import usePersistentReducer from '../hooks/usePersistentReducer';
 
 // Initialize with empty Sudoku board
 const emptyBoard = Array.from({ length: 9 }, () => Array(9).fill(0));
@@ -602,7 +603,11 @@ const GameContext = createContext();
 
 // Game provider component
 export const GameProvider = ({ children }) => {
-  const [state, dispatch] = useReducer(gameReducer, initialState);
+  const [state, dispatch, hydrated] = usePersistentReducer(
+    gameReducer,
+    initialState,
+    ACTIONS.RESTORE_SAVED_GAME
+  );
   const timerRef = useRef(null);
   
   // Effect for timer
@@ -759,10 +764,11 @@ export const GameProvider = ({ children }) => {
     cycleTheme,
     debugFillBoard,
   };
-  
+
+  // Only render children once state has been hydrated from storage
   return (
     <GameContext.Provider value={value}>
-      {children}
+      {hydrated ? children : null}
     </GameContext.Provider>
   );
 };
