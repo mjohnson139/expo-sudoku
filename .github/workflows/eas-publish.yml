@@ -76,13 +76,13 @@ jobs:
 
       # Debug steps for build verification
       - name: List web-build directory
-        run: ls -la web-build
+        run: ls -la ./web-build
 
       # If using the new GitHub Pages Deployment Action (recommended 2024+)
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: web-build  # Note: Already in working directory context
+          path: ./web-build  # Explicit relative path from current context
 
       # Only deploy from main branch
       - name: Deploy to GitHub Pages
