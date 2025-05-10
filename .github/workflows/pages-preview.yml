@@ -1,0 +1,74 @@
+# .github/workflows/pages-preview.yml
+# ──────────────────────────────────────────────────────────────────────────
+# Builds the Expo web bundle from the SudokuApp sub‑directory
+# and publishes an isolated PR‑preview site via GitHub Pages.
+# Every open PR gets its own URL, e.g.:
+#   https://pr‑42‑mjohnson139.githubpreview.dev/expo-sudoku/
+
+name: Expo Web – PR Preview
+
+on:
+  pull_request:
+    branches: [main]
+
+# -------------------------------------------------------------------------
+permissions:
+  contents: read        # checkout
+  pages: write          # request a Pages build
+  id-token: write       # auth for deploy-pages
+
+env:
+  APP_DIR: SudokuApp
+  NODE_VERSION: 18
+
+jobs:
+# ────────────────────────────── BUILD ────────────────────────────────────
+  build:
+    runs-on: ubuntu-latest
+
+    # `defaults.run` only affects `run:` steps (not action steps),
+    # which is perfect for the npm / expo commands below.
+    defaults:
+      run:
+        working-directory: ${{ env.APP_DIR }}
+
+    steps:
+      # 1. Checkout the repo (always done at workspace root)
+      - uses: actions/checkout@v3
+
+      # 2. Set up Node with npm cache for faster installs
+      - uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
+
+      # 3. Install app dependencies
+      - run: npm ci
+
+      # 4. Export a static web bundle
+      - run: npx expo export --platform web \
+                             --output-dir web-build \
+                             --non-interactive
+
+      # 5. Upload the bundle as an artifact for the deploy job
+      - uses: actions/upload-pages-artifact@v1   # ← v1 is current GA
+        with:
+          path: ${{ env.APP_DIR }}/web-build     # path *from* repo root
+
+# ───────────────────────────── DEPLOY ────────────────────────────────────
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+
+    # Link the deployment to the built‑in "github-pages" environment.
+    # This lets GitHub show the preview URL in the PR UI.
+    environment:
+      name: github-pages            # must match Pages environment name
+      url: ${{ steps.deploy.outputs.page_url }}
+
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v2
+        with:
+          preview: true             # ← key flag: creates a unique URL per PR
