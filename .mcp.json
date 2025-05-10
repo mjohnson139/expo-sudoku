@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "github-mcp-server": {
+      "type": "stdio",
+      "command": "github-mcp-server",
+      "args": [
+        "stdio"
+      ],
+      "env": {}
+    }
+  }
+}
