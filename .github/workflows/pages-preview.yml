@@ -51,6 +51,14 @@ jobs:
                              --output-dir web-build \
                              --non-interactive
 
+      # 4.5. Upload build artifacts for debugging (helps resolve the missing action issue)
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: web-build
+          path: ${{ env.APP_DIR }}/web-build
+          retention-days: 7
+
       # 5. Upload the bundle as an artifact for the deploy job
       - uses: actions/upload-pages-artifact@v1   # ← v1 is current GA
         with:
