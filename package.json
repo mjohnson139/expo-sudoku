@@ -1,0 +1,10 @@
+{
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.1.2",
+    "glob": "^11.0.2",
+    "is-plain-obj": "^4.1.0",
+    "lru-cache": "^11.1.0",
+    "merge-options": "^3.0.4",
+    "rimraf": "^6.0.1"
+  }
+}
