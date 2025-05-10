@@ -37,3 +37,37 @@ jobs:
           BRANCH_NAME=$(echo "${GITHUB_REF##*/}" | tr / -)
           eas update --branch $BRANCH_NAME --message "Auto-publish from $BRANCH_NAME"
         working-directory: ./SudokuApp
+
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: ./SudokuApp
+
+      - name: Build web version
+        run: npx expo export:web
+        working-directory: ./SudokuApp
+
+      - name: Upload web build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: web-build
+          path: ./SudokuApp/web-build
+          retention-days: 5
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: ./SudokuApp/web-build
+          branch: gh-pages
+          clean: true
