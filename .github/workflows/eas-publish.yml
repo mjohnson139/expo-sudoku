@@ -6,6 +6,11 @@ on:
       - main
       - 'feature/**'
 
+# Add permissions for GitHub Pages
+permissions:
+  contents: write
+  pages: write
+
 jobs:
   publish-mobile:
     runs-on: ubuntu-latest
@@ -41,9 +46,12 @@ jobs:
 
   build-web:
     runs-on: ubuntu-latest
+    needs: publish-mobile
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          persist-credentials: true # This is important for the GitHub Pages deploy
 
       - name: Set up Node.js
         uses: actions/setup-node@v3
@@ -81,3 +89,4 @@ jobs:
           folder: ./SudokuApp/web-build
           branch: gh-pages
           clean: true
+          token: ${{ secrets.GITHUB_TOKEN }}
