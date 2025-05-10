@@ -54,7 +54,9 @@ jobs:
         working-directory: ./SudokuApp
 
       - name: Build web version
-        run: npx expo export --platform web --output-dir web-build
+        run: |
+          # Try webpack-based export if compatible, otherwise use regular export
+          npx expo export --platform web --output-dir web-build || npx expo export:web --output-dir web-build
         working-directory: ./SudokuApp
 
       - name: Upload web build artifacts
