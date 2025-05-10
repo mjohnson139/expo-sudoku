@@ -20,35 +20,35 @@ jobs:
 # --------------------------------------------------------------------------
   publish-mobile:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ${{ env.APP_DIR }}
-
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - uses: actions/setup-node@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
+          node-version: 18
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
+        working-directory: ./SudokuApp
 
       - name: Install EAS CLI
-        run: npm install -g eas-cli@latest   # pin or update deliberately
+        run: npm install -g eas-cli
+        working-directory: ./SudokuApp
 
-      - name: Publish to EAS Update
+      - name: Log in to Expo
+        run: eas whoami || echo "// no login needed with token"
+        working-directory: ./SudokuApp
+
+      - name: Publish to EAS Update for all platforms
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           BRANCH_NAME=$(echo "${GITHUB_REF##*/}" | tr / -)
-          eas update \
-            --branch "$BRANCH_NAME" \
-            --message "Auto‑publish from $BRANCH_NAME ($GITHUB_SHA)" \
-            --platform all \
-            --non-interactive
+          # Publish for all platforms
+          eas update --branch $BRANCH_NAME --message "Auto-publish from $BRANCH_NAME" --platform all
+        working-directory: ./SudokuApp
 
 # --------------------------------------------------------------------------
   build-and-deploy-web:
