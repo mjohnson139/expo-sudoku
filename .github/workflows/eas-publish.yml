@@ -54,7 +54,7 @@ jobs:
   build-and-deploy-web:
     runs-on: ubuntu-latest
     needs: publish-mobile
-    if: github.ref == 'refs/heads/main'   # deploy only from main
+    # Allow both main branch deployments and feature branch builds (but only deploy from main)
     defaults:
       run:
         working-directory: ${{ env.APP_DIR }}
@@ -74,12 +74,18 @@ jobs:
       - name: Export static web build
         run: npx expo export --platform web --output-dir web-build --non-interactive
 
+      # Debug steps for build verification
+      - name: List web-build directory
+        run: ls -la web-build
+
       # If using the new GitHub Pages Deployment Action (recommended 2024+)
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v2
         with:
-          path: ${{ env.APP_DIR }}/web-build
+          path: web-build  # Note: Already in working directory context
 
+      # Only deploy from main branch
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2    # official GA release
+        uses: actions/deploy-pages@v2    # official GA release
+        if: github.ref == 'refs/heads/main'
