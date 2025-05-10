@@ -1,10 +1,4 @@
-# .github/workflows/pages-preview.yml
-# ──────────────────────────────────────────────────────────────────────────
-# Builds the Expo web bundle from the SudokuApp sub‑directory
-# and publishes an isolated PR‑preview site via GitHub Pages.
-# Every open PR gets its own URL, e.g.:
-#   https://pr‑42‑mjohnson139.githubpreview.dev/expo-sudoku/
-
+# This workflow builds a preview of the Expo web app for each pull request
 name: Expo Web – PR Preview
 
 on:
@@ -25,50 +19,46 @@ jobs:
 # ────────────────────────────── BUILD ────────────────────────────────────
   build:
     runs-on: ubuntu-latest
-
-    # `defaults.run` only affects `run:` steps (not action steps),
-    # which is perfect for the npm / expo commands below.
-    defaults:
-      run:
-        working-directory: ${{ env.APP_DIR }}
-
     steps:
-      # 1. Checkout the repo (always done at workspace root)
-      - uses: actions/checkout@v3
-
-      # 2. Set up Node with npm cache for faster installs
-      - uses: actions/setup-node@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
+          persist-credentials: true # This is important for the GitHub Pages deploy
 
-      # 3. Install app dependencies
-      - run: npm ci
-
-      # 4. Export a static web bundle
-      - run: npx expo export --platform web \
-                             --output-dir web-build \
-                             --non-interactive
-
-      # 5. Upload the bundle as an artifact for the deploy job
-      - uses: actions/upload-pages-artifact@v1   # ← v1 is current GA
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
         with:
-          path: ${{ env.APP_DIR }}/web-build     # path *from* repo root
+          node-version: 18
 
-# ───────────────────────────── DEPLOY ────────────────────────────────────
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
+      - name: Install dependencies
+        run: npm install
+        working-directory: ./SudokuApp
 
-    # Link the deployment to the built‑in "github-pages" environment.
-    # This lets GitHub show the preview URL in the PR UI.
-    environment:
-      name: github-pages            # must match Pages environment name
-      url: ${{ steps.deploy.outputs.page_url }}
+      - name: Build web version
+        run: |
+          # Use the correct export command for web platform
+          npx expo export --platform web
+        working-directory: ./SudokuApp
 
-    steps:
-      - id: deploy
-        uses: actions/deploy-pages@v2
+      - name: Prepare web build for deployment
+        run: |
+          # Move dist contents to web-build directory for consistency
+          mkdir -p web-build
+          cp -r dist/* web-build/
+        working-directory: ./SudokuApp
+
+      - name: Upload web build artifacts
+        uses: actions/upload-artifact@v4
         with:
-          preview: true             # ← key flag: creates a unique URL per PR
+          name: web-build
+          path: ./SudokuApp/web-build
+          retention-days: 5
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/main'
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: ./SudokuApp/web-build
+          branch: gh-pages
+          clean: true
+          token: ${{ secrets.GITHUB_TOKEN }}
