@@ -2,6 +2,30 @@
 // Each version's notes are stored in this file
 
 export const BUILD_NOTES = {
+  '2.4.0': {
+    title: 'Game Statistics Tracking',
+    date: '2025-05-11',
+    notes: [
+      'Added comprehensive game statistics tracking system',
+      'Created statistics modal to display gameplay metrics',
+      'Track games played, completed, and best times by difficulty',
+      'Track win streaks and completion rates',
+      'Game statistics are saved and persist between sessions',
+      'Added statistics button to game menu for easy access',
+      'Implemented AsyncStorage-based persistence for statistics'
+    ]
+  },
+  '2.3.0': {
+    title: 'UI Layout Reorganization',
+    date: '2025-05-11',
+    notes: [
+      'Moved theme selector from game menu to header for easier access',
+      'Moved build notes button from header to game menu for better organization',
+      'Added version number at bottom of screen for cleaner interface',
+      'Improved build notes positioning based on screen size',
+      'Enhanced overall UI consistency and accessibility'
+    ]
+  },
   '1.0.1': {
     title: 'Initial Working Version',
     date: '2023-11-01',
