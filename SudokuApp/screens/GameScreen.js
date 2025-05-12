@@ -33,16 +33,20 @@ const GameScreenContent = () => {
     dispatch,
     handleNumberSelect,
     notesMode,
-    showBuildNotes
+    showBuildNotes,
+    gameCompleted
   } = useGameContext();
 
   // Use custom hook to handle app state changes
   useAppStateListener();
 
   const handleCellPress = (row, col) => {
-    dispatch({ 
-      type: ACTIONS.SELECT_CELL, 
-      payload: { row, col } 
+    // Don't allow cell selection if game is completed
+    if (gameCompleted) return;
+
+    dispatch({
+      type: ACTIONS.SELECT_CELL,
+      payload: { row, col }
     });
   };
 

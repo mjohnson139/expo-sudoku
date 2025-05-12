@@ -177,6 +177,10 @@ function gameReducer(state, action) {
     }
     
     case ACTIONS.SELECT_CELL:
+      // Prevent cell selection if the game is completed
+      if (state.gameCompleted) {
+        return state;
+      }
       return {
         ...state,
         selectedCell: action.payload, // { row, col }
@@ -185,9 +189,9 @@ function gameReducer(state, action) {
     case ACTIONS.SET_VALUE: {
       const { row, col, value } = action.payload;
       const cellKey = `${row}-${col}`;
-      
-      // Check if this is an initial (fixed) cell
-      if (state.initialCells.includes(cellKey)) {
+
+      // Prevent modifications if game is completed or if this is an initial cell
+      if (state.gameCompleted || state.initialCells.includes(cellKey)) {
         return state;
       }
       
@@ -250,8 +254,9 @@ function gameReducer(state, action) {
     case ACTIONS.ADD_NOTE: {
       const { row, col, noteValue } = action.payload;
       const cellKey = `${row}-${col}`;
-      
-      if (state.initialCells.includes(cellKey)) {
+
+      // Prevent modifications if game is completed or if this is an initial cell
+      if (state.gameCompleted || state.initialCells.includes(cellKey)) {
         return state;
       }
       
@@ -281,7 +286,12 @@ function gameReducer(state, action) {
     case ACTIONS.REMOVE_NOTE: {
       const { row, col, noteValue } = action.payload;
       const cellKey = `${row}-${col}`;
-      
+
+      // Prevent modifications if game is completed
+      if (state.gameCompleted) {
+        return state;
+      }
+
       const currentNotes = state.cellNotes[cellKey] || [];
       if (!currentNotes.includes(noteValue)) {
         return state;
@@ -314,6 +324,10 @@ function gameReducer(state, action) {
     }
     
     case ACTIONS.TOGGLE_NOTES_MODE:
+      // Prevent notes mode toggle if game is completed
+      if (state.gameCompleted) {
+        return state;
+      }
       return {
         ...state,
         notesMode: !state.notesMode,
@@ -364,7 +378,8 @@ function gameReducer(state, action) {
     }
     
     case ACTIONS.UNDO: {
-      if (state.undoStack.length === 0) {
+      // Prevent undo if game is completed or if undo stack is empty
+      if (state.undoStack.length === 0 || state.gameCompleted) {
         return state;
       }
       
@@ -430,7 +445,8 @@ function gameReducer(state, action) {
     }
     
     case ACTIONS.REDO: {
-      if (state.redoStack.length === 0) {
+      // Prevent redo if game is completed or if redo stack is empty
+      if (state.redoStack.length === 0 || state.gameCompleted) {
         return state;
       }
       
@@ -570,6 +586,8 @@ function gameReducer(state, action) {
         showWinModal: true,
         timerActive: false, // Pause timer when win
         gameCompleted: true, // Mark the game as completed when showing win modal
+        undoStack: [], // Clear undo stack on game completion
+        redoStack: [], // Clear redo stack on game completion
       };
 
     case ACTIONS.HIDE_WIN_MODAL:
@@ -664,11 +682,15 @@ export const GameProvider = ({ children }) => {
   
   // Helper for handling number selection (supports both setValue and notes)
   const handleNumberSelect = (num) => {
+    // Don't do anything if no cell is selected
     if (!state.selectedCell) return;
-    
+
+    // Don't modify board if game is completed
+    if (state.gameCompleted) return;
+
     const { row, col } = state.selectedCell;
     const cellKey = `${row}-${col}`;
-    
+
     // Prevent modifying initial cells
     if (state.initialCells.includes(cellKey)) {
       return;
