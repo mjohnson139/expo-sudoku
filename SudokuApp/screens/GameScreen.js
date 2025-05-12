@@ -21,19 +21,23 @@ const BUILD_NUMBER = appJson.expo.version;
  * Uses GameContext for state management
  */
 const GameScreenContent = () => {
-  const { 
-    board, 
-    selectedCell, 
-    initialCells, 
-    theme, 
-    showFeedback, 
-    cellFeedback, 
-    cellNotes, 
+  const {
+    board,
+    selectedCell,
+    initialCells,
+    theme,
+    showFeedback,
+    cellFeedback,
+    cellNotes,
     dispatch,
     handleNumberSelect,
     notesMode,
     showBuildNotes
   } = useGameContext();
+
+  // Use custom hook to handle app state changes
+  const useAppStateListener = require('../hooks/useAppStateListener').default;
+  useAppStateListener();
 
   const handleCellPress = (row, col) => {
     dispatch({ 

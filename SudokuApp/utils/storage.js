@@ -32,6 +32,7 @@ export const stripTransient = (state) => {
     showWinModal,
     showBuildNotes,
     timerActive,
+    // Keep gameCompleted in persistentState
     
     // Don't clone these as they'll be regenerated when needed
     ...persistentState
@@ -74,6 +75,8 @@ export const loadState = async () => {
       showMenu: false, // Don't show menu on restore
       showWinModal: false, // Don't show win modal
       showBuildNotes: false, // Don't show build notes
+      // Preserve gameCompleted flag from saved state or default to false
+      gameCompleted: parsedState.gameCompleted || false,
     };
   } catch (error) {
     console.error('Error loading game state:', error);

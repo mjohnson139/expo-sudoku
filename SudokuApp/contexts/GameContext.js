@@ -52,24 +52,25 @@ const initialState = {
   cellNotes: {},
   cellFeedback: {},
   filledCount: 0,
-  
+
   // Game UI state
   showFeedback: false,
   notesMode: false,
-  
+
   // Timer state
   elapsedSeconds: 0,
   timerActive: false,
   gameStarted: false, // Added flag to track if a game has been started
-  
+  gameCompleted: false, // Flag to track if the current game has been completed
+
   // Theme state
   currentThemeName: 'classic',
   theme: THEMES.classic,
-  
+
   // Undo/redo state
   undoStack: [],
   redoStack: [],
-  
+
   // Modal state
   showMenu: true,
   isPaused: false,
@@ -150,7 +151,7 @@ function gameReducer(state, action) {
       const { board, solution, difficulty } = action.payload;
       const initialCells = getInitialCells(board);
       const initialCount = board.flat().filter(v => v !== 0).length;
-      
+
       return {
         ...state,
         board,
@@ -169,6 +170,7 @@ function gameReducer(state, action) {
         elapsedSeconds: 0,
         timerActive: true,
         gameStarted: true, // Set game as started when starting a new game
+        gameCompleted: false, // Reset game completed flag when starting a new game
         undoStack: [],
         redoStack: [],
       };
@@ -533,7 +535,8 @@ function gameReducer(state, action) {
       return {
         ...state,
         isPaused: false,
-        timerActive: true, // Resume timer
+        // Only resume timer if the game is not completed
+        timerActive: !state.gameCompleted,
       };
     
     case ACTIONS.QUIT_GAME:
@@ -543,6 +546,7 @@ function gameReducer(state, action) {
         showMenu: true,
         timerActive: false, // Ensure timer is off when quitting
         gameStarted: false, // Reset game started flag
+        gameCompleted: false, // Reset game completed flag
       };
     
     case ACTIONS.SHOW_MENU:
@@ -556,8 +560,8 @@ function gameReducer(state, action) {
       return {
         ...state,
         showMenu: false,
-        // Only resume timer if a game has been started and not paused or in win state
-        timerActive: state.gameStarted && !state.showWinModal && !state.isPaused,
+        // Only resume timer if a game has been started, not completed, and not paused or in win state
+        timerActive: state.gameStarted && !state.gameCompleted && !state.showWinModal && !state.isPaused,
       };
     
     case ACTIONS.SHOW_WIN_MODAL:
@@ -565,13 +569,15 @@ function gameReducer(state, action) {
         ...state,
         showWinModal: true,
         timerActive: false, // Pause timer when win
+        gameCompleted: true, // Mark the game as completed when showing win modal
       };
-    
+
     case ACTIONS.HIDE_WIN_MODAL:
       return {
         ...state,
         showWinModal: false,
         // Don't resume timer here - user will likely start a new game
+        // Keep gameCompleted as true
       };
     
     case ACTIONS.SHOW_BUILD_NOTES:
@@ -631,7 +637,8 @@ export const GameProvider = ({ children }) => {
   
   // Check for win condition when filledCount changes
   useEffect(() => {
-    if (state.filledCount === 81) {
+    // Only check for win if the game isn't already completed
+    if (state.filledCount === 81 && !state.gameCompleted) {
       let won = true;
       for (let i = 0; i < 9 && won; i++) {
         for (let j = 0; j < 9 && won; j++) {
@@ -644,7 +651,7 @@ export const GameProvider = ({ children }) => {
         dispatch({ type: ACTIONS.SHOW_WIN_MODAL });
       }
     }
-  }, [state.filledCount, state.board, state.solutionBoard]);
+  }, [state.filledCount, state.board, state.solutionBoard, state.gameCompleted]);
 
   // Helper function to start a new game
   const startNewGame = (difficulty) => {
