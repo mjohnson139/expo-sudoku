@@ -634,6 +634,9 @@ export const GameProvider = ({ children }) => {
   const timerRef = useRef(null);
   const [statistics, setStatistics] = useState(initialStatistics);
   const [statsLoaded, setStatsLoaded] = useState(false);
+  // Use refs for tracking win state to avoid render loops
+  const hasWonRef = useRef(false);
+  const statisticsRef = useRef(statistics);
 
   // Load statistics on mount
   useEffect(() => {
@@ -641,6 +644,7 @@ export const GameProvider = ({ children }) => {
       try {
         const stats = await loadStatistics();
         setStatistics(stats);
+        statisticsRef.current = stats;
         setStatsLoaded(true);
       } catch (error) {
         console.error('Error loading statistics:', error);
@@ -650,6 +654,11 @@ export const GameProvider = ({ children }) => {
 
     loadStats();
   }, []);
+
+  // Update statistics ref when statistics change
+  useEffect(() => {
+    statisticsRef.current = statistics;
+  }, [statistics]);
 
   // Effect for timer
   useEffect(() => {
@@ -672,44 +681,64 @@ export const GameProvider = ({ children }) => {
 
   // Check for win condition when filledCount changes
   useEffect(() => {
-    if (state.filledCount === 81) {
-      let won = true;
-      for (let i = 0; i < 9 && won; i++) {
-        for (let j = 0; j < 9 && won; j++) {
-          if (state.board[i][j] !== state.solutionBoard[i][j]) {
-            won = false;
-          }
-        }
-      }
-      if (won) {
-        // Update statistics when game is won
-        if (statsLoaded && state.currentDifficulty) {
-          const updatedStats = recordGameCompleted(
-            statistics,
-            state.currentDifficulty,
-            state.elapsedSeconds
-          );
-          setStatistics(updatedStats);
-          // Use IIFE to handle async operation
-          (async () => {
-            try {
-              await saveStatistics(updatedStats);
-            } catch (error) {
-              console.error('Error saving statistics on win:', error);
-            }
-          })();
-        }
+    // Reset win state when board changes
+    if (state.filledCount < 81) {
+      hasWonRef.current = false;
+      return;
+    }
 
-        dispatch({ type: ACTIONS.SHOW_WIN_MODAL });
+    // Skip if we've already registered a win for this board
+    if (hasWonRef.current) {
+      return;
+    }
+
+    // Check if the board is correct
+    let won = true;
+    for (let i = 0; i < 9 && won; i++) {
+      for (let j = 0; j < 9 && won; j++) {
+        if (state.board[i][j] !== state.solutionBoard[i][j]) {
+          won = false;
+        }
       }
     }
-  }, [state.filledCount, state.board, state.solutionBoard, statsLoaded, statistics, state.currentDifficulty, state.elapsedSeconds]);
+
+    if (won) {
+      // Mark as won to prevent repeated processing
+      hasWonRef.current = true;
+
+      // Update statistics when game is won
+      if (statsLoaded && state.currentDifficulty) {
+        // Use the ref instead of the state
+        const updatedStats = recordGameCompleted(
+          statisticsRef.current,
+          state.currentDifficulty,
+          state.elapsedSeconds
+        );
+        setStatistics(updatedStats);
+
+        // Use IIFE to handle async operation
+        (async () => {
+          try {
+            await saveStatistics(updatedStats);
+          } catch (error) {
+            console.error('Error saving statistics on win:', error);
+          }
+        })();
+      }
+
+      dispatch({ type: ACTIONS.SHOW_WIN_MODAL });
+    }
+  }, [state.filledCount, state.board, state.solutionBoard, statsLoaded, state.currentDifficulty, state.elapsedSeconds]);
 
   // Helper function to start a new game
   const startNewGame = (difficulty) => {
+    // Reset win state when starting a new game
+    hasWonRef.current = false;
+
     // Update statistics when starting a new game
     if (statsLoaded) {
-      const updatedStats = recordGameStarted(statistics, difficulty);
+      // Use the ref instead of the state to avoid stale state issues
+      const updatedStats = recordGameStarted(statisticsRef.current, difficulty);
       setStatistics(updatedStats);
       // Use IIFE to handle async operation
       (async () => {
