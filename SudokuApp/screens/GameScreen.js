@@ -12,6 +12,7 @@ import PauseModal from '../components/modals/PauseModal';
 import WinModal from '../components/modals/WinModal';
 import { GameProvider, useGameContext, ACTIONS } from '../contexts/GameContext';
 import appJson from '../app.json';
+import useAppStateListener from '../hooks/useAppStateListener';
 
 // Get build number from app.json
 const BUILD_NUMBER = appJson.expo.version;
@@ -36,7 +37,6 @@ const GameScreenContent = () => {
   } = useGameContext();
 
   // Use custom hook to handle app state changes
-  const useAppStateListener = require('../hooks/useAppStateListener').default;
   useAppStateListener();
 
   const handleCellPress = (row, col) => {

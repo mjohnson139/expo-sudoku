@@ -8,9 +8,10 @@ import { useGameContext } from '../../contexts/GameContext';
  * Provides options to resume the game or quit to the menu
  */
 const PauseModal = () => {
-  const { 
+  const {
     theme,
     isPaused,
+    gameCompleted,
     dispatch,
   } = useGameContext();
 
@@ -18,7 +19,8 @@ const PauseModal = () => {
   const [pauseAnim] = React.useState(new Animated.Value(0));
   
   React.useEffect(() => {
-    if (isPaused) {
+    // Only animate if the game is paused and not completed
+    if (isPaused && !gameCompleted) {
       Animated.timing(pauseAnim, {
         toValue: 1,
         duration: 400,
@@ -31,7 +33,7 @@ const PauseModal = () => {
         useNativeDriver: true,
       }).start();
     }
-  }, [isPaused]);
+  }, [isPaused, gameCompleted]);
 
   const handleResume = () => {
     dispatch({ type: 'RESUME_GAME' });
@@ -43,7 +45,7 @@ const PauseModal = () => {
 
   return (
     <Modal
-      visible={isPaused}
+      visible={isPaused && !gameCompleted}
       transparent
       animationType="fade"
     >
