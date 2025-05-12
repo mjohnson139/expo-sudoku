@@ -690,7 +690,14 @@ export const GameProvider = ({ children }) => {
             state.elapsedSeconds
           );
           setStatistics(updatedStats);
-          saveStatistics(updatedStats);
+          // Use IIFE to handle async operation
+          (async () => {
+            try {
+              await saveStatistics(updatedStats);
+            } catch (error) {
+              console.error('Error saving statistics on win:', error);
+            }
+          })();
         }
 
         dispatch({ type: ACTIONS.SHOW_WIN_MODAL });
@@ -704,7 +711,14 @@ export const GameProvider = ({ children }) => {
     if (statsLoaded) {
       const updatedStats = recordGameStarted(statistics, difficulty);
       setStatistics(updatedStats);
-      saveStatistics(updatedStats);
+      // Use IIFE to handle async operation
+      (async () => {
+        try {
+          await saveStatistics(updatedStats);
+        } catch (error) {
+          console.error('Error saving statistics on game start:', error);
+        }
+      })();
     }
 
     const { board, solution } = generateSudoku(difficulty);
