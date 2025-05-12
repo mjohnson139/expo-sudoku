@@ -55,6 +55,12 @@ const GameMenuModal = () => {
     dispatch({ type: ACTIONS.HIDE_MENU });
   };
 
+  const handleStatisticsPress = () => {
+    dispatch({ type: ACTIONS.SHOW_STATISTICS });
+    // Close the menu when showing statistics
+    dispatch({ type: ACTIONS.HIDE_MENU });
+  };
+
   return (
     <Modal
       visible={showMenu}
@@ -104,7 +110,7 @@ const GameMenuModal = () => {
             <Text style={styles.menuButtonText}>Expert</Text>
           </TouchableOpacity>
 
-          {/* Build Notes button */}
+          {/* Settings buttons */}
           <View style={styles.settingSection}>
             <TouchableOpacity
               style={[styles.menuButton, styles.buildButton]}
@@ -113,6 +119,15 @@ const GameMenuModal = () => {
             >
               <Text style={styles.menuButtonEmoji}>ℹ️</Text>
               <Text style={styles.menuButtonText}>Build Notes</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.menuButton, styles.statsButton]}
+              onPress={handleStatisticsPress}
+              accessibilityLabel="View Game Statistics"
+            >
+              <Text style={styles.menuButtonEmoji}>📊</Text>
+              <Text style={styles.menuButtonText}>Statistics</Text>
             </TouchableOpacity>
           </View>
 
@@ -206,6 +221,9 @@ const styles = StyleSheet.create({
   },
   buildButton: {
     backgroundColor: '#e0e0e0',
+  },
+  statsButton: {
+    backgroundColor: '#d1ecf1',
   },
   menuButtonEmoji: {
     fontSize: 20,

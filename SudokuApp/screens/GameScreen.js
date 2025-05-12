@@ -10,6 +10,7 @@ import GameToolBar from '../components/GameToolBar';
 import GameMenuModal from '../components/modals/GameMenuModal';
 import PauseModal from '../components/modals/PauseModal';
 import WinModal from '../components/modals/WinModal';
+import StatisticsModal from '../components/modals/StatisticsModal';
 import { GameProvider, useGameContext, ACTIONS } from '../contexts/GameContext';
 import appJson from '../app.json';
 
@@ -32,7 +33,8 @@ const GameScreenContent = () => {
     dispatch,
     handleNumberSelect,
     notesMode,
-    showBuildNotes
+    showBuildNotes,
+    showStatistics
   } = useGameContext();
 
   const handleCellPress = (row, col) => {
@@ -88,6 +90,7 @@ const GameScreenContent = () => {
       <GameMenuModal />
       <PauseModal />
       <WinModal />
+      <StatisticsModal />
 
       {/* Build notes */}
       <BuildNotes

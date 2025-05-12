@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import THEMES from '../utils/themes';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
 import usePersistentReducer from '../hooks/usePersistentReducer';
+import { loadStatistics, saveStatistics, recordGameStarted, recordGameCompleted, initialStatistics } from '../utils/statistics';
 
 // Initialize with empty Sudoku board
 const emptyBoard = Array.from({ length: 9 }, () => Array(9).fill(0));
@@ -19,13 +20,13 @@ export const ACTIONS = {
   CHANGE_THEME: 'CHANGE_THEME',
   UNDO: 'UNDO',
   REDO: 'REDO',
-  
+
   // Timer actions
   START_TIMER: 'START_TIMER',
   PAUSE_TIMER: 'PAUSE_TIMER',
   TICK_TIMER: 'TICK_TIMER',
   RESET_TIMER: 'RESET_TIMER',
-  
+
   // UI actions
   SHOW_MENU: 'SHOW_MENU',
   HIDE_MENU: 'HIDE_MENU',
@@ -36,7 +37,9 @@ export const ACTIONS = {
   HIDE_WIN_MODAL: 'HIDE_WIN_MODAL',
   SHOW_BUILD_NOTES: 'SHOW_BUILD_NOTES',
   HIDE_BUILD_NOTES: 'HIDE_BUILD_NOTES',
-  
+  SHOW_STATISTICS: 'SHOW_STATISTICS',
+  HIDE_STATISTICS: 'HIDE_STATISTICS',
+
   // Future - for AsyncStorage
   RESTORE_SAVED_GAME: 'RESTORE_SAVED_GAME',
 };
@@ -52,29 +55,33 @@ const initialState = {
   cellNotes: {},
   cellFeedback: {},
   filledCount: 0,
-  
+
   // Game UI state
   showFeedback: false,
   notesMode: false,
-  
+
   // Timer state
   elapsedSeconds: 0,
   timerActive: false,
   gameStarted: false, // Added flag to track if a game has been started
-  
+
   // Theme state
   currentThemeName: 'classic',
   theme: THEMES.classic,
-  
+
   // Undo/redo state
   undoStack: [],
   redoStack: [],
-  
+
   // Modal state
   showMenu: true,
   isPaused: false,
   showWinModal: false,
   showBuildNotes: false,
+  showStatistics: false,
+
+  // Game info for statistics
+  currentDifficulty: null,
 };
 
 // Helper function to get initial cells positions from a board
@@ -150,7 +157,7 @@ function gameReducer(state, action) {
       const { board, solution, difficulty } = action.payload;
       const initialCells = getInitialCells(board);
       const initialCount = board.flat().filter(v => v !== 0).length;
-      
+
       return {
         ...state,
         board,
@@ -166,11 +173,13 @@ function gameReducer(state, action) {
         showMenu: false,
         isPaused: false,
         showWinModal: false,
+        showStatistics: false,
         elapsedSeconds: 0,
         timerActive: true,
         gameStarted: true, // Set game as started when starting a new game
         undoStack: [],
         redoStack: [],
+        currentDifficulty: difficulty, // Store difficulty for statistics tracking
       };
     }
     
@@ -585,7 +594,21 @@ function gameReducer(state, action) {
         ...state,
         showBuildNotes: false,
       };
-    
+
+    case ACTIONS.SHOW_STATISTICS:
+      return {
+        ...state,
+        showStatistics: true,
+        timerActive: state.gameStarted && !state.isPaused ? false : state.timerActive,
+      };
+
+    case ACTIONS.HIDE_STATISTICS:
+      return {
+        ...state,
+        showStatistics: false,
+        timerActive: state.gameStarted && !state.isPaused && !state.showWinModal,
+      };
+
     case ACTIONS.RESTORE_SAVED_GAME:
       // For future AsyncStorage integration
       return {
@@ -609,7 +632,25 @@ export const GameProvider = ({ children }) => {
     ACTIONS.RESTORE_SAVED_GAME
   );
   const timerRef = useRef(null);
-  
+  const [statistics, setStatistics] = useState(initialStatistics);
+  const [statsLoaded, setStatsLoaded] = useState(false);
+
+  // Load statistics on mount
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const stats = await loadStatistics();
+        setStatistics(stats);
+        setStatsLoaded(true);
+      } catch (error) {
+        console.error('Error loading statistics:', error);
+        setStatsLoaded(true); // Set as loaded even if there was an error
+      }
+    };
+
+    loadStats();
+  }, []);
+
   // Effect for timer
   useEffect(() => {
     if (state.timerActive) {
@@ -620,7 +661,7 @@ export const GameProvider = ({ children }) => {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    
+
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -628,7 +669,7 @@ export const GameProvider = ({ children }) => {
       }
     };
   }, [state.timerActive]);
-  
+
   // Check for win condition when filledCount changes
   useEffect(() => {
     if (state.filledCount === 81) {
@@ -641,13 +682,31 @@ export const GameProvider = ({ children }) => {
         }
       }
       if (won) {
+        // Update statistics when game is won
+        if (statsLoaded && state.currentDifficulty) {
+          const updatedStats = recordGameCompleted(
+            statistics,
+            state.currentDifficulty,
+            state.elapsedSeconds
+          );
+          setStatistics(updatedStats);
+          saveStatistics(updatedStats);
+        }
+
         dispatch({ type: ACTIONS.SHOW_WIN_MODAL });
       }
     }
-  }, [state.filledCount, state.board, state.solutionBoard]);
+  }, [state.filledCount, state.board, state.solutionBoard, statsLoaded, statistics, state.currentDifficulty, state.elapsedSeconds]);
 
   // Helper function to start a new game
   const startNewGame = (difficulty) => {
+    // Update statistics when starting a new game
+    if (statsLoaded) {
+      const updatedStats = recordGameStarted(statistics, difficulty);
+      setStatistics(updatedStats);
+      saveStatistics(updatedStats);
+    }
+
     const { board, solution } = generateSudoku(difficulty);
     dispatch({
       type: ACTIONS.START_GAME,
@@ -763,6 +822,8 @@ export const GameProvider = ({ children }) => {
     formatTime,
     cycleTheme,
     debugFillBoard,
+    statistics,
+    statsLoaded,
   };
 
   // Only render children once state has been hydrated from storage
