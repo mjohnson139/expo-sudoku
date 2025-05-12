@@ -4,7 +4,7 @@ import { useGameContext, ACTIONS } from '../contexts/GameContext';
 
 /**
  * Custom hook to handle app state changes
- * Handles both backgrounding and returning to the app
+ * Handles app backgrounding and resuming
  */
 const useAppStateListener = () => {
   const { gameStarted, dispatch, gameCompleted } = useGameContext();
@@ -23,14 +23,9 @@ const useAppStateListener = () => {
       // When app is coming back to foreground
       else if (nextAppState === 'active' &&
               (appState.current === 'background' || appState.current === 'inactive')) {
-        if (gameStarted) {
-          if (!gameCompleted) {
-            // If a game is in progress but not completed, show pause modal
-            dispatch({ type: ACTIONS.PAUSE_GAME });
-          } else {
-            // If game is completed, show the menu screen so they can start a new game
-            dispatch({ type: ACTIONS.SHOW_MENU });
-          }
+        if (gameStarted && !gameCompleted) {
+          // If a game is in progress but not completed, show pause modal
+          dispatch({ type: ACTIONS.PAUSE_GAME });
         }
       }
       
