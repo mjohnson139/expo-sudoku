@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Platform, Dimensions } from 'react-native';
+import { View, StyleSheet, Platform, Dimensions, Text } from 'react-native';
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
@@ -21,14 +21,14 @@ const BUILD_NUMBER = appJson.expo.version;
  * Uses GameContext for state management
  */
 const GameScreenContent = () => {
-  const { 
-    board, 
-    selectedCell, 
-    initialCells, 
-    theme, 
-    showFeedback, 
-    cellFeedback, 
-    cellNotes, 
+  const {
+    board,
+    selectedCell,
+    initialCells,
+    theme,
+    showFeedback,
+    cellFeedback,
+    cellNotes,
     dispatch,
     handleNumberSelect,
     notesMode,
@@ -36,25 +36,25 @@ const GameScreenContent = () => {
   } = useGameContext();
 
   const handleCellPress = (row, col) => {
-    dispatch({ 
-      type: ACTIONS.SELECT_CELL, 
-      payload: { row, col } 
+    dispatch({
+      type: ACTIONS.SELECT_CELL,
+      payload: { row, col }
     });
   };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header with menu button, title, build info */}
+      {/* Header with menu button, title, theme selector */}
       <GameHeader />
-      
-      {/* Top strip with Theme Selector (left) and Timer (right) */}
+
+      {/* Top strip with Timer (right) */}
       <GameTopStrip />
-      
+
       {/* Game board */}
       <View style={styles.gridContainer}>
-        <Grid 
-          board={board} 
-          onCellPress={handleCellPress} 
+        <Grid
+          board={board}
+          onCellPress={handleCellPress}
           selectedCell={selectedCell}
           initialCells={initialCells}
           theme={theme}
@@ -63,31 +63,36 @@ const GameScreenContent = () => {
           cellNotes={cellNotes}
         />
       </View>
-      
+
       {/* Game options (feedback toggle and theme selector) */}
       <GameOptions />
-      
+
       {/* Game toolbar (undo, notes toggle, redo) */}
       <GameToolBar />
-      
+
       {/* Number pad */}
-      <NumberPad 
-        onSelectNumber={handleNumberSelect} 
-        theme={theme} 
+      <NumberPad
+        onSelectNumber={handleNumberSelect}
+        theme={theme}
         board={board}
         selectedCell={selectedCell}
         notesMode={notesMode}
       />
-      
+
+      {/* Version number at bottom of screen */}
+      <Text style={[styles.versionText, { color: theme.colors.title }]}>
+        v{BUILD_NUMBER}
+      </Text>
+
       {/* Modals */}
       <GameMenuModal />
       <PauseModal />
       <WinModal />
-      
+
       {/* Build notes */}
-      <BuildNotes 
-        isVisible={showBuildNotes} 
-        onClose={() => dispatch({ type: ACTIONS.HIDE_BUILD_NOTES })} 
+      <BuildNotes
+        isVisible={showBuildNotes}
+        onClose={() => dispatch({ type: ACTIONS.HIDE_BUILD_NOTES })}
         theme={theme}
         version={BUILD_NUMBER} // Add the version prop
       />
@@ -110,27 +115,27 @@ const GameScreen = () => {
 const getGridContainerSize = () => {
   // Base size for mobile
   const baseSize = 324;
-  
+
   // For web platform, use responsive sizing based on screen width
   if (Platform.OS === 'web') {
     const { width, height } = Dimensions.get('window');
     const smallerDimension = Math.min(width, height);
-    
+
     // Limit grid size on web for larger screens
     // On small screens, make it proportionally smaller
     const maxWebSize = 450; // Maximum grid size on web
     const minWebSize = 270; // Minimum grid size on web
-    
+
     // Calculate the responsive size based on screen dimensions
     const responsiveSize = Math.min(
       maxWebSize,
       Math.max(minWebSize, smallerDimension * 0.7)
     );
-    
+
     // Round to nearest pixel for clean rendering
     return Math.floor(responsiveSize);
   }
-  
+
   // Return default size for mobile platforms
   return baseSize;
 };
@@ -155,6 +160,12 @@ const styles = StyleSheet.create({
     width: gridContainerSize,
     height: gridContainerSize,
   },
+  versionText: {
+    fontSize: 12,
+    opacity: 0.6,
+    marginTop: 10,
+    marginBottom: 5,
+  }
 });
 
 export default GameScreen;
