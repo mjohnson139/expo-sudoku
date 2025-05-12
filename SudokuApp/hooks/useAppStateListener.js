@@ -21,13 +21,17 @@ const useAppStateListener = () => {
         }
       } 
       // When app is coming back to foreground
-      else if (nextAppState === 'active' && 
+      else if (nextAppState === 'active' &&
               (appState.current === 'background' || appState.current === 'inactive')) {
-        // If a game is in progress but not completed, show pause modal
-        if (gameStarted && !gameCompleted) {
-          dispatch({ type: ACTIONS.PAUSE_GAME });
+        if (gameStarted) {
+          if (!gameCompleted) {
+            // If a game is in progress but not completed, show pause modal
+            dispatch({ type: ACTIONS.PAUSE_GAME });
+          } else {
+            // If game is completed, show the menu screen so they can start a new game
+            dispatch({ type: ACTIONS.SHOW_MENU });
+          }
         }
-        // If game is completed, do nothing special
       }
       
       // Update app state reference
