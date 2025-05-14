@@ -1,16 +1,17 @@
 // filepath: /Users/matthewjohnson/dev/expo-sudoku/SudokuApp/components/modals/PauseModal.js
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View } from 'react-native';
-import { useGameContext } from '../../contexts/GameContext';
+import { useGameContext, ACTIONS } from '../../contexts/GameContext';
 
 /**
  * Pause Modal that appears when the game is paused
  * Provides options to resume the game or quit to the menu
  */
 const PauseModal = () => {
-  const { 
+  const {
     theme,
     isPaused,
+    gameCompleted,
     dispatch,
   } = useGameContext();
 
@@ -18,7 +19,8 @@ const PauseModal = () => {
   const [pauseAnim] = React.useState(new Animated.Value(0));
   
   React.useEffect(() => {
-    if (isPaused) {
+    // Only animate if the game is paused and not completed
+    if (isPaused && !gameCompleted) {
       Animated.timing(pauseAnim, {
         toValue: 1,
         duration: 400,
@@ -31,19 +33,19 @@ const PauseModal = () => {
         useNativeDriver: true,
       }).start();
     }
-  }, [isPaused]);
+  }, [isPaused, gameCompleted]);
 
   const handleResume = () => {
-    dispatch({ type: 'RESUME_GAME' });
+    dispatch({ type: ACTIONS.RESUME_GAME });
   };
 
   const handleQuit = () => {
-    dispatch({ type: 'QUIT_GAME' });
+    dispatch({ type: ACTIONS.QUIT_GAME });
   };
 
   return (
     <Modal
-      visible={isPaused}
+      visible={isPaused && !gameCompleted}
       transparent
       animationType="fade"
     >
