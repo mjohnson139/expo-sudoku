@@ -86,7 +86,7 @@ export const loadState = async () => {
       showWinModal: false, // Don't show win modal
       showBuildNotes: false, // Don't show build notes
       // Preserve gameCompleted flag from saved state or default to false
-      gameCompleted: parsedState.gameCompleted || false,
+      gameCompleted: parsedState.gameCompleted ?? false,
     };
   } catch (error) {
     console.error('Error loading game state:', error);
