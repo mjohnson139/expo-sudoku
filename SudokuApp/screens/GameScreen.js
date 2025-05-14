@@ -12,6 +12,7 @@ import PauseModal from '../components/modals/PauseModal';
 import WinModal from '../components/modals/WinModal';
 import { GameProvider, useGameContext, ACTIONS } from '../contexts/GameContext';
 import appJson from '../app.json';
+import useAppStateListener from '../hooks/useAppStateListener';
 
 // Get build number from app.json
 const BUILD_NUMBER = appJson.expo.version;
@@ -21,24 +22,31 @@ const BUILD_NUMBER = appJson.expo.version;
  * Uses GameContext for state management
  */
 const GameScreenContent = () => {
-  const { 
-    board, 
-    selectedCell, 
-    initialCells, 
-    theme, 
-    showFeedback, 
-    cellFeedback, 
-    cellNotes, 
+  const {
+    board,
+    selectedCell,
+    initialCells,
+    theme,
+    showFeedback,
+    cellFeedback,
+    cellNotes,
     dispatch,
     handleNumberSelect,
     notesMode,
-    showBuildNotes
+    showBuildNotes,
+    gameCompleted
   } = useGameContext();
 
+  // Use custom hook to handle app state changes
+  useAppStateListener();
+
   const handleCellPress = (row, col) => {
-    dispatch({ 
-      type: ACTIONS.SELECT_CELL, 
-      payload: { row, col } 
+    // Don't allow cell selection if game is completed
+    if (gameCompleted) return;
+
+    dispatch({
+      type: ACTIONS.SELECT_CELL,
+      payload: { row, col }
     });
   };
 
