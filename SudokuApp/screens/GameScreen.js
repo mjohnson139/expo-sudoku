@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Platform, Dimensions } from 'react-native';
+import { View, StyleSheet, Platform, useWindowDimensions, Text } from 'react-native';
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
@@ -39,6 +39,9 @@ const GameScreenContent = () => {
 
   // Use custom hook to handle app state changes
   useAppStateListener();
+  
+  // Use our optimized grid container size hook
+  const gridContainerSize = useGridContainerSize();
 
   const handleCellPress = (row, col) => {
     // Don't allow cell selection if game is completed
@@ -52,17 +55,20 @@ const GameScreenContent = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header with menu button, title, build info */}
+      {/* Header with menu button, title, theme selector */}
       <GameHeader />
-      
-      {/* Top strip with Theme Selector (left) and Timer (right) */}
+
+      {/* Top strip with Timer (right) */}
       <GameTopStrip />
-      
+
       {/* Game board */}
-      <View style={styles.gridContainer}>
-        <Grid 
-          board={board} 
-          onCellPress={handleCellPress} 
+      <View style={{
+        width: gridContainerSize,
+        height: gridContainerSize
+      }}>
+        <Grid
+          board={board}
+          onCellPress={handleCellPress}
           selectedCell={selectedCell}
           initialCells={initialCells}
           theme={theme}
@@ -71,31 +77,36 @@ const GameScreenContent = () => {
           cellNotes={cellNotes}
         />
       </View>
-      
+
       {/* Game options (feedback toggle and theme selector) */}
       <GameOptions />
-      
+
       {/* Game toolbar (undo, notes toggle, redo) */}
       <GameToolBar />
-      
+
       {/* Number pad */}
-      <NumberPad 
-        onSelectNumber={handleNumberSelect} 
-        theme={theme} 
+      <NumberPad
+        onSelectNumber={handleNumberSelect}
+        theme={theme}
         board={board}
         selectedCell={selectedCell}
         notesMode={notesMode}
       />
-      
+
+      {/* Version number at bottom of screen */}
+      <Text style={[styles.versionText, { color: theme.colors.title }]}>
+        v{BUILD_NUMBER}
+      </Text>
+
       {/* Modals */}
       <GameMenuModal />
       <PauseModal />
       <WinModal />
-      
+
       {/* Build notes */}
-      <BuildNotes 
-        isVisible={showBuildNotes} 
-        onClose={() => dispatch({ type: ACTIONS.HIDE_BUILD_NOTES })} 
+      <BuildNotes
+        isVisible={showBuildNotes}
+        onClose={() => dispatch({ type: ACTIONS.HIDE_BUILD_NOTES })}
         theme={theme}
         version={BUILD_NUMBER} // Add the version prop
       />
@@ -114,37 +125,39 @@ const GameScreen = () => {
   );
 };
 
-// Get responsive grid container size
-const getGridContainerSize = () => {
-  // Base size for mobile
-  const baseSize = 324;
+// This function uses useWindowDimensions and React.useMemo to optimize performance
+const useGridContainerSize = () => {
+  // Get window dimensions with React Native hook - this will update automatically on resize
+  const { width, height } = useWindowDimensions();
   
-  // For web platform, use responsive sizing based on screen width
-  if (Platform.OS === 'web') {
-    const { width, height } = Dimensions.get('window');
-    const smallerDimension = Math.min(width, height);
+  // Use React.useMemo to avoid recalculating on every render
+  return React.useMemo(() => {
+    // Base size for mobile
+    const baseSize = 324;
     
-    // Limit grid size on web for larger screens
-    // On small screens, make it proportionally smaller
-    const maxWebSize = 450; // Maximum grid size on web
-    const minWebSize = 270; // Minimum grid size on web
+    // For web platform, use responsive sizing based on screen width
+    if (Platform.OS === 'web') {
+      const smallerDimension = Math.min(width, height);
+      
+      // Limit grid size on web for larger screens
+      // On small screens, make it proportionally smaller
+      const maxWebSize = 450; // Maximum grid size on web
+      const minWebSize = 270; // Minimum grid size on web
+      
+      // Calculate the responsive size based on screen dimensions
+      const responsiveSize = Math.min(
+        maxWebSize,
+        Math.max(minWebSize, smallerDimension * 0.7)
+      );
+      
+      // Round to nearest pixel for clean rendering
+      return Math.floor(responsiveSize);
+    }
     
-    // Calculate the responsive size based on screen dimensions
-    const responsiveSize = Math.min(
-      maxWebSize,
-      Math.max(minWebSize, smallerDimension * 0.7)
-    );
-    
-    // Round to nearest pixel for clean rendering
-    return Math.floor(responsiveSize);
-  }
-  
-  // Return default size for mobile platforms
-  return baseSize;
+    // Return default size for mobile platforms
+    return baseSize;
+  }, [width, height]); // Only recalculate when dimensions change
 };
-
-// Get the dimensions based on platform
-const gridContainerSize = getGridContainerSize();
 
 const styles = StyleSheet.create({
   container: {
@@ -159,10 +172,13 @@ const styles = StyleSheet.create({
       marginHorizontal: 'auto', // Center on web
     } : {})
   },
-  gridContainer: {
-    width: gridContainerSize,
-    height: gridContainerSize,
-  },
+  // Style removed - we're now using dynamic dimensions directly in the component
+  versionText: {
+    fontSize: 12,
+    opacity: 0.6,
+    marginTop: 10,
+    marginBottom: 5,
+  }
 });
 
 export default GameScreen;

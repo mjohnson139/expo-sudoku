@@ -2,23 +2,15 @@ import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { useGameContext } from '../contexts/GameContext';
 import { ACTIONS } from '../contexts/GameContext';
-import appJson from '../app.json';
-
-// Get build number from app.json
-const BUILD_NUMBER = appJson.expo.version;
 
 /**
- * GameHeader component containing menu button, title and build info
+ * GameHeader component containing menu button, title and theme selector
  */
 const GameHeader = () => {
-  const { theme, dispatch } = useGameContext();
+  const { theme, dispatch, cycleTheme } = useGameContext();
 
   const handleMenuPress = () => {
     dispatch({ type: ACTIONS.SHOW_MENU });
-  };
-
-  const handleBuildPress = () => {
-    dispatch({ type: ACTIONS.SHOW_BUILD_NOTES });
   };
 
   return (
@@ -28,22 +20,28 @@ const GameHeader = () => {
         <TouchableOpacity
           style={[styles.menuIcon, { borderColor: theme.colors.title }]}
           onPress={handleMenuPress}
+          accessibilityLabel="Open game menu"
+          accessibilityRole="button"
+          accessibilityHint="Opens the game menu with settings and options"
         >
           <Text style={{ color: theme.colors.title, fontSize: 18 }}>☰</Text>
         </TouchableOpacity>
-        
+
         {/* Game Title */}
         <View style={styles.headerTitleBox}>
           <Text style={[styles.title, { color: theme.colors.title }]}>Sudoku</Text>
         </View>
-        
-        {/* Build Info Button */}
-        <TouchableOpacity 
-          style={[styles.buildButton, { borderColor: theme.colors.title }]} 
-          onPress={handleBuildPress}
+
+        {/* Theme Selector Button */}
+        <TouchableOpacity
+          style={[styles.themeButton, { borderColor: theme.colors.title }]}
+          onPress={cycleTheme}
+          accessibilityLabel="Change Theme"
+          accessibilityRole="button"
+          accessibilityHint="Cycles through available color themes"
         >
-          <Text style={[styles.buildNumber, { color: theme.colors.title }]}>
-            Build {BUILD_NUMBER} ℹ️
+          <Text style={[styles.themeButtonText, { color: theme.colors.title }]}>
+            🎨 {theme.name}
           </Text>
         </TouchableOpacity>
       </View>
@@ -56,7 +54,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 5,
+    // Removed marginBottom from here since headerRow has its own margin
   },
   headerRow: {
     flexDirection: 'row',
@@ -77,14 +75,14 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
   },
-  buildButton: {
+  themeButton: {
     marginLeft: 10,
     paddingVertical: 3,
     paddingHorizontal: 8,
     borderRadius: 10,
     borderWidth: 1,
   },
-  buildNumber: {
+  themeButtonText: {
     fontSize: 12,
   },
   menuIcon: {
