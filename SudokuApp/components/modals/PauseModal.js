@@ -1,7 +1,7 @@
 // filepath: /Users/matthewjohnson/dev/expo-sudoku/SudokuApp/components/modals/PauseModal.js
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View } from 'react-native';
-import { useGameContext } from '../../contexts/GameContext';
+import { useGameContext, ACTIONS } from '../../contexts/GameContext';
 
 /**
  * Pause Modal that appears when the game is paused
@@ -36,11 +36,11 @@ const PauseModal = () => {
   }, [isPaused, gameCompleted]);
 
   const handleResume = () => {
-    dispatch({ type: 'RESUME_GAME' });
+    dispatch({ type: ACTIONS.RESUME_GAME });
   };
 
   const handleQuit = () => {
-    dispatch({ type: 'QUIT_GAME' });
+    dispatch({ type: ACTIONS.QUIT_GAME });
   };
 
   return (

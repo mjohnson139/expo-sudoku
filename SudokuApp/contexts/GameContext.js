@@ -655,21 +655,25 @@ export const GameProvider = ({ children }) => {
   
   // Check for win condition when filledCount changes
   useEffect(() => {
-    // Only check for win if the game isn't already completed
-    if (state.filledCount === 81 && !state.gameCompleted) {
-      let won = true;
-      for (let i = 0; i < 9 && won; i++) {
-        for (let j = 0; j < 9 && won; j++) {
-          if (state.board[i][j] !== state.solutionBoard[i][j]) {
-            won = false;
-          }
+    // Early return if board is not filled or game is already completed
+    if (state.filledCount < 81 || state.gameCompleted) {
+      return;
+    }
+    
+    // Check if all cells match the solution
+    let won = true;
+    for (let i = 0; i < 9 && won; i++) {
+      for (let j = 0; j < 9 && won; j++) {
+        if (state.board[i][j] !== state.solutionBoard[i][j]) {
+          won = false;
         }
       }
-      if (won) {
-        dispatch({ type: ACTIONS.SHOW_WIN_MODAL });
-      }
     }
-  }, [state.filledCount, state.board, state.solutionBoard, state.gameCompleted]);
+    
+    if (won) {
+      dispatch({ type: ACTIONS.SHOW_WIN_MODAL });
+    }
+  }, [state.filledCount, state.board, state.solutionBoard, state.gameCompleted, dispatch]);
 
   // Helper function to start a new game
   const startNewGame = (difficulty) => {
