@@ -1,10 +1,9 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View, Switch } from 'react-native';
 import { useGameContext, ACTIONS } from '../../contexts/GameContext';
-import appJson from '../../app.json';
+// Removed unused import for app.json
 
-// Get build number from app.json
-const BUILD_NUMBER = appJson.expo.version;
+// No need to declare BUILD_NUMBER as it's not used
 
 /**
  * Game Menu Modal for game settings and difficulty selection
@@ -39,7 +38,7 @@ const GameMenuModal = () => {
   }, [showMenu]);
 
   const handleCloseMenu = () => {
-    dispatch({ type: 'HIDE_MENU' });
+    dispatch({ type: ACTIONS.HIDE_MENU });
   };
 
   const handleToggleFeedback = (value) => {
@@ -69,8 +68,13 @@ const GameMenuModal = () => {
         }}
       >
         <View style={[styles.menuBox, { backgroundColor: theme.colors.numberPad.background, borderColor: theme.colors.numberPad.border }]}>
-          <TouchableOpacity style={styles.menuCloseButton} onPress={handleCloseMenu}>
-            <Text style={styles.menuCloseText}>✕</Text>
+          <TouchableOpacity 
+            style={styles.menuCloseButton} 
+            onPress={handleCloseMenu}
+            accessibilityLabel="Close menu"
+            accessibilityRole="button"
+          >
+            <Text style={[styles.menuCloseText, { color: theme.colors.title }]}>✕</Text>
           </TouchableOpacity>
 
           <Text style={[styles.menuTitle, { color: theme.colors.title }]}>Sudoku</Text>
@@ -78,30 +82,38 @@ const GameMenuModal = () => {
           <TouchableOpacity
             style={[styles.menuButton, styles.menuButtonEasy]}
             onPress={() => startNewGame('easy')}
+            accessibilityLabel="Start easy difficulty game"
+            accessibilityRole="button"
           >
             <Text style={styles.menuButtonEmoji}>😊</Text>
-            <Text style={styles.menuButtonText}>Easy</Text>
+            <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Easy</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.menuButton, styles.menuButtonChallenge]}
             onPress={() => startNewGame('medium')}
+            accessibilityLabel="Start medium difficulty game"
+            accessibilityRole="button"
           >
             <Text style={styles.menuButtonEmoji}>😐</Text>
-            <Text style={styles.menuButtonText}>Medium</Text>
+            <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Medium</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.menuButton, styles.menuButtonHard]}
             onPress={() => startNewGame('hard')}
+            accessibilityLabel="Start hard difficulty game"
+            accessibilityRole="button"
           >
             <Text style={styles.menuButtonEmoji}>😎</Text>
-            <Text style={styles.menuButtonText}>Hard</Text>
+            <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Hard</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.menuButton, styles.menuButtonHard]}
             onPress={() => startNewGame('expert')}
+            accessibilityLabel="Start expert difficulty game"
+            accessibilityRole="button"
           >
             <Text style={styles.menuButtonEmoji}>😈</Text>
-            <Text style={styles.menuButtonText}>Expert</Text>
+            <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Expert</Text>
           </TouchableOpacity>
 
           {/* Build Notes button */}
@@ -112,7 +124,7 @@ const GameMenuModal = () => {
               accessibilityLabel="View Build Notes"
             >
               <Text style={styles.menuButtonEmoji}>ℹ️</Text>
-              <Text style={styles.menuButtonText}>Build Notes</Text>
+              <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Build Notes</Text>
             </TouchableOpacity>
           </View>
 
@@ -125,20 +137,22 @@ const GameMenuModal = () => {
               value={showFeedback}
               onValueChange={handleToggleFeedback}
               trackColor={{
-                false: '#d3d3d3',
+                false: theme.colors.inactive || '#d3d3d3',
                 true: theme.colors.cell?.correctValueText || '#4caf50'
               }}
-              thumbColor={showFeedback ? theme.colors.numberPad.background : '#f4f3f4'}
+              thumbColor={showFeedback ? theme.colors.numberPad.background : theme.colors.inactiveText || '#f4f3f4'}
             />
           </View>
 
           {__DEV__ && (
             <TouchableOpacity
-              style={[styles.menuButton, { backgroundColor: '#d0d0d0' }]}
+              style={[styles.menuButton, { backgroundColor: theme.colors.inactive || '#d0d0d0' }]}
               onPress={debugFillBoard}
+              accessibilityLabel="Debug Fill Board"
+              accessibilityRole="button"
             >
               <Text style={styles.menuButtonEmoji}>🐞</Text>
-              <Text style={styles.menuButtonText}>Debug Fill</Text>
+              <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Debug Fill</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -175,7 +189,7 @@ const styles = StyleSheet.create({
   },
   menuCloseText: {
     fontSize: 18,
-    color: '#333',
+    // Color is now applied inline based on theme
   },
   menuTitle: {
     fontSize: 20,
@@ -214,7 +228,7 @@ const styles = StyleSheet.create({
   menuButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#333',
+    // Color is now applied inline based on theme
   },
   feedbackControl: {
     flexDirection: 'row',

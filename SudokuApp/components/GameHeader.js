@@ -7,7 +7,7 @@ import { ACTIONS } from '../contexts/GameContext';
  * GameHeader component containing menu button, title and theme selector
  */
 const GameHeader = () => {
-  const { theme, dispatch, cycleTheme, currentThemeName } = useGameContext();
+  const { theme, dispatch, cycleTheme } = useGameContext();
 
   const handleMenuPress = () => {
     dispatch({ type: ACTIONS.SHOW_MENU });
@@ -20,6 +20,9 @@ const GameHeader = () => {
         <TouchableOpacity
           style={[styles.menuIcon, { borderColor: theme.colors.title }]}
           onPress={handleMenuPress}
+          accessibilityLabel="Open game menu"
+          accessibilityRole="button"
+          accessibilityHint="Opens the game menu with settings and options"
         >
           <Text style={{ color: theme.colors.title, fontSize: 18 }}>☰</Text>
         </TouchableOpacity>
@@ -34,6 +37,8 @@ const GameHeader = () => {
           style={[styles.themeButton, { borderColor: theme.colors.title }]}
           onPress={cycleTheme}
           accessibilityLabel="Change Theme"
+          accessibilityRole="button"
+          accessibilityHint="Cycles through available color themes"
         >
           <Text style={[styles.themeButtonText, { color: theme.colors.title }]}>
             🎨 {theme.name}
@@ -49,7 +54,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 5,
+    // Removed marginBottom from here since headerRow has its own margin
   },
   headerRow: {
     flexDirection: 'row',

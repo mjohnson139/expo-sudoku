@@ -1,7 +1,7 @@
 // Build notes for the Sudoku app
 // Each version's notes are stored in this file
 
-export const BUILD_NOTES = {
+const BUILD_NOTES = {
   '2.3.0': {
     title: 'UI Layout Reorganization',
     date: '2025-05-11',
@@ -15,7 +15,7 @@ export const BUILD_NOTES = {
   },
   '1.0.1': {
     title: 'Initial Working Version',
-    date: '2023-11-01',
+    date: '2025-04-01',
     notes: [
       'Fixed blank screen issue',
       'Added valid initial Sudoku board',
@@ -26,7 +26,7 @@ export const BUILD_NOTES = {
   },
   '1.0.2': {
     title: 'Theme System Implementation',
-    date: '2023-11-01',
+    date: '2025-04-01',
     notes: [
       'Added theme system with 3 themes (Classic, Dark, Pastel)',
       'Added theme selector button',
@@ -37,7 +37,7 @@ export const BUILD_NOTES = {
   },
   '1.0.3': {
     title: 'Enhanced Styling & Themes',
-    date: '2023-11-01',
+    date: '2025-04-02',
     notes: [
       'Improved grid borders for better 3x3 box visibility',
       'Enhanced cell selection styling',
@@ -49,7 +49,7 @@ export const BUILD_NOTES = {
   },
   '1.0.4': {
     title: 'Build Notes System',
-    date: '2023-11-01',
+    date: '2025-04-02',
     notes: [
       'Added build notes system to track changes',
       'Implemented optional floating notes panel',
@@ -60,7 +60,7 @@ export const BUILD_NOTES = {
   },
   '1.0.5': {
     title: 'Cell Feedback & Theme Expansion',
-    date: '2023-11-02',
+    date: '2025-04-03',
     notes: [
       'Added cell feedback feature to show correct/incorrect answers',
       'Added feedback toggle switch on game screen',
@@ -72,7 +72,7 @@ export const BUILD_NOTES = {
   },
   '1.0.6': {
     title: 'Improved Startup Experience',
-    date: '2023-11-02',
+    date: '2025-04-03',
     notes: [
       'Added custom startup script (start-app.sh) for consistent port usage',
       'Implemented automatic detection of previous Expo processes',
@@ -83,7 +83,7 @@ export const BUILD_NOTES = {
   },
   '1.0.9': {
     title: 'UI Enhancement - Centered Controls',
-    date: '2023-11-03',
+    date: '2025-04-04',
     notes: [
       'Centered the feedback and theme controls together for better usability',
       'Improved spacing between UI elements',
@@ -94,7 +94,7 @@ export const BUILD_NOTES = {
   },
   '1.1.0': {
     title: 'Touch Highlighting & Gesture Controls',
-    date: '2023-11-03',
+    date: '2025-04-04',
     notes: [
       'Added touch-based cell highlighting when sliding finger across board',
       'Implemented gesture tracking system for responsive UI feedback',
@@ -105,7 +105,7 @@ export const BUILD_NOTES = {
   },
   '1.1.1': {
     title: 'Improved Touch Tracking',
-    date: '2023-11-03',
+    date: '2025-04-04',
     notes: [
       'Fixed touch tracking when sliding finger across the game board',
       'Simplified cell highlighting system for better performance',
@@ -116,7 +116,7 @@ export const BUILD_NOTES = {
   },
   '1.2.0': {
     title: 'Enhanced Touch & Related Cell Highlighting',
-    date: '2023-11-03',
+    date: '2025-04-05',
     notes: [
       'Completely redesigned touch tracking system for accurate cell selection',
       'Added highlighting for related cells (same row, column, and 3x3 box)',
@@ -128,7 +128,7 @@ export const BUILD_NOTES = {
   },
   '1.2.1': {
     title: 'Touch Tracking System Fix',
-    date: '2023-11-03',
+    date: '2025-04-05',
     notes: [
       'Fixed touch tracking when sliding finger across the board',
       'Implemented accurate hit detection for cell highlighting',
@@ -140,7 +140,7 @@ export const BUILD_NOTES = {
   },
   '1.3.0': {
     title: 'Enhanced Cell Selection & Relations',
-    date: '2023-11-04',
+    date: '2025-04-05',
     notes: [
       'Improved cell selection system with simple touch interaction',
       'Added visual highlighting for cells in the same row as selected cell',
@@ -153,7 +153,7 @@ export const BUILD_NOTES = {
   },
   '1.3.1': {
     title: 'Enhanced Preselected Cell Styling',
-    date: '2023-11-04',
+    date: '2025-04-05',
     notes: [
       'Improved visual distinction between preselected cells and selected cells',
       'Added green tint backgrounds for initial cells to make them stand out',
@@ -164,7 +164,7 @@ export const BUILD_NOTES = {
   },
   '1.3.2': {
     title: 'Simplified Cell Background Styling',
-    date: '2023-11-04',
+    date: '2025-04-06',
     notes: [
       'Removed distinct background color for prefilled cells',
       'Maintained larger and bolder text for prefilled numbers',
@@ -175,7 +175,7 @@ export const BUILD_NOTES = {
   },
   '1.4.0': {
     title: 'Invisible Joystick Navigation',
-    date: '2023-11-05',
+    date: '2025-04-07',
     notes: [
       'Added gesture-based navigation system that works like an invisible joystick',
       'Press anywhere on the grid and slide in a direction to move the selected cell',
@@ -186,7 +186,7 @@ export const BUILD_NOTES = {
   },
   '1.5.0': {
     title: 'Improved Number Pad Interaction',
-    date: '2023-11-06',
+    date: '2025-04-08',
     notes: [
       'Updated number pad to toggle numbers in cells instead of just setting them',
       'Tapping a number that already exists in a cell now clears the cell',
@@ -198,7 +198,7 @@ export const BUILD_NOTES = {
   },
   '1.5.1': {
     title: 'Adjustable Joystick Sensitivity',
-    date: '2023-11-07',
+    date: '2025-04-09',
     notes: [
       'Added controls to adjust joystick sensitivity',
       'Sensitivity can be increased or decreased in increments of 0.1',
@@ -210,7 +210,7 @@ export const BUILD_NOTES = {
   },
   '1.5.2': {
     title: 'Global Joystick & Enhanced Controls',
-    date: '2023-11-08',
+    date: '2025-04-10',
     notes: [
       'Implemented full-screen joystick navigation that works everywhere on the screen',
       'Changed joystick sensitivity increments to 0.5 for faster adjustments',
@@ -222,7 +222,7 @@ export const BUILD_NOTES = {
   },
   '1.5.4': {
     title: 'Restored Board-Only Joystick',
-    date: '2023-11-09',
+    date: '2025-04-11',
     notes: [
       'Reverted to the original joystick implementation that works only on the game board',
       'Maintained the adjustable sensitivity controls (0.5 increments)',
@@ -234,7 +234,7 @@ export const BUILD_NOTES = {
   },
   '1.6.0': {
     title: 'Cell Notes Feature',
-    date: '2023-11-10',
+    date: '2025-04-12',
     notes: [
       'Added the ability to place notes in empty cells',
       'Cell notes display as small numbers in a 3×3 grid within each cell',
@@ -248,7 +248,7 @@ export const BUILD_NOTES = {
   },
   '1.6.1': {
     title: 'Enhanced Notes with Smart Auto-Clearing',
-    date: '2023-11-11',
+    date: '2025-04-13',
     notes: [
       'Added pencil icon toggle for notes mode in a compact toolbar',
       'Implemented smart auto-clearing of notes when related cells are filled',
@@ -261,7 +261,7 @@ export const BUILD_NOTES = {
   },
   '1.6.2': {
     title: 'Compact Notes Button Redesign',
-    date: '2023-11-12',
+    date: '2025-04-14',
     notes: [
       'Redesigned the notes toggle to match the build info button style',
       'Added a small pencil icon (✏️) for the notes mode button',
