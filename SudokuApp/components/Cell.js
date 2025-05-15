@@ -16,28 +16,18 @@ const Cell = ({
   // Memoize background color calculation
   const backgroundColor = useMemo(() => {
     if (isSelected) {
+      // All themes use the same standard blue for selected cells
       return theme.colors.cell.selectedBackground;
-    } else if (relationType) {
-      // Make sure theme has all the necessary colors with fallbacks
-      switch(relationType) {
-        case 'box':
-          return theme.colors.cell.boxRelatedBackground || theme.colors.cell.relatedBackground;
-        case 'row':
-          return theme.colors.cell.rowRelatedBackground || theme.colors.cell.relatedBackground;
-        case 'column':
-          return theme.colors.cell.columnRelatedBackground || theme.colors.cell.relatedBackground;
-        case 'sameValue':
-          return theme.colors.cell.sameValueBackground || theme.colors.cell.relatedBackground;
-        default:
-          return theme.colors.cell.background;
-      }
     } else if (showFeedback && isCorrect === false) {
+      // Show incorrect feedback background when applicable
       return theme.colors.cell.incorrectBackground || '#ffebee';
-    } else if (isInitialCell) {
-      return theme.colors.cell.initialCellBackground || theme.colors.cell.prefilled || theme.colors.cell.background;
+    } else if (relationType) {
+      // Simplified highlighting - all related cells use the same background color
+      return theme.colors.cell.relatedBackground;
     }
+    // Default cell background
     return theme.colors.cell.background;
-  }, [isSelected, relationType, showFeedback, isCorrect, isInitialCell, theme.colors.cell]);
+  }, [isSelected, relationType, showFeedback, isCorrect, theme.colors.cell]);
 
   // Memoize text color calculation
   const textColor = useMemo(() => {
@@ -57,7 +47,7 @@ const Cell = ({
     styles.text,
     { 
       color: textColor,
-      fontWeight: isInitialCell ? 'bold' : '500',
+      fontWeight: isInitialCell ? 'bold' : '500', // Only initial cells are bold
       fontSize: isInitialCell ? 19 : 18, // Keep initial values slightly larger
     }
   ], [textColor, isInitialCell]);

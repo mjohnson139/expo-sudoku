@@ -2,6 +2,19 @@
 // Each version's notes are stored in this file
 
 const BUILD_NOTES = {
+  '2.4.0': {
+    title: 'Theme Color Harmonization',
+    date: '2025-05-15',
+    notes: [
+      'Simplified cell highlighting with a consistent approach across all themes',
+      'Standardized selected cell highlighting to blue across all themes',
+      'Removed background colors for prefilled cells, using only bold text for distinction',
+      'Simplified row/column/box highlighting to use single darker shade of board background',
+      'Enhanced contrast for all text colors to improve accessibility',
+      'Fixed color conflicts in warm-colored themes (Sunrise, Sunset)',
+      'Added theme testing tools to ensure consistent experience'
+    ]
+  },
   '2.3.0': {
     title: 'UI Layout Reorganization',
     date: '2025-05-11',
