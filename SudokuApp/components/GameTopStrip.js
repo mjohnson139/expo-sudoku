@@ -13,21 +13,21 @@ import { useGameContext } from '../contexts/GameContext';
 const GameTopStrip = () => {
   const { theme, difficulty } = useGameContext();
   
-  // Determine the badge color based on difficulty
+  // Use default from GameContext.js initial state if difficulty is not available
+  const DEFAULT_DIFFICULTY = 'medium';
+  
+  // Get the badge color from theme based on difficulty
   const getBadgeColor = () => {
-    switch(difficulty) {
-      case 'easy': return '#d4edda'; // Green for easy
-      case 'medium': return '#ffeeba'; // Yellow for medium
-      case 'hard': return '#f8d7da'; // Pink for hard
-      case 'expert': return '#f8d7da'; // Pink for expert (same as hard)
-      default: return '#ffeeba'; // Default to medium
-    }
+    // Use default if difficulty is not specified
+    const difficultyLevel = difficulty || DEFAULT_DIFFICULTY;
+    return theme.colors.difficulty[difficultyLevel] || theme.colors.difficulty[DEFAULT_DIFFICULTY];
   };
   
   // Get difficulty label with proper capitalization
   const getDifficultyLabel = () => {
-    if (!difficulty) return 'Medium';
-    return difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+    // Use default if difficulty is not specified
+    const difficultyLevel = difficulty || DEFAULT_DIFFICULTY;
+    return difficultyLevel.charAt(0).toUpperCase() + difficultyLevel.slice(1);
   };
   
   return (

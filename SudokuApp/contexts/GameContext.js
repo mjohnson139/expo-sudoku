@@ -56,7 +56,7 @@ const initialState = {
   // Game UI state
   showFeedback: false,
   notesMode: false,
-  difficulty: 'medium', // Default difficulty level
+  difficulty: 'medium', // Default difficulty level - DO NOT change without updating GameTopStrip.js
 
   // Timer state
   elapsedSeconds: 0,

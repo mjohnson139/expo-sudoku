@@ -39,6 +39,12 @@ export const SUDOKU_THEMES = {
         shadow: '#000000',
         clearButton: '#ffe0e0',
         notesBackground: '#e6f2fd', // Light blue background for notes mode
+      },
+      difficulty: {
+        easy: '#d4edda',    // Green for easy
+        medium: '#ffeeba',  // Yellow for medium
+        hard: '#f8d7da',    // Pink for hard
+        expert: '#f8d7da'   // Pink for expert (same as hard)
       }
     }
   },
@@ -81,6 +87,12 @@ export const SUDOKU_THEMES = {
         shadow: '#000000',
         clearButton: '#b71c1c',
         notesBackground: '#263c5a', // Darker blue background for notes mode
+      },
+      difficulty: {
+        easy: '#1c4a23',    // Dark green for easy
+        medium: '#93702a',  // Dark gold for medium
+        hard: '#842029',    // Dark red for hard
+        expert: '#842029'   // Dark red for expert (same as hard)
       }
     }
   },
@@ -123,6 +135,12 @@ export const SUDOKU_THEMES = {
         shadow: '#d0d8e6',
         clearButton: '#ffd6d6',
         notesBackground: '#e6eef7', // Soft blue background for notes mode
+      },
+      difficulty: {
+        easy: '#d4edda',    // Green for easy
+        medium: '#ffeeba',  // Yellow for medium
+        hard: '#f8d7da',    // Pink for hard
+        expert: '#f8d7da'   // Pink for expert (same as hard)
       }
     }
   },
@@ -165,6 +183,12 @@ export const SUDOKU_THEMES = {
         shadow: '#ffcc80',
         clearButton: '#ffab91',
         notesBackground: '#fff0d9', // Light orange background for notes mode
+      },
+      difficulty: {
+        easy: '#d4edda',    // Green for easy
+        medium: '#ffeeba',  // Yellow for medium
+        hard: '#f8d7da',    // Pink for hard
+        expert: '#f8d7da'   // Pink for expert (same as hard)
       }
     }
   },
@@ -207,6 +231,12 @@ export const SUDOKU_THEMES = {
         shadow: '#f39c12',
         clearButton: '#f1c40f',
         notesBackground: '#fdf1e0', // Light orange background for notes mode
+      },
+      difficulty: {
+        easy: '#d4edda',    // Green for easy
+        medium: '#ffeeba',  // Yellow for medium
+        hard: '#f8d7da',    // Pink for hard
+        expert: '#f8d7da'   // Pink for expert (same as hard)
       }
     }
   },
@@ -249,6 +279,12 @@ export const SUDOKU_THEMES = {
         shadow: '#4fc3f7',
         clearButton: '#80deea',
         notesBackground: '#dbf0fa', // Light blue background for notes mode
+      },
+      difficulty: {
+        easy: '#d4edda',    // Green for easy
+        medium: '#ffeeba',  // Yellow for medium
+        hard: '#f8d7da',    // Pink for hard
+        expert: '#f8d7da'   // Pink for expert (same as hard)
       }
     }
   },
@@ -291,6 +327,12 @@ export const SUDOKU_THEMES = {
         shadow: '#1a1625',
         clearButton: '#7986cb',
         notesBackground: '#3a3558', // Dark purple background for notes mode
+      },
+      difficulty: {
+        easy: '#1c4a23',    // Dark green for easy
+        medium: '#93702a',  // Dark gold for medium
+        hard: '#842029',    // Dark red for hard
+        expert: '#842029'   // Dark red for expert (same as hard)
       }
     }
   }
