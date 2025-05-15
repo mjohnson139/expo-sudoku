@@ -18,7 +18,7 @@ const GameTimer = () => {
       <View style={styles.timerTextContainer}>
         <Text style={[
           styles.timerText, 
-          { color: theme.colors.text }
+          { color: theme.colors.title }
         ]}>
           {formatTime(elapsedSeconds)}
         </Text>
@@ -34,7 +34,7 @@ const GameTimer = () => {
       >
         <Text style={[
           styles.pauseButtonIcon, 
-          { color: theme.colors.text }
+          { color: theme.colors.title }
         ]}>⏸️</Text>
       </TouchableOpacity>
     </View>

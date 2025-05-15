@@ -2,6 +2,26 @@
 // Each version's notes are stored in this file
 
 const BUILD_NOTES = {
+  '2.4.0': {
+    title: 'Theme Harmonization & UI Improvements',
+    date: '2025-05-15',
+    notes: [
+      // Theme Harmonization
+      'Simplified cell highlighting with a consistent approach across all themes',
+      'Standardized selected cell highlighting to blue across all themes',
+      'Removed background colors for prefilled cells, using only bold text for distinction',
+      'Simplified row/column/box highlighting to use single darker shade of board background',
+      'Enhanced contrast for all text colors to improve accessibility',
+      'Fixed color conflicts in warm-colored themes (Sunrise, Sunset)',
+      'Lightened dark theme board backgrounds for better visibility',
+      // UI Layout Improvements
+      'Redesigned header with proper left-center-right layout positioning',
+      'Applied same layout pattern to GameTopStrip for consistent design',
+      'Added difficulty level tracking and display with color-coded badges',
+      'Added score placeholder in game interface for future implementation',
+      'Matched timer text color to title color for visual harmony'
+    ]
+  },
   '2.3.0': {
     title: 'UI Layout Reorganization',
     date: '2025-05-11',

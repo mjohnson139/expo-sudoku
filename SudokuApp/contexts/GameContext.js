@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useRef } from 'react';
-import THEMES from '../utils/themes';
+import SUDOKU_THEMES from '../utils/themes';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
 import usePersistentReducer from '../hooks/usePersistentReducer';
 
@@ -56,6 +56,7 @@ const initialState = {
   // Game UI state
   showFeedback: false,
   notesMode: false,
+  difficulty: 'medium', // Default difficulty level - DO NOT change without updating GameTopStrip.js
 
   // Timer state
   elapsedSeconds: 0,
@@ -65,7 +66,7 @@ const initialState = {
 
   // Theme state
   currentThemeName: 'classic',
-  theme: THEMES.classic,
+  theme: SUDOKU_THEMES.classic,
 
   // Undo/redo state
   undoStack: [],
@@ -163,6 +164,7 @@ function gameReducer(state, action) {
         cellFeedback: {},
         showFeedback: false,
         notesMode: false,
+        difficulty, // Store the current difficulty level
         filledCount: initialCount,
         showMenu: false,
         isPaused: false,
@@ -373,7 +375,7 @@ function gameReducer(state, action) {
       return {
         ...state,
         currentThemeName: themeName,
-        theme: THEMES[themeName],
+        theme: SUDOKU_THEMES[themeName],
       };
     }
     
@@ -776,7 +778,7 @@ export const GameProvider = ({ children }) => {
   
   // Cycle through available themes
   const cycleTheme = () => {
-    const themeKeys = Object.keys(THEMES);
+    const themeKeys = Object.keys(SUDOKU_THEMES);
     const currentIndex = themeKeys.indexOf(state.currentThemeName);
     const nextIndex = (currentIndex + 1) % themeKeys.length;
     const nextThemeName = themeKeys[nextIndex];

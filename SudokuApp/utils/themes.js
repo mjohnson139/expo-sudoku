@@ -1,5 +1,5 @@
 // Theme system for the Sudoku app
-export const THEMES = {
+export const SUDOKU_THEMES = {
   classic: {
     name: 'Classic',
     colors: {
@@ -14,22 +14,23 @@ export const THEMES = {
       },
       cell: {
         background: '#ffffff',
-        prefilled: '#f0f8ff', // Light blue background for prefilled cells
-        selectedBackground: '#c2e3ff',
+        prefilled: '#ffffff', // No background color for prefilled cells
+        selectedBackground: '#add8e6', // Standard light blue highlight for all themes
         initialValueText: '#000000',
-        userValueText: '#0066cc',
+        userValueText: '#0057b8', // Darkened from #0066cc for better contrast
         correctValueText: '#006400', // Dark green for correct values
         incorrectValueText: '#cc0000', // Red for incorrect values
+        incorrectBackground: '#ffebee', // Light red background for incorrect values
         textFont: 'normal',
         hoverBackground: '#e1f5fe', // Light blue hover effect
         touchedBackground: '#d4e9fd', // Slightly dimmer than selected
-        relatedBackground: '#ecf5fe', // Very light blue for related cells
-        boxRelatedBackground: '#edf8ff', // Very light blue for box highlighting
-        rowRelatedBackground: '#f3f9ff', // Even lighter blue for row highlighting
-        columnRelatedBackground: '#f0f6ff', // Slightly different for column highlighting
-        sameValueBackground: '#e6f4ff', // Another shade for same value highlighting
-        initialCellBackground: '#e6f2e6', // Light green tint for initial cells
-        notesText: '#6d81ad', // Light blue for notes
+        relatedBackground: '#f2f2f2', // Darker shade of board background
+        boxRelatedBackground: '#f2f2f2', // Same as related background
+        rowRelatedBackground: '#f2f2f2', // Same as related background
+        columnRelatedBackground: '#f2f2f2', // Same as related background
+        sameValueBackground: '#f2f2f2', // Same as related background
+        initialCellBackground: '#ffffff', // No special background for initial cells
+        notesText: '#4a648c', // Darkened from #6d81ad for better contrast
       },
       numberPad: {
         background: '#f0f0f0',
@@ -38,6 +39,12 @@ export const THEMES = {
         shadow: '#000000',
         clearButton: '#ffe0e0',
         notesBackground: '#e6f2fd', // Light blue background for notes mode
+      },
+      difficulty: {
+        easy: '#d4edda',    // Green for easy
+        medium: '#ffeeba',  // Yellow for medium
+        hard: '#f8d7da',    // Pink for hard
+        expert: '#f8d7da'   // Pink for expert (same as hard)
       }
     }
   },
@@ -47,7 +54,7 @@ export const THEMES = {
       background: '#121212',
       title: '#ffffff',
       grid: {
-        background: '#1e1e1e',
+        background: '#d3d3d3', // Light gray
         border: '#ffffff',
         boxBorder: '#aaaaaa', // Thicker border for 3x3 boxes
         cellBorder: '#444444',
@@ -55,22 +62,23 @@ export const THEMES = {
       },
       cell: {
         background: '#2c2c2c',
-        prefilled: '#2a3040', // Darker blue tint for prefilled cells
-        selectedBackground: '#3a506b',
+        prefilled: '#2c2c2c', // No background color for prefilled cells
+        selectedBackground: '#4d88ff', // Brighter blue highlight for dark theme
         initialValueText: '#ffffff',
-        userValueText: '#64b5f6',
-        correctValueText: '#4caf50', // Green for correct values
-        incorrectValueText: '#ff5252', // Red for incorrect values
+        userValueText: '#82c4ff', // Lightened from #64b5f6 for better contrast
+        correctValueText: '#5cda60', // Brightened green from #4caf50 for better contrast
+        incorrectValueText: '#ff6b6b', // Brightened red from #ff5252 for better contrast
+        incorrectBackground: '#3a1c1c', // Dark red background for incorrect values
         textFont: 'normal',
         hoverBackground: '#263238', // Dark blue hover effect
         touchedBackground: '#34465a', // Slightly dimmer than selected
-        relatedBackground: '#2d3745', // Subtle highlight for dark theme
-        boxRelatedBackground: '#2a394a', // Darker blue-gray for box highlighting
-        rowRelatedBackground: '#293645', // Slightly different for row highlighting
-        columnRelatedBackground: '#2d3c4e', // Different shade for column highlighting
-        sameValueBackground: '#303f51', // Another shade for same value highlighting
-        initialCellBackground: '#264026', // Dark green tint for initial cells
-        notesText: '#8ab4f8', // Light blue for notes in dark mode
+        relatedBackground: '#232323', // Darker shade of board background
+        boxRelatedBackground: '#232323', // Same as related background
+        rowRelatedBackground: '#232323', // Same as related background
+        columnRelatedBackground: '#232323', // Same as related background
+        sameValueBackground: '#232323', // Same as related background
+        initialCellBackground: '#2c2c2c', // No special background for initial cells
+        notesText: '#a8c7ff', // Brightened from #8ab4f8 for better contrast
       },
       numberPad: {
         background: '#333333',
@@ -79,6 +87,12 @@ export const THEMES = {
         shadow: '#000000',
         clearButton: '#b71c1c',
         notesBackground: '#263c5a', // Darker blue background for notes mode
+      },
+      difficulty: {
+        easy: '#1c4a23',    // Dark green for easy
+        medium: '#93702a',  // Dark gold for medium
+        hard: '#842029',    // Dark red for hard
+        expert: '#842029'   // Dark red for expert (same as hard)
       }
     }
   },
@@ -90,17 +104,29 @@ export const THEMES = {
       grid: {
         background: '#ffffff',
         border: '#5b6a87',
+        boxBorder: '#5b6a87',
         cellBorder: '#d0d8e6',
         innerBorder: '#a6b1cb',
       },
       cell: {
         background: '#ffffff',
-        selectedBackground: '#dbeeff',
+        prefilled: '#ffffff', // No background color for prefilled cells
+        selectedBackground: '#add8e6', // Standard light blue highlight
         initialValueText: '#5b6a87',
-        userValueText: '#638ecb',
+        userValueText: '#4a6ca8', // Darkened from #638ecb for better contrast
+        correctValueText: '#2e7d32', // Added correctValueText which was missing
+        incorrectValueText: '#c62828', // Added incorrectValueText which was missing
+        incorrectBackground: '#ffebee', // Added incorrectBackground
         textFont: 'normal',
-        initialCellBackground: '#ebf5eb', // Light green tint for initial cells
-        notesText: '#8ca2c0', // Soft blue for notes
+        hoverBackground: '#e9f0fa', // Added hover effect
+        touchedBackground: '#d9e7f7', // Added touched background
+        relatedBackground: '#f0f0f7', // Darker shade of board background
+        boxRelatedBackground: '#f0f0f7', // Same as related background
+        rowRelatedBackground: '#f0f0f7', // Same as related background
+        columnRelatedBackground: '#f0f0f7', // Same as related background
+        sameValueBackground: '#f0f0f7', // Same as related background
+        initialCellBackground: '#ffffff', // No special background for initial cells
+        notesText: '#687a9e', // Darkened from #8ca2c0 for better contrast
       },
       numberPad: {
         background: '#edf2f7',
@@ -109,6 +135,12 @@ export const THEMES = {
         shadow: '#d0d8e6',
         clearButton: '#ffd6d6',
         notesBackground: '#e6eef7', // Soft blue background for notes mode
+      },
+      difficulty: {
+        easy: '#d4edda',    // Green for easy
+        medium: '#ffeeba',  // Yellow for medium
+        hard: '#f8d7da',    // Pink for hard
+        expert: '#f8d7da'   // Pink for expert (same as hard)
       }
     }
   },
@@ -126,22 +158,23 @@ export const THEMES = {
       },
       cell: {
         background: '#fffbf0',
-        prefilled: '#fff3e0', // Cream background for prefilled cells
-        selectedBackground: '#ffe0b2',
-        initialValueText: '#e65100',
-        userValueText: '#ff8f00',
-        correctValueText: '#2e7d32', // Dark green for correct values
-        incorrectValueText: '#d50000', // Red for incorrect values
+        prefilled: '#fffbf0', // No background color for prefilled cells
+        selectedBackground: '#add8e6', // Standard light blue highlight
+        initialValueText: '#b34500', // Darkened from #e65100 for better contrast
+        userValueText: '#d17000', // Darkened from #ff8f00 for better contrast
+        correctValueText: '#1e5e24', // Darkened from #2e7d32 for better contrast
+        incorrectValueText: '#b50000', // Slightly darkened from #d50000
+        incorrectBackground: '#ffedeb', // Light red background for incorrect values
         textFont: 'normal',
         hoverBackground: '#fff8e1', // Light yellow hover effect
         touchedBackground: '#ffedc9', // Light orange for touched
-        relatedBackground: '#fff3e0', // Very light orange for related
-        boxRelatedBackground: '#fff6e6', // Light warm yellow for box highlighting
-        rowRelatedBackground: '#fff8ed', // Very light warm yellow for row highlighting
-        columnRelatedBackground: '#fff5e0', // Slightly different for column highlighting
-        sameValueBackground: '#fff0d6', // Another shade for same value highlighting
-        initialCellBackground: '#e6f0e2', // Light warm green tint for initial cells
-        notesText: '#ff9800', // Orange for notes
+        relatedBackground: '#f9f0dd', // Darker shade of board background
+        boxRelatedBackground: '#f9f0dd', // Same as related background
+        rowRelatedBackground: '#f9f0dd', // Same as related background
+        columnRelatedBackground: '#f9f0dd', // Same as related background
+        sameValueBackground: '#f9f0dd', // Same as related background
+        initialCellBackground: '#fffbf0', // No special background for initial cells
+        notesText: '#d17200', // Darkened from #ff9800 for better contrast
       },
       numberPad: {
         background: '#ffe0b2',
@@ -150,6 +183,12 @@ export const THEMES = {
         shadow: '#ffcc80',
         clearButton: '#ffab91',
         notesBackground: '#fff0d9', // Light orange background for notes mode
+      },
+      difficulty: {
+        easy: '#d4edda',    // Green for easy
+        medium: '#ffeeba',  // Yellow for medium
+        hard: '#f8d7da',    // Pink for hard
+        expert: '#f8d7da'   // Pink for expert (same as hard)
       }
     }
   },
@@ -167,22 +206,23 @@ export const THEMES = {
       },
       cell: {
         background: '#fff9f1',
-        prefilled: '#fdebd0', // Light peach background for prefilled cells
-        selectedBackground: '#fad7a0',
-        initialValueText: '#c0392b',
-        userValueText: '#e67e22',
-        correctValueText: '#27ae60', // Green for correct values
-        incorrectValueText: '#c0392b', // Red for incorrect values
+        prefilled: '#fff9f1', // No background color for prefilled cells
+        selectedBackground: '#add8e6', // Standard light blue highlight
+        initialValueText: '#a82c1e', // Darkened from #c0392b for better contrast
+        userValueText: '#c26818', // Darkened from #e67e22 for better contrast
+        correctValueText: '#1e8449', // Darkened from #27ae60 for better contrast
+        incorrectValueText: '#a82c1e', // Changed to be distinct from userValueText
+        incorrectBackground: '#fee5e0', // Added light red background for incorrect values
         textFont: 'normal',
         hoverBackground: '#fef5e7', // Light peach hover effect
         touchedBackground: '#fce2c4', // Light peach for touched
-        relatedBackground: '#fef0e2', // Very light peach for related
-        boxRelatedBackground: '#fef0e4', // Light peach for box highlighting
-        rowRelatedBackground: '#fef4eb', // Very light peach for row highlighting
-        columnRelatedBackground: '#feefe0', // Slightly different for column highlighting
-        sameValueBackground: '#fee8d5', // Another shade for same value highlighting
-        initialCellBackground: '#e5f0e2', // Light green tint with sunrise warmth
-        notesText: '#e67e22', // Orange for notes
+        relatedBackground: '#f7ede0', // Darker shade of board background
+        boxRelatedBackground: '#f7ede0', // Same as related background
+        rowRelatedBackground: '#f7ede0', // Same as related background
+        columnRelatedBackground: '#f7ede0', // Same as related background
+        sameValueBackground: '#f7ede0', // Same as related background
+        initialCellBackground: '#fff9f1', // No special background for initial cells
+        notesText: '#b35c00', // Darkened from #e67e22 for better contrast
       },
       numberPad: {
         background: '#fef2cc',
@@ -191,6 +231,12 @@ export const THEMES = {
         shadow: '#f39c12',
         clearButton: '#f1c40f',
         notesBackground: '#fdf1e0', // Light orange background for notes mode
+      },
+      difficulty: {
+        easy: '#d4edda',    // Green for easy
+        medium: '#ffeeba',  // Yellow for medium
+        hard: '#f8d7da',    // Pink for hard
+        expert: '#f8d7da'   // Pink for expert (same as hard)
       }
     }
   },
@@ -208,22 +254,23 @@ export const THEMES = {
       },
       cell: {
         background: '#e8f5f8',
-        prefilled: '#b3e5fc', // Light blue background for prefilled cells
-        selectedBackground: '#81d4fa',
-        initialValueText: '#01579b',
-        userValueText: '#0288d1',
-        correctValueText: '#00897b', // Teal for correct values
-        incorrectValueText: '#d32f2f', // Red for incorrect values
+        prefilled: '#e8f5f8', // No background color for prefilled cells
+        selectedBackground: '#add8e6', // Standard light blue highlight
+        initialValueText: '#014880', // Slightly darkened from #01579b
+        userValueText: '#0175b5', // Darkened from #0288d1 for better contrast
+        correctValueText: '#00796b', // Slightly darkened from #00897b
+        incorrectValueText: '#c12626', // Slightly darkened from #d32f2f
+        incorrectBackground: '#ffeaee', // Light red background for incorrect values
         textFont: 'normal',
         hoverBackground: '#e1f5fe', // Light blue hover effect
         touchedBackground: '#b4e0fc', // Medium blue for touched
-        relatedBackground: '#e0f4fe', // Very light blue for related
-        boxRelatedBackground: '#e1f5fd', // Light blue for box highlighting
-        rowRelatedBackground: '#e8f8fe', // Very light blue for row highlighting
-        columnRelatedBackground: '#e4f6fd', // Slightly different for column highlighting
-        sameValueBackground: '#d9f0fa', // Another shade for same value highlighting
-        initialCellBackground: '#d9efe8', // Light teal-green tint for initial cells
-        notesText: '#039be5', // Blue for notes
+        relatedBackground: '#daeaed', // Darker shade of board background
+        boxRelatedBackground: '#daeaed', // Same as related background
+        rowRelatedBackground: '#daeaed', // Same as related background
+        columnRelatedBackground: '#daeaed', // Same as related background
+        sameValueBackground: '#daeaed', // Same as related background
+        initialCellBackground: '#e8f5f8', // No special background for initial cells
+        notesText: '#0277bd', // Darkened from #039be5 for better contrast
       },
       numberPad: {
         background: '#b3e5fc',
@@ -232,6 +279,12 @@ export const THEMES = {
         shadow: '#4fc3f7',
         clearButton: '#80deea',
         notesBackground: '#dbf0fa', // Light blue background for notes mode
+      },
+      difficulty: {
+        easy: '#d4edda',    // Green for easy
+        medium: '#ffeeba',  // Yellow for medium
+        hard: '#f8d7da',    // Pink for hard
+        expert: '#f8d7da'   // Pink for expert (same as hard)
       }
     }
   },
@@ -241,7 +294,7 @@ export const THEMES = {
       background: '#292838', // Deep blue-purple background
       title: '#a495e6',
       grid: {
-        background: '#353346',
+        background: '#7a778c', // 45% lighter than #353346
         border: '#7b68ee',
         boxBorder: '#9575cd', // Thicker border for 3x3 boxes
         cellBorder: '#4a4462',
@@ -249,22 +302,23 @@ export const THEMES = {
       },
       cell: {
         background: '#353346',
-        prefilled: '#3a3654', // Darker purple background for prefilled cells
-        selectedBackground: '#4e4376',
-        initialValueText: '#b39ddb',
-        userValueText: '#9575cd',
-        correctValueText: '#81c784', // Green for correct values
-        incorrectValueText: '#e57373', // Red for incorrect values
+        prefilled: '#353346', // No background color for prefilled cells
+        selectedBackground: '#7d6af9', // Bright purple-blue highlight for twilight theme
+        initialValueText: '#cfc0f2', // Lightened from #b39ddb for better contrast
+        userValueText: '#b296ef', // Lightened from #9575cd for better contrast
+        correctValueText: '#97da9a', // Lightened from #81c784 for better contrast
+        incorrectValueText: '#ff8a8a', // Lightened from #e57373 for better contrast
+        incorrectBackground: '#4a2f2f', // Dark red background for incorrect values
         textFont: 'normal',
         hoverBackground: '#4a4169', // Slightly lighter purple for hover
         touchedBackground: '#473e6d', // Medium purple for touched
-        relatedBackground: '#3c3854', // Subtle highlight for dark theme
-        boxRelatedBackground: '#383550', // Purple for box highlighting
-        rowRelatedBackground: '#353347', // Slightly different for row highlighting
-        columnRelatedBackground: '#3a3852', // Another shade for column highlighting
-        sameValueBackground: '#3e3c59', // Another shade for same value highlighting
-        initialCellBackground: '#2e3c2e', // Dark green tint for initial cells
-        notesText: '#b39ddb', // Purple for notes
+        relatedBackground: '#2d2b3b', // Darker shade of board background
+        boxRelatedBackground: '#2d2b3b', // Same as related background
+        rowRelatedBackground: '#2d2b3b', // Same as related background
+        columnRelatedBackground: '#2d2b3b', // Same as related background
+        sameValueBackground: '#2d2b3b', // Same as related background
+        initialCellBackground: '#353346', // No special background for initial cells
+        notesText: '#c9bcf0', // Lightened from #b39ddb for better contrast
       },
       numberPad: {
         background: '#4a4462',
@@ -273,9 +327,15 @@ export const THEMES = {
         shadow: '#1a1625',
         clearButton: '#7986cb',
         notesBackground: '#3a3558', // Dark purple background for notes mode
+      },
+      difficulty: {
+        easy: '#1c4a23',    // Dark green for easy
+        medium: '#93702a',  // Dark gold for medium
+        hard: '#842029',    // Dark red for hard
+        expert: '#842029'   // Dark red for expert (same as hard)
       }
     }
   }
 };
 
-export default THEMES;
+export default SUDOKU_THEMES;
