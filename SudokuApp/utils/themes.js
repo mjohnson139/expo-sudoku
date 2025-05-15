@@ -48,7 +48,7 @@ export const THEMES = {
       background: '#121212',
       title: '#ffffff',
       grid: {
-        background: '#1e1e1e',
+        background: '#636363', // 45% lighter than #1e1e1e
         border: '#ffffff',
         boxBorder: '#aaaaaa', // Thicker border for 3x3 boxes
         cellBorder: '#444444',
@@ -258,7 +258,7 @@ export const THEMES = {
       background: '#292838', // Deep blue-purple background
       title: '#a495e6',
       grid: {
-        background: '#353346',
+        background: '#7a778c', // 45% lighter than #353346
         border: '#7b68ee',
         boxBorder: '#9575cd', // Thicker border for 3x3 boxes
         cellBorder: '#4a4462',
