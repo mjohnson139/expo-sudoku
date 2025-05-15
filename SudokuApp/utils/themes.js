@@ -1,5 +1,5 @@
 // Theme system for the Sudoku app
-export const THEMES = {
+export const SUDOKU_THEMES = {
   classic: {
     name: 'Classic',
     colors: {
@@ -296,4 +296,4 @@ export const THEMES = {
   }
 };
 
-export default THEMES;
+export default SUDOKU_THEMES;

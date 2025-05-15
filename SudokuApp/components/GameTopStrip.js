@@ -35,7 +35,7 @@ const GameTopStrip = () => {
       {/* Left section: Score placeholder */}
       <View style={styles.leftSection}>
         <Text style={[styles.scoreText, { color: theme.colors.title }]}>
-          Score: --
+          Score: --  {/* TODO: Implement actual scoring system in a future update */}
         </Text>
       </View>
 
@@ -60,7 +60,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     width: '100%', // Full width to match header
-    marginVertical: 8,
+    marginVertical: 4, // Reduced from 8 to better accommodate smaller screens
   },
   leftSection: {
     flex: 1,
