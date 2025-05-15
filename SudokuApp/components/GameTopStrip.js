@@ -18,9 +18,24 @@ const GameTopStrip = () => {
   
   // Get the badge color from theme based on difficulty
   const getBadgeColor = () => {
+    // Define fallback colors in case theme colors aren't available yet
+    const fallbackColors = {
+      'easy': '#d4edda',    // Green for easy
+      'medium': '#ffeeba',  // Yellow for medium
+      'hard': '#f8d7da',    // Pink for hard
+      'expert': '#f8d7da'   // Pink for expert
+    };
+    
     // Use default if difficulty is not specified
     const difficultyLevel = difficulty || DEFAULT_DIFFICULTY;
-    return theme.colors.difficulty[difficultyLevel] || theme.colors.difficulty[DEFAULT_DIFFICULTY];
+    
+    // Check if theme and theme.colors and theme.colors.difficulty exist
+    if (theme?.colors?.difficulty) {
+      return theme.colors.difficulty[difficultyLevel] || theme.colors.difficulty[DEFAULT_DIFFICULTY];
+    }
+    
+    // Fallback to hardcoded colors if theme isn't fully loaded
+    return fallbackColors[difficultyLevel] || fallbackColors[DEFAULT_DIFFICULTY];
   };
   
   // Get difficulty label with proper capitalization
@@ -31,10 +46,10 @@ const GameTopStrip = () => {
   };
   
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme?.colors?.background || '#f8f8f8' }]}>
       {/* Left section: Score placeholder */}
       <View style={styles.leftSection}>
-        <Text style={[styles.scoreText, { color: theme.colors.title }]}>
+        <Text style={[styles.scoreText, { color: theme?.colors?.title || '#333333' }]}>
           Score: --  {/* TODO: Implement actual scoring system in a future update */}
         </Text>
       </View>
