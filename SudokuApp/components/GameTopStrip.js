@@ -8,7 +8,7 @@ import { useGameContext } from '../contexts/GameContext';
  * - Score placeholder on the left
  * - Difficulty level in the center
  * - Timer and pause button on the right
- * Width matches the grid (324px) for visual consistency
+ * Width matches the header for visual consistency
  */
 const GameTopStrip = () => {
   const { theme } = useGameContext();
@@ -40,7 +40,7 @@ const GameTopStrip = () => {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    width: 324, // Exact width to match grid
+    width: '100%', // Full width to match header
     marginVertical: 8,
   },
   leftSection: {
