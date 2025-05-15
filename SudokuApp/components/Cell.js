@@ -33,9 +33,11 @@ const Cell = ({
       }
     } else if (showFeedback && isCorrect === false) {
       return theme.colors.cell.incorrectBackground || '#ffebee';
+    } else if (isInitialCell) {
+      return theme.colors.cell.initialCellBackground || theme.colors.cell.prefilled || theme.colors.cell.background;
     }
     return theme.colors.cell.background;
-  }, [isSelected, relationType, showFeedback, isCorrect, theme.colors.cell]);
+  }, [isSelected, relationType, showFeedback, isCorrect, isInitialCell, theme.colors.cell]);
 
   // Memoize text color calculation
   const textColor = useMemo(() => {
