@@ -11,7 +11,24 @@ import { useGameContext } from '../contexts/GameContext';
  * Width matches the header for visual consistency
  */
 const GameTopStrip = () => {
-  const { theme } = useGameContext();
+  const { theme, difficulty } = useGameContext();
+  
+  // Determine the badge color based on difficulty
+  const getBadgeColor = () => {
+    switch(difficulty) {
+      case 'easy': return '#d4edda'; // Green for easy
+      case 'medium': return '#ffeeba'; // Yellow for medium
+      case 'hard': return '#f8d7da'; // Pink for hard
+      case 'expert': return '#f8d7da'; // Pink for expert (same as hard)
+      default: return '#ffeeba'; // Default to medium
+    }
+  };
+  
+  // Get difficulty label with proper capitalization
+  const getDifficultyLabel = () => {
+    if (!difficulty) return 'Medium';
+    return difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
+  };
   
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -24,9 +41,9 @@ const GameTopStrip = () => {
 
       {/* Center section: Difficulty level */}
       <View style={styles.centerSection}>
-        <View style={[styles.levelBadge, { backgroundColor: '#ffeeba' }]}>
+        <View style={[styles.levelBadge, { backgroundColor: getBadgeColor() }]}>
           <Text style={styles.levelText}>
-            Level: Medium
+            Level: {getDifficultyLabel()}
           </Text>
         </View>
       </View>

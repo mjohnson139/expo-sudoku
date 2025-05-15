@@ -56,6 +56,7 @@ const initialState = {
   // Game UI state
   showFeedback: false,
   notesMode: false,
+  difficulty: 'medium', // Default difficulty level
 
   // Timer state
   elapsedSeconds: 0,
@@ -163,6 +164,7 @@ function gameReducer(state, action) {
         cellFeedback: {},
         showFeedback: false,
         notesMode: false,
+        difficulty, // Store the current difficulty level
         filledCount: initialCount,
         showMenu: false,
         isPaused: false,
