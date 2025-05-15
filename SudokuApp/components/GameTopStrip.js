@@ -6,7 +6,7 @@ import { useGameContext } from '../contexts/GameContext';
 /**
  * Component that displays the top strip with:
  * - Score placeholder on the left
- * - Difficulty level in the center
+ * - Difficulty level badge in the center
  * - Timer and pause button on the right
  * Width matches the header for visual consistency
  */
@@ -43,7 +43,7 @@ const GameTopStrip = () => {
       <View style={styles.centerSection}>
         <View style={[styles.levelBadge, { backgroundColor: getBadgeColor() }]}>
           <Text style={styles.levelText}>
-            Level: {getDifficultyLabel()}
+            {getDifficultyLabel()}
           </Text>
         </View>
       </View>
