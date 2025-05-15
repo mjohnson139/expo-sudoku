@@ -48,7 +48,7 @@ export const THEMES = {
       background: '#121212',
       title: '#ffffff',
       grid: {
-        background: '#636363', // 45% lighter than #1e1e1e
+        background: '#585858', // 40% lighter than #1e1e1e
         border: '#ffffff',
         boxBorder: '#aaaaaa', // Thicker border for 3x3 boxes
         cellBorder: '#444444',
