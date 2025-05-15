@@ -15,7 +15,7 @@ export const THEMES = {
       cell: {
         background: '#ffffff',
         prefilled: '#ffffff', // No background color for prefilled cells
-        selectedBackground: '#4a90e2', // Standard blue highlight for all themes
+        selectedBackground: '#add8e6', // Standard light blue highlight for all themes
         initialValueText: '#000000',
         userValueText: '#0057b8', // Darkened from #0066cc for better contrast
         correctValueText: '#006400', // Dark green for correct values
@@ -57,7 +57,7 @@ export const THEMES = {
       cell: {
         background: '#2c2c2c',
         prefilled: '#2c2c2c', // No background color for prefilled cells
-        selectedBackground: '#4a90e2', // Standard blue highlight for all themes
+        selectedBackground: '#4d88ff', // Brighter blue highlight for dark theme
         initialValueText: '#ffffff',
         userValueText: '#82c4ff', // Lightened from #64b5f6 for better contrast
         correctValueText: '#5cda60', // Brightened green from #4caf50 for better contrast
@@ -99,7 +99,7 @@ export const THEMES = {
       cell: {
         background: '#ffffff',
         prefilled: '#ffffff', // No background color for prefilled cells
-        selectedBackground: '#4a90e2', // Standard blue highlight for all themes
+        selectedBackground: '#add8e6', // Standard light blue highlight
         initialValueText: '#5b6a87',
         userValueText: '#4a6ca8', // Darkened from #638ecb for better contrast
         correctValueText: '#2e7d32', // Added correctValueText which was missing
@@ -141,7 +141,7 @@ export const THEMES = {
       cell: {
         background: '#fffbf0',
         prefilled: '#fffbf0', // No background color for prefilled cells
-        selectedBackground: '#4a90e2', // Standard blue highlight for all themes
+        selectedBackground: '#add8e6', // Standard light blue highlight
         initialValueText: '#b34500', // Darkened from #e65100 for better contrast
         userValueText: '#d17000', // Darkened from #ff8f00 for better contrast
         correctValueText: '#1e5e24', // Darkened from #2e7d32 for better contrast
@@ -183,7 +183,7 @@ export const THEMES = {
       cell: {
         background: '#fff9f1',
         prefilled: '#fff9f1', // No background color for prefilled cells
-        selectedBackground: '#4a90e2', // Standard blue highlight for all themes
+        selectedBackground: '#add8e6', // Standard light blue highlight
         initialValueText: '#a82c1e', // Darkened from #c0392b for better contrast
         userValueText: '#c26818', // Darkened from #e67e22 for better contrast
         correctValueText: '#1e8449', // Darkened from #27ae60 for better contrast
@@ -225,7 +225,7 @@ export const THEMES = {
       cell: {
         background: '#e8f5f8',
         prefilled: '#e8f5f8', // No background color for prefilled cells
-        selectedBackground: '#4a90e2', // Standard blue highlight for all themes
+        selectedBackground: '#add8e6', // Standard light blue highlight
         initialValueText: '#014880', // Slightly darkened from #01579b
         userValueText: '#0175b5', // Darkened from #0288d1 for better contrast
         correctValueText: '#00796b', // Slightly darkened from #00897b
@@ -267,7 +267,7 @@ export const THEMES = {
       cell: {
         background: '#353346',
         prefilled: '#353346', // No background color for prefilled cells
-        selectedBackground: '#4a90e2', // Standard blue highlight for all themes
+        selectedBackground: '#7d6af9', // Bright purple-blue highlight for twilight theme
         initialValueText: '#cfc0f2', // Lightened from #b39ddb for better contrast
         userValueText: '#b296ef', // Lightened from #9575cd for better contrast
         correctValueText: '#97da9a', // Lightened from #81c784 for better contrast
