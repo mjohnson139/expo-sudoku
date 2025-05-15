@@ -24,9 +24,11 @@ const GameTopStrip = () => {
 
       {/* Center section: Difficulty level */}
       <View style={styles.centerSection}>
-        <Text style={[styles.levelText, { color: theme.colors.title }]}>
-          Level: Medium
-        </Text>
+        <View style={[styles.levelBadge, { backgroundColor: '#ffeeba' }]}>
+          <Text style={styles.levelText}>
+            Level: Medium
+          </Text>
+        </View>
       </View>
 
       {/* Right section: Timer and pause button */}
@@ -64,9 +66,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  levelBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   levelText: {
     fontSize: 14,
     fontWeight: '500',
+    color: '#333333',
   },
 });
 
