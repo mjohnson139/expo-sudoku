@@ -1,10 +1,13 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import GameTimer from './GameTimer';
 import { useGameContext } from '../contexts/GameContext';
 
 /**
- * Component that displays the top strip with timer on the right
+ * Component that displays the top strip with:
+ * - Score placeholder on the left
+ * - Difficulty level in the center
+ * - Timer and pause button on the right
  * Width matches the grid (324px) for visual consistency
  */
 const GameTopStrip = () => {
@@ -12,8 +15,22 @@ const GameTopStrip = () => {
   
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.spacer} />
-      <View style={styles.rightContent}>
+      {/* Left section: Score placeholder */}
+      <View style={styles.leftSection}>
+        <Text style={[styles.scoreText, { color: theme.colors.title }]}>
+          Score: --
+        </Text>
+      </View>
+
+      {/* Center section: Difficulty level */}
+      <View style={styles.centerSection}>
+        <Text style={[styles.levelText, { color: theme.colors.title }]}>
+          Level: Medium
+        </Text>
+      </View>
+
+      {/* Right section: Timer and pause button */}
+      <View style={styles.rightSection}>
         <GameTimer />
       </View>
     </View>
@@ -23,17 +40,33 @@ const GameTopStrip = () => {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     width: 324, // Exact width to match grid
-    paddingHorizontal: 0, // Removed padding to ensure exact width
     marginVertical: 8,
   },
-  spacer: {
-    // Empty spacer for the left side to maintain layout balance
+  leftSection: {
+    flex: 1,
+    alignItems: 'flex-start',
+    paddingLeft: 8,
+    justifyContent: 'center',
   },
-  rightContent: {
-    justifyContent: 'flex-end',
+  centerSection: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rightSection: {
+    flex: 1,
+    alignItems: 'flex-end',
+    paddingRight: 8,
+    justifyContent: 'center',
+  },
+  scoreText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  levelText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 
