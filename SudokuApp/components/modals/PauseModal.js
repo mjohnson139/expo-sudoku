@@ -5,7 +5,7 @@ import { useGameContext, ACTIONS } from '../../contexts/GameContext';
 
 /**
  * Pause Modal that appears when the game is paused
- * Provides options to resume the game or quit to the menu
+ * Provides options to resume the game or start a new game
  */
 const PauseModal = () => {
   const {
@@ -39,7 +39,7 @@ const PauseModal = () => {
     dispatch({ type: ACTIONS.RESUME_GAME });
   };
 
-  const handleQuit = () => {
+  const handleNewGame = () => {
     dispatch({ type: ACTIONS.QUIT_GAME });
   };
 
@@ -56,6 +56,22 @@ const PauseModal = () => {
           opacity: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
         }}
       >
+        {/* Add floating pause icon animation */}
+        <Animated.Text
+          style={{
+            fontSize: 70,
+            marginBottom: 20,
+            opacity: pauseAnim,
+            transform: [
+              { translateY: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) },
+              { scale: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) },
+              { rotate: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '10deg'] }) }
+            ]
+          }}
+        >
+          ⏸️
+        </Animated.Text>
+        
         <Animated.View
           style={{
             transform: [{ scale: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }],
@@ -73,13 +89,13 @@ const PauseModal = () => {
               <Text style={styles.pauseButtonText}>Resume</Text>
             </TouchableOpacity>
             
-            {/* Quit Button */}
+            {/* New Game Button */}
             <TouchableOpacity 
-              style={[styles.pauseButton, styles.quitButton]} 
-              onPress={handleQuit}
+              style={[styles.pauseButton, styles.newGameButton]} 
+              onPress={handleNewGame}
             >
               <Text style={styles.pauseButtonEmoji}>🏠</Text>
-              <Text style={styles.pauseButtonText}>Quit Game</Text>
+              <Text style={styles.pauseButtonText}>New Game</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>
@@ -125,7 +141,7 @@ const styles = StyleSheet.create({
   resumeButton: {
     backgroundColor: '#d4edda',
   },
-  quitButton: {
+  newGameButton: {
     backgroundColor: '#f8d7da',
   },
   pauseButtonEmoji: {
