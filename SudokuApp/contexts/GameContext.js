@@ -71,6 +71,7 @@ const initialState = {
   completedRows: [],
   completedColumns: [],
   completedBoxes: [],
+  scoredCells: {}, // Track which cells have already been scored
   
   // Theme state
   currentThemeName: 'classic',
@@ -261,6 +262,7 @@ function gameReducer(state, action) {
         completedRows: [],
         completedColumns: [],
         completedBoxes: [],
+        scoredCells: {},
         undoStack: [],
         redoStack: [],
       };
@@ -337,13 +339,20 @@ function gameReducer(state, action) {
       let completedRows = [...state.completedRows];
       let completedColumns = [...state.completedColumns];
       let completedBoxes = [...state.completedBoxes];
+      let scoredCells = { ...state.scoredCells };
       
       if (value !== 0 && value === state.solutionBoard[row][col]) {
-        // Calculate base move score based on time and difficulty
-        const moveScore = calculateMoveScore(state.lastMoveTimestamp, state.difficulty);
-        newScore += moveScore;
+        // Only score this cell if it hasn't been scored before
+        if (!scoredCells[cellKey]) {
+          // Calculate base move score based on time and difficulty
+          const moveScore = calculateMoveScore(state.lastMoveTimestamp, state.difficulty);
+          newScore += moveScore;
+          
+          // Mark this cell as scored
+          scoredCells[cellKey] = true;
+        }
         
-        // Save current timestamp for next move
+        // Always update timestamp for next move
         newLastMoveTimestamp = Date.now();
         
         // Check for completed row
@@ -366,6 +375,7 @@ function gameReducer(state, action) {
         }
       } else if (value === 0) {
         // If clearing a cell, just update the timestamp without scoring
+        // Don't remove from scoredCells - once a cell is scored, it stays scored
         newLastMoveTimestamp = Date.now();
       }
       
@@ -382,6 +392,7 @@ function gameReducer(state, action) {
         completedRows,
         completedColumns,
         completedBoxes,
+        scoredCells,
       };
     }
     
@@ -414,6 +425,7 @@ function gameReducer(state, action) {
         cellNotes: updatedNotes,
         undoStack: [...state.undoStack, undoAction],
         redoStack: [], // Clear redo stack on new action
+        lastMoveTimestamp: Date.now(), // Update timestamp on note actions too
       };
     }
     
@@ -454,6 +466,7 @@ function gameReducer(state, action) {
         cellNotes: updatedNotes,
         undoStack: [...state.undoStack, undoAction],
         redoStack: [], // Clear redo stack on new action
+        lastMoveTimestamp: Date.now(), // Update timestamp on note actions too
       };
     }
     
@@ -547,6 +560,10 @@ function gameReducer(state, action) {
         const newFeedback = { ...state.cellFeedback };
         delete newFeedback[cellKey];
         
+        // Note: We intentionally don't modify the score or scoredCells here
+        // Once a player earns points for a correct cell, they keep those points
+        // even if they undo the action
+        
         return {
           ...state,
           board: newBoard,
@@ -555,6 +572,8 @@ function gameReducer(state, action) {
           cellFeedback: newFeedback,
           undoStack: state.undoStack.slice(0, -1),
           redoStack: [...state.redoStack, lastAction],
+          // Update timestamp on undo to prevent penalty on next move
+          lastMoveTimestamp: Date.now(),
         };
       }
       
@@ -572,6 +591,8 @@ function gameReducer(state, action) {
           cellNotes: newCellNotes,
           undoStack: state.undoStack.slice(0, -1),
           redoStack: [...state.redoStack, lastAction],
+          // Update timestamp on note undo too
+          lastMoveTimestamp: Date.now(),
         };
       }
       
@@ -618,6 +639,17 @@ function gameReducer(state, action) {
           delete newFeedback[cellKey];
         }
         
+        // Handle scoring for redo
+        let scoredCells = { ...state.scoredCells };
+        let newScore = state.score;
+        
+        // If we're redoing a setValue action with a correct value, we update
+        // scoredCells but don't award additional points if the cell was already scored
+        if (newValue !== 0 && newValue === state.solutionBoard[row][col]) {
+          // Only mark as scored, don't update score
+          scoredCells[cellKey] = true;
+        }
+        
         return {
           ...state,
           board: newBoard,
@@ -626,6 +658,8 @@ function gameReducer(state, action) {
           cellFeedback: newFeedback,
           undoStack: [...state.undoStack, lastAction],
           redoStack: state.redoStack.slice(0, -1),
+          lastMoveTimestamp: Date.now(), // Update timestamp on redo
+          scoredCells,
         };
       }
       
@@ -643,6 +677,8 @@ function gameReducer(state, action) {
           cellNotes: newCellNotes,
           undoStack: [...state.undoStack, lastAction],
           redoStack: state.redoStack.slice(0, -1),
+          // Update timestamp on note redo too
+          lastMoveTimestamp: Date.now(),
         };
       }
       
