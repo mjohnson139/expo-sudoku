@@ -11,7 +11,7 @@ import { useGameContext } from '../contexts/GameContext';
  * - Timer and pause button on the right
  * Width matches the header for visual consistency
  */
-const GameTopStrip = () => {
+const GameTopStrip = ({ style }) => {
   const { theme, difficulty } = useGameContext();
   
   // Use default from GameContext.js initial state if difficulty is not available
@@ -47,7 +47,7 @@ const GameTopStrip = () => {
   };
   
   return (
-    <View style={[styles.container, { backgroundColor: theme?.colors?.background || '#f8f8f8' }]}>
+    <View style={[styles.container, { backgroundColor: theme?.colors?.background || '#f8f8f8' }, style]}>
       {/* Left section: Score */}
       <View style={styles.leftSection}>
         <ScoreDisplay />
@@ -75,8 +75,8 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     width: '100%', // Full width to match header
-    marginTop: 20, // 20px from bottom of game header
-    marginBottom: 0, // No bottom padding
+    paddingTop: 0, // Add padding at the top
+    paddingBottom: 10, // No bottom padding
   },
   leftSection: {
     flex: 1,
