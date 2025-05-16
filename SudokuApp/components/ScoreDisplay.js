@@ -7,14 +7,15 @@ import { useGameContext } from '../contexts/GameContext';
  * Positioned on the left side of the GameTopStrip
  */
 const ScoreDisplay = () => {
-  const { score, theme, getLastScoreChange } = useGameContext();
+  const { score, theme } = useGameContext();
   
-  // Animation values
+  // Animation values - separate values for different properties
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const colorAnim = useRef(new Animated.Value(0)).current;
-  const floatAnim = useRef(new Animated.Value(0)).current;
+  const floatPositionAnim = useRef(new Animated.Value(0)).current;
+  const floatOpacityAnim = useRef(new Animated.Value(0)).current;
   const prevScoreRef = useRef(score);
   const [pointsAdded, setPointsAdded] = useState(0);
+  const [scoreColor, setScoreColor] = useState(theme.colors.title || '#333333');
   
   // Format score with thousands separators
   const formatScore = (score) => {
@@ -43,56 +44,56 @@ const ScoreDisplay = () => {
         })
       ]).start();
       
-      // Color flash animation
-      Animated.sequence([
-        Animated.timing(colorAnim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: false,
-        }),
-        Animated.timing(colorAnim, {
-          toValue: 0,
-          duration: 450,
-          useNativeDriver: false,
-        })
-      ]).start();
+      // Color flash animation (using state instead of animated)
+      setScoreColor('#4CAF50'); // Green flash
+      setTimeout(() => {
+        setScoreColor(theme.colors.title || '#333333'); // Back to normal
+      }, 600);
       
-      // Floating "+points" animation
+      // Floating "+points" position animation
+      Animated.timing(floatPositionAnim, {
+        toValue: 1,
+        duration: 1500,
+        useNativeDriver: true,
+      }).start(() => {
+        floatPositionAnim.setValue(0); // Reset for next animation
+      });
+      
+      // Floating "+points" opacity animation
       Animated.sequence([
-        Animated.timing(floatAnim, {
+        Animated.timing(floatOpacityAnim, {
           toValue: 1,
-          duration: 1000,
+          duration: 100,
           useNativeDriver: true,
         }),
-        Animated.timing(floatAnim, {
-          toValue: 2,
+        Animated.timing(floatOpacityAnim, {
+          toValue: 0.7,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatOpacityAnim, {
+          toValue: 0,
           duration: 500,
           useNativeDriver: true,
         })
       ]).start(() => {
-        floatAnim.setValue(0); // Reset for next animation
+        floatOpacityAnim.setValue(0); // Reset for next animation
       });
     }
     
     // Update previous score reference
     prevScoreRef.current = score;
-  }, [score, scaleAnim, colorAnim, floatAnim]);
+  }, [score, scaleAnim, floatPositionAnim, floatOpacityAnim, theme.colors.title]);
   
-  // Interpolate color for highlighting
-  const textColor = colorAnim.interpolate({
+  // Calculate floating points transform based on animation progress
+  const floatingPointsTranslateY = floatPositionAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [theme.colors.title || '#333333', '#4CAF50']
+    outputRange: [0, -30]
   });
   
-  // Floating text styles based on animation
-  const floatingPointsOpacity = floatAnim.interpolate({
-    inputRange: [0, 0.1, 0.9, 1, 2],
-    outputRange: [0, 1, 1, 0.7, 0]
-  });
-  
-  const floatingPointsTranslateY = floatAnim.interpolate({
-    inputRange: [0, 1, 2],
-    outputRange: [0, -25, -30]
+  const floatingPointsScale = floatPositionAnim.interpolate({
+    inputRange: [0, 0.2, 1],
+    outputRange: [0.8, 1.2, 1]
   });
   
   return (
@@ -104,10 +105,10 @@ const ScoreDisplay = () => {
             style={[
               styles.floatingPoints,
               {
-                opacity: floatingPointsOpacity,
+                opacity: floatOpacityAnim,
                 transform: [
                   { translateY: floatingPointsTranslateY },
-                  { scale: floatAnim.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0.8, 1.2, 1] }) }
+                  { scale: floatingPointsScale }
                 ],
                 color: '#4CAF50' // Always show in green
               }
@@ -122,8 +123,8 @@ const ScoreDisplay = () => {
           style={[
             styles.scoreText,
             { 
-              color: textColor,
-              transform: [{ scale: scaleAnim }] 
+              color: scoreColor, // Using state for color
+              transform: [{ scale: scaleAnim }]
             }
           ]}
         >

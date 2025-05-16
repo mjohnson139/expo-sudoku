@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Text, TouchableOpacity, Animated } from 'react-native';
+import React from 'react';
+import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { useGameContext, ACTIONS } from '../contexts/GameContext';
 
 /**
@@ -8,32 +8,6 @@ import { useGameContext, ACTIONS } from '../contexts/GameContext';
  */
 const GameTimer = () => {
   const { elapsedSeconds, formatTime, dispatch, theme, isPaused } = useGameContext();
-  
-  // Animation value
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const prevSecondsRef = useRef(elapsedSeconds);
-  
-  // Set up pulse animation for seconds change
-  useEffect(() => {
-    // Only animate if timer is running (seconds increasing)
-    if (elapsedSeconds > prevSecondsRef.current) {
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.1,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 150,
-          useNativeDriver: true,
-        })
-      ]).start();
-    }
-    
-    // Update previous seconds reference
-    prevSecondsRef.current = elapsedSeconds;
-  }, [elapsedSeconds, pulseAnim]);
 
   const handlePausePress = () => {
     dispatch({ type: ACTIONS.PAUSE_GAME });
@@ -42,17 +16,12 @@ const GameTimer = () => {
   return (
     <View style={styles.timerContainer}>
       <View style={styles.timerTextContainer}>
-        <Animated.Text 
-          style={[
-            styles.timerText, 
-            { 
-              color: theme.colors.title,
-              transform: [{ scale: pulseAnim }] 
-            }
-          ]}
-        >
+        <Text style={[
+          styles.timerText, 
+          { color: theme.colors.title }
+        ]}>
           {formatTime(elapsedSeconds)}
-        </Animated.Text>
+        </Text>
       </View>
       
       <Text style={[styles.timerLabel, { color: theme.colors.title }]}>
