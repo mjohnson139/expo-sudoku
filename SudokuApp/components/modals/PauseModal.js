@@ -21,15 +21,17 @@ const PauseModal = () => {
   React.useEffect(() => {
     // Only animate if the game is paused and not completed
     if (isPaused && !gameCompleted) {
+      // Animate in
       Animated.timing(pauseAnim, {
         toValue: 1,
         duration: 400,
         useNativeDriver: true,
       }).start();
     } else {
+      // Animate out
       Animated.timing(pauseAnim, {
         toValue: 0,
-        duration: 200,
+        duration: 300, // Slightly faster exit animation
         useNativeDriver: true,
       }).start();
     }
@@ -39,8 +41,8 @@ const PauseModal = () => {
     dispatch({ type: ACTIONS.RESUME_GAME });
   };
 
-  const handleQuit = () => {
-    dispatch({ type: ACTIONS.QUIT_GAME });
+  const handleNewGame = () => {
+    dispatch({ type: ACTIONS.NEW_GAME });
   };
 
   return (
@@ -58,29 +60,50 @@ const PauseModal = () => {
       >
         <Animated.View
           style={{
-            transform: [{ scale: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }],
+            // Both enter and exit animations for the pause box
+            opacity: pauseAnim,
+            transform: [
+              { scale: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) },
+              { translateY: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }
+            ],
           }}
         >
           <View style={[styles.pauseBox, { backgroundColor: theme.colors.numberPad.background, borderColor: theme.colors.numberPad.border }]}> 
             <Text style={[styles.pauseTitle, { color: theme.colors.title }]}>Game Paused</Text>
             
-            {/* Resume Button */}
-            <TouchableOpacity 
-              style={[styles.pauseButton, styles.resumeButton]} 
-              onPress={handleResume}
-            >
-              <Text style={styles.pauseButtonEmoji}>▶️</Text>
-              <Text style={styles.pauseButtonText}>Resume</Text>
-            </TouchableOpacity>
+            {/* Resume Button - with enter/exit animation */}
+            <Animated.View style={{
+              opacity: pauseAnim,
+              transform: [
+                // The button slides in from left and out to left
+                { translateX: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [-40, 0] }) },
+              ]
+            }}>
+              <TouchableOpacity 
+                style={[styles.pauseButton, styles.resumeButton]} 
+                onPress={handleResume}
+              >
+                <Text style={styles.pauseButtonEmoji}>▶️</Text>
+                <Text style={styles.pauseButtonText}>Resume</Text>
+              </TouchableOpacity>
+            </Animated.View>
             
-            {/* Quit Button */}
-            <TouchableOpacity 
-              style={[styles.pauseButton, styles.quitButton]} 
-              onPress={handleQuit}
-            >
-              <Text style={styles.pauseButtonEmoji}>🏠</Text>
-              <Text style={styles.pauseButtonText}>Quit Game</Text>
-            </TouchableOpacity>
+            {/* New Game Button - with enter/exit animation */}
+            <Animated.View style={{
+              opacity: pauseAnim,
+              transform: [
+                // The button slides in from right and out to right
+                { translateX: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) },
+              ]
+            }}>
+              <TouchableOpacity 
+                style={[styles.pauseButton, styles.newGameButton]} 
+                onPress={handleNewGame}
+              >
+                <Text style={styles.pauseButtonEmoji}>🏠</Text>
+                <Text style={styles.pauseButtonText}>New Game</Text>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
         </Animated.View>
       </Animated.View>
@@ -125,7 +148,7 @@ const styles = StyleSheet.create({
   resumeButton: {
     backgroundColor: '#d4edda',
   },
-  quitButton: {
+  newGameButton: {
     backgroundColor: '#f8d7da',
   },
   pauseButtonEmoji: {

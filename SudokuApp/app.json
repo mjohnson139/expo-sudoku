@@ -3,7 +3,7 @@
     "sdkVersion": "53.0.0",
     "name": "SudokuApp",
     "slug": "expo-sudoku",
-    "version": "2.4.0",
+    "version": "2.5.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
