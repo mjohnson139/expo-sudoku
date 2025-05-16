@@ -18,19 +18,21 @@ const RollingNumber = ({ value, style }) => {
     const newFirstDigit = parseInt(formattedValue[0]);
     const newSecondDigit = parseInt(formattedValue[1]);
 
-    // Animate first digit
-    Animated.timing(firstDigitRef, {
-      toValue: newFirstDigit,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-
-    // Animate second digit
-    Animated.timing(secondDigitRef, {
-      toValue: newSecondDigit,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
+    // Run animations in parallel to ensure they stay in sync
+    Animated.parallel([
+      // Animate first digit
+      Animated.timing(firstDigitRef, {
+        toValue: newFirstDigit,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      // Animate second digit
+      Animated.timing(secondDigitRef, {
+        toValue: newSecondDigit,
+        duration: 300,
+        useNativeDriver: true,
+      })
+    ]).start();
   }, [formattedValue, firstDigitRef, secondDigitRef]);
 
   // Create digit strips (0-9)
