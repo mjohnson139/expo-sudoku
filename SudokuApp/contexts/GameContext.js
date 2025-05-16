@@ -65,6 +65,13 @@ const initialState = {
   gameStarted: false, // Added flag to track if a game has been started
   gameCompleted: false, // Flag to track if the current game has been completed
 
+  // Score state
+  score: 0,
+  lastMoveTimestamp: null,
+  completedRows: [],
+  completedColumns: [],
+  completedBoxes: [],
+  
   // Theme state
   currentThemeName: 'classic',
   theme: SUDOKU_THEMES.classic,
@@ -146,6 +153,80 @@ const updateRelatedNotes = (notes, row, col, value) => {
   return hasChanges ? updatedNotes : notes;
 };
 
+// Scoring Constants
+const SCORE_BASE_POINTS = 10;       // Base points for a correct cell
+const SCORE_SPEED_MULTIPLIER = 5;   // Multiplier for speed (points per second saved)
+const SCORE_ROW_BONUS = 50;         // Bonus for completing a row
+const SCORE_COLUMN_BONUS = 50;      // Bonus for completing a column
+const SCORE_BOX_BONUS = 75;         // Bonus for completing a 3x3 box
+const MAX_MOVE_TIME = 30;           // Max seconds for speed calculation (prevents extreme penalties)
+
+// Helper function to calculate time-based score for a move
+const calculateMoveScore = (lastMoveTimestamp, difficulty) => {
+  if (!lastMoveTimestamp) return SCORE_BASE_POINTS; // First move gets base points
+  
+  // Calculate time since last move in seconds
+  const now = Date.now();
+  const timeDelta = Math.min((now - lastMoveTimestamp) / 1000, MAX_MOVE_TIME);
+  
+  // Apply difficulty multiplier
+  let difficultyMultiplier = 1;
+  switch (difficulty) {
+    case 'easy': difficultyMultiplier = 0.8; break;
+    case 'medium': difficultyMultiplier = 1.0; break;
+    case 'hard': difficultyMultiplier = 1.5; break;
+    case 'expert': difficultyMultiplier = 2.0; break;
+    default: difficultyMultiplier = 1.0;
+  }
+  
+  // Calculate speed bonus (inverse to time - faster is better)
+  // Formula: basePoints + (maxTime - actualTime) * speedMultiplier
+  // Ensures a minimum score of basePoints
+  const speedBonus = Math.max(0, (MAX_MOVE_TIME - timeDelta) * SCORE_SPEED_MULTIPLIER);
+  
+  // Total points for this move
+  return Math.round((SCORE_BASE_POINTS + speedBonus) * difficultyMultiplier);
+};
+
+// Helper function to check if a row is complete
+const isRowComplete = (board, rowIndex) => {
+  const row = board[rowIndex];
+  // Check if every cell in the row is filled (not 0) and unique (no repeats)
+  return row.every(cell => cell !== 0) && new Set(row).size === 9;
+};
+
+// Helper function to check if a column is complete
+const isColumnComplete = (board, colIndex) => {
+  const column = board.map(row => row[colIndex]);
+  // Check if every cell in the column is filled (not 0) and unique (no repeats)
+  return column.every(cell => cell !== 0) && new Set(column).size === 9;
+};
+
+// Helper function to check if a 3x3 box is complete
+const isBoxComplete = (board, rowIndex, colIndex) => {
+  // Find the top-left corner of the 3x3 box
+  const boxRow = Math.floor(rowIndex / 3) * 3;
+  const boxCol = Math.floor(colIndex / 3) * 3;
+  
+  // Get all values in the box
+  const boxValues = [];
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 3; c++) {
+      boxValues.push(board[boxRow + r][boxCol + c]);
+    }
+  }
+  
+  // Check if every cell in the box is filled (not 0) and unique (no repeats)
+  return boxValues.every(cell => cell !== 0) && new Set(boxValues).size === 9;
+};
+
+// Helper function to get box index (0-8) from row and column
+const getBoxIndex = (row, col) => {
+  const boxRow = Math.floor(row / 3);
+  const boxCol = Math.floor(col / 3);
+  return boxRow * 3 + boxCol;
+};
+
 // Game reducer
 function gameReducer(state, action) {
   switch (action.type) {
@@ -174,6 +255,12 @@ function gameReducer(state, action) {
         timerActive: true,
         gameStarted: true, // Set game as started when starting a new game
         gameCompleted: false, // Reset game completed flag when starting a new game
+        // Reset scoring state
+        score: 0,
+        lastMoveTimestamp: Date.now(),
+        completedRows: [],
+        completedColumns: [],
+        completedBoxes: [],
         undoStack: [],
         redoStack: [],
       };
@@ -243,6 +330,45 @@ function gameReducer(state, action) {
         previousNotes: state.cellNotes[cellKey],
       };
       
+      // Calculate score update only if a value is being set (not cleared)
+      // and if the value is correct according to the solution
+      let newScore = state.score;
+      let newLastMoveTimestamp = state.lastMoveTimestamp;
+      let completedRows = [...state.completedRows];
+      let completedColumns = [...state.completedColumns];
+      let completedBoxes = [...state.completedBoxes];
+      
+      if (value !== 0 && value === state.solutionBoard[row][col]) {
+        // Calculate base move score based on time and difficulty
+        const moveScore = calculateMoveScore(state.lastMoveTimestamp, state.difficulty);
+        newScore += moveScore;
+        
+        // Save current timestamp for next move
+        newLastMoveTimestamp = Date.now();
+        
+        // Check for completed row
+        if (!completedRows.includes(row) && isRowComplete(newBoard, row)) {
+          completedRows.push(row);
+          newScore += SCORE_ROW_BONUS;
+        }
+        
+        // Check for completed column
+        if (!completedColumns.includes(col) && isColumnComplete(newBoard, col)) {
+          completedColumns.push(col);
+          newScore += SCORE_COLUMN_BONUS;
+        }
+        
+        // Check for completed box
+        const boxIndex = getBoxIndex(row, col);
+        if (!completedBoxes.includes(boxIndex) && isBoxComplete(newBoard, row, col)) {
+          completedBoxes.push(boxIndex);
+          newScore += SCORE_BOX_BONUS;
+        }
+      } else if (value === 0) {
+        // If clearing a cell, just update the timestamp without scoring
+        newLastMoveTimestamp = Date.now();
+      }
+      
       return {
         ...state,
         board: newBoard,
@@ -251,6 +377,11 @@ function gameReducer(state, action) {
         cellNotes: newNotes,
         undoStack: [...state.undoStack, undoAction],
         redoStack: [], // Clear redo stack on new action
+        score: newScore,
+        lastMoveTimestamp: newLastMoveTimestamp,
+        completedRows,
+        completedColumns,
+        completedBoxes,
       };
     }
     

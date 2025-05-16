@@ -5,13 +5,13 @@ import { useGameContext } from '../contexts/GameContext';
 
 /**
  * Component that displays the top strip with:
- * - Score placeholder on the left
+ * - Score on the left
  * - Difficulty level badge in the center
  * - Timer and pause button on the right
  * Width matches the header for visual consistency
  */
 const GameTopStrip = () => {
-  const { theme, difficulty } = useGameContext();
+  const { theme, difficulty, score } = useGameContext();
   
   // Use default from GameContext.js initial state if difficulty is not available
   const DEFAULT_DIFFICULTY = 'medium';
@@ -45,12 +45,17 @@ const GameTopStrip = () => {
     return difficultyLevel.charAt(0).toUpperCase() + difficultyLevel.slice(1);
   };
   
+  // Format score with thousands separators
+  const formatScore = (score) => {
+    return score.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  };
+  
   return (
     <View style={[styles.container, { backgroundColor: theme?.colors?.background || '#f8f8f8' }]}>
-      {/* Left section: Score placeholder */}
+      {/* Left section: Score */}
       <View style={styles.leftSection}>
         <Text style={[styles.scoreText, { color: theme?.colors?.title || '#333333' }]}>
-          Score: --  {/* TODO: Implement actual scoring system in a future update */}
+          Score: {formatScore(score)}
         </Text>
       </View>
 
