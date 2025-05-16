@@ -63,7 +63,7 @@ const PauseModal = () => {
     dispatch({ type: ACTIONS.RESUME_GAME });
   };
 
-  const handleQuit = () => {
+  const handleNewGame = () => {
     dispatch({ type: ACTIONS.QUIT_GAME });
   };
 
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   resumeButton: {
     backgroundColor: '#d4edda',
   },
-  quitButton: {
+  newGameButton: {
     backgroundColor: '#f8d7da',
   },
   pauseButtonEmoji: {
