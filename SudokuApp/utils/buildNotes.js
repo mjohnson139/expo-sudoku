@@ -2,6 +2,18 @@
 // Each version's notes are stored in this file
 
 const BUILD_NOTES = {
+  '2.5.0': {
+    title: 'Enhanced Pause Screen & UI Updates',
+    date: '2025-05-16',
+    notes: [
+      'Updated "Quit Game" button to "New Game" in pause screen for better clarity',
+      'Enhanced pause screen animations with smooth enter/exit transitions',
+      'Added sliding animations for pause screen buttons',
+      'Removed large pause emoji for cleaner minimalist design',
+      'Improved animation performance using React Native Animated API',
+      'Enhanced visual feedback during game pause/resume actions'
+    ]
+  },
   '2.4.0': {
     title: 'Theme Harmonization & UI Improvements',
     date: '2025-05-15',
