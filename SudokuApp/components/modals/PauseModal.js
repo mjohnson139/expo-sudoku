@@ -42,7 +42,7 @@ const PauseModal = () => {
   };
 
   const handleNewGame = () => {
-    dispatch({ type: ACTIONS.QUIT_GAME });
+    dispatch({ type: ACTIONS.NEW_GAME });
   };
 
   return (

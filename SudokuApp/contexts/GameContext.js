@@ -32,6 +32,7 @@ export const ACTIONS = {
   PAUSE_GAME: 'PAUSE_GAME',
   RESUME_GAME: 'RESUME_GAME',
   QUIT_GAME: 'QUIT_GAME',
+  NEW_GAME: 'NEW_GAME', // New action that has same behavior as QUIT_GAME but better naming
   SHOW_WIN_MODAL: 'SHOW_WIN_MODAL',
   HIDE_WIN_MODAL: 'HIDE_WIN_MODAL',
   SHOW_BUILD_NOTES: 'SHOW_BUILD_NOTES',
@@ -558,6 +559,7 @@ function gameReducer(state, action) {
       };
     
     case ACTIONS.QUIT_GAME:
+    case ACTIONS.NEW_GAME: // Both actions do the same thing for now
       return {
         ...state,
         isPaused: false,
