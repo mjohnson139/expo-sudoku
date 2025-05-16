@@ -98,59 +98,70 @@ const ScoreDisplay = () => {
   
   return (
     <View style={styles.scoreContainer}>
-      <View style={styles.scoreTextContainer}>
-        {/* Floating points animation */}
-        {pointsAdded > 0 && (
-          <Animated.Text
+      <Text style={styles.scoreLabel}>SCORE</Text>
+      
+      <View style={[styles.scoreBadge, { backgroundColor: theme.colors.numberPad.border }]}>
+        <View style={styles.scoreTextContainer}>
+          {/* Floating points animation */}
+          {pointsAdded > 0 && (
+            <Animated.Text
+              style={[
+                styles.floatingPoints,
+                {
+                  opacity: floatOpacityAnim,
+                  transform: [
+                    { translateY: floatingPointsTranslateY },
+                    { scale: floatingPointsScale }
+                  ],
+                  color: '#4CAF50' // Always show in green
+                }
+              ]}
+            >
+              +{pointsAdded}
+            </Animated.Text>
+          )}
+          
+          {/* Main score display */}
+          <Animated.Text 
             style={[
-              styles.floatingPoints,
-              {
-                opacity: floatOpacityAnim,
-                transform: [
-                  { translateY: floatingPointsTranslateY },
-                  { scale: floatingPointsScale }
-                ],
-                color: '#4CAF50' // Always show in green
+              styles.scoreText,
+              { 
+                color: theme.colors.numberPad.text, // Match button text color
+                transform: [{ scale: scaleAnim }]
               }
             ]}
           >
-            +{pointsAdded}
+            {formatScore(score)}
           </Animated.Text>
-        )}
-        
-        {/* Main score display */}
-        <Animated.Text 
-          style={[
-            styles.scoreText,
-            { 
-              color: scoreColor, // Using state for color
-              transform: [{ scale: scaleAnim }]
-            }
-          ]}
-        >
-          {formatScore(score)}
-        </Animated.Text>
+        </View>
       </View>
-      <Text style={[styles.scoreLabel, { color: theme.colors.title }]}>
-        SCORE
-      </Text>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   scoreContainer: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
   },
+  scoreBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6, // Smaller corner radius for button-like feel
+    marginTop: 2,
+    elevation: 1, // Light shadow for Android
+    shadowColor: '#000', // Shadow for iOS
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1,
+    minWidth: 80, // Match width with timer badge
+    height: 36, // Fixed height to match other badges
+  },
   scoreTextContainer: {
-    minWidth: 70,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 4,
     position: 'relative', // For floating points positioning
-    height: 32, // Fixed height to accommodate floating text
+    height: 24, // Match timer height
   },
   scoreText: {
     fontSize: 16,
@@ -165,12 +176,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#4CAF50',
     width: '100%',
-    top: 0,
+    top: -18, // Position above the badge
   },
   scoreLabel: {
     fontSize: 10,
-    fontWeight: '500',
+    fontWeight: '700',
     textTransform: 'uppercase',
+    marginBottom: 2,
+    color: '#666', // Subtle color for label
+    alignSelf: 'center', // Center align like the timer label
   },
 });
 

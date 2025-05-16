@@ -15,68 +15,85 @@ const GameTimer = () => {
 
   return (
     <View style={styles.timerContainer}>
-      <View style={styles.timerTextContainer}>
-        <Text style={[
-          styles.timerText, 
-          { color: theme.colors.title }
-        ]}>
-          {formatTime(elapsedSeconds)}
-        </Text>
+      <Text style={styles.timerLabel}>TIME</Text>
+      
+      <View style={[styles.timerBadge, { backgroundColor: theme.colors.numberPad.border }]}>
+        <View style={styles.timerInnerContainer}>
+          <Text style={[
+            styles.timerText, 
+            { color: theme.colors.numberPad.text }
+          ]}>
+            {formatTime(elapsedSeconds)}
+          </Text>
+          
+          {/* Pause button integrated in badge */}
+          <TouchableOpacity 
+            style={styles.pauseButton}
+            onPress={handlePausePress}
+            disabled={isPaused}
+            accessibilityLabel="Pause Game"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={[
+              styles.pauseButtonIcon, 
+              { color: theme.colors.numberPad.text }
+            ]}>⏸</Text>
+          </TouchableOpacity>
+        </View>
       </View>
-      
-      <Text style={[styles.timerLabel, { color: theme.colors.title }]}>
-        TIME
-      </Text>
-      
-      {/* Pause button - icon only with minimal size but good tap target */}
-      <TouchableOpacity 
-        style={styles.pauseButton}
-        onPress={handlePausePress}
-        disabled={isPaused}
-        accessibilityLabel="Pause Game"
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} // Increase tap area without changing visible size
-      >
-        <Text style={[
-          styles.pauseButtonIcon, 
-          { color: theme.colors.title }
-        ]}>⏸️</Text>
-      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   timerContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'center', // Center align like the score container
     justifyContent: 'flex-end',
   },
-  timerTextContainer: {
-    minWidth: 60, // Minimum width to prevent size changes
+  timerBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6, // Smaller corner radius for button-like feel
+    marginTop: 2,
+    elevation: 1, // Light shadow for Android
+    shadowColor: '#000', // Shadow for iOS
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1,
+    minWidth: 80, // Ensure enough space for time + pause button
+    height: 36, // Fixed height to match other badges
+  },
+  timerInnerContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 4, // Space between timer and label
+    height: 24, // Match score height
   },
   timerText: {
     fontSize: 16, // Increased size for better visibility
     fontWeight: 'bold',
     textAlign: 'center',
     letterSpacing: 1,
+    marginRight: 4, // Space between time and pause button
   },
   timerLabel: {
     fontSize: 10,
-    fontWeight: '500',
+    fontWeight: '700',
     textTransform: 'uppercase',
-    marginRight: 6, // Space between label and pause button
+    marginBottom: 2,
+    color: '#666', // Subtle color for label
+    alignSelf: 'center', // Center align
   },
   pauseButton: {
-    width: 20,
-    height: 20,
+    width: 16,
+    height: 16,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingBottom: 2, // Adjust visual alignment
   },
   pauseButtonIcon: {
-    fontSize: 12,
+    fontSize: 11,
+    fontWeight: 'bold',
   },
 });
 
