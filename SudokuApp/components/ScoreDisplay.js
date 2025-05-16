@@ -7,14 +7,21 @@ import { useGameContext } from '../contexts/GameContext';
  * Positioned on the left side of the GameTopStrip
  */
 const ScoreDisplay = () => {
-  const { score, theme } = useGameContext();
+  const { score, theme, lastScoredCell } = useGameContext();
   
   // Animation values - separate values for different properties
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const floatPositionAnim = useRef(new Animated.Value(0)).current;
   const floatOpacityAnim = useRef(new Animated.Value(0)).current;
+  
+  // Animation for points coming from cells
+  const cellToScoreAnim = useRef(new Animated.Value(0)).current;
+  const cellOpacityAnim = useRef(new Animated.Value(0)).current;
+  
   const prevScoreRef = useRef(score);
+  const lastScoredCellRef = useRef(null);
   const [pointsAdded, setPointsAdded] = useState(0);
+  const [cellPoints, setCellPoints] = useState(0);
   const [scoreColor, setScoreColor] = useState(theme.colors.title || '#333333');
   
   // Format score with thousands separators
@@ -85,6 +92,40 @@ const ScoreDisplay = () => {
     prevScoreRef.current = score;
   }, [score, scaleAnim, floatPositionAnim, floatOpacityAnim, theme.colors.title]);
   
+  // Effect to handle points animation from cells
+  useEffect(() => {
+    // Check if we have a new scored cell
+    if (lastScoredCell && 
+        (!lastScoredCellRef.current || 
+         lastScoredCell.row !== lastScoredCellRef.current.row || 
+         lastScoredCell.col !== lastScoredCellRef.current.col)) {
+      
+      // Save the points that were scored
+      setCellPoints(lastScoredCell.points);
+      
+      // Reset animations
+      cellToScoreAnim.setValue(0);
+      cellOpacityAnim.setValue(1);
+      
+      // Run cell-to-score animation
+      Animated.timing(cellToScoreAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }).start();
+      
+      // Fade out gradually
+      Animated.timing(cellOpacityAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }).start();
+      
+      // Update reference
+      lastScoredCellRef.current = lastScoredCell;
+    }
+  }, [lastScoredCell, cellToScoreAnim, cellOpacityAnim]);
+  
   // Calculate floating points transform based on animation progress
   const floatingPointsTranslateY = floatPositionAnim.interpolate({
     inputRange: [0, 1],
@@ -96,13 +137,30 @@ const ScoreDisplay = () => {
     outputRange: [0.8, 1.2, 1]
   });
   
+  // Calculate cell-to-score animation path
+  // This assumes the cell is roughly below and to the right of the score display
+  const cellPointsTranslateX = cellToScoreAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [100, 0], // Adjust based on your layout
+  });
+  
+  const cellPointsTranslateY = cellToScoreAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [100, 0], // Adjust based on your layout
+  });
+  
+  const cellPointsScale = cellToScoreAnim.interpolate({
+    inputRange: [0, 0.7, 1],
+    outputRange: [0.8, 1.2, 1],
+  });
+  
   return (
     <View style={styles.scoreContainer}>
       <Text style={styles.scoreLabel}>SCORE</Text>
       
       <View style={[styles.scoreBadge, { backgroundColor: theme.colors.numberPad.border }]}>
         <View style={styles.scoreTextContainer}>
-          {/* Floating points animation */}
+          {/* Floating points animation (from score) */}
           {pointsAdded > 0 && (
             <Animated.Text
               style={[
@@ -118,6 +176,26 @@ const ScoreDisplay = () => {
               ]}
             >
               +{pointsAdded}
+            </Animated.Text>
+          )}
+          
+          {/* Points flying from cell to score */}
+          {cellPoints > 0 && (
+            <Animated.Text
+              style={[
+                styles.cellPoints,
+                {
+                  opacity: cellOpacityAnim,
+                  transform: [
+                    { translateX: cellPointsTranslateX },
+                    { translateY: cellPointsTranslateY },
+                    { scale: cellPointsScale }
+                  ],
+                  color: '#4CAF50' // Always show in green
+                }
+              ]}
+            >
+              +{cellPoints}
             </Animated.Text>
           )}
           
@@ -177,6 +255,14 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     width: '100%',
     top: -18, // Position above the badge
+  },
+  cellPoints: {
+    position: 'absolute',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    color: '#4CAF50',
+    zIndex: 10, // Ensure it appears above other elements
   },
   scoreLabel: {
     fontSize: 10,

@@ -75,8 +75,8 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     width: '100%', // Full width to match header
-    marginTop: 8, // Space at top
-    marginBottom: 40, // Added padding at the bottom as requested
+    marginTop: 20, // 20px from bottom of game header
+    marginBottom: 0, // No bottom padding
   },
   leftSection: {
     flex: 1,

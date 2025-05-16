@@ -72,6 +72,7 @@ const initialState = {
   completedColumns: [],
   completedBoxes: [],
   scoredCells: {}, // Track which cells have already been scored
+  lastScoredCell: null, // Store position of last scored cell for animations
   
   // Theme state
   currentThemeName: 'classic',
@@ -263,6 +264,7 @@ function gameReducer(state, action) {
         completedColumns: [],
         completedBoxes: [],
         scoredCells: {},
+        lastScoredCell: null,
         undoStack: [],
         redoStack: [],
       };
@@ -350,6 +352,9 @@ function gameReducer(state, action) {
           
           // Mark this cell as scored and store the points earned for animations
           scoredCells[cellKey] = moveScore;
+          
+          // Save the position of the last scored cell for animations
+          state.lastScoredCell = { row, col, points: moveScore };
         }
         
         // Always update timestamp for next move
@@ -381,6 +386,11 @@ function gameReducer(state, action) {
           newScore += completionBonus;
           // Update the cell's score with total points (base + completion bonus)
           scoredCells[cellKey] += completionBonus;
+          
+          // Update the points in the last scored cell for animations
+          if (state.lastScoredCell) {
+            state.lastScoredCell.points += completionBonus;
+          }
         }
       } else if (value === 0) {
         // If clearing a cell, just update the timestamp without scoring
@@ -993,6 +1003,7 @@ export const GameProvider = ({ children }) => {
     cycleTheme,
     debugFillBoard,
     getLastScoreChange,
+    lastScoredCell: state.lastScoredCell,
   };
 
   // Only render children once state has been hydrated from storage
