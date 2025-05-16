@@ -1,102 +1,73 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 
 /**
  * A component that animates number changes with a rolling/counting up effect
- * All digits roll up together in a unified animation
  */
 const RollingNumber = ({ value, style }) => {
   // Format the value with leading zeros
   const formattedValue = value.toString().padStart(2, '0');
+
+  // Create animation values for each digit
+  const firstDigitAnim = useRef(new Animated.Value(0)).current;
+  const secondDigitAnim = useRef(new Animated.Value(0)).current;
   
-  // Track previous value for animation
-  const [prevValue, setPrevValue] = useState(formattedValue);
-  
-  // Animation progress value (0 to 1)
-  const animProgress = useRef(new Animated.Value(0)).current;
-  
+  // Previously displayed values - for proper animation when a new digit appears
+  const prevFirstDigit = useRef(parseInt(formattedValue[0])).current;
+  const prevSecondDigit = useRef(parseInt(formattedValue[1])).current;
+
   // Update animation when value changes
   useEffect(() => {
-    // Save current value before updating
-    setPrevValue(formattedValue);
+    const firstDigit = parseInt(formattedValue[0]);
+    const secondDigit = parseInt(formattedValue[1]);
     
-    // Reset animation
-    animProgress.setValue(0);
+    // Trigger animation for all digits at once
+    Animated.parallel([
+      Animated.timing(firstDigitAnim, {
+        toValue: firstDigit,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(secondDigitAnim, {
+        toValue: secondDigit,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
     
-    // Start new animation
-    Animated.timing(animProgress, {
-      toValue: 1,
-      duration: 300,
-      useNativeDriver: true,
-    }).start();
-  }, [formattedValue]);
-  
-  // Render a single digit with animation
-  const renderDigit = (index) => {
-    const prevDigit = parseInt(prevValue[index]);
-    const currentDigit = parseInt(formattedValue[index]);
-    
-    // If the digits are the same, just render without animation
-    if (prevDigit === currentDigit) {
-      return (
-        <View style={styles.digitColumn}>
-          <Text style={[styles.digit, style]}>{currentDigit}</Text>
-        </View>
-      );
-    }
-    
-    return (
-      <View style={styles.digitColumn}>
-        {/* Current digit (moves in from bottom) */}
-        <Animated.View
-          style={[
-            styles.digitWrapper,
+    // Update refs for next animation
+    prevFirstDigit.current = firstDigit;
+    prevSecondDigit.current = secondDigit;
+  }, [formattedValue, firstDigitAnim, secondDigitAnim]);
+
+  // Create a digit roll with all numbers
+  const renderDigitRoll = (animValue) => (
+    <View style={styles.digitColumn}>
+      <Animated.View
+        style={{
+          transform: [
             {
-              transform: [
-                {
-                  translateY: animProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [24, 0], // Start below, move to position
-                  }),
-                },
-              ],
-              opacity: animProgress,
-            },
-          ]}
-        >
-          <Text style={[styles.digit, style]}>{currentDigit}</Text>
-        </Animated.View>
-        
-        {/* Previous digit (moves out to top) */}
-        <Animated.View
-          style={[
-            styles.digitWrapper,
-            {
-              transform: [
-                {
-                  translateY: animProgress.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, -24], // Start in position, move out top
-                  }),
-                },
-              ],
-              opacity: animProgress.interpolate({
-                inputRange: [0, 0.5, 1],
-                outputRange: [1, 0.3, 0],
+              translateY: animValue.interpolate({
+                inputRange: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                outputRange: [0, -24, -48, -72, -96, -120, -144, -168, -192, -216],
               }),
             },
-          ]}
-        >
-          <Text style={[styles.digit, style]}>{prevDigit}</Text>
-        </Animated.View>
-      </View>
-    );
-  };
-  
+          ],
+        }}
+      >
+        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
+          <Text key={digit} style={[styles.digit, style]}>
+            {digit}
+          </Text>
+        ))}
+      </Animated.View>
+    </View>
+  );
+
   return (
     <View style={styles.container}>
-      {renderDigit(0)}
-      {renderDigit(1)}
+      {renderDigitRoll(firstDigitAnim)}
+      {renderDigitRoll(secondDigitAnim)}
     </View>
   );
 };
@@ -113,16 +84,6 @@ const styles = StyleSheet.create({
     width: 12,
     height: 24,
     overflow: 'hidden',
-    position: 'relative',
-  },
-  digitWrapper: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   digit: {
     fontSize: 16,
