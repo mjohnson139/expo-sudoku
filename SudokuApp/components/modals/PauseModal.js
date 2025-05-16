@@ -17,45 +17,23 @@ const PauseModal = () => {
 
   // Animation for pause modal
   const [pauseAnim] = React.useState(new Animated.Value(0));
-  const [floatAnim] = React.useState(new Animated.Value(0));
-  
-  // Start floating animation when paused
-  const startFloatingAnimation = () => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(floatAnim, {
-          toValue: 1,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatAnim, {
-          toValue: 0,
-          duration: 1500,
-          useNativeDriver: true,
-        })
-      ])
-    ).start();
-  };
   
   React.useEffect(() => {
     // Only animate if the game is paused and not completed
     if (isPaused && !gameCompleted) {
+      // Animate in
       Animated.timing(pauseAnim, {
         toValue: 1,
         duration: 400,
         useNativeDriver: true,
-      }).start(() => {
-        // Start floating animation after main animation completes
-        startFloatingAnimation();
-      });
+      }).start();
     } else {
+      // Animate out
       Animated.timing(pauseAnim, {
         toValue: 0,
-        duration: 200,
+        duration: 300, // Slightly faster exit animation
         useNativeDriver: true,
       }).start();
-      // Stop floating animation
-      floatAnim.setValue(0);
     }
   }, [isPaused, gameCompleted]);
 
@@ -80,38 +58,25 @@ const PauseModal = () => {
           opacity: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
         }}
       >
-        {/* Add floating pause icon animation */}
-        <Animated.Text
-          style={{
-            fontSize: 70,
-            marginBottom: 20,
-            opacity: pauseAnim,
-            transform: [
-              // Initial entrance animation
-              { translateY: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) },
-              { scale: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) },
-              // Continuous floating animation
-              { translateY: floatAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -10] }) },
-              { rotate: floatAnim.interpolate({ inputRange: [0, 1], outputRange: ['-5deg', '5deg'] }) }
-            ]
-          }}
-        >
-          ⏸️
-        </Animated.Text>
-        
         <Animated.View
           style={{
-            transform: [{ scale: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }],
+            // Both enter and exit animations for the pause box
+            opacity: pauseAnim,
+            transform: [
+              { scale: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) },
+              { translateY: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }
+            ],
           }}
         >
           <View style={[styles.pauseBox, { backgroundColor: theme.colors.numberPad.background, borderColor: theme.colors.numberPad.border }]}> 
             <Text style={[styles.pauseTitle, { color: theme.colors.title }]}>Game Paused</Text>
             
-            {/* Resume Button - with subtle animation */}
+            {/* Resume Button - with enter/exit animation */}
             <Animated.View style={{
               opacity: pauseAnim,
               transform: [
-                { translateX: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) },
+                // The button slides in from left and out to left
+                { translateX: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [-40, 0] }) },
               ]
             }}>
               <TouchableOpacity 
@@ -123,11 +88,12 @@ const PauseModal = () => {
               </TouchableOpacity>
             </Animated.View>
             
-            {/* New Game Button - with subtle animation */}
+            {/* New Game Button - with enter/exit animation */}
             <Animated.View style={{
               opacity: pauseAnim,
               transform: [
-                { translateX: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) },
+                // The button slides in from right and out to right
+                { translateX: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) },
               ]
             }}>
               <TouchableOpacity 
