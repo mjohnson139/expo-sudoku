@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, Text, TouchableOpacity, Animated } from 'react-native';
 import { useGameContext, ACTIONS } from '../contexts/GameContext';
 
 /**
@@ -8,6 +8,32 @@ import { useGameContext, ACTIONS } from '../contexts/GameContext';
  */
 const GameTimer = () => {
   const { elapsedSeconds, formatTime, dispatch, theme, isPaused } = useGameContext();
+  
+  // Animation value
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const prevSecondsRef = useRef(elapsedSeconds);
+  
+  // Set up pulse animation for seconds change
+  useEffect(() => {
+    // Only animate if timer is running (seconds increasing)
+    if (elapsedSeconds > prevSecondsRef.current) {
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        })
+      ]).start();
+    }
+    
+    // Update previous seconds reference
+    prevSecondsRef.current = elapsedSeconds;
+  }, [elapsedSeconds, pulseAnim]);
 
   const handlePausePress = () => {
     dispatch({ type: ACTIONS.PAUSE_GAME });
@@ -16,13 +42,22 @@ const GameTimer = () => {
   return (
     <View style={styles.timerContainer}>
       <View style={styles.timerTextContainer}>
-        <Text style={[
-          styles.timerText, 
-          { color: theme.colors.title }
-        ]}>
+        <Animated.Text 
+          style={[
+            styles.timerText, 
+            { 
+              color: theme.colors.title,
+              transform: [{ scale: pulseAnim }] 
+            }
+          ]}
+        >
           {formatTime(elapsedSeconds)}
-        </Text>
+        </Animated.Text>
       </View>
+      
+      <Text style={[styles.timerLabel, { color: theme.colors.title }]}>
+        TIME
+      </Text>
       
       {/* Pause button - icon only with minimal size but good tap target */}
       <TouchableOpacity 
@@ -45,20 +80,25 @@ const styles = StyleSheet.create({
   timerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
   },
   timerTextContainer: {
     minWidth: 60, // Minimum width to prevent size changes
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 2, // Space between timer and icon
-    // Removed background color, border, and padding to blend with main background
+    marginRight: 4, // Space between timer and label
   },
   timerText: {
     fontSize: 16, // Increased size for better visibility
     fontWeight: 'bold',
     textAlign: 'center',
     letterSpacing: 1,
+  },
+  timerLabel: {
+    fontSize: 10,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    marginRight: 6, // Space between label and pause button
   },
   pauseButton: {
     width: 20,

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import GameTimer from './GameTimer';
+import ScoreDisplay from './ScoreDisplay';
 import { useGameContext } from '../contexts/GameContext';
 
 /**
@@ -11,7 +12,7 @@ import { useGameContext } from '../contexts/GameContext';
  * Width matches the header for visual consistency
  */
 const GameTopStrip = () => {
-  const { theme, difficulty, score } = useGameContext();
+  const { theme, difficulty } = useGameContext();
   
   // Use default from GameContext.js initial state if difficulty is not available
   const DEFAULT_DIFFICULTY = 'medium';
@@ -45,18 +46,11 @@ const GameTopStrip = () => {
     return difficultyLevel.charAt(0).toUpperCase() + difficultyLevel.slice(1);
   };
   
-  // Format score with thousands separators
-  const formatScore = (score) => {
-    return score.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  };
-  
   return (
     <View style={[styles.container, { backgroundColor: theme?.colors?.background || '#f8f8f8' }]}>
       {/* Left section: Score */}
       <View style={styles.leftSection}>
-        <Text style={[styles.scoreText, { color: theme?.colors?.title || '#333333' }]}>
-          Score: {formatScore(score)}
-        </Text>
+        <ScoreDisplay />
       </View>
 
       {/* Center section: Difficulty level */}

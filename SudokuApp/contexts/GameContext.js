@@ -348,30 +348,39 @@ function gameReducer(state, action) {
           const moveScore = calculateMoveScore(state.lastMoveTimestamp, state.difficulty);
           newScore += moveScore;
           
-          // Mark this cell as scored
-          scoredCells[cellKey] = true;
+          // Mark this cell as scored and store the points earned for animations
+          scoredCells[cellKey] = moveScore;
         }
         
         // Always update timestamp for next move
         newLastMoveTimestamp = Date.now();
         
         // Check for completed row
+        let completionBonus = 0;
+        
         if (!completedRows.includes(row) && isRowComplete(newBoard, row)) {
           completedRows.push(row);
-          newScore += SCORE_ROW_BONUS;
+          completionBonus += SCORE_ROW_BONUS;
         }
         
         // Check for completed column
         if (!completedColumns.includes(col) && isColumnComplete(newBoard, col)) {
           completedColumns.push(col);
-          newScore += SCORE_COLUMN_BONUS;
+          completionBonus += SCORE_COLUMN_BONUS;
         }
         
         // Check for completed box
         const boxIndex = getBoxIndex(row, col);
         if (!completedBoxes.includes(boxIndex) && isBoxComplete(newBoard, row, col)) {
           completedBoxes.push(boxIndex);
-          newScore += SCORE_BOX_BONUS;
+          completionBonus += SCORE_BOX_BONUS;
+        }
+        
+        // Add any completion bonuses to the score and to the cell's scored value
+        if (completionBonus > 0) {
+          newScore += completionBonus;
+          // Update the cell's score with total points (base + completion bonus)
+          scoredCells[cellKey] += completionBonus;
         }
       } else if (value === 0) {
         // If clearing a cell, just update the timestamp without scoring
@@ -958,6 +967,22 @@ export const GameProvider = ({ children }) => {
     });
   };
   
+  // Helper to calculate last score change (used for animations)
+  const getLastScoreChange = () => {
+    const lastAction = state.undoStack.length > 0 ? state.undoStack[state.undoStack.length - 1] : null;
+    if (!lastAction) return 0;
+    
+    // Check if the last action was a cell value being set
+    if (lastAction.type === 'setValue') {
+      const cellKey = lastAction.cellKey;
+      // If this cell has a score stored, use it (contains the points earned)
+      if (typeof state.scoredCells[cellKey] === 'number') {
+        return state.scoredCells[cellKey];
+      }
+    }
+    return 0;
+  };
+  
   // Create the value object
   const value = {
     ...state,
@@ -967,6 +992,7 @@ export const GameProvider = ({ children }) => {
     formatTime,
     cycleTheme,
     debugFillBoard,
+    getLastScoreChange,
   };
 
   // Only render children once state has been hydrated from storage
