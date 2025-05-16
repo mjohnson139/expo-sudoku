@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { useGameContext, ACTIONS } from '../contexts/GameContext';
+import RollingNumber from './RollingNumber';
 
 /**
  * GameTimer component displaying elapsed time and pause button
@@ -19,12 +20,26 @@ const GameTimer = () => {
       
       <View style={[styles.timerBadge, { backgroundColor: theme.colors.numberPad.border }]}>
         <View style={styles.timerInnerContainer}>
-          <Text style={[
-            styles.timerText, 
-            { color: theme.colors.numberPad.text }
-          ]}>
-            {formatTime(elapsedSeconds)}
-          </Text>
+          <View style={styles.timerTextContainer}>
+            <RollingNumber
+              value={Math.floor(elapsedSeconds / 60)}
+              style={[
+                styles.rollingDigit, 
+                { color: theme.colors.numberPad.text }
+              ]}
+            />
+            <Text style={[
+              styles.timerText, 
+              { color: theme.colors.numberPad.text }
+            ]}>:</Text>
+            <RollingNumber
+              value={elapsedSeconds % 60}
+              style={[
+                styles.rollingDigit, 
+                { color: theme.colors.numberPad.text }
+              ]}
+            />
+          </View>
           
           {/* Pause button integrated in badge */}
           <TouchableOpacity 
@@ -69,12 +84,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     height: 24, // Match score height
   },
+  timerTextContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 4, // Space between time and pause button
+    minWidth: 45, // Make sure there's enough room for the timer
+  },
   timerText: {
     fontSize: 16, // Increased size for better visibility
     fontWeight: 'bold',
     textAlign: 'center',
     letterSpacing: 1,
-    marginRight: 4, // Space between time and pause button
+  },
+  rollingDigit: {
+    fontSize: 16, // Increased size for better visibility
+    fontWeight: 'bold',
   },
   timerLabel: {
     fontSize: 10,
