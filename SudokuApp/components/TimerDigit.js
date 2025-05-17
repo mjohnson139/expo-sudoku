@@ -31,7 +31,7 @@ const TimerDigit = ({ value, style }) => {
               {
                 translateY: animatedValue.interpolate({
                   inputRange: [0, 9],
-                  outputRange: [0, -9 * 20], // Each digit is 20 height units
+                  outputRange: [0, -9 * 24], // Each digit is 24 height units
                 }),
               },
             ],
@@ -41,7 +41,7 @@ const TimerDigit = ({ value, style }) => {
         {digits.map(digit => (
           <View key={digit} style={styles.digit}>
             <Animated.Text style={[styles.digitText, style]}>
-              {digit.toString().padStart(2, '0')}
+              {digit}
             </Animated.Text>
           </View>
         ))}
@@ -52,8 +52,8 @@ const TimerDigit = ({ value, style }) => {
 
 const styles = StyleSheet.create({
   container: {
-    height: 20,
-    width: 20,
+    height: 24,
+    width: 16,
     overflow: 'hidden',
   },
   digitContainer: {
@@ -63,13 +63,15 @@ const styles = StyleSheet.create({
     right: 0,
   },
   digit: {
-    height: 20,
+    height: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
   digitText: {
     fontSize: 16,
     fontWeight: 'bold',
+    lineHeight: 24,
+    textAlign: 'center',
   },
 });
 

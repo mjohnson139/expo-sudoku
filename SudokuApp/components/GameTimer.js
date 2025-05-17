@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { useGameContext, ACTIONS } from '../contexts/GameContext';
-import RollingNumber from './RollingNumber';
+import TimerDigit from './TimerDigit';
 
 /**
  * GameTimer component displaying elapsed time and pause button
@@ -14,6 +14,15 @@ const GameTimer = () => {
     dispatch({ type: ACTIONS.PAUSE_GAME });
   };
 
+  // Extract individual digits for minutes and seconds
+  const minutes = Math.floor(elapsedSeconds / 60);
+  const seconds = elapsedSeconds % 60;
+  
+  const minTens = Math.floor(minutes / 10);
+  const minOnes = minutes % 10;
+  const secTens = Math.floor(seconds / 10);
+  const secOnes = seconds % 10;
+
   return (
     <View style={styles.timerContainer}>
       <Text style={styles.timerLabel}>TIME</Text>
@@ -21,23 +30,24 @@ const GameTimer = () => {
       <View style={[styles.timerBadge, { backgroundColor: theme.colors.numberPad.border }]}>
         <View style={styles.timerInnerContainer}>
           <View style={styles.timerTextContainer}>
-            <RollingNumber
-              value={Math.floor(elapsedSeconds / 60)}
-              style={[
-                styles.rollingDigit, 
-                { color: theme.colors.numberPad.text }
-              ]}
+            {/* Minute digits */}
+            <TimerDigit 
+              value={minTens} 
+              style={{ color: theme.colors.numberPad.text }}
             />
-            <Text style={[
-              styles.timerText, 
-              { color: theme.colors.numberPad.text }
-            ]}>:</Text>
-            <RollingNumber
-              value={elapsedSeconds % 60}
-              style={[
-                styles.rollingDigit, 
-                { color: theme.colors.numberPad.text }
-              ]}
+            <TimerDigit 
+              value={minOnes} 
+              style={{ color: theme.colors.numberPad.text }}
+            />
+            <Text style={[styles.separatorText, { color: theme.colors.numberPad.text }]}>:</Text>
+            {/* Second digits */}
+            <TimerDigit 
+              value={secTens} 
+              style={{ color: theme.colors.numberPad.text }}
+            />
+            <TimerDigit 
+              value={secOnes} 
+              style={{ color: theme.colors.numberPad.text }}
             />
           </View>
           
@@ -62,59 +72,56 @@ const GameTimer = () => {
 
 const styles = StyleSheet.create({
   timerContainer: {
-    alignItems: 'center', // Center align like the score container
+    alignItems: 'center',
     justifyContent: 'flex-end',
   },
   timerBadge: {
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 6, // Smaller corner radius for button-like feel
+    borderRadius: 6,
     marginTop: 2,
-    elevation: 1, // Light shadow for Android
-    shadowColor: '#000', // Shadow for iOS
+    elevation: 1,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 1,
-    minWidth: 80, // Ensure enough space for time + pause button
-    height: 36, // Fixed height to match other badges
+    minWidth: 80,
+    height: 36,
   },
   timerInnerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    height: 24, // Match score height
+    height: 24,
   },
   timerTextContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 4, // Space between time and pause button
-    minWidth: 45, // Make sure there's enough room for the timer
+    marginRight: 4,
+    minWidth: 45,
   },
-  timerText: {
-    fontSize: 16, // Increased size for better visibility
+  separatorText: {
+    fontSize: 16,
     fontWeight: 'bold',
     textAlign: 'center',
-    letterSpacing: 1,
-  },
-  rollingDigit: {
-    fontSize: 16, // Increased size for better visibility
-    fontWeight: 'bold',
+    lineHeight: 24,
+    marginHorizontal: 2, 
   },
   timerLabel: {
     fontSize: 10,
     fontWeight: '700',
     textTransform: 'uppercase',
     marginBottom: 2,
-    color: '#666', // Subtle color for label
-    alignSelf: 'center', // Center align
+    color: '#666',
+    alignSelf: 'center',
   },
   pauseButton: {
     width: 16,
     height: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 2, // Adjust visual alignment
+    paddingBottom: 2,
   },
   pauseButtonIcon: {
     fontSize: 11,
