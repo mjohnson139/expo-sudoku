@@ -75,6 +75,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 1,
     marginRight: 4, // Space between time and pause button
+    minWidth: 45, // Fixed width to prevent layout shifts when timer changes
+    fontFamily: 'monospace', // Use monospace font for fixed character width
   },
   timerLabel: {
     fontSize: 10,
