@@ -246,6 +246,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     letterSpacing: 1,
+    minWidth: 45, // Fixed width to prevent layout shifts
+    fontFamily: 'monospace', // Use monospace font for fixed character width
   },
   floatingPoints: {
     position: 'absolute',
