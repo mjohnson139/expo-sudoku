@@ -1,7 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { useGameContext, ACTIONS } from '../contexts/GameContext';
-import TimerDigit from './TimerDigit';
 
 /**
  * GameTimer component displaying elapsed time and pause button
@@ -14,42 +13,18 @@ const GameTimer = () => {
     dispatch({ type: ACTIONS.PAUSE_GAME });
   };
 
-  // Extract individual digits for minutes and seconds
-  const minutes = Math.floor(elapsedSeconds / 60);
-  const seconds = elapsedSeconds % 60;
-  
-  const minTens = Math.floor(minutes / 10);
-  const minOnes = minutes % 10;
-  const secTens = Math.floor(seconds / 10);
-  const secOnes = seconds % 10;
-
   return (
     <View style={styles.timerContainer}>
       <Text style={styles.timerLabel}>TIME</Text>
       
       <View style={[styles.timerBadge, { backgroundColor: theme.colors.numberPad.border }]}>
         <View style={styles.timerInnerContainer}>
-          <View style={styles.timerTextContainer}>
-            {/* Minute digits */}
-            <TimerDigit 
-              value={minTens} 
-              style={{ color: theme.colors.numberPad.text }}
-            />
-            <TimerDigit 
-              value={minOnes} 
-              style={{ color: theme.colors.numberPad.text }}
-            />
-            <Text style={[styles.separatorText, { color: theme.colors.numberPad.text }]}>:</Text>
-            {/* Second digits */}
-            <TimerDigit 
-              value={secTens} 
-              style={{ color: theme.colors.numberPad.text }}
-            />
-            <TimerDigit 
-              value={secOnes} 
-              style={{ color: theme.colors.numberPad.text }}
-            />
-          </View>
+          <Text style={[
+            styles.timerText, 
+            { color: theme.colors.numberPad.text }
+          ]}>
+            {formatTime(elapsedSeconds)}
+          </Text>
           
           {/* Pause button integrated in badge */}
           <TouchableOpacity 
@@ -62,7 +37,7 @@ const GameTimer = () => {
             <Text style={[
               styles.pauseButtonIcon, 
               { color: theme.colors.numberPad.text }
-            ]}>⏸</Text>
+            ]}>❚❚</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -94,19 +69,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     height: 24,
   },
-  timerTextContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 4,
-    minWidth: 45,
-  },
-  separatorText: {
-    fontSize: 16,
+  timerText: {
+    fontSize: 16, // Increased size for better visibility
     fontWeight: 'bold',
     textAlign: 'center',
-    lineHeight: 24,
-    marginHorizontal: 2, 
+    letterSpacing: 1,
+    marginRight: 4, // Space between time and pause button
   },
   timerLabel: {
     fontSize: 10,
@@ -117,15 +85,15 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   pauseButton: {
-    width: 16,
-    height: 16,
+    width: 20,
+    height: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 2,
+    paddingBottom: 0,
   },
   pauseButtonIcon: {
-    fontSize: 11,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: 'normal',
   },
 });
 
