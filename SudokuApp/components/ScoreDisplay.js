@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Text, Animated } from 'react-native';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { View, StyleSheet, Text, Animated, Dimensions, Easing } from 'react-native';
 import { useGameContext } from '../contexts/GameContext';
 
 /**
@@ -18,16 +18,65 @@ const ScoreDisplay = () => {
   const cellToScoreAnim = useRef(new Animated.Value(0)).current;
   const cellOpacityAnim = useRef(new Animated.Value(0)).current;
   
+  // Refs for position measuring
+  const scoreContainerRef = useRef();
+  const scoreLayoutRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
+  
   const prevScoreRef = useRef(score);
   const lastScoredCellRef = useRef(null);
   const [pointsAdded, setPointsAdded] = useState(0);
   const [cellPoints, setCellPoints] = useState(0);
+  const [cellAnimPosition, setCellAnimPosition] = useState({ startX: 0, startY: 0 });
   const [scoreColor, setScoreColor] = useState(theme.colors.title || '#333333');
   
   // Format score with thousands separators
   const formatScore = (score) => {
     return score.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   };
+  
+  // Measure the position of the score container
+  const measureScorePosition = useCallback(() => {
+    if (scoreContainerRef.current) {
+      scoreContainerRef.current.measure((x, y, width, height, pageX, pageY) => {
+        scoreLayoutRef.current = {
+          x: pageX,
+          y: pageY,
+          width,
+          height,
+          centerX: pageX + width / 2,
+          centerY: pageY + height / 2
+        };
+      });
+    }
+  }, []);
+  
+  // Trigger position measurement on layout
+  useEffect(() => {
+    // Delay the measurement slightly to ensure all components are properly laid out
+    const timer = setTimeout(() => {
+      measureScorePosition();
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [measureScorePosition]);
+  
+  // Calculate the cell position based on row and column
+  const calculateCellPosition = useCallback((row, col) => {
+    // Get window dimensions to help with calculations
+    const windowWidth = Dimensions.get('window').width;
+    const windowHeight = Dimensions.get('window').height;
+    
+    // Estimate the grid position (this would be better with actual measurements)
+    // These are estimations and may need adjustment based on actual layout
+    const gridTopMargin = windowHeight * 0.15; // Estimated distance from top to grid
+    const gridCellSize = Math.min(windowWidth, windowHeight) / 11; // Estimated cell size
+    
+    // Calculate cell position (center of the cell)
+    const cellX = (windowWidth / 2 - gridCellSize * 4.5) + col * gridCellSize + gridCellSize / 2;
+    const cellY = gridTopMargin + row * gridCellSize + gridCellSize / 2;
+    
+    return { x: cellX, y: cellY };
+  }, []);
   
   // Trigger animation when score changes
   useEffect(() => {
@@ -103,28 +152,44 @@ const ScoreDisplay = () => {
       // Save the points that were scored
       setCellPoints(lastScoredCell.points);
       
+      // Calculate the cell position
+      const cellPos = calculateCellPosition(lastScoredCell.row, lastScoredCell.col);
+      
+      // Calculate relative position for animation
+      // This is the distance from the cell to the score container
+      const scorePos = scoreLayoutRef.current;
+      
+      // Adjust position relative to the score container
+      const relX = cellPos.x - scorePos.x - scorePos.width / 2;
+      const relY = cellPos.y - scorePos.y - scorePos.height / 2;
+      
+      // Set animation starting position
+      setCellAnimPosition({ startX: relX, startY: relY });
+      
       // Reset animations
       cellToScoreAnim.setValue(0);
       cellOpacityAnim.setValue(1);
       
-      // Run cell-to-score animation
+      // Run cell-to-score animation with easing for more natural movement
       Animated.timing(cellToScoreAnim, {
         toValue: 1,
-        duration: 800,
+        duration: 1000, // Slightly longer for a more visible animation
         useNativeDriver: true,
+        easing: Easing.bezier(0.25, 0.1, 0.25, 1), // Cubic bezier for smooth animation
       }).start();
       
-      // Fade out gradually
+      // Fade out gradually, but keep visible longer during the arc
       Animated.timing(cellOpacityAnim, {
         toValue: 0,
-        duration: 800,
+        duration: 1000, // Match the duration of the position animation
         useNativeDriver: true,
+        easing: Easing.linear, // Linear fade for consistent visibility
       }).start();
       
       // Update reference
       lastScoredCellRef.current = lastScoredCell;
     }
-  }, [lastScoredCell, cellToScoreAnim, cellOpacityAnim]);
+  }, [lastScoredCell, cellToScoreAnim, cellOpacityAnim, calculateCellPosition]);
   
   // Calculate floating points transform based on animation progress
   const floatingPointsTranslateY = floatPositionAnim.interpolate({
@@ -137,25 +202,47 @@ const ScoreDisplay = () => {
     outputRange: [0.8, 1.2, 1]
   });
   
-  // Calculate cell-to-score animation path
-  // This assumes the cell is roughly below and to the right of the score display
+  // Calculate cell-to-score animation path with a curved trajectory
   const cellPointsTranslateX = cellToScoreAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [100, 0], // Adjust based on your layout
+    inputRange: [0, 0.4, 0.7, 1],
+    // Add a slight curve to the x-axis movement
+    outputRange: [
+      cellAnimPosition.startX, 
+      cellAnimPosition.startX * 0.8, 
+      cellAnimPosition.startX * 0.3, 
+      0
+    ],
   });
   
   const cellPointsTranslateY = cellToScoreAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [100, 0], // Adjust based on your layout
+    inputRange: [0, 0.3, 0.6, 1],
+    // Create a curved, arc-like path with a slight "bounce" effect
+    outputRange: [
+      cellAnimPosition.startY,
+      cellAnimPosition.startY * 0.7 - 10, // Move slightly above direct path
+      cellAnimPosition.startY * 0.3 - 20, // Continue arc
+      0
+    ],
   });
   
   const cellPointsScale = cellToScoreAnim.interpolate({
-    inputRange: [0, 0.7, 1],
-    outputRange: [0.8, 1.2, 1],
+    inputRange: [0, 0.5, 0.8, 1],
+    // Scale up during the middle of the animation, then normalize at destination
+    outputRange: [0.8, 1.1, 1.3, 1],
+  });
+  
+  // Add a rotation effect for more visual interest
+  const cellPointsRotate = cellToScoreAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: ['0deg', '10deg', '0deg'],
   });
   
   return (
-    <View style={styles.scoreContainer}>
+    <View 
+      style={styles.scoreContainer} 
+      ref={scoreContainerRef}
+      onLayout={measureScorePosition}
+    >
       <Text style={styles.scoreLabel}>SCORE</Text>
       
       <View style={[styles.scoreBadge, { backgroundColor: theme.colors.numberPad.border }]}>
@@ -189,7 +276,8 @@ const ScoreDisplay = () => {
                   transform: [
                     { translateX: cellPointsTranslateX },
                     { translateY: cellPointsTranslateY },
-                    { scale: cellPointsScale }
+                    { scale: cellPointsScale },
+                    { rotate: cellPointsRotate }
                   ],
                   color: '#4CAF50' // Always show in green
                 }
