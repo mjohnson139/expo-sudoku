@@ -1,5 +1,53 @@
 // Theme system for the Sudoku app
 export const SUDOKU_THEMES = {
+  soft: {
+    name: 'Soft',
+    colors: {
+      background: '#f5f7f8', // Soft off-white
+      title: '#5d8b9c', // Teal/blue-gray color from the screenshot
+      grid: {
+        background: '#ffffff',
+        border: '#5d8b9c', // Teal/blue-gray for grid borders
+        boxBorder: '#5d8b9c', // Matching box border color
+        cellBorder: '#cfdbe0', // Very light teal for cell borders
+        innerBorder: '#a7c0c9', // Light teal for inner borders
+      },
+      cell: {
+        background: '#ffffff',
+        prefilled: '#ffffff', // No background color for prefilled cells
+        selectedBackground: '#ddeef3', // Light teal highlight (shown in screenshot)
+        initialValueText: '#5d8b9c', // Teal text for initial values
+        userValueText: '#5d8b9c', // Same teal for user values
+        correctValueText: '#5d8b9c', // Same teal for correct values
+        incorrectValueText: '#e57373', // Soft red for incorrect values
+        incorrectBackground: '#ffeef0', // Very light red background for incorrect values
+        textFont: 'normal',
+        hoverBackground: '#eef5f7', // Very light teal hover effect
+        touchedBackground: '#e1eef2', // Light teal for touched cells
+        relatedBackground: '#f0f5f7', // Slight tint for related cells
+        boxRelatedBackground: '#f0f5f7', // Same as related background
+        rowRelatedBackground: '#f0f5f7', // Same as related background
+        columnRelatedBackground: '#f0f5f7', // Same as related background
+        sameValueBackground: '#f0f5f7', // Same as related background
+        initialCellBackground: '#ffffff', // No special background for initial cells
+        notesText: '#89a5af', // Lighter teal for notes
+      },
+      numberPad: {
+        background: '#edf2f4', // Very light blue-gray
+        border: '#bed4db', // Light teal border
+        text: '#5d8b9c', // Teal text
+        shadow: '#dce6e9',
+        clearButton: '#f5e1e5', // Very light pink
+        notesBackground: '#e4eef1', // Light teal background for notes mode
+      },
+      difficulty: {
+        easy: '#d4edda', // Soft green for easy (as shown in screenshot)
+        medium: '#ffeeba', // Soft yellow for medium
+        hard: '#f8d7da', // Soft pink for hard
+        expert: '#f8d7da' // Same soft pink for expert
+      }
+    }
+  },
   classic: {
     name: 'Classic',
     colors: {

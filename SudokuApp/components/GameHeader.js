@@ -62,7 +62,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     minHeight: 48,
-    marginBottom: 8,
+    marginBottom: 10,
   },
   leftSection: {
     flex: 1,

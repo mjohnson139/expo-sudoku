@@ -15,59 +15,87 @@ const GameTimer = () => {
 
   return (
     <View style={styles.timerContainer}>
-      <View style={styles.timerTextContainer}>
-        <Text style={[
-          styles.timerText, 
-          { color: theme.colors.title }
-        ]}>
-          {formatTime(elapsedSeconds)}
-        </Text>
-      </View>
+      <Text style={styles.timerLabel}>TIME</Text>
       
-      {/* Pause button - icon only with minimal size but good tap target */}
-      <TouchableOpacity 
-        style={styles.pauseButton}
-        onPress={handlePausePress}
-        disabled={isPaused}
-        accessibilityLabel="Pause Game"
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} // Increase tap area without changing visible size
-      >
-        <Text style={[
-          styles.pauseButtonIcon, 
-          { color: theme.colors.title }
-        ]}>⏸️</Text>
-      </TouchableOpacity>
+      <View style={[styles.timerBadge, { backgroundColor: theme.colors.numberPad.border }]}>
+        <View style={styles.timerInnerContainer}>
+          <Text style={[
+            styles.timerText, 
+            { color: theme.colors.numberPad.text }
+          ]}>
+            {formatTime(elapsedSeconds)}
+          </Text>
+          
+          {/* Pause button integrated in badge */}
+          <TouchableOpacity 
+            style={styles.pauseButton}
+            onPress={handlePausePress}
+            disabled={isPaused}
+            accessibilityLabel="Pause Game"
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={[
+              styles.pauseButtonIcon, 
+              { color: theme.colors.numberPad.text }
+            ]}>❚❚</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   timerContainer: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  timerBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    marginTop: 2,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1,
+    minWidth: 80,
+    height: 36,
+  },
+  timerInnerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  timerTextContainer: {
-    minWidth: 60, // Minimum width to prevent size changes
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 2, // Space between timer and icon
-    // Removed background color, border, and padding to blend with main background
+    height: 24,
   },
   timerText: {
     fontSize: 16, // Increased size for better visibility
     fontWeight: 'bold',
     textAlign: 'center',
     letterSpacing: 1,
+    marginRight: 4, // Space between time and pause button
+    minWidth: 45, // Fixed width to prevent layout shifts when timer changes
+    fontFamily: 'monospace', // Use monospace font for fixed character width
+  },
+  timerLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: 2,
+    color: '#666',
+    alignSelf: 'center',
   },
   pauseButton: {
     width: 20,
     height: 20,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingBottom: 0,
   },
   pauseButtonIcon: {
-    fontSize: 12,
+    fontSize: 16,
+    fontWeight: 'normal',
   },
 });
 
