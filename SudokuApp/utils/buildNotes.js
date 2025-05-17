@@ -2,6 +2,24 @@
 // Each version's notes are stored in this file
 
 const BUILD_NOTES = {
+  '2.6.0': {
+    title: 'Time-Based Scoring System',
+    date: '2025-05-16',
+    notes: [
+      'Implemented comprehensive time-based scoring system',
+      'Added base points for correct cell placements',
+      'Faster play earns more points with speed bonuses',
+      'Special bonus points for completing rows, columns, and 3x3 boxes',
+      'Higher difficulty levels earn more points with score multipliers',
+      'Enhanced scoring animations with floating points display',
+      'Added visual feedback for score changes with smooth animations',
+      'Implemented cell tracking to prevent scoring the same cell multiple times',
+      'Updated GameTopStrip with matching SCORE and TIME labels',
+      'Enhanced win modal with game summary statistics',
+      'Added difficulty-specific score multipliers',
+      'Seamless integration with undo/redo system'
+    ]
+  },
   '2.5.0': {
     title: 'Enhanced Pause Screen & UI Updates',
     date: '2025-05-16',

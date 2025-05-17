@@ -59,7 +59,7 @@ const GameScreenContent = () => {
       <GameHeader />
 
       {/* Top strip with Timer (right) */}
-      <GameTopStrip />
+      <GameTopStrip style={{ marginTop: 12 }} />
 
       {/* Game board */}
       <View style={{
