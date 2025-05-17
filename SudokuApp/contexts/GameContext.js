@@ -964,6 +964,43 @@ export const GameProvider = ({ children }) => {
     state.filledCount = filledCount;
   };
   
+  // Debug cheat mode to add notes with correct numbers
+  const debugCheatMode = () => {
+    // Don't proceed if no solution board is available
+    if (!state.solutionBoard || !state.board) return;
+    
+    // Create a new notes object
+    const newNotes = { ...state.cellNotes };
+    
+    // For each empty cell, add the correct number as a note
+    state.board.forEach((row, rowIndex) => {
+      row.forEach((cell, colIndex) => {
+        // Only process empty cells that aren't initial cells
+        const cellKey = `${rowIndex}-${colIndex}`;
+        if (cell === 0 && !state.initialCells.includes(cellKey)) {
+          // Get the correct value from the solution
+          const correctValue = state.solutionBoard[rowIndex][colIndex];
+          
+          // If there are already notes for this cell, add the correct number if not already present
+          if (newNotes[cellKey]) {
+            if (!newNotes[cellKey].includes(correctValue)) {
+              newNotes[cellKey] = [...newNotes[cellKey], correctValue];
+            }
+          } else {
+            // Otherwise, create a new note with just the correct value
+            newNotes[cellKey] = [correctValue];
+          }
+        }
+      });
+    });
+    
+    // Update the cell notes in the state
+    dispatch({
+      type: ACTIONS.RESTORE_SAVED_GAME,
+      payload: { cellNotes: newNotes }
+    });
+  };
+  
   // Cycle through available themes
   const cycleTheme = () => {
     const themeKeys = Object.keys(SUDOKU_THEMES);
@@ -1002,6 +1039,7 @@ export const GameProvider = ({ children }) => {
     formatTime,
     cycleTheme,
     debugFillBoard,
+    debugCheatMode,
     getLastScoreChange,
     lastScoredCell: state.lastScoredCell,
   };

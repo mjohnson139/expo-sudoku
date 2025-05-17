@@ -16,6 +16,7 @@ const GameMenuModal = () => {
     showFeedback,
     dispatch,
     debugFillBoard,
+    debugCheatMode,
   } = useGameContext();
 
   // Animation for menu modal
@@ -145,15 +146,33 @@ const GameMenuModal = () => {
           </View>
 
           {__DEV__ && (
-            <TouchableOpacity
-              style={[styles.menuButton, { backgroundColor: theme.colors.inactive || '#d0d0d0' }]}
-              onPress={debugFillBoard}
-              accessibilityLabel="Debug Fill Board"
-              accessibilityRole="button"
-            >
-              <Text style={styles.menuButtonEmoji}>🐞</Text>
-              <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Debug Fill</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={[styles.menuButton, { backgroundColor: theme.colors.inactive || '#d0d0d0' }]}
+                onPress={() => {
+                  debugFillBoard();
+                  handleCloseMenu(); // Close menu after filling board
+                }}
+                accessibilityLabel="Debug Fill Board"
+                accessibilityRole="button"
+              >
+                <Text style={styles.menuButtonEmoji}>🐞</Text>
+                <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Debug Fill</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.menuButton, { backgroundColor: theme.colors.inactive || '#d0d0d0' }]}
+                onPress={() => {
+                  debugCheatMode();
+                  handleCloseMenu(); // Close menu after activating cheat mode
+                }}
+                accessibilityLabel="Debug Cheat Mode"
+                accessibilityRole="button"
+              >
+                <Text style={styles.menuButtonEmoji}>🔍</Text>
+                <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Show Hints</Text>
+              </TouchableOpacity>
+            </>
           )}
         </View>
       </Animated.View>
