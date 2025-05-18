@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { BADGE_STYLE } from '../utils/themes';
 
@@ -10,6 +10,8 @@ import { BADGE_STYLE } from '../utils/themes';
  * @param {string} backgroundColor - Optional override for the badge background color
  * @param {React.ReactNode} children - Content to render inside the badge
  * @param {object} containerStyle - Optional style for the outer container
+ * @param {number} maxTextWidth - Optional max width for content scaling calculation (default: 80)
+ * @param {number} minScale - Minimum scale to apply to content when it's too large (default: 0.8)
  */
 const LabeledBadge = ({ 
   label, 
@@ -17,8 +19,26 @@ const LabeledBadge = ({
   theme,
   backgroundColor,
   children,
-  containerStyle = {} 
+  containerStyle = {},
+  maxTextWidth = 80,
+  minScale = 0.8
 }) => {
+  const [contentWidth, setContentWidth] = useState(0);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const contentRef = useRef(null);
+
+  // Calculate scale based on content size
+  const scale = contentWidth > maxTextWidth ? 
+    Math.max(minScale, maxTextWidth / contentWidth) : 
+    1;
+    
+  // Handle content size measurement
+  const onContentLayout = (event) => {
+    const { width } = event.nativeEvent.layout;
+    setContentWidth(width);
+    setIsOverflowing(width > maxTextWidth);
+  };
+
   return (
     <View style={[styles.container, containerStyle]}>
       <Text style={styles.label}>{label}</Text>
@@ -28,7 +48,16 @@ const LabeledBadge = ({
         { backgroundColor: backgroundColor || theme.colors.numberPad.border },
         badgeStyle
       ]}>
-        {children}
+        <View 
+          ref={contentRef}
+          style={[
+            styles.contentContainer,
+            isOverflowing && { transform: [{ scale }] }
+          ]}
+          onLayout={onContentLayout}
+        >
+          {children}
+        </View>
       </View>
     </View>
   );
@@ -43,6 +72,11 @@ const styles = StyleSheet.create({
     ...BADGE_STYLE,
     minWidth: 90,
     height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  contentContainer: {
     alignItems: 'center',
     justifyContent: 'center',
   },

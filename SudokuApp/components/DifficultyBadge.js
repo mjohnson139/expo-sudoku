@@ -56,7 +56,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 1,
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
-    width: 60, // Fixed width for consistency
   },
 });
 
