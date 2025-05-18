@@ -55,7 +55,7 @@ const GameScreenContent = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      /* Header with menu button, title, theme selector */
+      {/* Header with menu button, title, theme selector */}
         <GameHeader />
 
         {/* Top strip with Timer (right) */}
