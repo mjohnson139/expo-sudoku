@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { useGameContext } from '../contexts/GameContext';
 import { ACTIONS } from '../contexts/GameContext';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 /**
  * GameToolBar component containing game control buttons
@@ -32,7 +33,7 @@ const GameToolBar = () => {
   const canRedo = redoStack.length > 0;
 
   return (
-    <View style={[styles.toolbar, { borderColor: theme.colors.title, backgroundColor: theme.colors.numberPad.background }]}> 
+    <View style={[styles.toolbar, { borderColor: theme.colors.title }]}> 
       {/* Undo Button */}
       <TouchableOpacity
         style={[
@@ -42,7 +43,11 @@ const GameToolBar = () => {
         onPress={handleUndo}
         disabled={!canUndo}
       >
-        <Text style={{ color: theme.colors.title, fontSize: 22, fontWeight: 'bold' }}>↶</Text>
+        <MaterialCommunityIcons 
+          name="undo-variant" 
+          size={24} 
+          color={theme.colors.title} 
+        />
       </TouchableOpacity>
       
       {/* Notes Button */}
@@ -58,7 +63,11 @@ const GameToolBar = () => {
         ]} 
         onPress={handleToggleNotesMode}
       >
-        <Text style={{ color: theme.colors.title, fontSize: 16 }}>✏️</Text>
+        <MaterialCommunityIcons 
+          name="pencil" 
+          size={24} 
+          color={theme.colors.title} 
+        />
       </TouchableOpacity>
       
       {/* Redo Button */}
@@ -70,7 +79,11 @@ const GameToolBar = () => {
         onPress={handleRedo}
         disabled={!canRedo}
       >
-        <Text style={{ color: theme.colors.title, fontSize: 22, fontWeight: 'bold' }}>↷</Text>
+        <MaterialCommunityIcons 
+          name="redo-variant" 
+          size={24} 
+          color={theme.colors.title} 
+        />
       </TouchableOpacity>
     </View>
   );

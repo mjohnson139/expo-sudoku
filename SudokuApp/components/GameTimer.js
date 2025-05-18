@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, Platform } from 'react-native';
 import { useGameContext, ACTIONS } from '../contexts/GameContext';
 import LabeledBadge from './LabeledBadge';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 /**
  * GameTimer component displaying elapsed time and pause button
@@ -36,10 +37,11 @@ const GameTimer = () => {
           accessibilityLabel="Pause Game"
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Text style={[
-            styles.pauseButtonIcon, 
-            { color: theme.colors.numberPad.text }
-          ]}>⏸</Text>
+          <MaterialCommunityIcons
+            name="pause-circle"
+            size={21}
+            color={theme.colors.numberPad.text}
+          />
         </TouchableOpacity>
       </View>
     </LabeledBadge>
@@ -66,15 +68,10 @@ const styles = StyleSheet.create({
     width: 60, // Fixed width for timer
   },
   pauseButton: {
-    width: 16,
-    height: 16,
+    width: 24,
+    height: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 2, // Adjust visual alignment
-  },
-  pauseButtonIcon: {
-    fontSize: 11,
-    fontWeight: 'bold',
   },
 });
 
