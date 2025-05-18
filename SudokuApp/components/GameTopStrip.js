@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   leftSection: {
     flex: 1,
     alignItems: 'flex-start',
-    paddingLeft: 8,
+    paddingLeft: 0,
     justifyContent: 'flex-start',
   },
   centerSection: {
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   },
   rightSection: {
     flex: 1,
-    paddingRight: 8,
+    paddingRight: 0,
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'flex-start',
