@@ -47,7 +47,11 @@ const GameToolBar = () => {
       <TouchableOpacity
         style={[
           styles.toolbarButton, 
-          { opacity: canUndo ? 1 : 0.5, borderColor: theme.colors.title }
+          { 
+            opacity: canUndo ? 1 : 0.5, 
+            borderColor: theme.colors.title,
+            backgroundColor: theme.colors.numberPad.background
+          }
         ]}
         onPress={handleUndo}
         disabled={!canUndo}
@@ -64,7 +68,11 @@ const GameToolBar = () => {
       <TouchableOpacity
         style={[
           styles.toolbarButton, 
-          { opacity: canRedo ? 1 : 0.5, borderColor: theme.colors.title }
+          { 
+            opacity: canRedo ? 1 : 0.5, 
+            borderColor: theme.colors.title,
+            backgroundColor: theme.colors.numberPad.background
+          }
         ]}
         onPress={handleRedo}
         disabled={!canRedo}
@@ -85,8 +93,8 @@ const GameToolBar = () => {
             opacity: gameCompleted ? 0.5 : 1,
             borderColor: theme.colors.title,
             backgroundColor: notesMode 
-              ? styles.toolbarButtonActive.backgroundColor 
-              : 'transparent'
+              ? theme.colors.numberPad.notesBackground 
+              : theme.colors.numberPad.background
           }
         ]} 
         onPress={handleToggleNotesMode}
@@ -106,7 +114,8 @@ const GameToolBar = () => {
           styles.toolbarButton, 
           { 
             opacity: gameCompleted ? 0.5 : 1,
-            borderColor: theme.colors.title 
+            borderColor: theme.colors.title,
+            backgroundColor: theme.colors.numberPad.background
           }
         ]} 
         onPress={handlePausePress}
@@ -141,19 +150,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#bbb',
-    backgroundColor: '#f5f5f5',
+    // borderColor and backgroundColor now applied from theme in component
     // Raised effect
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18,
     shadowRadius: 3,
     elevation: 4,
-    // Always show border, even when disabled
   },
-  toolbarButtonActive: {
-    backgroundColor: '#e6f2fd', // subtle highlight for active (notes)
-  },
+  // Removed toolbarButtonActive as it's no longer needed - using theme colors directly
 });
 
 export default GameToolBar;
