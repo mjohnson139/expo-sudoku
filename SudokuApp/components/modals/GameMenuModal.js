@@ -1,6 +1,10 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View, Switch } from 'react-native';
 import { useGameContext, ACTIONS } from '../../contexts/GameContext';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+
+// Constants for consistent sizes
+const ICON_SIZE = 24;
 // Removed unused import for app.json
 
 // No need to declare BUILD_NUMBER as it's not used
@@ -75,7 +79,11 @@ const GameMenuModal = () => {
             accessibilityLabel="Close menu"
             accessibilityRole="button"
           >
-            <Text style={[styles.menuCloseText, { color: theme.colors.title }]}>✕</Text>
+            <MaterialCommunityIcons
+              name="close"
+              size={ICON_SIZE}
+              color={theme.colors.title}
+            />
           </TouchableOpacity>
 
           <Text style={[styles.menuTitle, { color: theme.colors.title }]}>Sudoku</Text>
@@ -124,7 +132,12 @@ const GameMenuModal = () => {
               onPress={handleBuildPress}
               accessibilityLabel="View Build Notes"
             >
-              <Text style={styles.menuButtonEmoji}>ℹ️</Text>
+              <MaterialCommunityIcons
+                name="information-outline"
+                size={ICON_SIZE}
+                color="#333"
+                style={styles.menuButtonIcon}
+              />
               <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Build Notes</Text>
             </TouchableOpacity>
           </View>
@@ -156,7 +169,12 @@ const GameMenuModal = () => {
                 accessibilityLabel="Debug Fill Board"
                 accessibilityRole="button"
               >
-                <Text style={styles.menuButtonEmoji}>🐞</Text>
+                <MaterialCommunityIcons
+                  name="bug-outline"
+                  size={ICON_SIZE}
+                  color="#333"
+                  style={styles.menuButtonIcon}
+                />
                 <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Debug Fill</Text>
               </TouchableOpacity>
               
@@ -169,7 +187,12 @@ const GameMenuModal = () => {
                 accessibilityLabel="Debug Cheat Mode"
                 accessibilityRole="button"
               >
-                <Text style={styles.menuButtonEmoji}>🔍</Text>
+                <MaterialCommunityIcons
+                  name="magnify"
+                  size={ICON_SIZE}
+                  color="#333"
+                  style={styles.menuButtonIcon}
+                />
                 <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Show Hints</Text>
               </TouchableOpacity>
             </>
@@ -239,6 +262,9 @@ const styles = StyleSheet.create({
   },
   buildButton: {
     backgroundColor: '#e0e0e0',
+  },
+  menuButtonIcon: {
+    marginRight: 8,
   },
   menuButtonEmoji: {
     fontSize: 20,

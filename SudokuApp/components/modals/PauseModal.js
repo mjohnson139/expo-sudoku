@@ -2,6 +2,10 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View } from 'react-native';
 import { useGameContext, ACTIONS } from '../../contexts/GameContext';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+
+// Constants for consistent sizes
+const ICON_SIZE = 24;
 
 /**
  * Pause Modal that appears when the game is paused
@@ -83,7 +87,12 @@ const PauseModal = () => {
                 style={[styles.pauseButton, styles.resumeButton]} 
                 onPress={handleResume}
               >
-                <Text style={styles.pauseButtonEmoji}>▶️</Text>
+                <MaterialCommunityIcons 
+                  name="play" 
+                  size={ICON_SIZE}
+                  color="#333" 
+                  style={styles.pauseButtonIcon}
+                />
                 <Text style={styles.pauseButtonText}>Resume</Text>
               </TouchableOpacity>
             </Animated.View>
@@ -100,7 +109,12 @@ const PauseModal = () => {
                 style={[styles.pauseButton, styles.newGameButton]} 
                 onPress={handleNewGame}
               >
-                <Text style={styles.pauseButtonEmoji}>🏠</Text>
+                <MaterialCommunityIcons 
+                  name="home" 
+                  size={ICON_SIZE}
+                  color="#333" 
+                  style={styles.pauseButtonIcon}
+                />
                 <Text style={styles.pauseButtonText}>New Game</Text>
               </TouchableOpacity>
             </Animated.View>
@@ -151,8 +165,7 @@ const styles = StyleSheet.create({
   newGameButton: {
     backgroundColor: '#f8d7da',
   },
-  pauseButtonEmoji: {
-    fontSize: 20,
+  pauseButtonIcon: {
     marginRight: 8,
   },
   pauseButtonText: {
