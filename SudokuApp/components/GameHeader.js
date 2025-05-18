@@ -55,7 +55,7 @@ const GameHeader = () => {
             <View style={styles.themeButtonContent}>
               <MaterialCommunityIcons 
                 name="palette" 
-                size={ICON_SIZE_SMALL} 
+                size={ICON_SIZE} 
                 color={theme.colors.title}
                 style={styles.themeIcon} 
               />
@@ -102,8 +102,9 @@ const styles = StyleSheet.create({
   themeButton: {
     paddingVertical: 3,
     paddingHorizontal: 8,
-    borderRadius: 10,
+    borderRadius: 5,
     borderWidth: 1,
+    width: 90,
   },
   themeButtonText: {
     fontSize: 12,
@@ -111,6 +112,7 @@ const styles = StyleSheet.create({
   themeButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-start', // Align icon and text to the left
   },
   themeIcon: {
     marginRight: 4,
