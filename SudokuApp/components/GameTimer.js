@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, Platform } from 'react-native';
 import { useGameContext, ACTIONS } from '../contexts/GameContext';
 
 /**
@@ -75,6 +75,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 1,
     marginRight: 4, // Space between time and pause button
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+    width: 60, // Fixed width for timer (adjust as needed for your format)
   },
   timerLabel: {
     fontSize: 10,

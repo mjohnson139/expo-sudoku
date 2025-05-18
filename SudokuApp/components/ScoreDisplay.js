@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, StyleSheet, Text, Animated, Dimensions, Easing } from 'react-native';
+import { View, StyleSheet, Text, Animated, Dimensions, Easing, Platform } from 'react-native';
 import { useGameContext } from '../contexts/GameContext';
 
 /**
@@ -245,6 +245,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     letterSpacing: 1,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+    width: 60, // Fixed width for score (adjust as needed for your format)
   },
   floatingPoints: {
     position: 'absolute',

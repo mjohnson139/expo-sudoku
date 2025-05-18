@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useGameContext } from '../contexts/GameContext';
 
 /**
@@ -35,7 +35,7 @@ const DifficultyBadge = () => {
     <>
       <Text style={styles.levelLabel}>LEVEL</Text>
       <View style={[styles.levelBadge, { backgroundColor: getBadgeColor() }]}> 
-        <Text style={styles.levelText}>{getDifficultyLabel()}</Text>
+        <Text style={[styles.levelText, { color: theme.colors.numberPad.text }]}>{getDifficultyLabel()}</Text>
       </View>
     </>
   );
@@ -68,8 +68,11 @@ const styles = StyleSheet.create({
   levelText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#333333',
+    textAlign: 'center',
     letterSpacing: 1,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
+    color: '#333333', // Match timer and score text color
+    width: 60, // Fixed width for consistency
   },
 });
 
