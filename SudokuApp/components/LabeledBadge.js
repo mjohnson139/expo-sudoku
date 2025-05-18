@@ -45,7 +45,10 @@ const LabeledBadge = ({
       
       <View style={[
         styles.badge,
-        { backgroundColor: backgroundColor || theme.colors.numberPad.border },
+        { 
+          backgroundColor: backgroundColor || 
+            (theme.colors.badge?.background || theme.colors.numberPad.background) 
+        },
         badgeStyle
       ]}>
         <View 
@@ -85,7 +88,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     marginBottom: 2,
-    color: '#666',
+    color: '#666', // Default color if theme doesn't provide one
     alignSelf: 'center',
   },
 });
