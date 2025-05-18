@@ -59,11 +59,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'flex-end',
     alignItems: 'flex-start',
-  },
-  scoreText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
+  }
 });
 
 export default GameTopStrip;
