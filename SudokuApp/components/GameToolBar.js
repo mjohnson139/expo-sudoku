@@ -6,7 +6,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 
 /**
  * GameToolBar component containing game control buttons
- * Includes: undo, notes mode toggle, and redo buttons
+ * Includes: undo, notes mode toggle, pause, and redo buttons
  */
 const GameToolBar = () => {
   const { 
@@ -14,7 +14,8 @@ const GameToolBar = () => {
     notesMode,
     dispatch,
     undoStack,
-    redoStack
+    redoStack,
+    isPaused
   } = useGameContext();
 
   const handleUndo = () => {
@@ -27,6 +28,10 @@ const GameToolBar = () => {
 
   const handleToggleNotesMode = () => {
     dispatch({ type: ACTIONS.TOGGLE_NOTES_MODE });
+  };
+  
+  const handlePausePress = () => {
+    dispatch({ type: ACTIONS.PAUSE_GAME });
   };
 
   const canUndo = undoStack.length > 0;
@@ -42,6 +47,7 @@ const GameToolBar = () => {
         ]}
         onPress={handleUndo}
         disabled={!canUndo}
+        accessibilityLabel="Undo"
       >
         <MaterialCommunityIcons 
           name="undo-variant" 
@@ -62,9 +68,27 @@ const GameToolBar = () => {
           }
         ]} 
         onPress={handleToggleNotesMode}
+        accessibilityLabel="Toggle Notes Mode"
       >
         <MaterialCommunityIcons 
           name="pencil" 
+          size={24} 
+          color={theme.colors.title} 
+        />
+      </TouchableOpacity>
+      
+      {/* Pause Button */}
+      <TouchableOpacity 
+        style={[
+          styles.toolbarButton, 
+          { borderColor: theme.colors.title }
+        ]} 
+        onPress={handlePausePress}
+        disabled={isPaused}
+        accessibilityLabel="Pause Game"
+      >
+        <MaterialCommunityIcons 
+          name="pause" 
           size={24} 
           color={theme.colors.title} 
         />
@@ -78,6 +102,7 @@ const GameToolBar = () => {
         ]}
         onPress={handleRedo}
         disabled={!canRedo}
+        accessibilityLabel="Redo"
       >
         <MaterialCommunityIcons 
           name="redo-variant" 
