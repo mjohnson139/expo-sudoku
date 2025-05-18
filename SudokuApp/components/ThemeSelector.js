@@ -1,7 +1,11 @@
 // filepath: /Users/matthewjohnson/dev/expo-sudoku/SudokuApp/components/ThemeSelector.js
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useGameContext } from '../contexts/GameContext';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+
+// Constants for consistent sizes
+const ICON_SIZE = 24;
 
 /**
  * ThemeSelector component allowing user to switch themes
@@ -22,9 +26,17 @@ const ThemeSelector = () => {
       onPress={cycleTheme}
       accessibilityLabel="Change Theme"
     >
-      <Text style={[styles.themeButtonText, { color: theme.colors.numberPad.text }]}>
-        🎨 {theme.name}
-      </Text>
+      <View style={styles.themeButtonContent}>
+        <MaterialCommunityIcons 
+          name="palette" 
+          size={ICON_SIZE} 
+          color={theme.colors.numberPad.text}
+          style={styles.themeIcon} 
+        />
+        <Text style={[styles.themeButtonText, { color: theme.colors.numberPad.text }]}>
+          {theme.name}
+        </Text>
+      </View>
     </TouchableOpacity>
   );
 };
@@ -48,6 +60,13 @@ const styles = StyleSheet.create({
   themeButtonText: {
     fontSize: 16,
     fontWeight: '500',
+  },
+  themeButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  themeIcon: {
+    marginRight: 6,
   },
 });
 

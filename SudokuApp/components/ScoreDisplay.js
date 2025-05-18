@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Text, Animated } from 'react-native';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { View, StyleSheet, Text, Animated, Dimensions, Easing, Platform } from 'react-native';
 import { useGameContext } from '../contexts/GameContext';
+import LabeledBadge from './LabeledBadge';
 
 /**
  * ScoreDisplay component that shows the current score with animations
@@ -13,21 +14,73 @@ const ScoreDisplay = () => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const floatPositionAnim = useRef(new Animated.Value(0)).current;
   const floatOpacityAnim = useRef(new Animated.Value(0)).current;
+  // New animated value for counting up effect - initialize with current score
+  const countAnim = useRef(new Animated.Value(score)).current;
   
-  // Animation for points coming from cells
-  const cellToScoreAnim = useRef(new Animated.Value(0)).current;
-  const cellOpacityAnim = useRef(new Animated.Value(0)).current;
+  // We no longer need these animations as they're handled by the CellScoreAnimation component
+  // Keeping the refs defined but unused to avoid breaking code
+  
+  // Refs for position measuring
+  const scoreContainerRef = useRef();
+  const scoreLayoutRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
   
   const prevScoreRef = useRef(score);
   const lastScoredCellRef = useRef(null);
   const [pointsAdded, setPointsAdded] = useState(0);
   const [cellPoints, setCellPoints] = useState(0);
+  const [cellAnimPosition, setCellAnimPosition] = useState({ startX: 0, startY: 0 });
   const [scoreColor, setScoreColor] = useState(theme.colors.title || '#333333');
+  // State to hold the displayed score during animation
+  const [displayedScore, setDisplayedScore] = useState(score);
   
   // Format score with thousands separators
   const formatScore = (score) => {
     return score.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   };
+  
+  // Measure the position of the score container
+  const measureScorePosition = useCallback(() => {
+    if (scoreContainerRef.current) {
+      scoreContainerRef.current.measure((x, y, width, height, pageX, pageY) => {
+        scoreLayoutRef.current = {
+          x: pageX,
+          y: pageY,
+          width,
+          height,
+          centerX: pageX + width / 2,
+          centerY: pageY + height / 2
+        };
+      });
+    }
+  }, []);
+  
+  // Trigger position measurement on layout
+  useEffect(() => {
+    // Delay the measurement slightly to ensure all components are properly laid out
+    const timer = setTimeout(() => {
+      measureScorePosition();
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [measureScorePosition]);
+  
+  // Calculate the cell position based on row and column
+  const calculateCellPosition = useCallback((row, col) => {
+    // Get window dimensions to help with calculations
+    const windowWidth = Dimensions.get('window').width;
+    const windowHeight = Dimensions.get('window').height;
+    
+    // Estimate the grid position (this would be better with actual measurements)
+    // These are estimations and may need adjustment based on actual layout
+    const gridTopMargin = windowHeight * 0.15; // Estimated distance from top to grid
+    const gridCellSize = Math.min(windowWidth, windowHeight) / 11; // Estimated cell size
+    
+    // Calculate cell position (center of the cell)
+    const cellX = (windowWidth / 2 - gridCellSize * 4.5) + col * gridCellSize + gridCellSize / 2;
+    const cellY = gridTopMargin + row * gridCellSize + gridCellSize / 2;
+    
+    return { x: cellX, y: cellY };
+  }, []);
   
   // Trigger animation when score changes
   useEffect(() => {
@@ -37,17 +90,31 @@ const ScoreDisplay = () => {
       const pointsChange = score - prevScoreRef.current;
       setPointsAdded(pointsChange);
       
-      // Scale up animation for main score
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.2,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
+      // Set the initial value of countAnim to previous score
+      countAnim.setValue(prevScoreRef.current);
+      
+      // Create parallel animations
+      Animated.parallel([
+        // Scale up animation for main score
+        Animated.sequence([
+          Animated.timing(scaleAnim, {
+            toValue: 1.2,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scaleAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          })
+        ]),
+        
+        // Count up animation from previous score to new score
+        Animated.timing(countAnim, {
+          toValue: score,
+          duration: 800, // Count up over 800ms
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: false, // This animation can't use native driver as we need JS value
         })
       ]).start();
       
@@ -90,41 +157,34 @@ const ScoreDisplay = () => {
     
     // Update previous score reference
     prevScoreRef.current = score;
-  }, [score, scaleAnim, floatPositionAnim, floatOpacityAnim, theme.colors.title]);
+  }, [score, scaleAnim, floatPositionAnim, floatOpacityAnim, countAnim, theme.colors.title]);
   
-  // Effect to handle points animation from cells
+  // Update displayed score when animation value changes
   useEffect(() => {
-    // Check if we have a new scored cell
+    // Add listener to update displayed score as animation progresses
+    const listener = countAnim.addListener(({ value }) => {
+      // Round to nearest integer and update displayed score
+      setDisplayedScore(Math.round(value));
+    });
+    
+    // Clean up listener on unmount
+    return () => {
+      countAnim.removeListener(listener);
+    };
+  }, [countAnim]);
+  
+  // We no longer need this effect as cell animations are handled by CellScoreAnimation
+  // Just keep track of the last scored cell for reference
+  useEffect(() => {
     if (lastScoredCell && 
         (!lastScoredCellRef.current || 
          lastScoredCell.row !== lastScoredCellRef.current.row || 
          lastScoredCell.col !== lastScoredCellRef.current.col)) {
       
-      // Save the points that were scored
-      setCellPoints(lastScoredCell.points);
-      
-      // Reset animations
-      cellToScoreAnim.setValue(0);
-      cellOpacityAnim.setValue(1);
-      
-      // Run cell-to-score animation
-      Animated.timing(cellToScoreAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }).start();
-      
-      // Fade out gradually
-      Animated.timing(cellOpacityAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }).start();
-      
-      // Update reference
+      // Update the reference only
       lastScoredCellRef.current = lastScoredCell;
     }
-  }, [lastScoredCell, cellToScoreAnim, cellOpacityAnim]);
+  }, [lastScoredCell]);
   
   // Calculate floating points transform based on animation progress
   const floatingPointsTranslateY = floatPositionAnim.interpolate({
@@ -137,28 +197,13 @@ const ScoreDisplay = () => {
     outputRange: [0.8, 1.2, 1]
   });
   
-  // Calculate cell-to-score animation path
-  // This assumes the cell is roughly below and to the right of the score display
-  const cellPointsTranslateX = cellToScoreAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [100, 0], // Adjust based on your layout
-  });
-  
-  const cellPointsTranslateY = cellToScoreAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [100, 0], // Adjust based on your layout
-  });
-  
-  const cellPointsScale = cellToScoreAnim.interpolate({
-    inputRange: [0, 0.7, 1],
-    outputRange: [0.8, 1.2, 1],
-  });
-  
   return (
-    <View style={styles.scoreContainer}>
-      <Text style={styles.scoreLabel}>SCORE</Text>
-      
-      <View style={[styles.scoreBadge, { backgroundColor: theme.colors.numberPad.border }]}>
+    <View ref={scoreContainerRef} onLayout={measureScorePosition}>
+      <LabeledBadge 
+        label="SCORE"
+        theme={theme}
+        containerStyle={styles.badgeContainer}
+      >
         <View style={styles.scoreTextContainer}>
           {/* Floating points animation (from score) */}
           {pointsAdded > 0 && (
@@ -179,61 +224,28 @@ const ScoreDisplay = () => {
             </Animated.Text>
           )}
           
-          {/* Points flying from cell to score */}
-          {cellPoints > 0 && (
-            <Animated.Text
-              style={[
-                styles.cellPoints,
-                {
-                  opacity: cellOpacityAnim,
-                  transform: [
-                    { translateX: cellPointsTranslateX },
-                    { translateY: cellPointsTranslateY },
-                    { scale: cellPointsScale }
-                  ],
-                  color: '#4CAF50' // Always show in green
-                }
-              ]}
-            >
-              +{cellPoints}
-            </Animated.Text>
-          )}
-          
           {/* Main score display */}
           <Animated.Text 
             style={[
               styles.scoreText,
               { 
-                color: theme.colors.numberPad.text, // Match button text color
+                color: theme.colors.numberPad.text,
                 transform: [{ scale: scaleAnim }]
               }
             ]}
           >
-            {formatScore(score)}
+            {formatScore(displayedScore)}
           </Animated.Text>
         </View>
-      </View>
+      </LabeledBadge>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  scoreContainer: {
+  badgeContainer: {
     alignItems: 'center',
     justifyContent: 'flex-start',
-  },
-  scoreBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6, // Smaller corner radius for button-like feel
-    marginTop: 2,
-    elevation: 1, // Light shadow for Android
-    shadowColor: '#000', // Shadow for iOS
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1,
-    minWidth: 80, // Match width with timer badge
-    height: 36, // Fixed height to match other badges
   },
   scoreTextContainer: {
     alignItems: 'center',
@@ -246,6 +258,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     letterSpacing: 1,
+    fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
   },
   floatingPoints: {
     position: 'absolute',
@@ -262,16 +275,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     color: '#4CAF50',
-    zIndex: 10, // Ensure it appears above other elements
-  },
-  scoreLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    marginBottom: 2,
-    color: '#666', // Subtle color for label
-    alignSelf: 'center', // Center align like the timer label
-  },
+    zIndex: 10,
+  }
 });
 
 export default ScoreDisplay;

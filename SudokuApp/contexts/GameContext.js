@@ -354,7 +354,12 @@ function gameReducer(state, action) {
           scoredCells[cellKey] = moveScore;
           
           // Save the position of the last scored cell for animations
-          state.lastScoredCell = { row, col, points: moveScore };
+          // Clone the object to ensure we're creating a new reference that will trigger useEffect
+          state.lastScoredCell = { 
+            row, 
+            col, 
+            points: moveScore 
+          };
         }
         
         // Always update timestamp for next move
@@ -388,8 +393,14 @@ function gameReducer(state, action) {
           scoredCells[cellKey] += completionBonus;
           
           // Update the points in the last scored cell for animations
+          // Create a new object to ensure the reference changes and triggers useEffect
           if (state.lastScoredCell) {
-            state.lastScoredCell.points += completionBonus;
+            const currentPoints = state.lastScoredCell.points;
+            // Replace with a new object to ensure reference changes
+            state.lastScoredCell = {
+              ...state.lastScoredCell,
+              points: currentPoints + completionBonus
+            };
           }
         }
       } else if (value === 0) {
@@ -964,6 +975,43 @@ export const GameProvider = ({ children }) => {
     state.filledCount = filledCount;
   };
   
+  // Debug cheat mode to add notes with correct numbers
+  const debugCheatMode = () => {
+    // Don't proceed if no solution board is available
+    if (!state.solutionBoard || !state.board) return;
+    
+    // Create a new notes object
+    const newNotes = { ...state.cellNotes };
+    
+    // For each empty cell, add the correct number as a note
+    state.board.forEach((row, rowIndex) => {
+      row.forEach((cell, colIndex) => {
+        // Only process empty cells that aren't initial cells
+        const cellKey = `${rowIndex}-${colIndex}`;
+        if (cell === 0 && !state.initialCells.includes(cellKey)) {
+          // Get the correct value from the solution
+          const correctValue = state.solutionBoard[rowIndex][colIndex];
+          
+          // If there are already notes for this cell, add the correct number if not already present
+          if (newNotes[cellKey]) {
+            if (!newNotes[cellKey].includes(correctValue)) {
+              newNotes[cellKey] = [...newNotes[cellKey], correctValue];
+            }
+          } else {
+            // Otherwise, create a new note with just the correct value
+            newNotes[cellKey] = [correctValue];
+          }
+        }
+      });
+    });
+    
+    // Update the cell notes in the state
+    dispatch({
+      type: ACTIONS.RESTORE_SAVED_GAME,
+      payload: { cellNotes: newNotes }
+    });
+  };
+  
   // Cycle through available themes
   const cycleTheme = () => {
     const themeKeys = Object.keys(SUDOKU_THEMES);
@@ -1002,6 +1050,7 @@ export const GameProvider = ({ children }) => {
     formatTime,
     cycleTheme,
     debugFillBoard,
+    debugCheatMode,
     getLastScoreChange,
     lastScoredCell: state.lastScoredCell,
   };

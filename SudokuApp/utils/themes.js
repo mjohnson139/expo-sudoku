@@ -40,6 +40,10 @@ export const SUDOKU_THEMES = {
         clearButton: '#ffe0e0',
         notesBackground: '#e6f2fd', // Light blue background for notes mode
       },
+      badge: {
+        background: '#d8d8d8', // Slightly darker than numberPad background for better visibility
+        text: '#333333'
+      },
       difficulty: {
         easy: '#d4edda',    // Green for easy
         medium: '#ffeeba',  // Yellow for medium
@@ -87,6 +91,10 @@ export const SUDOKU_THEMES = {
         shadow: '#000000',
         clearButton: '#b71c1c',
         notesBackground: '#263c5a', // Darker blue background for notes mode
+      },
+      badge: {
+        background: '#444444', // Slightly lighter than default dark background for contrast
+        text: '#ffffff'
       },
       difficulty: {
         easy: '#1c4a23',    // Dark green for easy
@@ -136,6 +144,10 @@ export const SUDOKU_THEMES = {
         clearButton: '#ffd6d6',
         notesBackground: '#e6eef7', // Soft blue background for notes mode
       },
+      badge: {
+        background: '#d0d8e6', // Using a soft pastel blue for badges
+        text: '#5b6a87'
+      },
       difficulty: {
         easy: '#d4edda',    // Green for easy
         medium: '#ffeeba',  // Yellow for medium
@@ -183,6 +195,10 @@ export const SUDOKU_THEMES = {
         shadow: '#ffcc80',
         clearButton: '#ffab91',
         notesBackground: '#fff0d9', // Light orange background for notes mode
+      },
+      badge: {
+        background: '#ffcc80', // Warmer orange tone for sunset theme badges
+        text: '#e65100'
       },
       difficulty: {
         easy: '#d4edda',    // Green for easy
@@ -232,6 +248,10 @@ export const SUDOKU_THEMES = {
         clearButton: '#f1c40f',
         notesBackground: '#fdf1e0', // Light orange background for notes mode
       },
+      badge: {
+        background: '#f7cdb5', // Soft peachy tone for sunrise theme badges
+        text: '#d35400'
+      },
       difficulty: {
         easy: '#d4edda',    // Green for easy
         medium: '#ffeeba',  // Yellow for medium
@@ -279,6 +299,10 @@ export const SUDOKU_THEMES = {
         shadow: '#4fc3f7',
         clearButton: '#80deea',
         notesBackground: '#dbf0fa', // Light blue background for notes mode
+      },
+      badge: {
+        background: '#81d4fa', // Slightly deeper blue for badges in ocean theme
+        text: '#01579b'
       },
       difficulty: {
         easy: '#d4edda',    // Green for easy
@@ -328,6 +352,10 @@ export const SUDOKU_THEMES = {
         clearButton: '#7986cb',
         notesBackground: '#3a3558', // Dark purple background for notes mode
       },
+      badge: {
+        background: '#5a5178', // Slightly lighter purple for badges in twilight theme
+        text: '#b39ddb'
+      },
       difficulty: {
         easy: '#1c4a23',    // Dark green for easy
         medium: '#93702a',  // Dark gold for medium
@@ -337,5 +365,19 @@ export const SUDOKU_THEMES = {
     }
   }
 };
+
+const badgeStyle = {
+  borderRadius: 3, // Smaller corner radius for button-like feel
+  marginTop: 0,
+  elevation: 1, // Light shadow for Android
+  shadowColor: '#000', // Shadow for iOS
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.4,
+  shadowRadius: 1,
+  minWidth: 90, // Minimum width for badges - consistent with LabeledBadge.js
+  height: 30, // Fixed height for badges
+};
+
+export const BADGE_STYLE = badgeStyle; // Export badge style for reuse
 
 export default SUDOKU_THEMES;

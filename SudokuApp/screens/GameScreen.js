@@ -56,29 +56,31 @@ const GameScreenContent = () => {
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       {/* Header with menu button, title, theme selector */}
-      <GameHeader />
+        <GameHeader />
 
-      {/* Top strip with Timer (right) */}
-      <GameTopStrip style={{ marginTop: 12 }} />
+        {/* Top strip with Timer (right) */}
+        <View style={{ width: gridContainerSize }}>
+          <GameTopStrip style={{ marginTop: 12 }} />
+        </View>
 
-      {/* Game board */}
-      <View style={{
-        width: gridContainerSize,
-        height: gridContainerSize
-      }}>
-        <Grid
-          board={board}
-          onCellPress={handleCellPress}
-          selectedCell={selectedCell}
-          initialCells={initialCells}
-          theme={theme}
-          showFeedback={showFeedback}
-          cellFeedback={cellFeedback}
-          cellNotes={cellNotes}
-        />
-      </View>
+        {/* Game board */}
+        <View style={{
+          width: gridContainerSize,
+          height: gridContainerSize
+        }}>
+          <Grid
+            board={board}
+            onCellPress={handleCellPress}
+            selectedCell={selectedCell}
+            initialCells={initialCells}
+            theme={theme}
+            showFeedback={showFeedback}
+            cellFeedback={cellFeedback}
+            cellNotes={cellNotes}
+          />
+        </View>
 
-      {/* Game options (feedback toggle and theme selector) */}
+        {/* Game options (feedback toggle and theme selector) */}
       <GameOptions />
 
       {/* Game toolbar (undo, notes toggle, redo) */}

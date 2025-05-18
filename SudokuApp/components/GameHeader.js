@@ -2,6 +2,11 @@ import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { useGameContext } from '../contexts/GameContext';
 import { ACTIONS } from '../contexts/GameContext';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+
+// Constants for consistent sizes
+const ICON_SIZE = 24;
+const ICON_SIZE_SMALL = 16;
 
 /**
  * GameHeader component containing menu button, title and theme selector
@@ -25,7 +30,11 @@ const GameHeader = () => {
             accessibilityRole="button"
             accessibilityHint="Opens the game menu with settings and options"
           >
-            <Text style={{ color: theme.colors.title, fontSize: 18 }}>☰</Text>
+            <MaterialCommunityIcons 
+              name="menu" 
+              size={ICON_SIZE} 
+              color={theme.colors.title} 
+            />
           </TouchableOpacity>
         </View>
 
@@ -43,9 +52,17 @@ const GameHeader = () => {
             accessibilityRole="button"
             accessibilityHint="Cycles through available color themes"
           >
-            <Text style={[styles.themeButtonText, { color: theme.colors.title }]}>
-              🎨 {theme.name}
-            </Text>
+            <View style={styles.themeButtonContent}>
+              <MaterialCommunityIcons 
+                name="palette" 
+                size={ICON_SIZE} 
+                color={theme.colors.title}
+                style={styles.themeIcon} 
+              />
+              <Text style={[styles.themeButtonText, { color: theme.colors.title }]}>
+                {theme.name}
+              </Text>
+            </View>
           </TouchableOpacity>
         </View>
       </View>
@@ -85,11 +102,20 @@ const styles = StyleSheet.create({
   themeButton: {
     paddingVertical: 3,
     paddingHorizontal: 8,
-    borderRadius: 10,
+    borderRadius: 5,
     borderWidth: 1,
+    width: 90,
   },
   themeButtonText: {
     fontSize: 12,
+  },
+  themeButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-start', // Align icon and text to the left
+  },
+  themeIcon: {
+    marginRight: 4,
   },
   menuIcon: {
     paddingVertical: 3,
