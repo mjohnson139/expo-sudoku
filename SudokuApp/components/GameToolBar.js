@@ -37,7 +37,6 @@ const GameToolBar = () => {
       <TouchableOpacity
         style={[
           styles.toolbarButton, 
-          styles.toolbarButtonLeft, 
           { opacity: canUndo ? 1 : 0.5, borderColor: theme.colors.title }
         ]}
         onPress={handleUndo}
@@ -50,7 +49,6 @@ const GameToolBar = () => {
       <TouchableOpacity 
         style={[
           styles.toolbarButton, 
-          styles.toolbarButtonMiddle, 
           { 
             borderColor: theme.colors.title,
             backgroundColor: notesMode 
@@ -67,7 +65,6 @@ const GameToolBar = () => {
       <TouchableOpacity
         style={[
           styles.toolbarButton, 
-          styles.toolbarButtonRight, 
           { opacity: canRedo ? 1 : 0.5, borderColor: theme.colors.title }
         ]}
         onPress={handleRedo}
@@ -85,21 +82,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 10,
-    // Remove border/background from container, let buttons create the bar look
+    // Space out the buttons
     borderWidth: 0,
     backgroundColor: 'transparent',
-    gap: 0,
+    gap: 16, // Add gap between buttons
   },
   toolbarButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 0,
+    width: 46,
+    height: 46,
+    borderRadius: 10, // Square with rounded corners
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#bbb',
     backgroundColor: '#f5f5f5',
-    marginHorizontal: 0,
     // Raised effect
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -107,25 +103,9 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 4,
     // Always show border, even when disabled
-    // (no opacity or borderColor changes for disabled state)
   },
   toolbarButtonActive: {
     backgroundColor: '#e6f2fd', // subtle highlight for active (notes)
-  },
-  toolbarButtonLeft: {
-    borderTopLeftRadius: 10,
-    borderBottomLeftRadius: 10,
-    borderRightWidth: 0,
-  },
-  toolbarButtonMiddle: {
-    borderRadius: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-  },
-  toolbarButtonRight: {
-    borderTopRightRadius: 10,
-    borderBottomRightRadius: 10,
-    borderLeftWidth: 0,
   },
 });
 
