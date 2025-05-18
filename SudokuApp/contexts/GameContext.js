@@ -354,7 +354,12 @@ function gameReducer(state, action) {
           scoredCells[cellKey] = moveScore;
           
           // Save the position of the last scored cell for animations
-          state.lastScoredCell = { row, col, points: moveScore };
+          // Clone the object to ensure we're creating a new reference that will trigger useEffect
+          state.lastScoredCell = { 
+            row, 
+            col, 
+            points: moveScore 
+          };
         }
         
         // Always update timestamp for next move
@@ -388,8 +393,14 @@ function gameReducer(state, action) {
           scoredCells[cellKey] += completionBonus;
           
           // Update the points in the last scored cell for animations
+          // Create a new object to ensure the reference changes and triggers useEffect
           if (state.lastScoredCell) {
-            state.lastScoredCell.points += completionBonus;
+            const currentPoints = state.lastScoredCell.points;
+            // Replace with a new object to ensure reference changes
+            state.lastScoredCell = {
+              ...state.lastScoredCell,
+              points: currentPoints + completionBonus
+            };
           }
         }
       } else if (value === 0) {

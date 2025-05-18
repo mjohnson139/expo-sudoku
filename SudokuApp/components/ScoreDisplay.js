@@ -14,9 +14,8 @@ const ScoreDisplay = () => {
   const floatPositionAnim = useRef(new Animated.Value(0)).current;
   const floatOpacityAnim = useRef(new Animated.Value(0)).current;
   
-  // Animation for points coming from cells
-  const cellToScoreAnim = useRef(new Animated.Value(0)).current;
-  const cellOpacityAnim = useRef(new Animated.Value(0)).current;
+  // We no longer need these animations as they're handled by the CellScoreAnimation component
+  // Keeping the refs defined but unused to avoid breaking code
   
   // Refs for position measuring
   const scoreContainerRef = useRef();
@@ -141,55 +140,18 @@ const ScoreDisplay = () => {
     prevScoreRef.current = score;
   }, [score, scaleAnim, floatPositionAnim, floatOpacityAnim, theme.colors.title]);
   
-  // Effect to handle points animation from cells
+  // We no longer need this effect as cell animations are handled by CellScoreAnimation
+  // Just keep track of the last scored cell for reference
   useEffect(() => {
-    // Check if we have a new scored cell
     if (lastScoredCell && 
         (!lastScoredCellRef.current || 
          lastScoredCell.row !== lastScoredCellRef.current.row || 
          lastScoredCell.col !== lastScoredCellRef.current.col)) {
       
-      // Save the points that were scored
-      setCellPoints(lastScoredCell.points);
-      
-      // Calculate the cell position
-      const cellPos = calculateCellPosition(lastScoredCell.row, lastScoredCell.col);
-      
-      // Calculate relative position for animation
-      // This is the distance from the cell to the score container
-      const scorePos = scoreLayoutRef.current;
-      
-      // Adjust position relative to the score container
-      const relX = cellPos.x - scorePos.x - scorePos.width / 2;
-      const relY = cellPos.y - scorePos.y - scorePos.height / 2;
-      
-      // Set animation starting position
-      setCellAnimPosition({ startX: relX, startY: relY });
-      
-      // Reset animations
-      cellToScoreAnim.setValue(0);
-      cellOpacityAnim.setValue(1);
-      
-      // Run cell-to-score animation with easing for more natural movement
-      Animated.timing(cellToScoreAnim, {
-        toValue: 1,
-        duration: 1000, // Slightly longer for a more visible animation
-        useNativeDriver: true,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1), // Cubic bezier for smooth animation
-      }).start();
-      
-      // Fade out gradually, but keep visible longer during the arc
-      Animated.timing(cellOpacityAnim, {
-        toValue: 0,
-        duration: 1000, // Match the duration of the position animation
-        useNativeDriver: true,
-        easing: Easing.linear, // Linear fade for consistent visibility
-      }).start();
-      
-      // Update reference
+      // Update the reference only
       lastScoredCellRef.current = lastScoredCell;
     }
-  }, [lastScoredCell, cellToScoreAnim, cellOpacityAnim, calculateCellPosition]);
+  }, [lastScoredCell]);
   
   // Calculate floating points transform based on animation progress
   const floatingPointsTranslateY = floatPositionAnim.interpolate({
@@ -202,40 +164,8 @@ const ScoreDisplay = () => {
     outputRange: [0.8, 1.2, 1]
   });
   
-  // Calculate cell-to-score animation path with a curved trajectory
-  const cellPointsTranslateX = cellToScoreAnim.interpolate({
-    inputRange: [0, 0.4, 0.7, 1],
-    // Add a slight curve to the x-axis movement
-    outputRange: [
-      cellAnimPosition.startX, 
-      cellAnimPosition.startX * 0.8, 
-      cellAnimPosition.startX * 0.3, 
-      0
-    ],
-  });
-  
-  const cellPointsTranslateY = cellToScoreAnim.interpolate({
-    inputRange: [0, 0.3, 0.6, 1],
-    // Create a curved, arc-like path with a slight "bounce" effect
-    outputRange: [
-      cellAnimPosition.startY,
-      cellAnimPosition.startY * 0.7 - 10, // Move slightly above direct path
-      cellAnimPosition.startY * 0.3 - 20, // Continue arc
-      0
-    ],
-  });
-  
-  const cellPointsScale = cellToScoreAnim.interpolate({
-    inputRange: [0, 0.5, 0.8, 1],
-    // Scale up during the middle of the animation, then normalize at destination
-    outputRange: [0.8, 1.1, 1.3, 1],
-  });
-  
-  // Add a rotation effect for more visual interest
-  const cellPointsRotate = cellToScoreAnim.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: ['0deg', '10deg', '0deg'],
-  });
+  // We no longer need these cell animation interpolations
+  // They're handled by the CellScoreAnimation component
   
   return (
     <View 
@@ -266,26 +196,7 @@ const ScoreDisplay = () => {
             </Animated.Text>
           )}
           
-          {/* Points flying from cell to score */}
-          {cellPoints > 0 && (
-            <Animated.Text
-              style={[
-                styles.cellPoints,
-                {
-                  opacity: cellOpacityAnim,
-                  transform: [
-                    { translateX: cellPointsTranslateX },
-                    { translateY: cellPointsTranslateY },
-                    { scale: cellPointsScale },
-                    { rotate: cellPointsRotate }
-                  ],
-                  color: '#4CAF50' // Always show in green
-                }
-              ]}
-            >
-              +{cellPoints}
-            </Animated.Text>
-          )}
+          {/* Points animation is now handled by CellScoreAnimation component */}
           
           {/* Main score display */}
           <Animated.Text 

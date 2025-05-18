@@ -1,6 +1,7 @@
 import React, { useMemo, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Platform, Dimensions } from 'react-native';
 import Cell from './Cell';
+import CellScoreAnimation from './CellScoreAnimation';
 
 const Grid = ({ 
   board, 
@@ -152,6 +153,7 @@ const Grid = ({
       ]}
     >
       {renderedRows}
+      <CellScoreAnimation />
     </View>
   );
 };
