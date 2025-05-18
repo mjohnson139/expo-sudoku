@@ -145,7 +145,7 @@ const GameMenuModal = () => {
           {/* Feedback toggle added to menu */}
           <View style={styles.feedbackControl}>
             <Text style={[styles.feedbackLabel, { color: theme.colors.title }]}>
-              Show Feedback
+              Show Mistakes
             </Text>
             <Switch
               value={showFeedback}
