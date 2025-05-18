@@ -94,18 +94,17 @@ const GameToolBar = () => {
         />
       </TouchableOpacity>
       
-      {/* Pause Button */}
+      {/* Pause/Play Button - toggles between icons */}
       <TouchableOpacity 
         style={[
           styles.toolbarButton, 
           { borderColor: theme.colors.title }
         ]} 
         onPress={handlePausePress}
-        disabled={isPaused}
-        accessibilityLabel="Pause Game"
+        accessibilityLabel={isPaused ? "Resume Game" : "Pause Game"}
       >
         <MaterialCommunityIcons 
-          name="pause" 
+          name={isPaused ? "play" : "pause"} 
           size={24} 
           color={theme.colors.title} 
         />

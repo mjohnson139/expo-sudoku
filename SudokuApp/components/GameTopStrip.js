@@ -9,7 +9,7 @@ import DifficultyBadge from './DifficultyBadge';
  * Component that displays the top strip with:
  * - Score on the left
  * - Difficulty level badge in the center
- * - Timer and pause button on the right
+ * - Timer on the right
  * Width matches the header for visual consistency
  */
 const GameTopStrip = ({ style }) => {
@@ -27,7 +27,7 @@ const GameTopStrip = ({ style }) => {
         <DifficultyBadge />
       </View>
 
-      {/* Right section: Timer and pause button */}
+      {/* Right section: Timer */}
       <View style={styles.rightSection}>
         <GameTimer />
       </View>
