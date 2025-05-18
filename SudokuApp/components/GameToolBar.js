@@ -56,6 +56,23 @@ const GameToolBar = () => {
         />
       </TouchableOpacity>
       
+      {/* Redo Button - Moved next to Undo */}
+      <TouchableOpacity
+        style={[
+          styles.toolbarButton, 
+          { opacity: canRedo ? 1 : 0.5, borderColor: theme.colors.title }
+        ]}
+        onPress={handleRedo}
+        disabled={!canRedo}
+        accessibilityLabel="Redo"
+      >
+        <MaterialCommunityIcons 
+          name="redo-variant" 
+          size={24} 
+          color={theme.colors.title} 
+        />
+      </TouchableOpacity>
+      
       {/* Notes Button */}
       <TouchableOpacity 
         style={[
@@ -89,23 +106,6 @@ const GameToolBar = () => {
       >
         <MaterialCommunityIcons 
           name="pause" 
-          size={24} 
-          color={theme.colors.title} 
-        />
-      </TouchableOpacity>
-      
-      {/* Redo Button */}
-      <TouchableOpacity
-        style={[
-          styles.toolbarButton, 
-          { opacity: canRedo ? 1 : 0.5, borderColor: theme.colors.title }
-        ]}
-        onPress={handleRedo}
-        disabled={!canRedo}
-        accessibilityLabel="Redo"
-      >
-        <MaterialCommunityIcons 
-          name="redo-variant" 
           size={24} 
           color={theme.colors.title} 
         />
