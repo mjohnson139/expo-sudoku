@@ -4,6 +4,9 @@ import { useGameContext } from '../contexts/GameContext';
 import { ACTIONS } from '../contexts/GameContext';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
+// Constants for consistent sizes
+const ICON_SIZE = 24;
+
 /**
  * GameToolBar component containing game control buttons
  * Includes: undo, notes mode toggle, pause, and redo buttons
@@ -52,7 +55,7 @@ const GameToolBar = () => {
       >
         <MaterialCommunityIcons 
           name="undo-variant" 
-          size={24} 
+          size={ICON_SIZE} 
           color={theme.colors.title} 
         />
       </TouchableOpacity>
@@ -69,7 +72,7 @@ const GameToolBar = () => {
       >
         <MaterialCommunityIcons 
           name="redo-variant" 
-          size={24} 
+          size={ICON_SIZE} 
           color={theme.colors.title} 
         />
       </TouchableOpacity>
@@ -92,7 +95,7 @@ const GameToolBar = () => {
       >
         <MaterialCommunityIcons 
           name="pencil" 
-          size={24} 
+          size={ICON_SIZE} 
           color={theme.colors.title} 
         />
       </TouchableOpacity>
@@ -112,7 +115,7 @@ const GameToolBar = () => {
       >
         <MaterialCommunityIcons 
           name={isPaused ? "play" : "pause"} 
-          size={24} 
+          size={ICON_SIZE} 
           color={theme.colors.title} 
         />
       </TouchableOpacity>

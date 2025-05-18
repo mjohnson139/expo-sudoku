@@ -18,7 +18,7 @@ const CellScoreAnimation = () => {
   const [animatedPoints, setAnimatedPoints] = useState(0);
   const [cellForAnim, setCellForAnim] = useState(null);
 
-  // Trigger animation when a new cell is scored
+  // Trigger animation when a new cell is scored - combined for better performance
   useEffect(() => {
     if (
       lastScoredCell &&
@@ -28,38 +28,44 @@ const CellScoreAnimation = () => {
     ) {
       setAnimatedPoints(lastScoredCell.points);
       setCellForAnim({ row: lastScoredCell.row, col: lastScoredCell.col });
-      // Reset anims
+      
+      // Reset animations
       floatPositionAnim.setValue(0);
       floatOpacityAnim.setValue(0);
-      // Start animation (same as ScoreDisplay)
-      Animated.timing(floatPositionAnim, {
-        toValue: 1,
-        duration: 1500,
-        useNativeDriver: true,
-      }).start(() => {
+      
+      // Run both animations in parallel for better performance
+      Animated.parallel([
+        Animated.timing(floatPositionAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.sequence([
+          Animated.timing(floatOpacityAnim, {
+            toValue: 1,
+            duration: 100,
+            useNativeDriver: true,
+          }),
+          Animated.timing(floatOpacityAnim, {
+            toValue: 0.7,
+            duration: 900,
+            useNativeDriver: true,
+          }),
+          Animated.timing(floatOpacityAnim, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: true,
+          })
+        ])
+      ]).start(() => {
+        // Reset all values after animation completes
         floatPositionAnim.setValue(0);
-        setAnimatedPoints(0); // Clear after anim
+        floatOpacityAnim.setValue(0);
+        setAnimatedPoints(0);
         setCellForAnim(null);
       });
-      Animated.sequence([
-        Animated.timing(floatOpacityAnim, {
-          toValue: 1,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatOpacityAnim, {
-          toValue: 0.7,
-          duration: 900,
-          useNativeDriver: true,
-        }),
-        Animated.timing(floatOpacityAnim, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        })
-      ]).start(() => {
-        floatOpacityAnim.setValue(0);
-      });
+      
+      // Update reference
       lastScoredCellRef.current = lastScoredCell;
     }
   }, [lastScoredCell, floatPositionAnim, floatOpacityAnim]);

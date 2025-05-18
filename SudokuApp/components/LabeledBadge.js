@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { BADGE_STYLE } from '../utils/themes';
 
@@ -32,12 +32,12 @@ const LabeledBadge = ({
     Math.max(minScale, maxTextWidth / contentWidth) : 
     1;
     
-  // Handle content size measurement
-  const onContentLayout = (event) => {
+  // Handle content size measurement with useCallback for better performance
+  const onContentLayout = useCallback((event) => {
     const { width } = event.nativeEvent.layout;
     setContentWidth(width);
     setIsOverflowing(width > maxTextWidth);
-  };
+  }, [maxTextWidth]);
 
   return (
     <View style={[styles.container, containerStyle]}>

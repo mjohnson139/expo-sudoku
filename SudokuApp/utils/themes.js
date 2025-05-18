@@ -346,7 +346,7 @@ const badgeStyle = {
   shadowOffset: { width: 0, height: 1 },
   shadowOpacity: 0.4,
   shadowRadius: 1,
-  width: 60, // Minimum width for badges
+  minWidth: 90, // Minimum width for badges - consistent with LabeledBadge.js
   height: 30, // Fixed height for badges
 };
 
