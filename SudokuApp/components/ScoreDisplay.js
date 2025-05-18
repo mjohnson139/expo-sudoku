@@ -14,6 +14,8 @@ const ScoreDisplay = () => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const floatPositionAnim = useRef(new Animated.Value(0)).current;
   const floatOpacityAnim = useRef(new Animated.Value(0)).current;
+  // New animated value for counting up effect - initialize with current score
+  const countAnim = useRef(new Animated.Value(score)).current;
   
   // We no longer need these animations as they're handled by the CellScoreAnimation component
   // Keeping the refs defined but unused to avoid breaking code
@@ -28,6 +30,8 @@ const ScoreDisplay = () => {
   const [cellPoints, setCellPoints] = useState(0);
   const [cellAnimPosition, setCellAnimPosition] = useState({ startX: 0, startY: 0 });
   const [scoreColor, setScoreColor] = useState(theme.colors.title || '#333333');
+  // State to hold the displayed score during animation
+  const [displayedScore, setDisplayedScore] = useState(score);
   
   // Format score with thousands separators
   const formatScore = (score) => {
@@ -86,17 +90,31 @@ const ScoreDisplay = () => {
       const pointsChange = score - prevScoreRef.current;
       setPointsAdded(pointsChange);
       
-      // Scale up animation for main score
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.2,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 200,
-          useNativeDriver: true,
+      // Set the initial value of countAnim to previous score
+      countAnim.setValue(prevScoreRef.current);
+      
+      // Create parallel animations
+      Animated.parallel([
+        // Scale up animation for main score
+        Animated.sequence([
+          Animated.timing(scaleAnim, {
+            toValue: 1.2,
+            duration: 200,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scaleAnim, {
+            toValue: 1,
+            duration: 200,
+            useNativeDriver: true,
+          })
+        ]),
+        
+        // Count up animation from previous score to new score
+        Animated.timing(countAnim, {
+          toValue: score,
+          duration: 800, // Count up over 800ms
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: false, // This animation can't use native driver as we need JS value
         })
       ]).start();
       
@@ -139,7 +157,21 @@ const ScoreDisplay = () => {
     
     // Update previous score reference
     prevScoreRef.current = score;
-  }, [score, scaleAnim, floatPositionAnim, floatOpacityAnim, theme.colors.title]);
+  }, [score, scaleAnim, floatPositionAnim, floatOpacityAnim, countAnim, theme.colors.title]);
+  
+  // Update displayed score when animation value changes
+  useEffect(() => {
+    // Add listener to update displayed score as animation progresses
+    const listener = countAnim.addListener(({ value }) => {
+      // Round to nearest integer and update displayed score
+      setDisplayedScore(Math.round(value));
+    });
+    
+    // Clean up listener on unmount
+    return () => {
+      countAnim.removeListener(listener);
+    };
+  }, [countAnim]);
   
   // We no longer need this effect as cell animations are handled by CellScoreAnimation
   // Just keep track of the last scored cell for reference
@@ -202,7 +234,7 @@ const ScoreDisplay = () => {
               }
             ]}
           >
-            {formatScore(score)}
+            {formatScore(displayedScore)}
           </Animated.Text>
         </View>
       </LabeledBadge>
