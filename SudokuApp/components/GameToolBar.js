@@ -15,7 +15,8 @@ const GameToolBar = () => {
     dispatch,
     undoStack,
     redoStack,
-    isPaused
+    isPaused,
+    gameCompleted
   } = useGameContext();
 
   const handleUndo = () => {
@@ -34,8 +35,8 @@ const GameToolBar = () => {
     dispatch({ type: ACTIONS.PAUSE_GAME });
   };
 
-  const canUndo = undoStack.length > 0;
-  const canRedo = redoStack.length > 0;
+  const canUndo = undoStack.length > 0 && !gameCompleted;
+  const canRedo = redoStack.length > 0 && !gameCompleted;
 
   return (
     <View style={[styles.toolbar, { borderColor: theme.colors.title }]}> 
@@ -78,6 +79,7 @@ const GameToolBar = () => {
         style={[
           styles.toolbarButton, 
           { 
+            opacity: gameCompleted ? 0.5 : 1,
             borderColor: theme.colors.title,
             backgroundColor: notesMode 
               ? styles.toolbarButtonActive.backgroundColor 
@@ -85,6 +87,7 @@ const GameToolBar = () => {
           }
         ]} 
         onPress={handleToggleNotesMode}
+        disabled={gameCompleted}
         accessibilityLabel="Toggle Notes Mode"
       >
         <MaterialCommunityIcons 
@@ -98,9 +101,13 @@ const GameToolBar = () => {
       <TouchableOpacity 
         style={[
           styles.toolbarButton, 
-          { borderColor: theme.colors.title }
+          { 
+            opacity: gameCompleted ? 0.5 : 1,
+            borderColor: theme.colors.title 
+          }
         ]} 
         onPress={handlePausePress}
+        disabled={gameCompleted}
         accessibilityLabel={isPaused ? "Resume Game" : "Pause Game"}
       >
         <MaterialCommunityIcons 
