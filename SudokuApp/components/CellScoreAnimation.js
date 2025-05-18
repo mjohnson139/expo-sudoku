@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Text, StyleSheet, Dimensions } from 'react-native';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { Animated, Text, StyleSheet, Dimensions, Platform } from 'react-native';
 import { useGameContext } from '../contexts/GameContext';
 
 /**
@@ -33,8 +33,29 @@ const CellScoreAnimation = () => {
       floatPositionAnim.setValue(0);
       floatOpacityAnim.setValue(0);
       
-      // Run both animations in parallel for better performance
-      Animated.parallel([
+      // Different animation configuration for Android to improve performance
+      if (Platform.OS === 'android') {
+        // Simplified animation for Android - just position, no opacity changes
+        Animated.timing(floatPositionAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }).start(() => {
+          // Reset values after animation completes
+          floatPositionAnim.setValue(0);
+          floatOpacityAnim.setValue(0);
+          setAnimatedPoints(0);
+          setCellForAnim(null);
+        });
+        
+        // Set opacity directly for Android instead of animating it
+        floatOpacityAnim.setValue(0.9);
+        setTimeout(() => {
+          floatOpacityAnim.setValue(0);
+        }, 1400);
+      } else {
+        // iOS animation - run both animations in parallel for better performance
+        Animated.parallel([
         Animated.timing(floatPositionAnim, {
           toValue: 1,
           duration: 1500,
@@ -64,6 +85,7 @@ const CellScoreAnimation = () => {
         setAnimatedPoints(0);
         setCellForAnim(null);
       });
+      }
       
       // Update reference
       lastScoredCellRef.current = lastScoredCell;
@@ -126,9 +148,12 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     width: '100%',
     // Remove top: -18, so it starts at the cell center
-    textShadowColor: 'rgba(255,255,255,0.8)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 2,
+    // Platform-specific shadows: remove textShadow on Android for better performance
+    ...(Platform.OS === 'android' ? {} : {
+      textShadowColor: 'rgba(255,255,255,0.8)',
+      textShadowOffset: { width: 0, height: 0 },
+      textShadowRadius: 2,
+    }),
   },
 });
 

@@ -5,17 +5,41 @@ export const STORAGE_KEY = '@SudokuGame';
 export const STORAGE_VERSION = 2; // Incremented to handle addition of gameCompleted flag
 
 /**
- * Debounce function to limit the frequency of calls
+ * Debounce function with flush capability for limiting the frequency of calls
  * @param {Function} func - The function to debounce
  * @param {number} wait - The wait time in milliseconds
- * @returns {Function} - The debounced function
+ * @returns {Function} - The debounced function with flush method
  */
 const debounce = (func, wait) => {
   let timeout;
-  return (...args) => {
+  let lastArgs = null;
+  
+  // Create the debounced function
+  const debounced = (...args) => {
+    lastArgs = args;
     clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
+    timeout = setTimeout(() => {
+      func(...lastArgs);
+      lastArgs = null;
+    }, wait);
   };
+  
+  // Add flush method to allow forcing execution
+  debounced.flush = () => {
+    if (timeout && lastArgs) {
+      clearTimeout(timeout);
+      func(...lastArgs);
+      lastArgs = null;
+    }
+  };
+  
+  // Add cancel method to prevent execution
+  debounced.cancel = () => {
+    clearTimeout(timeout);
+    lastArgs = null;
+  };
+  
+  return debounced;
 };
 
 /**
@@ -32,6 +56,9 @@ export const stripTransient = (state) => {
     showWinModal,
     showBuildNotes,
     timerActive,
+    // Large objects that don't need to be persisted or can be recalculated
+    cellRelations, // This is a large object that can be recalculated
+    lastScoredCell, // Temporary animation state
     // Keep gameCompleted in persistentState
     
     // Don't clone these as they'll be regenerated when needed
@@ -105,13 +132,29 @@ export const saveState = debounce(async (state) => {
       return;
     }
     
+    // Avoid expensive operations during active interaction
+    if (state.lastInteractionTimestamp && 
+        Date.now() - state.lastInteractionTimestamp < 300) {
+      // Too close to user interaction, reschedule save
+      saveState(state); // Re-call debounced function which resets the timer
+      return;
+    }
+    
     // Strip temporary UI state and add version
     const persistentState = stripTransient(state);
     
-    // Save to AsyncStorage
-    const serializedState = JSON.stringify(persistentState);
-    await AsyncStorage.setItem(STORAGE_KEY, serializedState);
+    // Save to AsyncStorage - use requestAnimationFrame to ensure UI is updated first
+    if (typeof requestAnimationFrame !== 'undefined') {
+      requestAnimationFrame(async () => {
+        const serializedState = JSON.stringify(persistentState);
+        await AsyncStorage.setItem(STORAGE_KEY, serializedState);
+      });
+    } else {
+      // Fallback for environments without requestAnimationFrame
+      const serializedState = JSON.stringify(persistentState);
+      await AsyncStorage.setItem(STORAGE_KEY, serializedState);
+    }
   } catch (error) {
     console.error('Error saving game state:', error);
   }
-}, 500); // Debounce for 500ms
+}, 1000); // Increased debounce to 1000ms for better performance

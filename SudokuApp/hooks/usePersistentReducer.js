@@ -1,5 +1,5 @@
-import { useReducer, useEffect, useState, useRef } from 'react';
-import { AppState } from 'react-native';
+import { useReducer, useEffect, useState, useRef, useCallback } from 'react';
+import { AppState, InteractionManager, Platform } from 'react-native';
 import { loadState, saveState } from '../utils/storage';
 
 /**
@@ -24,32 +24,74 @@ const usePersistentReducer = (reducer, initialState, actionType) => {
   
   // Create a wrapper reducer that will save state changes
   const persistentReducer = (state, action) => {
+    // Determine if this is an interaction-critical action that needs immediate UI update
+    // On Android, treat almost all actions as UI-critical for better responsiveness
+    const isInteractionCritical = Platform.OS === 'android' ? 
+      // On Android, only a few actions should trigger deferred updates
+      !['START_GAME', 'TICK_TIMER', 'RESTORE_SAVED_GAME'].includes(action.type) :
+      // On iOS, use the original selective list
+      [
+        'SELECT_CELL',
+        'TOGGLE_NOTES_MODE',
+        'PAUSE_GAME',
+        'RESUME_GAME',
+        'SHOW_MENU',
+        'HIDE_MENU',
+        'SHOW_WIN_MODAL',
+        'HIDE_WIN_MODAL'
+      ].includes(action.type);
+    
     // Call the original reducer
     const newState = reducerRef.current(state, action);
     
-    // Save the new state (debounced in the storage utility)
-    saveState(newState);
-    
-    return newState;
+    // For interaction-critical actions, defer saving to after UI update
+    if (isInteractionCritical) {
+      // Add timestamp for optimization in saveState
+      const stateWithTimestamp = {
+        ...newState,
+        lastInteractionTimestamp: Date.now()
+      };
+      
+      // On Android, use a longer delay to ensure UI is fully updated
+      if (Platform.OS === 'android') {
+        // Longer timeout for Android
+        setTimeout(() => {
+          saveState(stateWithTimestamp);
+        }, 300);
+      } else {
+        // Use InteractionManager on iOS
+        InteractionManager.runAfterInteractions(() => {
+          saveState(stateWithTimestamp);
+        });
+      }
+      
+      return stateWithTimestamp;
+    } else {
+      // For non-critical actions, save normally (still debounced in storage.js)
+      saveState(newState);
+      return newState;
+    }
   };
   
   // Initialize with the provided initial state
   const [state, dispatch] = useReducer(persistentReducer, initialState);
   
+  // Create a memoized function to handle app state changes
+  const handleAppStateChange = useCallback((nextAppState) => {
+    if (nextAppState === 'background' || nextAppState === 'inactive') {
+      // Force an immediate save when app is backgrounded
+      saveState.flush && saveState.flush();
+    }
+  }, []); // No dependencies to avoid re-creating on state changes
+  
   // Set up app state listener for background saves
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'background' || nextAppState === 'inactive') {
-        // Force an immediate save when app is backgrounded
-        saveState.flush && saveState.flush();
-        saveState(state);
-      }
-    });
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
     
     return () => {
       subscription.remove();
     };
-  }, [state]);
+  }, [handleAppStateChange]);
   
   // Load saved state on initial mount
   useEffect(() => {

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { Platform, InteractionManager } from 'react-native';
 import SUDOKU_THEMES from '../utils/themes';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
 import usePersistentReducer from '../hooks/usePersistentReducer';
@@ -229,6 +230,125 @@ const getBoxIndex = (row, col) => {
   return boxRow * 3 + boxCol;
 };
 
+// Helper function for deferred calculations after UI updates for SET_VALUE action
+const deferredSetValueCalculations = (state, newState, row, col, value, cellKey) => {
+  // Skip if no state update needed 
+  if (!state.gameStarted || state.gameCompleted) return newState;
+
+  let updatedState = {...newState};
+
+  // Calculate feedback if enabled
+  let newFeedback = { ...state.cellFeedback };
+  if (state.showFeedback) {
+    if (value !== 0) {
+      newFeedback[cellKey] = checkCorrectValue(state.solutionBoard, row, col, value);
+    } else {
+      delete newFeedback[cellKey];
+    }
+  }
+  
+  // Update related notes if a value was placed
+  let newNotes = { ...state.cellNotes };
+  if (value !== 0 && newNotes[cellKey]) {
+    delete newNotes[cellKey];
+  }
+  
+  // Update related notes if a value was placed
+  if (value !== 0) {
+    newNotes = updateRelatedNotes(newNotes, row, col, value);
+  }
+
+  // Calculate score update only if a value is being set (not cleared)
+  // and if the value is correct according to the solution
+  let newScore = state.score;
+  let newLastMoveTimestamp = state.lastMoveTimestamp;
+  let completedRows = [...state.completedRows];
+  let completedColumns = [...state.completedColumns];
+  let completedBoxes = [...state.completedBoxes];
+  let scoredCells = { ...state.scoredCells };
+  let lastScoredCell = state.lastScoredCell;
+  
+  if (value !== 0 && value === state.solutionBoard[row][col]) {
+    // Only score this cell if it hasn't been scored before
+    if (!scoredCells[cellKey]) {
+      // Calculate base move score based on time and difficulty
+      const moveScore = calculateMoveScore(state.lastMoveTimestamp, state.difficulty);
+      newScore += moveScore;
+      
+      // Mark this cell as scored and store the points earned for animations
+      scoredCells[cellKey] = moveScore;
+      
+      // Save the position of the last scored cell for animations
+      // Clone the object to ensure we're creating a new reference that will trigger useEffect
+      lastScoredCell = { 
+        row, 
+        col, 
+        points: moveScore 
+      };
+    }
+    
+    // Always update timestamp for next move
+    newLastMoveTimestamp = Date.now();
+    
+    // Check for completed row
+    let completionBonus = 0;
+    
+    if (!completedRows.includes(row) && isRowComplete(updatedState.board, row)) {
+      completedRows.push(row);
+      completionBonus += SCORE_ROW_BONUS;
+    }
+    
+    // Check for completed column
+    if (!completedColumns.includes(col) && isColumnComplete(updatedState.board, col)) {
+      completedColumns.push(col);
+      completionBonus += SCORE_COLUMN_BONUS;
+    }
+    
+    // Check for completed box
+    const boxIndex = getBoxIndex(row, col);
+    if (!completedBoxes.includes(boxIndex) && isBoxComplete(updatedState.board, row, col)) {
+      completedBoxes.push(boxIndex);
+      completionBonus += SCORE_BOX_BONUS;
+    }
+    
+    // Add any completion bonuses to the score and to the cell's scored value
+    if (completionBonus > 0) {
+      newScore += completionBonus;
+      // Update the cell's score with total points (base + completion bonus)
+      scoredCells[cellKey] += completionBonus;
+      
+      // Update the points in the last scored cell for animations
+      // Create a new object to ensure the reference changes and triggers useEffect
+      if (lastScoredCell) {
+        const currentPoints = lastScoredCell.points;
+        // Replace with a new object to ensure reference changes
+        lastScoredCell = {
+          ...lastScoredCell,
+          points: currentPoints + completionBonus
+        };
+      }
+    }
+  } else if (value === 0) {
+    // If clearing a cell, just update the timestamp without scoring
+    // Don't remove from scoredCells - once a cell is scored, it stays scored
+    newLastMoveTimestamp = Date.now();
+  }
+
+  // Return updated state with all calculated values
+  return {
+    ...updatedState,
+    cellFeedback: newFeedback,
+    cellNotes: newNotes,
+    score: newScore,
+    lastMoveTimestamp: newLastMoveTimestamp,
+    completedRows,
+    completedColumns,
+    completedBoxes,
+    scoredCells,
+    lastScoredCell,
+  };
+};
+
 // Game reducer
 function gameReducer(state, action) {
   switch (action.type) {
@@ -289,13 +409,14 @@ function gameReducer(state, action) {
         return state;
       }
       
+      // Create a new board immediately for UI responsiveness
       const newBoard = state.board.map((r, ri) => 
         ri === row 
           ? r.map((c, ci) => ci === col ? value : c) 
           : [...r]
       );
       
-      // Update filled count for win detection
+      // Update filled count for win detection - this is critical for immediate UI feedback
       const currentValue = state.board[row][col];
       let newFilledCount = state.filledCount;
       if (currentValue === 0 && value !== 0) {
@@ -304,28 +425,7 @@ function gameReducer(state, action) {
         newFilledCount--;
       }
       
-      // Calculate new feedback if enabled
-      let newFeedback = { ...state.cellFeedback };
-      if (state.showFeedback) {
-        if (value !== 0) {
-          newFeedback[cellKey] = checkCorrectValue(state.solutionBoard, row, col, value);
-        } else {
-          delete newFeedback[cellKey];
-        }
-      }
-      
-      // Remove notes for this cell when setting a value
-      let newNotes = { ...state.cellNotes };
-      if (value !== 0 && newNotes[cellKey]) {
-        delete newNotes[cellKey];
-      }
-      
-      // Update related notes if a value was placed
-      if (value !== 0) {
-        newNotes = updateRelatedNotes(newNotes, row, col, value);
-      }
-      
-      // Record action for undo
+      // Record action for undo - UI critical
       const undoAction = {
         type: value === 0 ? 'clearValue' : 'setValue',
         cellKey,
@@ -334,96 +434,45 @@ function gameReducer(state, action) {
         previousNotes: state.cellNotes[cellKey],
       };
       
-      // Calculate score update only if a value is being set (not cleared)
-      // and if the value is correct according to the solution
-      let newScore = state.score;
-      let newLastMoveTimestamp = state.lastMoveTimestamp;
-      let completedRows = [...state.completedRows];
-      let completedColumns = [...state.completedColumns];
-      let completedBoxes = [...state.completedBoxes];
-      let scoredCells = { ...state.scoredCells };
-      
-      if (value !== 0 && value === state.solutionBoard[row][col]) {
-        // Only score this cell if it hasn't been scored before
-        if (!scoredCells[cellKey]) {
-          // Calculate base move score based on time and difficulty
-          const moveScore = calculateMoveScore(state.lastMoveTimestamp, state.difficulty);
-          newScore += moveScore;
-          
-          // Mark this cell as scored and store the points earned for animations
-          scoredCells[cellKey] = moveScore;
-          
-          // Save the position of the last scored cell for animations
-          // Clone the object to ensure we're creating a new reference that will trigger useEffect
-          state.lastScoredCell = { 
-            row, 
-            col, 
-            points: moveScore 
-          };
-        }
-        
-        // Always update timestamp for next move
-        newLastMoveTimestamp = Date.now();
-        
-        // Check for completed row
-        let completionBonus = 0;
-        
-        if (!completedRows.includes(row) && isRowComplete(newBoard, row)) {
-          completedRows.push(row);
-          completionBonus += SCORE_ROW_BONUS;
-        }
-        
-        // Check for completed column
-        if (!completedColumns.includes(col) && isColumnComplete(newBoard, col)) {
-          completedColumns.push(col);
-          completionBonus += SCORE_COLUMN_BONUS;
-        }
-        
-        // Check for completed box
-        const boxIndex = getBoxIndex(row, col);
-        if (!completedBoxes.includes(boxIndex) && isBoxComplete(newBoard, row, col)) {
-          completedBoxes.push(boxIndex);
-          completionBonus += SCORE_BOX_BONUS;
-        }
-        
-        // Add any completion bonuses to the score and to the cell's scored value
-        if (completionBonus > 0) {
-          newScore += completionBonus;
-          // Update the cell's score with total points (base + completion bonus)
-          scoredCells[cellKey] += completionBonus;
-          
-          // Update the points in the last scored cell for animations
-          // Create a new object to ensure the reference changes and triggers useEffect
-          if (state.lastScoredCell) {
-            const currentPoints = state.lastScoredCell.points;
-            // Replace with a new object to ensure reference changes
-            state.lastScoredCell = {
-              ...state.lastScoredCell,
-              points: currentPoints + completionBonus
-            };
-          }
-        }
-      } else if (value === 0) {
-        // If clearing a cell, just update the timestamp without scoring
-        // Don't remove from scoredCells - once a cell is scored, it stays scored
-        newLastMoveTimestamp = Date.now();
-      }
-      
-      return {
+      // Create initial UI state update with minimal changes for immediate response
+      const initialUIState = {
         ...state,
         board: newBoard,
         filledCount: newFilledCount,
-        cellFeedback: newFeedback,
-        cellNotes: newNotes,
         undoStack: [...state.undoStack, undoAction],
         redoStack: [], // Clear redo stack on new action
-        score: newScore,
-        lastMoveTimestamp: newLastMoveTimestamp,
-        completedRows,
-        completedColumns,
-        completedBoxes,
-        scoredCells,
+        needsDeferredUpdate: true, // Flag to indicate deferred processing needed
+        deferredUpdateAction: { 
+          type: 'SET_VALUE_DEFERRED',
+          payload: { row, col, value, cellKey }
+        }
       };
+      
+      // For Android, split UI updates from calculations and use a more aggressive approach
+      if (Platform.OS === 'android') {
+        // On Android, return immediately with a flag to perform deferred calculations
+        return initialUIState;
+      } else {
+        // For iOS, do all calculations at once since performance is better
+        return deferredSetValueCalculations(state, initialUIState, row, col, value, cellKey);
+      }
+    }
+    
+    // Handle the deferred update action for Android
+    case 'SET_VALUE_DEFERRED': {
+      // Skip if no deferred update is needed
+      if (!state.needsDeferredUpdate) return state;
+      
+      const { row, col, value, cellKey } = action.payload;
+      
+      // Calculate all the deferred values and return complete state
+      const finalState = deferredSetValueCalculations(state, state, row, col, value, cellKey);
+      
+      // Remove the deferred flags
+      delete finalState.needsDeferredUpdate;
+      delete finalState.deferredUpdateAction;
+      
+      return finalState;
     }
     
     case ACTIONS.ADD_NOTE: {
@@ -435,7 +484,14 @@ function gameReducer(state, action) {
         return state;
       }
       
+      // Optimize for performance - avoid unnecessary processing when the note already exists
       const currentNotes = state.cellNotes[cellKey] || [];
+      
+      // Don't do anything if the note already exists
+      if (currentNotes.includes(noteValue)) {
+        return state;
+      }
+      
       const newNotes = [...currentNotes, noteValue];
       
       // Record action for undo
@@ -447,6 +503,7 @@ function gameReducer(state, action) {
         noteValue,
       };
       
+      // Use simple object assignment for better performance
       const updatedNotes = { ...state.cellNotes };
       updatedNotes[cellKey] = newNotes;
       
@@ -505,9 +562,12 @@ function gameReducer(state, action) {
       if (state.gameCompleted) {
         return state;
       }
+      // Fast toggle with minimal props - this is a UI-critical action
       return {
         ...state,
         notesMode: !state.notesMode,
+        // Add timestamp to prevent immediate processing of other actions
+        lastInteractionTimestamp: Date.now()
       };
     
     case ACTIONS.TOGGLE_FEEDBACK: {
@@ -835,6 +895,29 @@ export const GameProvider = ({ children }) => {
   );
   const timerRef = useRef(null);
   
+  // Handle deferred updates (for Android performance)
+  useEffect(() => {
+    if (state.needsDeferredUpdate && state.deferredUpdateAction) {
+      // For Android, handle SET_VALUE_DEFERRED separately with setTimeout
+      if (Platform.OS === 'android') {
+        setTimeout(() => {
+          dispatch({
+            type: 'SET_VALUE_DEFERRED',
+            payload: state.deferredUpdateAction.payload
+          });
+        }, 100);
+      } else {
+        // For iOS, use InteractionManager
+        InteractionManager.runAfterInteractions(() => {
+          dispatch({
+            type: 'SET_VALUE_DEFERRED',
+            payload: state.deferredUpdateAction.payload
+          });
+        });
+      }
+    }
+  }, [state.needsDeferredUpdate, state.deferredUpdateAction, dispatch]);
+  
   // Effect for timer
   useEffect(() => {
     if (state.timerActive) {
@@ -854,25 +937,35 @@ export const GameProvider = ({ children }) => {
     };
   }, [state.timerActive]);
   
-  // Check for win condition when filledCount changes
+  // Check for win condition when filledCount changes - with platform-specific optimizations
   useEffect(() => {
     // Early return if board is not filled or game is already completed
     if (state.filledCount < 81 || state.gameCompleted) {
       return;
     }
     
-    // Check if all cells match the solution
-    let won = true;
-    for (let i = 0; i < 9 && won; i++) {
-      for (let j = 0; j < 9 && won; j++) {
-        if (state.board[i][j] !== state.solutionBoard[i][j]) {
-          won = false;
+    // Create a common check function to avoid duplication
+    const checkWinCondition = () => {
+      let won = true;
+      for (let i = 0; i < 9 && won; i++) {
+        for (let j = 0; j < 9 && won; j++) {
+          if (state.board[i][j] !== state.solutionBoard[i][j]) {
+            won = false;
+          }
         }
       }
-    }
+      
+      if (won) {
+        dispatch({ type: ACTIONS.SHOW_WIN_MODAL });
+      }
+    };
     
-    if (won) {
-      dispatch({ type: ACTIONS.SHOW_WIN_MODAL });
+    // For Android, defer the check to avoid UI blocking
+    if (Platform.OS === 'android') {
+      setTimeout(checkWinCondition, 50);
+    } else {
+      // For iOS, perform the check immediately
+      checkWinCondition();
     }
   }, [state.filledCount, state.board, state.solutionBoard, state.gameCompleted, dispatch]);
 

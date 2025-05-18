@@ -1,9 +1,62 @@
-import React, { useState, useEffect } from 'react';
-import { SafeAreaView, AppState, DeviceEventEmitter, NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  SafeAreaView, 
+  AppState, 
+  DeviceEventEmitter, 
+  NativeEventEmitter, 
+  NativeModules, 
+  Platform, 
+  UIManager, 
+  InteractionManager,
+  View,
+  Text
+} from 'react-native';
+
+// Import Android optimizations
+import './utils/androidOptimizations';
+
+// Create UI thread performance monitor for Android
+let frameStartTime = Date.now();
+let slowFrameWarnings = 0;
+
+if (Platform.OS === 'android') {
+  // Monitor UI thread performance
+  const checkPerformance = () => {
+    const now = Date.now();
+    const frameDuration = now - frameStartTime;
+    
+    // If frame takes longer than 16ms (60fps), it's slow
+    if (frameDuration > 16) {
+      slowFrameWarnings++;
+    }
+    
+    frameStartTime = now;
+    requestAnimationFrame(checkPerformance);
+  };
+  
+  // Start monitoring
+  requestAnimationFrame(checkPerformance);
+}
 import GameScreen from './screens/GameScreen';
 
 export default function App() {
   const [appKey, setAppKey] = useState(0);
+  
+  // Android-specific performance optimization
+  const isAndroid = Platform.OS === 'android';
+  
+  // Use requestAnimationFrame for smoother UI on Android
+  const scheduleUpdate = useCallback((fn) => {
+    if (isAndroid) {
+      // On Android, use requestAnimationFrame for smoother updates
+      requestAnimationFrame(() => {
+        InteractionManager.runAfterInteractions(fn);
+      });
+    } else {
+      // On iOS, this extra deferral isn't needed
+      fn();
+    }
+  }, [isAndroid]);
 
   useEffect(() => {
     // Handle app state changes
@@ -86,11 +139,37 @@ export default function App() {
 
   return (
     <SafeAreaView 
-      style={{ flex: 1 }}
+      style={{ 
+        flex: 1,
+        backgroundColor: '#fff' // Set background color for better perceived performance
+      }}
       onTouchStart={handleTouchStart}
       onClick={Platform.OS === 'web' ? handleTouchStart : undefined}
     >
-      <GameScreen key={appKey} />
+      <View 
+        style={{
+          flex: 1,
+          ...(isAndroid ? {
+            // Enhanced Android optimizations
+            elevation: 0, // Avoid unnecessary shadows
+            overflow: 'hidden', // Contain renderings
+            // Hardware acceleration for the main container
+            renderToHardwareTextureAndroid: true,
+            // More aggressive performance settings
+            backfaceVisibility: 'hidden',
+            // Disable alpha compositing for better performance
+            needsOffscreenAlphaCompositing: false,
+            // Remove any complexity from view
+            borderWidth: 0,
+            padding: 0,
+          } : {})
+        }}
+      >
+        <GameScreen 
+          key={appKey} 
+          scheduleUpdate={scheduleUpdate}
+        />
+      </View>
     </SafeAreaView>
   );
 }

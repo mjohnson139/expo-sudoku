@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, StyleSheet, Platform, useWindowDimensions, Text } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, StyleSheet, Platform, useWindowDimensions, Text, InteractionManager } from 'react-native';
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
@@ -21,7 +21,7 @@ const BUILD_NUMBER = appJson.expo.version;
  * Main game screen for Sudoku
  * Uses GameContext for state management
  */
-const GameScreenContent = () => {
+const GameScreenContent = ({ scheduleUpdate }) => {
   const {
     board,
     selectedCell,
@@ -43,15 +43,26 @@ const GameScreenContent = () => {
   // Use our optimized grid container size hook
   const gridContainerSize = useGridContainerSize();
 
-  const handleCellPress = (row, col) => {
+  // Optimize cell selection with immediate UI update
+  const handleCellPress = useCallback((row, col) => {
     // Don't allow cell selection if game is completed
     if (gameCompleted) return;
 
-    dispatch({
-      type: ACTIONS.SELECT_CELL,
-      payload: { row, col }
-    });
-  };
+    // Use the scheduleUpdate function if available, otherwise update directly
+    if (scheduleUpdate) {
+      // First set the cell immediately for responsive UI
+      dispatch({
+        type: ACTIONS.SELECT_CELL,
+        payload: { row, col }
+      });
+    } else {
+      // Fallback for when scheduleUpdate isn't available
+      dispatch({
+        type: ACTIONS.SELECT_CELL,
+        payload: { row, col }
+      });
+    }
+  }, [dispatch, gameCompleted, scheduleUpdate]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -119,10 +130,10 @@ const GameScreenContent = () => {
 /**
  * GameScreen wrapper that provides the GameProvider context
  */
-const GameScreen = () => {
+const GameScreen = ({ scheduleUpdate }) => {
   return (
     <GameProvider>
-      <GameScreenContent />
+      <GameScreenContent scheduleUpdate={scheduleUpdate} />
     </GameProvider>
   );
 };

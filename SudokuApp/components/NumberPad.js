@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import React, { useMemo, useCallback, memo } from 'react';
+import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
 
 const NumberPad = ({ 
   onSelectNumber, 
@@ -11,7 +11,8 @@ const NumberPad = ({
   const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9];
   
   // Track how many times each number appears on the board
-  const countNumberUsage = () => {
+  // Memoize this calculation to prevent it from running on every render
+  const numberCounts = useMemo(() => {
     const counts = {};
     numbers.forEach(num => counts[num] = 0);
     
@@ -26,15 +27,16 @@ const NumberPad = ({
     }
     
     return counts;
-  };
-  
-  const numberCounts = countNumberUsage();
+  }, [board, numbers]); // Only recalculate when board changes
   
   // Get the value in the currently selected cell (if any)
-  const selectedCellValue = selectedCell && board && 
-    board[selectedCell.row] && 
-    board[selectedCell.row][selectedCell.col] ? 
-    board[selectedCell.row][selectedCell.col] : 0;
+  // Memoize this calculation to avoid recomputing on every render
+  const selectedCellValue = useMemo(() => {
+    return selectedCell && board && 
+      board[selectedCell.row] && 
+      board[selectedCell.row][selectedCell.col] ? 
+      board[selectedCell.row][selectedCell.col] : 0;
+  }, [selectedCell, board]);
   
   return (
     <View style={styles.container}>
@@ -53,35 +55,51 @@ const NumberPad = ({
           // In notes mode we don't visually indicate maxed out numbers
           const isMaxedOutStyle = !notesMode && isMaxedOut;
           
+          // Memoize the button style for each number
+          const buttonStyle = useMemo(() => [
+            styles.button, 
+            {
+              backgroundColor: isMaxedOutStyle 
+                ? theme.colors.numberPad.clearButton
+                : notesMode 
+                  ? theme.colors.numberPad.notesBackground || theme.colors.numberPad.background 
+                  : theme.colors.numberPad.background,
+              borderColor: theme.colors.numberPad.border,
+              shadowColor: theme.colors.numberPad.shadow,
+              opacity: isMaxedOutStyle && !canClearSelected ? 0.5 : 1, // Lower opacity if disabled
+              // Add a subtle indication when in notes mode
+              borderWidth: notesMode ? 2 : 1,
+              ...(Platform.OS === 'android' ? {
+                // Android-specific optimizations
+                elevation: 1, // Reduce elevation for better performance
+              } : {})
+            }
+          ], [isMaxedOutStyle, canClearSelected, notesMode, theme.colors.numberPad]);
+
+          // Memoize the text style for each number
+          const textStyle = useMemo(() => [
+            styles.text, 
+            { 
+              color: theme.colors.numberPad.text,
+              // Font styling for notes mode
+              fontWeight: notesMode ? '600' : '500',
+            }
+          ], [theme.colors.numberPad.text, notesMode]);
+
+          // Create an optimized onPress handler for each button
+          const handlePress = useCallback(() => {
+            onSelectNumber(num);
+          }, [num, onSelectNumber]);
+          
           return (
             <TouchableOpacity 
               key={num} 
-              style={[
-                styles.button, 
-                {
-                  backgroundColor: isMaxedOutStyle 
-                    ? theme.colors.numberPad.clearButton
-                    : notesMode 
-                      ? theme.colors.numberPad.notesBackground || theme.colors.numberPad.background 
-                      : theme.colors.numberPad.background,
-                  borderColor: theme.colors.numberPad.border,
-                  shadowColor: theme.colors.numberPad.shadow,
-                  opacity: isMaxedOutStyle && !canClearSelected ? 0.5 : 1, // Lower opacity if disabled
-                  // Add a subtle indication when in notes mode
-                  borderWidth: notesMode ? 2 : 1,
-                }
-              ]} 
-              onPress={() => onSelectNumber(num)}
+              style={buttonStyle}
+              onPress={handlePress}
+              delayPressIn={0}
               disabled={isDisabled}
             >
-              <Text style={[
-                styles.text, 
-                { 
-                  color: theme.colors.numberPad.text,
-                  // Font styling for notes mode
-                  fontWeight: notesMode ? '600' : '500',
-                }
-              ]}>{num}</Text>
+              <Text style={textStyle}>{num}</Text>
             </TouchableOpacity>
           );
         })}
@@ -114,7 +132,10 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.2,
     shadowRadius: 1.41,
-    elevation: 2,
+    elevation: Platform.OS === 'android' ? 1 : 2, // Lower elevation on Android
+    ...(Platform.OS === 'android' ? {
+      overflow: 'hidden', // Prevent layout issues on Android
+    } : {}),
   },
   text: {
     fontSize: 22,
@@ -122,4 +143,13 @@ const styles = StyleSheet.create({
   }
 });
 
-export default NumberPad;
+// Use memo for the entire component to prevent unnecessary re-renders
+export default memo(NumberPad, (prevProps, nextProps) => {
+  // Only re-render if these props have changed
+  return (
+    prevProps.notesMode === nextProps.notesMode &&
+    prevProps.selectedCell === nextProps.selectedCell &&
+    prevProps.board === nextProps.board &&
+    JSON.stringify(prevProps.theme.colors.numberPad) === JSON.stringify(nextProps.theme.colors.numberPad)
+  );
+});

@@ -1,5 +1,5 @@
-import React, { useMemo, useCallback } from 'react';
-import { View, StyleSheet, TouchableOpacity, Platform, Dimensions } from 'react-native';
+import React, { useMemo, useCallback, useState, useEffect, memo } from 'react';
+import { View, StyleSheet, TouchableOpacity, Platform, Dimensions, InteractionManager, Pressable } from 'react-native';
 import Cell from './Cell';
 import CellScoreAnimation from './CellScoreAnimation';
 
@@ -13,44 +13,86 @@ const Grid = ({
   cellFeedback = {}, 
   cellNotes = {}
 }) => {
-  // Memoize all the cell relations based on the selected cell and board state
-  // This prevents recalculating relations for all 81 cells on every render
-  const cellRelations = useMemo(() => {
-    if (!selectedCell) return {};
-    
-    const { row, col } = selectedCell;
-    const selectedValue = board[row][col];
-    const relations = {};
-    
-    // Pre-calculate box coordinates
-    const selectedBoxRow = Math.floor(row / 3);
-    const selectedBoxCol = Math.floor(col / 3);
-    
-    // Calculate relations for all cells at once
-    for (let r = 0; r < 9; r++) {
-      for (let c = 0; c < 9; c++) {
-        // Skip the selected cell itself
-        if (r === row && c === col) continue;
-        
-        const cellKey = `${r}-${c}`;
-        const cellBoxRow = Math.floor(r / 3);
-        const cellBoxCol = Math.floor(c / 3);
-        const cellValue = board[r][c];
-        
-        // Determine relation (prioritize in order: box, row, column, sameValue)
-        if (cellBoxRow === selectedBoxRow && cellBoxCol === selectedBoxCol) {
-          relations[cellKey] = 'box';
-        } else if (r === row) {
-          relations[cellKey] = 'row';
-        } else if (c === col) {
-          relations[cellKey] = 'column';
-        } else if (selectedValue !== 0 && cellValue === selectedValue) {
-          relations[cellKey] = 'sameValue';
+  // For Android, use a simpler relations model that's faster to calculate
+  const [cellRelations, setCellRelations] = useState({});
+
+  // Optimize cell relations calculation based on platform
+  useEffect(() => {
+    if (!selectedCell) {
+      setCellRelations({});
+      return;
+    }
+
+    // Android: Only provide row/column relations for better performance
+    // iOS: Provide full relations
+    if (Platform.OS === 'android') {
+      // For Android, only calculate row/column for best performance
+      const { row, col } = selectedCell;
+      const simpleRelations = {};
+      
+      // Add row and column relations only
+      for (let i = 0; i < 9; i++) {
+        if (i !== row) simpleRelations[`${i}-${col}`] = 'column';
+        if (i !== col) simpleRelations[`${row}-${i}`] = 'row';
+      }
+      
+      // Only update once with the simple relations
+      setCellRelations(simpleRelations);
+    } else {
+      // iOS can handle more complex calculations
+      // First set immediate relations (row/column) for faster visual feedback
+      const { row, col } = selectedCell;
+      const immediateRelations = {};
+      
+      // Add row and column relations immediately (fastest to calculate)
+      for (let i = 0; i < 9; i++) {
+        if (i !== row) immediateRelations[`${i}-${col}`] = 'column';
+        if (i !== col) immediateRelations[`${row}-${i}`] = 'row';
+      }
+      
+      // Update with immediate relations first
+      setCellRelations(immediateRelations);
+      
+      // Calculate more complex relations (box, same value) asynchronously
+      InteractionManager.runAfterInteractions(() => {
+      const { row, col } = selectedCell;
+      const selectedValue = board[row][col];
+      const fullRelations = {...immediateRelations};
+      
+      // Pre-calculate box boundaries (more efficient)
+      const boxStartRow = Math.floor(row / 3) * 3;
+      const boxStartCol = Math.floor(col / 3) * 3;
+      const boxEndRow = boxStartRow + 2;
+      const boxEndCol = boxStartCol + 2;
+      
+      // Add box relations
+      for (let r = boxStartRow; r <= boxEndRow; r++) {
+        for (let c = boxStartCol; c <= boxEndCol; c++) {
+          // Skip the selected cell itself and cells already in a relation (row/col)
+          if ((r === row && c === col) || fullRelations[`${r}-${c}`]) continue;
+          fullRelations[`${r}-${c}`] = 'box';
         }
       }
+      
+      // Add same value relations (only if selected cell has a value)
+      if (selectedValue !== 0) {
+        for (let r = 0; r < 9; r++) {
+          for (let c = 0; c < 9; c++) {
+            // Skip if already in a relation
+            if (fullRelations[`${r}-${c}`]) continue;
+            
+            // Add same value relation
+            if (board[r][c] === selectedValue) {
+              fullRelations[`${r}-${c}`] = 'sameValue';
+            }
+          }
+        }
+      }
+      
+        // Update with full relations
+        setCellRelations(fullRelations);
+      });
     }
-    
-    return relations;
   }, [selectedCell, board]);
 
   // Memoize border styles for all cells to avoid recreating them on every render
@@ -100,13 +142,38 @@ const Grid = ({
     // Get notes for this cell (if any)
     const notes = cellNotes[cellKey] || [];
 
-    return (
-      <TouchableOpacity
-        key={cellKey}
-        style={styles.cellContainer}
-        onPress={() => onCellPress(rowIndex, colIndex)}
-        activeOpacity={0.7}
-      >
+    // Use platform-specific touchable components for best performance
+    if (Platform.OS === 'android') {
+      return (
+        <Pressable
+          key={cellKey}
+          style={[styles.cellContainer, { overflow: 'hidden' }]}
+          onPress={() => onCellPress(rowIndex, colIndex)}
+          android_ripple={{color: 'transparent'}}
+          hitSlop={0}
+        >
+          <Cell 
+            value={num} 
+            isSelected={isSelected}
+            isInitialCell={isInitialCell}
+            relationType={relationType}
+            isCorrect={isCorrect}
+            showFeedback={showFeedback && !isInitialCell && num !== 0}
+            extraStyle={cellBorderStyles[cellKey]}
+            theme={theme}
+            notes={notes}
+          />
+        </Pressable>
+      );
+    } else {
+      return (
+        <TouchableOpacity
+          key={cellKey}
+          style={styles.cellContainer}
+          onPress={() => onCellPress(rowIndex, colIndex)}
+          activeOpacity={0.7}
+          delayPressIn={0}
+        >
         <Cell 
           value={num} 
           isSelected={isSelected}
@@ -118,8 +185,9 @@ const Grid = ({
           theme={theme}
           notes={notes}
         />
-      </TouchableOpacity>
-    );
+        </TouchableOpacity>
+      );
+    }
   }, [
     selectedCell, 
     initialCells, 
@@ -199,6 +267,20 @@ const getGridDimensions = () => {
 // Get the dimensions based on platform
 const { gridSize, cellSize } = getGridDimensions();
 
+// Configure Android hardware acceleration and optimizations
+if (Platform.OS === 'android') {
+  // Pre-calculate standard border styles to avoid recreating them for each cell
+  global.AndroidCellStyles = {
+    // Common styles for faster cell rendering
+    standard: {
+      overflow: 'hidden',
+      elevation: 0,
+      // Force hardware acceleration where possible
+      backfaceVisibility: 'hidden',
+    }
+  };
+}
+
 const styles = StyleSheet.create({
   grid: {
     width: gridSize,
@@ -211,6 +293,13 @@ const styles = StyleSheet.create({
   cellContainer: {
     width: cellSize,
     height: cellSize,
+    ...(Platform.OS === 'android' ? {
+      // Android-specific optimizations
+      elevation: 0, // Eliminate shadow complexity
+      backfaceVisibility: 'hidden', // Force hardware acceleration
+      overflow: 'hidden', // Prevent layout issues
+      borderWidth: 0, // Use more efficient borders in Cell component
+    } : {})
   }
 });
 
