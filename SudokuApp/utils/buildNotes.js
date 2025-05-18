@@ -2,6 +2,22 @@
 // Each version's notes are stored in this file
 
 const BUILD_NOTES = {
+  '2.7.0': {
+    title: 'UI Improvements: Score Animation & Icons',
+    date: '2025-05-18',
+    notes: [
+      'Added cell score animation showing points earned directly above each filled cell',
+      'Replaced text icons with MaterialCommunityIcons for improved visual representation',
+      'Created LabeledBadge component for consistent badge styling across the app',
+      'Refactored GameTimer and GameToolBar for improved layout and visual consistency',
+      'Added monospace font family to timer and score displays for better readability',
+      'Fixed width for badges to maintain consistent sizing across different screen sizes',
+      'Added spacing between toolbar buttons for improved usability',
+      'Refactored GameScreenContent layout for cleaner structure and consistency',
+      'Added debug cheat mode for development testing with automatic hint notes',
+      'Enhanced grid border styling for better visual clarity'
+    ]
+  },
   '2.6.0': {
     title: 'Time-Based Scoring System',
     date: '2025-05-16',
