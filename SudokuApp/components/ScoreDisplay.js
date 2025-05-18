@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { View, StyleSheet, Text, Animated, Dimensions, Easing, Platform } from 'react-native';
 import { useGameContext } from '../contexts/GameContext';
+import LabeledBadge from './LabeledBadge';
 
 /**
  * ScoreDisplay component that shows the current score with animations
@@ -164,18 +165,13 @@ const ScoreDisplay = () => {
     outputRange: [0.8, 1.2, 1]
   });
   
-  // We no longer need these cell animation interpolations
-  // They're handled by the CellScoreAnimation component
-  
   return (
-    <View 
-      style={styles.scoreContainer} 
-      ref={scoreContainerRef}
-      onLayout={measureScorePosition}
-    >
-      <Text style={styles.scoreLabel}>SCORE</Text>
-      
-      <View style={[styles.scoreBadge, { backgroundColor: theme.colors.numberPad.border }]}>
+    <View ref={scoreContainerRef} onLayout={measureScorePosition}>
+      <LabeledBadge 
+        label="SCORE"
+        theme={theme}
+        containerStyle={styles.badgeContainer}
+      >
         <View style={styles.scoreTextContainer}>
           {/* Floating points animation (from score) */}
           {pointsAdded > 0 && (
@@ -196,14 +192,12 @@ const ScoreDisplay = () => {
             </Animated.Text>
           )}
           
-          {/* Points animation is now handled by CellScoreAnimation component */}
-          
           {/* Main score display */}
           <Animated.Text 
             style={[
               styles.scoreText,
               { 
-                color: theme.colors.numberPad.text, // Match button text color
+                color: theme.colors.numberPad.text,
                 transform: [{ scale: scaleAnim }]
               }
             ]}
@@ -211,28 +205,15 @@ const ScoreDisplay = () => {
             {formatScore(score)}
           </Animated.Text>
         </View>
-      </View>
+      </LabeledBadge>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  scoreContainer: {
+  badgeContainer: {
     alignItems: 'center',
     justifyContent: 'flex-start',
-  },
-  scoreBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6, // Smaller corner radius for button-like feel
-    marginTop: 2,
-    elevation: 1, // Light shadow for Android
-    shadowColor: '#000', // Shadow for iOS
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1,
-    minWidth: 80, // Match width with timer badge
-    height: 36, // Fixed height to match other badges
   },
   scoreTextContainer: {
     alignItems: 'center',
@@ -246,7 +227,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     letterSpacing: 1,
     fontFamily: Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' }),
-    width: 60, // Fixed width for score (adjust as needed for your format)
+    width: 60, // Fixed width for score
   },
   floatingPoints: {
     position: 'absolute',
@@ -263,16 +244,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     color: '#4CAF50',
-    zIndex: 10, // Ensure it appears above other elements
-  },
-  scoreLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    marginBottom: 2,
-    color: '#666', // Subtle color for label
-    alignSelf: 'center', // Center align like the timer label
-  },
+    zIndex: 10,
+  }
 });
 
 export default ScoreDisplay;

@@ -338,4 +338,18 @@ export const SUDOKU_THEMES = {
   }
 };
 
+const badgeStyle = {
+  borderRadius: 3, // Smaller corner radius for button-like feel
+  marginTop: 0,
+  elevation: 1, // Light shadow for Android
+  shadowColor: '#000', // Shadow for iOS
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.4,
+  shadowRadius: 1,
+  width: 60, // Minimum width for badges
+  height: 30, // Fixed height for badges
+};
+
+export const BADGE_STYLE = badgeStyle; // Export badge style for reuse
+
 export default SUDOKU_THEMES;
