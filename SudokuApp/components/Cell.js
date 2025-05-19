@@ -14,12 +14,6 @@ const ANDROID_TEXT_STYLE = Platform.OS === 'android' ? {
   backfaceVisibility: 'hidden',
 } : {};
 
-// Pre-calculate border colors to avoid recalculating them for each cell on Android
-const ANDROID_BORDER_COLORS = Platform.OS === 'android' ? {
-  standard: '#cccccc',
-  thick: '#888888',
-} : {};
-
 // Performance-optimized Cell component
 const Cell = ({ 
   value, 
@@ -113,33 +107,21 @@ const Cell = ({
     extraStyle
   ], [backgroundColor, extraStyle]);
 
-  // Android needs special optimization for rendering performance
-  if (Platform.OS === 'android') {
-    // For Android, inline the conditional to avoid function/object creation
+  // Unified rendering logic for all platforms
+  if (value !== 0) {
+    // Cell has a value
     return (
-      <View style={cellStyle} accessibilityLabel={value !== 0 ? `Cell value: ${value}` : "Empty cell"}>
-        {value !== 0 ? (
-          <Text style={textStyle} ellipsizeMode='clip' numberOfLines={1}>{value}</Text>
-        ) : notesElements}
+      <View style={cellStyle} accessibilityLabel={`Cell value: ${value}`}>
+        <Text style={textStyle}>{value}</Text>
       </View>
     );
   } else {
-    // For iOS, use the original rendering logic
-    if (value !== 0) {
-      // Cell has a value
-      return (
-        <View style={cellStyle} accessibilityLabel={`Cell value: ${value}`}>
-          <Text style={textStyle}>{value}</Text>
-        </View>
-      );
-    } else {
-      // Empty cell - may contain notes
-      return (
-        <View style={cellStyle} accessibilityLabel="Empty cell">
-          {notesElements}
-        </View>
-      );
-    }
+    // Empty cell - may contain notes
+    return (
+      <View style={cellStyle} accessibilityLabel="Empty cell">
+        {notesElements}
+      </View>
+    );
   }
 };
 
@@ -162,14 +144,11 @@ const styles = StyleSheet.create({
     height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    ...(Platform.OS === 'android' ? {
-      // Aggressive Android-specific optimizations
-      elevation: 0, // Remove shadow complexity entirely
-      overflow: 'hidden', // Prevent layout issues
-      borderWidth: 1, // Use simpler border style
-      borderColor: '#ccc', // Use a fixed color for better performance
-      backfaceVisibility: 'hidden', // Force hardware acceleration
-    } : {})
+    // Minimal cross-platform optimizations 
+    // No border styling here - borders are handled by Grid.js
+    // This ensures consistent grid lines across all platforms
+    elevation: 0, // Remove shadow complexity entirely
+    overflow: 'hidden' // Prevent layout issues
   },
   text: {
     fontSize: 18,
@@ -179,13 +158,9 @@ const styles = StyleSheet.create({
       cursor: 'default',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
     } : {}),
-    ...(Platform.OS === 'android' ? {
-      // Android text optimizations
-      includeFontPadding: false,
-      textAlignVertical: 'center',
-      padding: 0,
-      margin: 0,
-    } : {})
+    // Optimization for all platforms
+    padding: 0,
+    margin: 0
   },
   notesContainer: {
     position: 'relative',
