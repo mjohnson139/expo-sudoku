@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, Platform, useWindowDimensions, Text } from 'react-native';
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
@@ -43,7 +43,12 @@ const GameScreenContent = () => {
   // Use our optimized grid container size hook
   const gridContainerSize = useGridContainerSize();
 
-  const handleCellPress = (row, col) => {
+  /**
+   * Stable ‑ re‑created only when the game is completed (rare).
+   * This means the Grid sees the *same* onCellPress during
+   * routine SELECT_CELL dispatches.
+   */
+  const handleCellPress = useCallback((row, col) => {
     // Don't allow cell selection if game is completed
     if (gameCompleted) return;
 
@@ -51,7 +56,7 @@ const GameScreenContent = () => {
       type: ACTIONS.SELECT_CELL,
       payload: { row, col }
     });
-  };
+  }, [dispatch, gameCompleted]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>

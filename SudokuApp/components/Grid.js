@@ -83,7 +83,18 @@ const Grid = ({
     return styles;
   }, [theme.colors.grid.boxBorder, theme.colors.grid.cellBorder]);
 
-  // Create a memoized cell renderer to improve performance
+  /**
+   * FlatList item renderer – wrapped in useCallback so the
+   * reference only changes when selectedCell or the relations
+   * actually change.  This lets FlatList better
+   * recycle / window its children.
+   */
+  /**
+   * FlatList item renderer – wrapped in useCallback so the
+   * reference only changes when selectedCell or the relations
+   * actually change.  This lets FlatList better
+   * recycle / window its children.
+   */
   const renderCell = useCallback((rowIndex, colIndex, num) => {
     const cellKey = `${rowIndex}-${colIndex}`;
     const isSelected = selectedCell && 
@@ -104,7 +115,7 @@ const Grid = ({
       <TouchableOpacity
         key={cellKey}
         style={styles.cellContainer}
-        onPress={() => onCellPress(rowIndex, colIndex)}
+        onPressIn={() => onCellPress(rowIndex, colIndex)}
         activeOpacity={0.7}
       >
         <Cell 
@@ -122,13 +133,13 @@ const Grid = ({
     );
   }, [
     selectedCell, 
-    initialCells, 
-    cellRelations, 
-    showFeedback, 
-    cellFeedback, 
-    cellBorderStyles, 
-    theme,
+    cellRelations,
+    initialCells,
+    showFeedback,
+    cellFeedback,
     cellNotes,
+    cellBorderStyles,
+    theme,
     onCellPress
   ]);
 
