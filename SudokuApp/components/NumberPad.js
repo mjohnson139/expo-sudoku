@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 
 const NumberPad = ({ 
@@ -11,7 +11,7 @@ const NumberPad = ({
   const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9];
   
   // Track how many times each number appears on the board
-  const countNumberUsage = () => {
+  const countNumberUsage = (board) => {
     const counts = {};
     numbers.forEach(num => counts[num] = 0);
     
@@ -28,7 +28,9 @@ const NumberPad = ({
     return counts;
   };
   
-  const numberCounts = countNumberUsage();
+  // 🔥  Memoise the heavy counting step so it only runs
+  //     when the **board array reference actually changes**
+  const numberCounts = useMemo(() => countNumberUsage(board), [board]);
   
   // Get the value in the currently selected cell (if any)
   const selectedCellValue = selectedCell && board && 
@@ -122,4 +124,13 @@ const styles = StyleSheet.create({
   }
 });
 
-export default NumberPad;
+/**
+ * Wrap in React.memo so a **SELECT_CELL** action (which doesn't
+ * touch the board) won't force the pad to re‑render.  We also
+ * compare notesMode & the handler ‑ anything else is irrelevant.
+ */
+export default React.memo(NumberPad, (prev, next) =>
+  prev.board      === next.board &&
+  prev.notesMode  === next.notesMode &&
+  prev.onSelectNumber === next.onSelectNumber
+);

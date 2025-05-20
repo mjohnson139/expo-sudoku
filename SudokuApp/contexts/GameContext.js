@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useCallback } from 'react';
 import SUDOKU_THEMES from '../utils/themes';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
 import usePersistentReducer from '../hooks/usePersistentReducer';
@@ -886,7 +886,8 @@ export const GameProvider = ({ children }) => {
   };
   
   // Helper for handling number selection (supports both setValue and notes)
-  const handleNumberSelect = (num) => {
+  // Memoized to prevent unnecessary re-renders in components that use this function
+  const handleNumberSelect = useCallback((num) => {
     // Don't do anything if no cell is selected
     if (!state.selectedCell) return;
 
@@ -925,7 +926,7 @@ export const GameProvider = ({ children }) => {
         payload: { row, col, value: newValue },
       });
     }
-  };
+  }, [state.selectedCell, state.gameCompleted, state.initialCells, state.notesMode, state.cellNotes, state.board, dispatch]);
   
   // Format timer as mm:ss
   const formatTime = (secs) => {
