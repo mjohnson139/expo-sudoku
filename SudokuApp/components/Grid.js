@@ -115,7 +115,7 @@ const Grid = ({
       <TouchableOpacity
         key={cellKey}
         style={styles.cellContainer}
-        onPress={() => onCellPress(rowIndex, colIndex)}
+        onPressIn={() => onCellPress(rowIndex, colIndex)}
         activeOpacity={0.7}
       >
         <Cell 
