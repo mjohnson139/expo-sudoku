@@ -1,16 +1,21 @@
 // filepath: /Users/matthewjohnson/dev/expo-sudoku/SudokuApp/components/modals/PauseModal.js
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View } from 'react-native';
-import { useGameContext } from '../../contexts/GameContext';
+import { useGameContext, ACTIONS } from '../../contexts/GameContext';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+
+// Constants for consistent sizes
+const ICON_SIZE = 24;
 
 /**
  * Pause Modal that appears when the game is paused
  * Provides options to resume the game or quit to the menu
  */
 const PauseModal = () => {
-  const { 
+  const {
     theme,
     isPaused,
+    gameCompleted,
     dispatch,
   } = useGameContext();
 
@@ -18,32 +23,35 @@ const PauseModal = () => {
   const [pauseAnim] = React.useState(new Animated.Value(0));
   
   React.useEffect(() => {
-    if (isPaused) {
+    // Only animate if the game is paused and not completed
+    if (isPaused && !gameCompleted) {
+      // Animate in
       Animated.timing(pauseAnim, {
         toValue: 1,
         duration: 400,
         useNativeDriver: true,
       }).start();
     } else {
+      // Animate out
       Animated.timing(pauseAnim, {
         toValue: 0,
-        duration: 200,
+        duration: 300, // Slightly faster exit animation
         useNativeDriver: true,
       }).start();
     }
-  }, [isPaused]);
+  }, [isPaused, gameCompleted]);
 
   const handleResume = () => {
-    dispatch({ type: 'RESUME_GAME' });
+    dispatch({ type: ACTIONS.RESUME_GAME });
   };
 
-  const handleQuit = () => {
-    dispatch({ type: 'QUIT_GAME' });
+  const handleNewGame = () => {
+    dispatch({ type: ACTIONS.NEW_GAME });
   };
 
   return (
     <Modal
-      visible={isPaused}
+      visible={isPaused && !gameCompleted}
       transparent
       animationType="fade"
     >
@@ -56,29 +64,60 @@ const PauseModal = () => {
       >
         <Animated.View
           style={{
-            transform: [{ scale: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }) }],
+            // Both enter and exit animations for the pause box
+            opacity: pauseAnim,
+            transform: [
+              { scale: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) },
+              { translateY: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }
+            ],
           }}
         >
           <View style={[styles.pauseBox, { backgroundColor: theme.colors.numberPad.background, borderColor: theme.colors.numberPad.border }]}> 
             <Text style={[styles.pauseTitle, { color: theme.colors.title }]}>Game Paused</Text>
             
-            {/* Resume Button */}
-            <TouchableOpacity 
-              style={[styles.pauseButton, styles.resumeButton]} 
-              onPress={handleResume}
-            >
-              <Text style={styles.pauseButtonEmoji}>▶️</Text>
-              <Text style={styles.pauseButtonText}>Resume</Text>
-            </TouchableOpacity>
+            {/* Resume Button - with enter/exit animation */}
+            <Animated.View style={{
+              opacity: pauseAnim,
+              transform: [
+                // The button slides in from left and out to left
+                { translateX: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [-40, 0] }) },
+              ]
+            }}>
+              <TouchableOpacity 
+                style={[styles.pauseButton, styles.resumeButton]} 
+                onPress={handleResume}
+              >
+                <MaterialCommunityIcons 
+                  name="play" 
+                  size={ICON_SIZE}
+                  color="#333" 
+                  style={styles.pauseButtonIcon}
+                />
+                <Text style={styles.pauseButtonText}>Resume</Text>
+              </TouchableOpacity>
+            </Animated.View>
             
-            {/* Quit Button */}
-            <TouchableOpacity 
-              style={[styles.pauseButton, styles.quitButton]} 
-              onPress={handleQuit}
-            >
-              <Text style={styles.pauseButtonEmoji}>🏠</Text>
-              <Text style={styles.pauseButtonText}>Quit Game</Text>
-            </TouchableOpacity>
+            {/* New Game Button - with enter/exit animation */}
+            <Animated.View style={{
+              opacity: pauseAnim,
+              transform: [
+                // The button slides in from right and out to right
+                { translateX: pauseAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) },
+              ]
+            }}>
+              <TouchableOpacity 
+                style={[styles.pauseButton, styles.newGameButton]} 
+                onPress={handleNewGame}
+              >
+                <MaterialCommunityIcons 
+                  name="home" 
+                  size={ICON_SIZE}
+                  color="#333" 
+                  style={styles.pauseButtonIcon}
+                />
+                <Text style={styles.pauseButtonText}>New Game</Text>
+              </TouchableOpacity>
+            </Animated.View>
           </View>
         </Animated.View>
       </Animated.View>
@@ -123,11 +162,10 @@ const styles = StyleSheet.create({
   resumeButton: {
     backgroundColor: '#d4edda',
   },
-  quitButton: {
+  newGameButton: {
     backgroundColor: '#f8d7da',
   },
-  pauseButtonEmoji: {
-    fontSize: 20,
+  pauseButtonIcon: {
     marginRight: 8,
   },
   pauseButtonText: {

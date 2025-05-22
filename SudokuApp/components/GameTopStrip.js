@@ -1,19 +1,34 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import GameTimer from './GameTimer';
+import ScoreDisplay from './ScoreDisplay';
 import { useGameContext } from '../contexts/GameContext';
+import DifficultyBadge from './DifficultyBadge';
 
 /**
- * Component that displays the top strip with timer on the right
- * Width matches the grid (324px) for visual consistency
+ * Component that displays the top strip with:
+ * - Score on the left
+ * - Difficulty level badge in the center
+ * - Timer on the right
+ * Width matches the header for visual consistency
  */
-const GameTopStrip = () => {
+const GameTopStrip = ({ style }) => {
   const { theme } = useGameContext();
-  
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <View style={styles.spacer} />
-      <View style={styles.rightContent}>
+    <View style={[styles.container, { backgroundColor: theme?.colors?.background || '#f8f8f8' }, style]}>
+      {/* Left section: Score */}
+      <View style={styles.leftSection}>
+        <ScoreDisplay />
+      </View>
+
+      {/* Center section: Difficulty level */}
+      <View style={styles.centerSection}>
+        <DifficultyBadge />
+      </View>
+
+      {/* Right section: Timer */}
+      <View style={styles.rightSection}>
         <GameTimer />
       </View>
     </View>
@@ -23,18 +38,28 @@ const GameTopStrip = () => {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    width: '100%', // Full width to match header
+    paddingTop: 0, // Add padding at the top
+    paddingBottom: 10, // No bottom padding
+  },
+  leftSection: {
+    flex: 1,
+    alignItems: 'flex-start',
+    paddingLeft: 0,
+    justifyContent: 'flex-start',
+  },
+  centerSection: {
+    flex: 1,
     alignItems: 'center',
-    width: 324, // Exact width to match grid
-    paddingHorizontal: 0, // Removed padding to ensure exact width
-    marginVertical: 8,
+    justifyContent: 'center',
   },
-  spacer: {
-    // Empty spacer for the left side to maintain layout balance
-  },
-  rightContent: {
+  rightSection: {
+    flex: 1,
+    paddingRight: 0,
+    flexDirection: 'row',
     justifyContent: 'flex-end',
-  },
+    alignItems: 'flex-start',
+  }
 });
 
 export default GameTopStrip;

@@ -1,6 +1,7 @@
 import React, { useMemo, useCallback } from 'react';
 import { View, StyleSheet, TouchableOpacity, Platform, Dimensions } from 'react-native';
 import Cell from './Cell';
+import CellScoreAnimation from './CellScoreAnimation';
 
 const Grid = ({ 
   board, 
@@ -59,10 +60,10 @@ const Grid = ({
     for (let r = 0; r < 9; r++) {
       for (let c = 0; c < 9; c++) {
         const cellKey = `${r}-${c}`;
-        
-        // Border styling for 3x3 boxes
-        const borderRight = (c + 1) % 3 === 0 ? 2 : 1;
-        const borderBottom = (r + 1) % 3 === 0 ? 2 : 1;
+
+        // Outermost borders should always be thick and boxBorder color
+        const borderRight = c === 8 ? 2 : (c + 1) % 3 === 0 ? 2 : 1;
+        const borderBottom = r === 8 ? 2 : (r + 1) % 3 === 0 ? 2 : 1;
         const borderLeft = c === 0 ? 2 : 1;
         const borderTop = r === 0 ? 2 : 1;
 
@@ -71,8 +72,8 @@ const Grid = ({
           borderBottomWidth: borderBottom,
           borderLeftWidth: borderLeft,
           borderTopWidth: borderTop,
-          borderRightColor: (c + 1) % 3 === 0 ? theme.colors.grid.boxBorder : theme.colors.grid.cellBorder,
-          borderBottomColor: (r + 1) % 3 === 0 ? theme.colors.grid.boxBorder : theme.colors.grid.cellBorder,
+          borderRightColor: c === 8 ? theme.colors.grid.boxBorder : ((c + 1) % 3 === 0 ? theme.colors.grid.boxBorder : theme.colors.grid.cellBorder),
+          borderBottomColor: r === 8 ? theme.colors.grid.boxBorder : ((r + 1) % 3 === 0 ? theme.colors.grid.boxBorder : theme.colors.grid.cellBorder),
           borderLeftColor: c === 0 ? theme.colors.grid.boxBorder : theme.colors.grid.cellBorder,
           borderTopColor: r === 0 ? theme.colors.grid.boxBorder : theme.colors.grid.cellBorder,
         };
@@ -82,7 +83,18 @@ const Grid = ({
     return styles;
   }, [theme.colors.grid.boxBorder, theme.colors.grid.cellBorder]);
 
-  // Create a memoized cell renderer to improve performance
+  /**
+   * FlatList item renderer – wrapped in useCallback so the
+   * reference only changes when selectedCell or the relations
+   * actually change.  This lets FlatList better
+   * recycle / window its children.
+   */
+  /**
+   * FlatList item renderer – wrapped in useCallback so the
+   * reference only changes when selectedCell or the relations
+   * actually change.  This lets FlatList better
+   * recycle / window its children.
+   */
   const renderCell = useCallback((rowIndex, colIndex, num) => {
     const cellKey = `${rowIndex}-${colIndex}`;
     const isSelected = selectedCell && 
@@ -103,7 +115,7 @@ const Grid = ({
       <TouchableOpacity
         key={cellKey}
         style={styles.cellContainer}
-        onPress={() => onCellPress(rowIndex, colIndex)}
+        onPressIn={() => onCellPress(rowIndex, colIndex)}
         activeOpacity={0.7}
       >
         <Cell 
@@ -121,13 +133,13 @@ const Grid = ({
     );
   }, [
     selectedCell, 
-    initialCells, 
-    cellRelations, 
-    showFeedback, 
-    cellFeedback, 
-    cellBorderStyles, 
-    theme,
+    cellRelations,
+    initialCells,
+    showFeedback,
+    cellFeedback,
     cellNotes,
+    cellBorderStyles,
+    theme,
     onCellPress
   ]);
 
@@ -141,17 +153,23 @@ const Grid = ({
   }, [board, renderCell]);
 
   return (
-    <View 
-      style={[
-        styles.grid, 
-        { 
-          backgroundColor: theme.colors.grid.background,
-          borderColor: theme.colors.grid.border,
-          borderWidth: 2,
-        }
-      ]}
-    >
-      {renderedRows}
+    <View style={{
+      padding: 1, // Adjusted padding to 1 pixel for a thinner board frame
+      backgroundColor: theme.colors.grid.boxBorder,
+      borderRadius: 0, // Keep sharp corners
+      alignSelf: 'center',
+    }}>
+      <View 
+        style={[
+          styles.grid, 
+          { 
+            backgroundColor: theme.colors.grid.background,
+          }
+        ]}
+      >
+        {renderedRows}
+        <CellScoreAnimation />
+      </View>
     </View>
   );
 };
@@ -196,6 +214,7 @@ const styles = StyleSheet.create({
   grid: {
     width: gridSize,
     height: gridSize,
+    // No borderWidth or borderColor here
   },
   row: {
     flexDirection: 'row',

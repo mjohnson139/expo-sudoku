@@ -27,15 +27,23 @@ const BuildNotes = ({ version, isVisible, onClose, theme }) => {
         <Text style={[styles.title, { color: theme.colors.title }]}>
           {notes.title} (Build {version})
         </Text>
-        <TouchableOpacity onPress={onClose}>
+        <TouchableOpacity 
+          onPress={onClose} 
+          accessibilityLabel="Close build notes"
+          accessibilityRole="button"
+          accessibilityHint="Closes the build notes panel"
+        >
           <Text style={[styles.closeButton, { color: theme.colors.title }]}>✕</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={[
-        styles.scrollView,
-        isCenterPosition ? styles.centerScrollView : {}
-      ]}>
+      <ScrollView 
+        style={[
+          styles.scrollView,
+          isCenterPosition ? styles.centerScrollView : {}
+        ]}
+        accessibilityLabel="Build notes content"
+      >
         {notes.notes.map((note, index) => (
           <View key={index} style={styles.noteItem}>
             <Text style={[styles.bulletPoint, { color: theme.colors.title }]}>•</Text>
@@ -96,7 +104,8 @@ const styles = StyleSheet.create({
     maxHeight: 300,
   },
   centerScrollView: {
-    maxHeight: '90%',
+    // Use fixed pixel value instead of percentage to avoid nested percentage issues
+    maxHeight: 400,
   },
   noteItem: {
     flexDirection: 'row',

@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Constants
 export const STORAGE_KEY = '@SudokuGame';
-export const STORAGE_VERSION = 1;
+export const STORAGE_VERSION = 2; // Incremented to handle addition of gameCompleted flag
 
 /**
  * Debounce function to limit the frequency of calls
@@ -32,6 +32,7 @@ export const stripTransient = (state) => {
     showWinModal,
     showBuildNotes,
     timerActive,
+    // Keep gameCompleted in persistentState
     
     // Don't clone these as they'll be regenerated when needed
     ...persistentState
@@ -58,10 +59,20 @@ export const loadState = async () => {
     
     const parsedState = JSON.parse(serializedState);
     
-    // Check for version mismatch - handle migrations here in the future
+    // Handle version migration
     if (!parsedState._v || parsedState._v !== STORAGE_VERSION) {
-      console.log('Storage version mismatch, using default state');
-      return null;
+      console.log(`Migrating storage from version ${parsedState._v || 'unknown'} to ${STORAGE_VERSION}`);
+      
+      // Version 1 to 2 migration: Handle gameCompleted flag
+      if (parsedState._v === 1) {
+        // If coming from version 1, ensure gameCompleted flag is set
+        parsedState.gameCompleted = parsedState.gameCompleted || false;
+        parsedState._v = STORAGE_VERSION;
+      } else {
+        // For other version mismatches, reset to default state
+        console.log('Storage version cannot be migrated, using default state');
+        return null;
+      }
     }
     
     delete parsedState._v; // Remove version field
@@ -74,6 +85,8 @@ export const loadState = async () => {
       showMenu: false, // Don't show menu on restore
       showWinModal: false, // Don't show win modal
       showBuildNotes: false, // Don't show build notes
+      // Preserve gameCompleted flag from saved state or default to false
+      gameCompleted: parsedState.gameCompleted ?? false,
     };
   } catch (error) {
     console.error('Error loading game state:', error);
