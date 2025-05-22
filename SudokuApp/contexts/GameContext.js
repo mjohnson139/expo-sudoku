@@ -565,6 +565,16 @@ function gameReducer(state, action) {
       
       const lastAction = state.undoStack[state.undoStack.length - 1];
       const { type, cellKey, previousValue, newValue, previousNotes, newNotes, noteValue } = lastAction;
+      
+      // Guard against undefined cellKey
+      if (!cellKey) {
+        // Just remove the invalid action from the stack and return
+        return {
+          ...state,
+          undoStack: state.undoStack.slice(0, -1)
+        };
+      }
+      
       const [row, col] = cellKey.split('-').map(Number);
       
       if (type === 'setValue' || type === 'clearValue') {
@@ -611,6 +621,14 @@ function gameReducer(state, action) {
       }
       
       if (type === 'addNote' || type === 'removeNote') {
+        // Guard against undefined cellKey one more time
+        if (!cellKey) {
+          return {
+            ...state,
+            undoStack: state.undoStack.slice(0, -1)
+          };
+        }
+        
         // Restore previous notes
         const newCellNotes = { ...state.cellNotes };
         if (previousNotes && previousNotes.length > 0) {
@@ -640,6 +658,16 @@ function gameReducer(state, action) {
       
       const lastAction = state.redoStack[state.redoStack.length - 1];
       const { type, cellKey, previousValue, newValue, previousNotes, newNotes, noteValue } = lastAction;
+      
+      // Guard against undefined cellKey
+      if (!cellKey) {
+        // Just remove the invalid action from the stack and return
+        return {
+          ...state,
+          redoStack: state.redoStack.slice(0, -1)
+        };
+      }
+      
       const [row, col] = cellKey.split('-').map(Number);
       
       if (type === 'setValue' || type === 'clearValue') {
@@ -697,6 +725,14 @@ function gameReducer(state, action) {
       }
       
       if (type === 'addNote' || type === 'removeNote') {
+        // Guard against undefined cellKey one more time
+        if (!cellKey) {
+          return {
+            ...state,
+            redoStack: state.redoStack.slice(0, -1)
+          };
+        }
+        
         // Reapply the note change
         const newCellNotes = { ...state.cellNotes };
         if (newNotes && newNotes.length > 0) {
