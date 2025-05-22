@@ -97,6 +97,16 @@ export const loadStatistics = async () => {
       return initialStatistics;
     }
     
+    // Handle migration of existing data without bestScore fields
+    const difficulties = ['easy', 'medium', 'hard', 'expert'];
+    difficulties.forEach(difficulty => {
+      if (parsedStats.difficulty && 
+          parsedStats.difficulty[difficulty] && 
+          parsedStats.difficulty[difficulty].bestScore === undefined) {
+        parsedStats.difficulty[difficulty].bestScore = null;
+      }
+    });
+    
     return parsedStats;
   } catch (error) {
     console.error('Error loading game statistics:', error);
