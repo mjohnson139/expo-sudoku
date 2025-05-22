@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useCallback, useState } from 'react';
 import SUDOKU_THEMES from '../utils/themes';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
 import usePersistentReducer from '../hooks/usePersistentReducer';
@@ -948,13 +948,7 @@ export const GameProvider = ({ children }) => {
 
       dispatch({ type: ACTIONS.SHOW_WIN_MODAL });
     }
-  }, [state.filledCount, state.board, state.solutionBoard, statsLoaded, state.currentDifficulty, state.elapsedSeconds]);
-    }
-    
-    if (won) {
-      dispatch({ type: ACTIONS.SHOW_WIN_MODAL });
-    }
-  }, [state.filledCount, state.board, state.solutionBoard, state.gameCompleted, dispatch]);
+  }, [state.filledCount, state.board, state.solutionBoard, statsLoaded, state.currentDifficulty, state.elapsedSeconds, dispatch]);
 
   // Helper function to start a new game
   const startNewGame = (difficulty) => {

@@ -280,6 +280,7 @@ const styles = StyleSheet.create({
   },
   statsButton: {
     backgroundColor: '#d1ecf1',
+  },
   menuButtonIcon: {
     marginRight: 8,
   },
