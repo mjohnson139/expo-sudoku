@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useCallback } from
 import SUDOKU_THEMES from '../utils/themes';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
 import usePersistentReducer from '../hooks/usePersistentReducer';
+import { debugFillBoard as debugFillBoardUtil, debugCheatMode as debugCheatModeUtil } from '../utils/debugUtils';
 
 // Initialize with empty Sudoku board
 const emptyBoard = Array.from({ length: 9 }, () => Array(9).fill(0));
@@ -935,82 +936,16 @@ export const GameProvider = ({ children }) => {
     return `${m}:${s}`;
   };
   
-  // Debug function to fill board except last cell
+  // Debug function to fill board except last cell for QA testing
   const debugFillBoard = () => {
-    // Create a new board from initial state
-    const newBoard = state.initialBoardState.map(row => [...row]);
-    const blanks = [];
-    
-    // Find all blank positions in initial puzzle
-    state.initialBoardState.forEach((row, r) => {
-      row.forEach((v, c) => {
-        if (v === 0) blanks.push({ r, c });
-      });
-    });
-    
-    if (blanks.length === 0) return;
-    
-    // Leave the last blank unfilled
-    const last = blanks[blanks.length - 1];
-    
-    // Fill all other blanks with solution values
-    blanks.forEach(({ r, c }) => {
-      if (r === last.r && c === last.c) return;
-      newBoard[r][c] = state.solutionBoard[r][c];
-    });
-    
-    // Track how many cells are filled
-    const filledCount = 81 - 1; // All cells except one
-    
-    // Update state
-    dispatch({
-      type: ACTIONS.START_GAME,
-      payload: { 
-        board: newBoard, 
-        solution: state.solutionBoard,
-        difficulty: 'debug',
-      },
-    });
-    
-    // Manually set filled count for win detection
-    state.filledCount = filledCount;
+    // Use the utility function from debugUtils.js
+    debugFillBoardUtil(state, dispatch, ACTIONS.RESTORE_SAVED_GAME);
   };
   
   // Debug cheat mode to add notes with correct numbers
   const debugCheatMode = () => {
-    // Don't proceed if no solution board is available
-    if (!state.solutionBoard || !state.board) return;
-    
-    // Create a new notes object
-    const newNotes = { ...state.cellNotes };
-    
-    // For each empty cell, add the correct number as a note
-    state.board.forEach((row, rowIndex) => {
-      row.forEach((cell, colIndex) => {
-        // Only process empty cells that aren't initial cells
-        const cellKey = `${rowIndex}-${colIndex}`;
-        if (cell === 0 && !state.initialCells.includes(cellKey)) {
-          // Get the correct value from the solution
-          const correctValue = state.solutionBoard[rowIndex][colIndex];
-          
-          // If there are already notes for this cell, add the correct number if not already present
-          if (newNotes[cellKey]) {
-            if (!newNotes[cellKey].includes(correctValue)) {
-              newNotes[cellKey] = [...newNotes[cellKey], correctValue];
-            }
-          } else {
-            // Otherwise, create a new note with just the correct value
-            newNotes[cellKey] = [correctValue];
-          }
-        }
-      });
-    });
-    
-    // Update the cell notes in the state
-    dispatch({
-      type: ACTIONS.RESTORE_SAVED_GAME,
-      payload: { cellNotes: newNotes }
-    });
+    // Use the utility function from debugUtils.js
+    debugCheatModeUtil(state, dispatch, ACTIONS.RESTORE_SAVED_GAME);
   };
   
   // Cycle through available themes
