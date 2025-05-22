@@ -14,9 +14,6 @@ import { GameProvider, useGameContext, ACTIONS } from '../contexts/GameContext';
 import appJson from '../app.json';
 import useAppStateListener from '../hooks/useAppStateListener';
 
-// Get build number from app.json
-const BUILD_NUMBER = appJson.expo.version;
-
 /**
  * Main game screen for Sudoku
  * Uses GameContext for state management
@@ -100,11 +97,6 @@ const GameScreenContent = () => {
         notesMode={notesMode}
       />
 
-      {/* Version number at bottom of screen */}
-      <Text style={[styles.versionText, { color: theme.colors.title }]}>
-        v{BUILD_NUMBER}
-      </Text>
-
       {/* Modals */}
       <GameMenuModal />
       <PauseModal />
@@ -115,7 +107,7 @@ const GameScreenContent = () => {
         isVisible={showBuildNotes}
         onClose={() => dispatch({ type: ACTIONS.HIDE_BUILD_NOTES })}
         theme={theme}
-        version={BUILD_NUMBER} // Add the version prop
+        version={appJson.expo.version}
       />
     </View>
   );
@@ -178,13 +170,6 @@ const styles = StyleSheet.create({
       maxWidth: 600, // Limit width on web for large screens
       marginHorizontal: 'auto', // Center on web
     } : {})
-  },
-  // Style removed - we're now using dynamic dimensions directly in the component
-  versionText: {
-    fontSize: 12,
-    opacity: 0.6,
-    marginTop: 10,
-    marginBottom: 5,
   }
 });
 

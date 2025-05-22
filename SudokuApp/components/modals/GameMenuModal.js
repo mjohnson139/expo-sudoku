@@ -2,12 +2,13 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View, Switch } from 'react-native';
 import { useGameContext, ACTIONS } from '../../contexts/GameContext';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import appJson from '../../app.json';
 
 // Constants for consistent sizes
 const ICON_SIZE = 24;
-// Removed unused import for app.json
 
-// No need to declare BUILD_NUMBER as it's not used
+// Get build number from app.json
+const BUILD_NUMBER = appJson.expo.version;
 
 /**
  * Game Menu Modal for game settings and difficulty selection
@@ -197,6 +198,11 @@ const GameMenuModal = () => {
               </TouchableOpacity>
             </>
           )}
+          
+          {/* Version number at bottom of menu */}
+          <Text style={[styles.versionText, { color: theme.colors.title }]}>
+            v{BUILD_NUMBER}
+          </Text>
         </View>
       </Animated.View>
     </Modal>
@@ -289,6 +295,11 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     marginVertical: 5,
+  },
+  versionText: {
+    fontSize: 12,
+    opacity: 0.6,
+    marginTop: 15,
   }
 });
 
