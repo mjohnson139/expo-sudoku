@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useCallback, useState } from 'react';
 import SUDOKU_THEMES from '../utils/themes';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
 import usePersistentReducer from '../hooks/usePersistentReducer';
+import { loadStatistics, saveStatistics, recordGameStarted, recordGameCompleted, initialStatistics } from '../utils/statistics';
 
 // Initialize with empty Sudoku board
 const emptyBoard = Array.from({ length: 9 }, () => Array(9).fill(0));
@@ -19,13 +20,13 @@ export const ACTIONS = {
   CHANGE_THEME: 'CHANGE_THEME',
   UNDO: 'UNDO',
   REDO: 'REDO',
-  
+
   // Timer actions
   START_TIMER: 'START_TIMER',
   PAUSE_TIMER: 'PAUSE_TIMER',
   TICK_TIMER: 'TICK_TIMER',
   RESET_TIMER: 'RESET_TIMER',
-  
+
   // UI actions
   SHOW_MENU: 'SHOW_MENU',
   HIDE_MENU: 'HIDE_MENU',
@@ -37,7 +38,9 @@ export const ACTIONS = {
   HIDE_WIN_MODAL: 'HIDE_WIN_MODAL',
   SHOW_BUILD_NOTES: 'SHOW_BUILD_NOTES',
   HIDE_BUILD_NOTES: 'HIDE_BUILD_NOTES',
-  
+  SHOW_STATISTICS: 'SHOW_STATISTICS',
+  HIDE_STATISTICS: 'HIDE_STATISTICS',
+
   // Future - for AsyncStorage
   RESTORE_SAVED_GAME: 'RESTORE_SAVED_GAME',
 };
@@ -63,6 +66,7 @@ const initialState = {
   elapsedSeconds: 0,
   timerActive: false,
   gameStarted: false, // Added flag to track if a game has been started
+
   gameCompleted: false, // Flag to track if the current game has been completed
 
   // Score state
@@ -87,6 +91,10 @@ const initialState = {
   isPaused: false,
   showWinModal: false,
   showBuildNotes: false,
+  showStatistics: false,
+
+  // Game info for statistics
+  currentDifficulty: null,
 };
 
 // Helper function to get initial cells positions from a board
@@ -253,6 +261,7 @@ function gameReducer(state, action) {
         showMenu: false,
         isPaused: false,
         showWinModal: false,
+        showStatistics: false,
         elapsedSeconds: 0,
         timerActive: true,
         gameStarted: true, // Set game as started when starting a new game
@@ -267,6 +276,7 @@ function gameReducer(state, action) {
         lastScoredCell: null,
         undoStack: [],
         redoStack: [],
+        currentDifficulty: difficulty, // Store difficulty for statistics tracking
       };
     }
     
@@ -810,7 +820,21 @@ function gameReducer(state, action) {
         ...state,
         showBuildNotes: false,
       };
-    
+
+    case ACTIONS.SHOW_STATISTICS:
+      return {
+        ...state,
+        showStatistics: true,
+        timerActive: state.gameStarted && !state.isPaused ? false : state.timerActive,
+      };
+
+    case ACTIONS.HIDE_STATISTICS:
+      return {
+        ...state,
+        showStatistics: false,
+        timerActive: state.gameStarted && !state.isPaused && !state.showWinModal,
+      };
+
     case ACTIONS.RESTORE_SAVED_GAME:
       // For future AsyncStorage integration
       return {
@@ -834,7 +858,34 @@ export const GameProvider = ({ children }) => {
     ACTIONS.RESTORE_SAVED_GAME
   );
   const timerRef = useRef(null);
-  
+  const [statistics, setStatistics] = useState(initialStatistics);
+  const [statsLoaded, setStatsLoaded] = useState(false);
+  // Use refs for tracking win state to avoid render loops
+  const hasWonRef = useRef(false);
+  const statisticsRef = useRef(statistics);
+
+  // Load statistics on mount
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const stats = await loadStatistics();
+        setStatistics(stats);
+        statisticsRef.current = stats;
+        setStatsLoaded(true);
+      } catch (error) {
+        console.error('Error loading statistics:', error);
+        setStatsLoaded(true); // Set as loaded even if there was an error
+      }
+    };
+
+    loadStats();
+  }, []);
+
+  // Update statistics ref when statistics change
+  useEffect(() => {
+    statisticsRef.current = statistics;
+  }, [statistics]);
+
   // Effect for timer
   useEffect(() => {
     if (state.timerActive) {
@@ -845,7 +896,7 @@ export const GameProvider = ({ children }) => {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    
+
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -853,7 +904,7 @@ export const GameProvider = ({ children }) => {
       }
     };
   }, [state.timerActive]);
-  
+
   // Check for win condition when filledCount changes
   useEffect(() => {
     // Early return if board is not filled or game is already completed
@@ -870,14 +921,56 @@ export const GameProvider = ({ children }) => {
         }
       }
     }
-    
+
     if (won) {
+      // Mark as won to prevent repeated processing
+      hasWonRef.current = true;
+
+      // Update statistics when game is won
+      if (statsLoaded && state.currentDifficulty) {
+        // Use the ref instead of the state
+        const updatedStats = recordGameCompleted(
+          statisticsRef.current,
+          state.currentDifficulty,
+          state.elapsedSeconds,
+          state.score
+        );
+        setStatistics(updatedStats);
+
+        // Use IIFE to handle async operation
+        (async () => {
+          try {
+            await saveStatistics(updatedStats);
+          } catch (error) {
+            console.error('Error saving statistics on win:', error);
+          }
+        })();
+      }
+
       dispatch({ type: ACTIONS.SHOW_WIN_MODAL });
     }
-  }, [state.filledCount, state.board, state.solutionBoard, state.gameCompleted, dispatch]);
+  }, [state.filledCount, state.board, state.solutionBoard, statsLoaded, state.currentDifficulty, state.elapsedSeconds, dispatch]);
 
   // Helper function to start a new game
   const startNewGame = (difficulty) => {
+    // Reset win state when starting a new game
+    hasWonRef.current = false;
+
+    // Update statistics when starting a new game
+    if (statsLoaded) {
+      // Use the ref instead of the state to avoid stale state issues
+      const updatedStats = recordGameStarted(statisticsRef.current, difficulty);
+      setStatistics(updatedStats);
+      // Use IIFE to handle async operation
+      (async () => {
+        try {
+          await saveStatistics(updatedStats);
+        } catch (error) {
+          console.error('Error saving statistics on game start:', error);
+        }
+      })();
+    }
+
     const { board, solution } = generateSudoku(difficulty);
     dispatch({
       type: ACTIONS.START_GAME,
@@ -937,43 +1030,50 @@ export const GameProvider = ({ children }) => {
   
   // Debug function to fill board except last cell
   const debugFillBoard = () => {
-    // Create a new board from initial state
-    const newBoard = state.initialBoardState.map(row => [...row]);
-    const blanks = [];
+    // Don't proceed if no game is started or no solution board is available
+    if (!state.gameStarted || !state.solutionBoard || !state.board) return;
+
+    // Find all empty cells that are not initial cells
+    const emptyCells = [];
     
-    // Find all blank positions in initial puzzle
-    state.initialBoardState.forEach((row, r) => {
-      row.forEach((v, c) => {
-        if (v === 0) blanks.push({ r, c });
+    state.board.forEach((row, r) => {
+      row.forEach((value, c) => {
+        const cellKey = `${r}-${c}`;
+        // Only include cells that are empty (0) and not initial cells
+        if (value === 0 && !state.initialCells.includes(cellKey)) {
+          emptyCells.push({ r, c });
+        }
       });
     });
     
-    if (blanks.length === 0) return;
+    // If no empty cells or just one, nothing to do
+    if (emptyCells.length <= 1) return;
     
-    // Leave the last blank unfilled
-    const last = blanks[blanks.length - 1];
+    // Leave the last empty cell unfilled for the user
+    const lastCell = emptyCells.pop();
     
-    // Fill all other blanks with solution values
-    blanks.forEach(({ r, c }) => {
-      if (r === last.r && c === last.c) return;
-      newBoard[r][c] = state.solutionBoard[r][c];
+    // Fill all other empty cells with solution values
+    emptyCells.forEach(({ r, c }) => {
+      const solutionValue = state.solutionBoard[r][c];
+      
+      // Use SET_VALUE action to make it appear as user input
+      dispatch({
+        type: ACTIONS.SET_VALUE,
+        payload: {
+          row: r,
+          col: c,
+          value: solutionValue
+        }
+      });
     });
     
-    // Track how many cells are filled
-    const filledCount = 81 - 1; // All cells except one
-    
-    // Update state
-    dispatch({
-      type: ACTIONS.START_GAME,
-      payload: { 
-        board: newBoard, 
-        solution: state.solutionBoard,
-        difficulty: 'debug',
-      },
-    });
-    
-    // Manually set filled count for win detection
-    state.filledCount = filledCount;
+    // Select the last empty cell to help the user identify it
+    if (lastCell) {
+      dispatch({
+        type: ACTIONS.SELECT_CELL,
+        payload: { row: lastCell.r, col: lastCell.c }
+      });
+    }
   };
   
   // Debug cheat mode to add notes with correct numbers
@@ -1051,9 +1151,11 @@ export const GameProvider = ({ children }) => {
     formatTime,
     cycleTheme,
     debugFillBoard,
+    statistics,
+    statsLoaded,
     debugCheatMode,
     getLastScoreChange,
-    lastScoredCell: state.lastScoredCell,
+    lastScoredCell: state.lastScoredCell
   };
 
   // Only render children once state has been hydrated from storage

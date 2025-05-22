@@ -59,6 +59,12 @@ const GameMenuModal = () => {
     dispatch({ type: ACTIONS.HIDE_MENU });
   };
 
+  const handleStatisticsPress = () => {
+    dispatch({ type: ACTIONS.SHOW_STATISTICS });
+    // Close the menu when showing statistics
+    dispatch({ type: ACTIONS.HIDE_MENU });
+  };
+
   return (
     <Modal
       visible={showMenu}
@@ -125,7 +131,7 @@ const GameMenuModal = () => {
             <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Expert</Text>
           </TouchableOpacity>
 
-          {/* Build Notes button */}
+          {/* Settings buttons */}
           <View style={styles.settingSection}>
             <TouchableOpacity
               style={[styles.menuButton, styles.buildButton]}
@@ -139,6 +145,15 @@ const GameMenuModal = () => {
                 style={styles.menuButtonIcon}
               />
               <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Build Notes</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.menuButton, styles.statsButton]}
+              onPress={handleStatisticsPress}
+              accessibilityLabel="View Game Statistics"
+            >
+              <Text style={styles.menuButtonEmoji}>📊</Text>
+              <Text style={styles.menuButtonText}>Statistics</Text>
             </TouchableOpacity>
           </View>
 
@@ -166,7 +181,7 @@ const GameMenuModal = () => {
                   debugFillBoard();
                   handleCloseMenu(); // Close menu after filling board
                 }}
-                accessibilityLabel="Debug Fill Board"
+                accessibilityLabel="Fill Board Except Last Cell"
                 accessibilityRole="button"
               >
                 <MaterialCommunityIcons
@@ -175,7 +190,7 @@ const GameMenuModal = () => {
                   color="#333"
                   style={styles.menuButtonIcon}
                 />
-                <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Debug Fill</Text>
+                <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Almost Complete</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
@@ -262,6 +277,9 @@ const styles = StyleSheet.create({
   },
   buildButton: {
     backgroundColor: '#e0e0e0',
+  },
+  statsButton: {
+    backgroundColor: '#d1ecf1',
   },
   menuButtonIcon: {
     marginRight: 8,

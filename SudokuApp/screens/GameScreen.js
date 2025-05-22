@@ -10,6 +10,7 @@ import GameToolBar from '../components/GameToolBar';
 import GameMenuModal from '../components/modals/GameMenuModal';
 import PauseModal from '../components/modals/PauseModal';
 import WinModal from '../components/modals/WinModal';
+import StatisticsModal from '../components/modals/StatisticsModal';
 import { GameProvider, useGameContext, ACTIONS } from '../contexts/GameContext';
 import appJson from '../app.json';
 import useAppStateListener from '../hooks/useAppStateListener';
@@ -34,6 +35,7 @@ const GameScreenContent = () => {
     handleNumberSelect,
     notesMode,
     showBuildNotes,
+    showStatistics,
     gameCompleted
   } = useGameContext();
 
@@ -109,6 +111,7 @@ const GameScreenContent = () => {
       <GameMenuModal />
       <PauseModal />
       <WinModal />
+      <StatisticsModal />
 
       {/* Build notes */}
       <BuildNotes
