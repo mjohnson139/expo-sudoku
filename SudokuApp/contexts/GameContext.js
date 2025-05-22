@@ -932,7 +932,8 @@ export const GameProvider = ({ children }) => {
         const updatedStats = recordGameCompleted(
           statisticsRef.current,
           state.currentDifficulty,
-          state.elapsedSeconds
+          state.elapsedSeconds,
+          state.score
         );
         setStatistics(updatedStats);
 

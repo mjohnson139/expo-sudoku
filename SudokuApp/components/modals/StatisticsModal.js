@@ -18,6 +18,11 @@ const StatisticsModal = () => {
     return bestTime !== null ? formatTime(bestTime) : '--:--';
   };
 
+  // Format best score or show placeholder
+  const formatBestScore = (bestScore) => {
+    return bestScore !== null ? bestScore.toLocaleString() : '---';
+  };
+
   // Calculate completion rate
   const getCompletionRate = (played, completed) => {
     if (played === 0) return '0%';
@@ -139,6 +144,13 @@ const StatisticsModal = () => {
                     {formatBestTime(statistics.difficulty.easy.bestTime)}
                   </Text>
                 </View>
+                
+                <View style={styles.statRow}>
+                  <Text style={[styles.statLabel, { color: theme.colors.cell.text }]}>Best Score:</Text>
+                  <Text style={[styles.statValue, { color: theme.colors.cell.text }]}>
+                    {formatBestScore(statistics.difficulty.easy.bestScore)}
+                  </Text>
+                </View>
               </View>
               
               {/* Medium */}
@@ -175,6 +187,13 @@ const StatisticsModal = () => {
                   <Text style={[styles.statLabel, { color: theme.colors.cell.text }]}>Best Time:</Text>
                   <Text style={[styles.statValue, { color: theme.colors.cell.text }]}>
                     {formatBestTime(statistics.difficulty.medium.bestTime)}
+                  </Text>
+                </View>
+                
+                <View style={styles.statRow}>
+                  <Text style={[styles.statLabel, { color: theme.colors.cell.text }]}>Best Score:</Text>
+                  <Text style={[styles.statValue, { color: theme.colors.cell.text }]}>
+                    {formatBestScore(statistics.difficulty.medium.bestScore)}
                   </Text>
                 </View>
               </View>
@@ -215,6 +234,13 @@ const StatisticsModal = () => {
                     {formatBestTime(statistics.difficulty.hard.bestTime)}
                   </Text>
                 </View>
+                
+                <View style={styles.statRow}>
+                  <Text style={[styles.statLabel, { color: theme.colors.cell.text }]}>Best Score:</Text>
+                  <Text style={[styles.statValue, { color: theme.colors.cell.text }]}>
+                    {formatBestScore(statistics.difficulty.hard.bestScore)}
+                  </Text>
+                </View>
               </View>
               
               {/* Expert */}
@@ -251,6 +277,13 @@ const StatisticsModal = () => {
                   <Text style={[styles.statLabel, { color: theme.colors.cell.text }]}>Best Time:</Text>
                   <Text style={[styles.statValue, { color: theme.colors.cell.text }]}>
                     {formatBestTime(statistics.difficulty.expert.bestTime)}
+                  </Text>
+                </View>
+                
+                <View style={styles.statRow}>
+                  <Text style={[styles.statLabel, { color: theme.colors.cell.text }]}>Best Score:</Text>
+                  <Text style={[styles.statValue, { color: theme.colors.cell.text }]}>
+                    {formatBestScore(statistics.difficulty.expert.bestScore)}
                   </Text>
                 </View>
               </View>

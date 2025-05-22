@@ -4,11 +4,12 @@
 export const BUILD_NOTES = {
   '2.8.0': {
     title: 'Game Statistics Tracking',
-    date: '2025-05-11',
+    date: '2025-05-21',
     notes: [
       'Added comprehensive game statistics tracking system',
       'Created statistics modal to display gameplay metrics',
       'Track games played, completed, and best times by difficulty',
+      'Track best scores achieved for each difficulty level',
       'Track win streaks and completion rates',
       'Game statistics are saved and persist between sessions',
       'Added statistics button to game menu for easy access',

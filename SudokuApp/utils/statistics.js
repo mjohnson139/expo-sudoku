@@ -15,18 +15,22 @@ export const STATS_VERSION = 1;
  * @property {number} difficulty.easy.played - Games played on easy
  * @property {number} difficulty.easy.completed - Games completed on easy
  * @property {number} difficulty.easy.bestTime - Best time in seconds (easy)
+ * @property {number} difficulty.easy.bestScore - Best score achieved on easy
  * @property {Object} difficulty.medium - Medium difficulty statistics
  * @property {number} difficulty.medium.played - Games played on medium
  * @property {number} difficulty.medium.completed - Games completed on medium
  * @property {number} difficulty.medium.bestTime - Best time in seconds (medium)
+ * @property {number} difficulty.medium.bestScore - Best score achieved on medium
  * @property {Object} difficulty.hard - Hard difficulty statistics
  * @property {number} difficulty.hard.played - Games played on hard
  * @property {number} difficulty.hard.completed - Games completed on hard
  * @property {number} difficulty.hard.bestTime - Best time in seconds (hard)
+ * @property {number} difficulty.hard.bestScore - Best score achieved on hard
  * @property {Object} difficulty.expert - Expert difficulty statistics
  * @property {number} difficulty.expert.played - Games played on expert
  * @property {number} difficulty.expert.completed - Games completed on expert
  * @property {number} difficulty.expert.bestTime - Best time in seconds (expert)
+ * @property {number} difficulty.expert.bestScore - Best score achieved on expert
  * @property {Object} streaks - Streak information
  * @property {number} streaks.current - Current streak of completed games
  * @property {number} streaks.best - Best streak of completed games
@@ -45,21 +49,25 @@ export const initialStatistics = {
       played: 0,
       completed: 0,
       bestTime: null, // null means no games completed yet
+      bestScore: null, // null means no games completed yet
     },
     medium: {
       played: 0,
       completed: 0,
       bestTime: null,
+      bestScore: null,
     },
     hard: {
       played: 0,
       completed: 0,
       bestTime: null,
+      bestScore: null,
     },
     expert: {
       played: 0,
       completed: 0,
       bestTime: null,
+      bestScore: null,
     },
   },
   streaks: {
@@ -145,9 +153,10 @@ export const recordGameStarted = (currentStats, difficulty) => {
  * @param {GameStatistics} currentStats - Current statistics
  * @param {string} difficulty - Game difficulty level
  * @param {number} timeInSeconds - Time taken to complete the game
+ * @param {number} score - Score achieved in the game
  * @returns {GameStatistics} - Updated statistics
  */
-export const recordGameCompleted = (currentStats, difficulty, timeInSeconds) => {
+export const recordGameCompleted = (currentStats, difficulty, timeInSeconds, score) => {
   // Deep clone the stats to avoid mutation
   const newStats = JSON.parse(JSON.stringify(currentStats));
   
@@ -162,6 +171,11 @@ export const recordGameCompleted = (currentStats, difficulty, timeInSeconds) => 
     // Update best time if this is better than previous or first completion
     if (diffStats.bestTime === null || timeInSeconds < diffStats.bestTime) {
       diffStats.bestTime = timeInSeconds;
+    }
+    
+    // Update best score if this is better than previous or first completion
+    if (diffStats.bestScore === null || score > diffStats.bestScore) {
+      diffStats.bestScore = score;
     }
   }
   
