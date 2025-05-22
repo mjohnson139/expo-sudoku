@@ -181,7 +181,7 @@ const GameMenuModal = () => {
                   debugFillBoard();
                   handleCloseMenu(); // Close menu after filling board
                 }}
-                accessibilityLabel="Debug Fill Board"
+                accessibilityLabel="Fill Board Except Last Cell"
                 accessibilityRole="button"
               >
                 <MaterialCommunityIcons
@@ -190,7 +190,7 @@ const GameMenuModal = () => {
                   color="#333"
                   style={styles.menuButtonIcon}
                 />
-                <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Debug Fill</Text>
+                <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Almost Complete</Text>
               </TouchableOpacity>
               
               <TouchableOpacity

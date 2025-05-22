@@ -1030,43 +1030,50 @@ export const GameProvider = ({ children }) => {
   
   // Debug function to fill board except last cell
   const debugFillBoard = () => {
-    // Create a new board from initial state
-    const newBoard = state.initialBoardState.map(row => [...row]);
-    const blanks = [];
+    // Don't proceed if no game is started or no solution board is available
+    if (!state.gameStarted || !state.solutionBoard || !state.board) return;
+
+    // Find all empty cells that are not initial cells
+    const emptyCells = [];
     
-    // Find all blank positions in initial puzzle
-    state.initialBoardState.forEach((row, r) => {
-      row.forEach((v, c) => {
-        if (v === 0) blanks.push({ r, c });
+    state.board.forEach((row, r) => {
+      row.forEach((value, c) => {
+        const cellKey = `${r}-${c}`;
+        // Only include cells that are empty (0) and not initial cells
+        if (value === 0 && !state.initialCells.includes(cellKey)) {
+          emptyCells.push({ r, c });
+        }
       });
     });
     
-    if (blanks.length === 0) return;
+    // If no empty cells or just one, nothing to do
+    if (emptyCells.length <= 1) return;
     
-    // Leave the last blank unfilled
-    const last = blanks[blanks.length - 1];
+    // Leave the last empty cell unfilled for the user
+    const lastCell = emptyCells.pop();
     
-    // Fill all other blanks with solution values
-    blanks.forEach(({ r, c }) => {
-      if (r === last.r && c === last.c) return;
-      newBoard[r][c] = state.solutionBoard[r][c];
+    // Fill all other empty cells with solution values
+    emptyCells.forEach(({ r, c }) => {
+      const solutionValue = state.solutionBoard[r][c];
+      
+      // Use SET_VALUE action to make it appear as user input
+      dispatch({
+        type: ACTIONS.SET_VALUE,
+        payload: {
+          row: r,
+          col: c,
+          value: solutionValue
+        }
+      });
     });
     
-    // Track how many cells are filled
-    const filledCount = 81 - 1; // All cells except one
-    
-    // Update state
-    dispatch({
-      type: ACTIONS.START_GAME,
-      payload: { 
-        board: newBoard, 
-        solution: state.solutionBoard,
-        difficulty: 'debug',
-      },
-    });
-    
-    // Manually set filled count for win detection
-    state.filledCount = filledCount;
+    // Select the last empty cell to help the user identify it
+    if (lastCell) {
+      dispatch({
+        type: ACTIONS.SELECT_CELL,
+        payload: { row: lastCell.r, col: lastCell.c }
+      });
+    }
   };
   
   // Debug cheat mode to add notes with correct numbers
