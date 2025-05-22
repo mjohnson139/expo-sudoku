@@ -2,6 +2,18 @@
 // Each version's notes are stored in this file
 
 const BUILD_NOTES = {
+  '2.8.0': {
+    title: 'Fill in Notes Helper Feature',
+    date: '2025-05-22',
+    notes: [
+      'Added "Fill in Notes" helper feature in game menu',
+      'Automatically calculates all possible valid notes for empty cells',
+      'Respects Sudoku rules for row, column, and box constraints',
+      'Fully integrated with undo/redo system',
+      'Only available during active games',
+      'Perfect for quickly populating notes when starting a new game or when stuck'
+    ]
+  },
   '2.7.0': {
     title: 'UI Improvements: Score Animation & Icons',
     date: '2025-05-18',
