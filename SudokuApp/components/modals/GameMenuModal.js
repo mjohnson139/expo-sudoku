@@ -22,6 +22,7 @@ const GameMenuModal = () => {
     dispatch,
     debugFillBoard,
     debugCheatMode,
+    gameStarted,
   } = useGameContext();
 
   // Animation for menu modal
@@ -57,6 +58,12 @@ const GameMenuModal = () => {
   const handleBuildPress = () => {
     dispatch({ type: ACTIONS.SHOW_BUILD_NOTES });
     // Close the menu when showing build notes
+    dispatch({ type: ACTIONS.HIDE_MENU });
+  };
+  
+  const handleFillInNotes = () => {
+    dispatch({ type: ACTIONS.FILL_IN_NOTES });
+    // Close the menu after filling in notes
     dispatch({ type: ACTIONS.HIDE_MENU });
   };
 
@@ -126,8 +133,27 @@ const GameMenuModal = () => {
             <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Expert</Text>
           </TouchableOpacity>
 
-          {/* Build Notes button */}
+          {/* Game Helper Buttons */}
           <View style={styles.settingSection}>
+            {/* Fill in Notes button - only shown when a game is in progress */}
+            {gameStarted && (
+              <TouchableOpacity
+                style={[styles.menuButton, styles.helperButton]}
+                onPress={handleFillInNotes}
+                accessibilityLabel="Fill in all possible notes"
+                accessibilityRole="button"
+              >
+                <MaterialCommunityIcons
+                  name="pencil-box-multiple"
+                  size={ICON_SIZE}
+                  color="#333"
+                  style={styles.menuButtonIcon}
+                />
+                <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Fill in Notes</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Build Notes button */}
             <TouchableOpacity
               style={[styles.menuButton, styles.buildButton]}
               onPress={handleBuildPress}
@@ -268,6 +294,10 @@ const styles = StyleSheet.create({
   },
   buildButton: {
     backgroundColor: '#e0e0e0',
+  },
+  helperButton: {
+    backgroundColor: '#d1e7f0',
+    marginBottom: 8,
   },
   menuButtonIcon: {
     marginRight: 8,

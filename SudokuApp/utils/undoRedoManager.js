@@ -50,6 +50,14 @@ export const createNotesAction = (cellKey, previousNotes, newNotes, noteValue, i
  */
 export const applyBoardAction = (board, action) => {
   const { cellKey, previousValue, newValue } = action;
+  
+  // Guard against undefined cellKey
+  if (!cellKey) {
+    // If cellKey is undefined, return the board unchanged
+    console.warn('Invalid action in applyBoardAction: cellKey is undefined');
+    return board;
+  }
+  
   const [row, col] = cellKey.split('-').map(Number);
   
   // Create a new board with the value change applied
@@ -70,6 +78,14 @@ export const applyBoardAction = (board, action) => {
  */
 export const applyNotesAction = (cellNotes, action) => {
   const { cellKey, previousNotes, newNotes, type } = action;
+  
+  // Guard against undefined cellKey
+  if (!cellKey) {
+    // If cellKey is undefined, return notes unchanged
+    console.warn('Invalid action in applyNotesAction: cellKey is undefined');
+    return cellNotes;
+  }
+  
   const updatedNotes = { ...cellNotes };
   
   const notesToApply = action.isUndo ? previousNotes : newNotes;
