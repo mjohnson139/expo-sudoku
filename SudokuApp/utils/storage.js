@@ -11,11 +11,31 @@ export const STORAGE_VERSION = 2; // Incremented to handle addition of gameCompl
  * @returns {Function} - The debounced function
  */
 const debounce = (func, wait) => {
-  let timeout;
-  return (...args) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), wait);
+  let timeout = null;
+  let lastArgs;
+  let lastThis;
+
+  const invoke = () => {
+    const result = func.apply(lastThis, lastArgs);
+    timeout = null;
+    return result;
   };
+
+  const debounced = function (...args) {
+    lastArgs = args;
+    lastThis = this;
+    clearTimeout(timeout);
+    timeout = setTimeout(invoke, wait);
+  };
+
+  debounced.flush = () => {
+    if (timeout) {
+      clearTimeout(timeout);
+      return invoke();
+    }
+  };
+
+  return debounced;
 };
 
 /**
