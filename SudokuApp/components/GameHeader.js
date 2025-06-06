@@ -40,7 +40,7 @@ const GameHeader = () => {
 
         {/* Center: Game Title */}
         <View style={styles.centerSection}>
-          <Text style={[styles.title, { color: theme.colors.title }]}>Sudoku</Text>
+          <Text style={[styles.title, { color: theme.colors.title }]}>Sudoku Galaxy</Text>
         </View>
 
         {/* Right: Theme Selector Button */}
