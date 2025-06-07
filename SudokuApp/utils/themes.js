@@ -316,7 +316,7 @@ export const SUDOKU_THEMES = {
     name: 'HSD',
     colors: {
       background: '#F0F6FA', // Light tertiary color for clean background
-      title: '#FF8500', // Primary HopSkipDrive Orange
+      title: '#0B274B', // Primary HopSkipDrive Navy
       grid: {
         background: '#FFF8F5', // Soft warm white background
         border: '#0B274B', // Primary HopSkipDrive Navy for strong borders
