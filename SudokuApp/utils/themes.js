@@ -312,6 +312,58 @@ export const SUDOKU_THEMES = {
       }
     }
   },
+  hsd: {
+    name: 'HSD',
+    colors: {
+      background: '#F0F6FA', // Light tertiary color for clean background
+      title: '#0B274B', // Primary HopSkipDrive Navy
+      grid: {
+        background: '#FFF8F5', // Soft warm white background
+        border: '#0B274B', // Primary HopSkipDrive Navy for strong borders
+        boxBorder: '#1A4A7A', // Secondary blue for 3x3 box borders
+        cellBorder: '#D35F00', // Secondary orange for cell borders
+        innerBorder: '#238AB3', // Secondary blue for inner borders
+      },
+      cell: {
+        background: '#FFF8F5', // Soft warm white
+        prefilled: '#FFF8F5', // Same as background for prefilled cells
+        selectedBackground: '#add8e6', // Standard light blue highlight for consistency
+        initialValueText: '#0B274B', // Primary navy for initial values
+        userValueText: '#0B274B', // Primary HopSkipDrive Navy for user values
+        correctValueText: '#00726F', // Tertiary teal for correct values
+        incorrectValueText: '#FF644D', // Tertiary red for incorrect values
+        incorrectBackground: '#FFF2E3', // Light tertiary background for errors
+        textFont: 'normal',
+        hoverBackground: '#FCD2A7', // Secondary warm tone for hover
+        touchedBackground: '#FEAC54', // Secondary orange for touched
+        relatedBackground: '#F4F4F4', // Light gray for related cells
+        boxRelatedBackground: '#F4F4F4', // Same as related background
+        rowRelatedBackground: '#F4F4F4', // Same as related background
+        columnRelatedBackground: '#F4F4F4', // Same as related background
+        sameValueBackground: '#F4F4F4', // Same as related background
+        initialCellBackground: '#FFF8F5', // Same as cell background
+        notesText: '#6D1D5A', // Tertiary purple for notes text
+      },
+      numberPad: {
+        background: '#A8E9F4', // Secondary light blue for number pad
+        border: '#0B274B', // Primary HopSkipDrive Navy for borders
+        text: '#0B274B', // Primary navy for text
+        shadow: '#2BC9EC', // Secondary cyan for shadow
+        clearButton: '#FF644D', // Tertiary red for clear button
+        notesBackground: '#6AD9F0', // Secondary light cyan for notes mode
+      },
+      badge: {
+        background: '#F0853D', // Secondary orange for badges
+        text: '#0B274B' // Primary navy for badge text
+      },
+      difficulty: {
+        easy: '#3FEAAD',    // Tertiary green for easy
+        medium: '#FFD652',  // Tertiary yellow for medium
+        hard: '#FF644D',    // Tertiary red for hard
+        expert: '#6D1D5A'   // Tertiary purple for expert
+      }
+    }
+  },
   twilight: {
     name: 'Twilight',
     colors: {
