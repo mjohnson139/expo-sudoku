@@ -329,7 +329,7 @@ export const SUDOKU_THEMES = {
         prefilled: '#FFF8F5', // Same as background for prefilled cells
         selectedBackground: '#add8e6', // Standard light blue highlight for consistency
         initialValueText: '#0B274B', // Primary navy for initial values
-        userValueText: '#1A4A7A', // Secondary blue for user values
+        userValueText: '#0B274B', // Primary HopSkipDrive Navy for user values
         correctValueText: '#00726F', // Tertiary teal for correct values
         incorrectValueText: '#FF644D', // Tertiary red for incorrect values
         incorrectBackground: '#FFF2E3', // Light tertiary background for errors
@@ -346,7 +346,7 @@ export const SUDOKU_THEMES = {
       },
       numberPad: {
         background: '#A8E9F4', // Secondary light blue for number pad
-        border: '#238AB3', // Secondary blue for borders
+        border: '#0B274B', // Primary HopSkipDrive Navy for borders
         text: '#0B274B', // Primary navy for text
         shadow: '#2BC9EC', // Secondary cyan for shadow
         clearButton: '#FF644D', // Tertiary red for clear button
