@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View, Switch } from 'react-native';
 import { useGameContext, ACTIONS } from '../../contexts/GameContext';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import appJson from '../../app.json';
 
 // Constants for consistent sizes
