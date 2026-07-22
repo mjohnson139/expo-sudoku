@@ -15,8 +15,8 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mjohnson139.sudokuapp",
-      "config": {
-        "usesNonExemptEncryption": false
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
