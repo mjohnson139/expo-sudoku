@@ -6,6 +6,12 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e6c3fb8f-7922-4b6d-8721-3d52df091af9"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mjohnson139.sudokuapp",
