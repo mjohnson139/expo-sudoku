@@ -7,6 +7,55 @@ the digits 1–9, a puzzle shows **8 color swatches plus one mushroom character*
 It's the family "meowdoku" concept — one symbol is a creature, the rest are
 colors — dropped in as a symbol set the player can switch on.
 
+## For the implementer (start here)
+
+- **Repo:** `mjohnson139/expo-sudoku`. The app code is in the `SudokuApp/`
+  subdirectory (Expo · React Native · JavaScript).
+- **This document is the source of truth** for scope and approach — read it end
+  to end before writing code.
+- **Process:** follow `.github/dev-process.md` — open one GitHub issue with a
+  markdown-checkbox implementation plan, work **one delivery step per branch**,
+  commit after each step, and **prompt the operator to test after each step.**
+- **Order of work is fixed:** do **Step 0 (the Expo upgrade) first**, as its own
+  branch + PR, verify it in Expo Go on a device, and get it merged **before any
+  Fungiku code.** Everything in §1–§5 is a rendering skin; none of it should be
+  touched until the app runs on the current SDK.
+- **Golden rule for the feature:** Fungiku changes only how a value is *drawn*.
+  The board stays numeric (`1..9`) internally — do **not** modify the generator
+  (`sudoku-gen`), the `GameContext` reducer, notes, undo/redo, feedback logic,
+  or win detection.
+
+## Step 0 — Pre-step: upgrade Expo to the latest SDK
+
+The app is currently on **Expo SDK 53** (`SudokuApp/app.json` pins
+`"sdkVersion": "53.0.0"`; `expo` is `53.0.9`, React Native `0.79.2`, React
+`19.0.0`). **Expo Go only runs the newest SDK**, so on our devices the app won't
+open until it's upgraded. This is a native-level change and gets its own branch
+and PR, done and verified before Fungiku.
+
+- **Pick the target:** determine the current latest Expo SDK (e.g.
+  `npm view expo version`, or the Expo release notes) and upgrade to it — don't
+  assume a specific number, "latest" moves.
+- **Upgrade** from `SudokuApp/`: `npx expo install expo@latest`, then
+  `npx expo install --fix` to realign React, React Native, and every
+  `expo-*` / `react-native-*` dependency to the versions that SDK expects.
+  **Inspect the package.json diff** — `expo install --fix` has a known habit of
+  duplicating packages across `dependencies` / `devDependencies`.
+- **Reconcile `SudokuApp/app.json`:** update the pinned `"sdkVersion"` to match
+  the new SDK (or remove the pin so it's inferred). Keep `newArchEnabled: true`.
+- **Watch these deps specifically:** `react-native-paper`,
+  `react-native-gesture-handler`, `react-native-safe-area-context`,
+  `@expo/metro-runtime`, and `react-native-vector-icons` — the Fungiku feature
+  uses `MaterialCommunityIcons` from it, so if the new SDK prefers
+  `@expo/vector-icons`, migrate and confirm the `mushroom` glyph still renders.
+- **Verify (in this order):** `npx expo-doctor` is clean → the app bundles on
+  web (`expo start --web`) → **it actually opens and plays in Expo Go on a
+  device.** The device check is the real gate; the cloud/simulator can't confirm
+  Expo Go compatibility, and gesture/touch (cell selection, the number pad)
+  especially needs a real device pass.
+- **Stop after the upgrade PR** for the operator to test in Expo Go, and get it
+  merged before starting Step 1.
+
 ## 1. Why this belongs in expo-sudoku (and not as its own game)
 
 The mechanic *is* Sudoku. Everything that makes Sudoku work already lives here:
@@ -85,6 +134,8 @@ so the default path is unchanged and low-risk.
 
 ## 6. Delivery steps (small, one branch per step per dev-process.md)
 
+0. **Pre-step — upgrade Expo to the latest SDK** (see the Step 0 section above).
+   Own branch + PR, verified in Expo Go, **merged before anything below.**
 1. `components/Symbol.js` + `utils/symbolSets.js` (numbers set + Fungiku set with
    MCI mushroom placeholder). Wire `Cell.js` to render through `<Symbol>` — with
    `symbolSet` hardcoded to `numbers` first, proving zero visual change.
