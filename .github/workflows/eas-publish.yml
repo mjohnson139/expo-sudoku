@@ -5,20 +5,29 @@ on:
   push:
     branches:
       - main
-      - 'feature/**'
+  pull_request:
 
 permissions:
   contents: write        # for gh-pages push
   pages: write           # for new Pages deployment engine
   id-token: write        # required by actions/deploy-pages
+  pull-requests: write   # for the PR preview comment
+
+# Cancel superseded runs for the same branch / PR
+concurrency:
+  group: eas-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
-  NODE_VERSION: 18
+  NODE_VERSION: 20       # Expo SDK 54 requires Node 20+
   APP_DIR: ./SudokuApp
 
 jobs:
 # --------------------------------------------------------------------------
+# Merge to main -> publish the production EAS Update
   publish-mobile:
+    name: Publish EAS Update (main)
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -27,25 +36,63 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
         run: npm install
-        working-directory: ./SudokuApp
+        working-directory: ${{ env.APP_DIR }}
 
       - name: Install EAS CLI
         run: npm install -g eas-cli
-        working-directory: ./SudokuApp
-
-      - name: Log in to Expo
-        run: eas whoami || echo "// no login needed with token"
-        working-directory: ./SudokuApp
 
       - name: Publish to EAS Update for all platforms
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
-          BRANCH_NAME=$(echo "${GITHUB_REF##*/}" | tr / -)
-          # Publish for all platforms
-          eas update --branch $BRANCH_NAME --message "Auto-publish from $BRANCH_NAME" --platform all
-        working-directory: ./SudokuApp
+          eas update --branch main \
+            --message "Auto-publish from main (${GITHUB_SHA::7})" \
+            --platform all \
+            --environment production \
+            --non-interactive
+        working-directory: ${{ env.APP_DIR }}
+
+# --------------------------------------------------------------------------
+# Open / update a PR -> publish a preview EAS Update and comment a QR code
+  preview-mobile:
+    name: EAS Update PR preview
+    # Only for PRs from this repo (fork PRs can't access EXPO_TOKEN)
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Set up EAS CLI (with token auth)
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Publish preview and comment on the PR
+        uses: expo/expo-github-action/preview@v8
+        with:
+          working-directory: ${{ env.APP_DIR }}
+          command: >-
+            eas update
+            --branch pr-${{ github.event.number }}
+            --message "PR #${{ github.event.number }} preview (${{ github.event.pull_request.head.sha }})"
+            --environment preview
