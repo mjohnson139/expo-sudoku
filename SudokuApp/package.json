@@ -11,23 +11,24 @@
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.3.0",
-    "@expo/metro-runtime": "~5.0.4",
-    "@react-native-async-storage/async-storage": "2.1.2",
-    "expo": "53.0.9",
-    "expo-font": "~13.3.1",
-    "expo-status-bar": "~2.2.3",
-    "react": "19.0.0",
-    "react-dom": "19.0.0",
-    "react-native": "0.79.2",
-    "react-native-gesture-handler": "~2.24.0",
+    "@expo/metro-runtime": "~57.0.7",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "expo": "^57.0.8",
+    "expo-font": "~57.0.1",
+    "expo-splash-screen": "~57.0.5",
+    "expo-status-bar": "~57.0.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.0",
+    "react-native-gesture-handler": "~2.32.0",
     "react-native-paper": "^5.13.1",
-    "react-native-safe-area-context": "^5.4.0",
+    "react-native-safe-area-context": "~5.7.0",
     "react-native-vector-icons": "^10.2.0",
-    "react-native-web": "^0.20.0",
+    "react-native-web": "^0.21.2",
     "sudoku-gen": "^1.0.2"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0"
+    "@babel/core": "^7.29.0"
   },
   "private": true
 }
