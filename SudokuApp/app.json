@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "newArchEnabled": true,
     "runtimeVersion": {
       "policy": "sdkVersion"
     },
@@ -43,7 +44,6 @@
     "owner": "mjohnson139",
     "plugins": [
       "expo-font",
-      "expo-status-bar",
       [
         "expo-splash-screen",
         {
