@@ -1,5 +1,12 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
+import Symbol from './Symbol';
+import { SYMBOL_SET_IDS, getSymbolLabel } from '../utils/symbolSets';
+
+// Step 1 of the Fungiku seam: values render through <Symbol>, but the symbol set
+// is hardcoded to "numbers" so the board is visually identical to before. State
+// + a toggle arrive in Step 2 (docs/fungiku-plan.md §4, §6).
+const SYMBOL_SET = SYMBOL_SET_IDS.NUMBERS;
 
 // Performance-optimized Cell component
 const Cell = ({ 
@@ -103,8 +110,8 @@ const Cell = ({
   if (value !== 0) {
     // Cell has a value
     return (
-      <View style={cellStyle} accessibilityLabel={`Cell value: ${value}`}>
-        <Text style={textStyle}>{value}</Text>
+      <View style={cellStyle} accessibilityLabel={`Cell value: ${getSymbolLabel(SYMBOL_SET, value)}`}>
+        <Symbol symbolSet={SYMBOL_SET} value={value} textStyle={textStyle} />
       </View>
     );
   } else {
