@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useCallback } from 'react';
 import SUDOKU_THEMES from '../utils/themes';
+import { SYMBOL_SET_IDS } from '../utils/symbolSets';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
 import usePersistentReducer from '../hooks/usePersistentReducer';
 import { debugFillBoard as debugFillBoardUtil, debugCheatMode as debugCheatModeUtil } from '../utils/debugUtils';
@@ -19,6 +20,7 @@ export const ACTIONS = {
   TOGGLE_NOTES_MODE: 'TOGGLE_NOTES_MODE',
   TOGGLE_FEEDBACK: 'TOGGLE_FEEDBACK',
   CHANGE_THEME: 'CHANGE_THEME',
+  CHANGE_SYMBOL_SET: 'CHANGE_SYMBOL_SET', // Fungiku display mode (docs/fungiku-plan.md §4)
   UNDO: 'UNDO',
   REDO: 'REDO',
   FILL_IN_NOTES: 'FILL_IN_NOTES', // New action for filling in all possible notes
@@ -80,6 +82,11 @@ const initialState = {
   // Theme state
   currentThemeName: 'classic',
   theme: SUDOKU_THEMES.classic,
+
+  // Symbol-set state (Fungiku display mode) — how a cell value is *drawn*, not
+  // what it is. Orthogonal to theme and difficulty. Mirrors currentThemeName:
+  // persisted the same way, cycled the same way. (docs/fungiku-plan.md §4)
+  symbolSet: SYMBOL_SET_IDS.NUMBERS,
 
   // Undo/redo state
   undoStack: [],
@@ -556,6 +563,16 @@ function gameReducer(state, action) {
         theme: SUDOKU_THEMES[themeName],
       };
     }
+
+    case ACTIONS.CHANGE_SYMBOL_SET: {
+      // Fungiku is a rendering skin only — swapping the symbol set changes how
+      // values are drawn, never the numeric board underneath (plan §4, golden
+      // rule). No board/notes/feedback state is touched here.
+      return {
+        ...state,
+        symbolSet: action.payload,
+      };
+    }
     
     case ACTIONS.UNDO: {
       // Prevent undo if game is completed or if undo stack is empty
@@ -1017,7 +1034,24 @@ export const GameProvider = ({ children }) => {
       payload: nextThemeName,
     });
   };
-  
+
+  // Set the symbol set directly (numbers | fungiku). Mirrors CHANGE_THEME.
+  const setSymbolSet = (setId) => {
+    dispatch({
+      type: ACTIONS.CHANGE_SYMBOL_SET,
+      payload: setId,
+    });
+  };
+
+  // Cycle through the available symbol sets (Numbers → Fungiku → …), mirroring
+  // cycleTheme. Values come from SYMBOL_SET_IDS in utils/symbolSets.js.
+  const cycleSymbolSet = () => {
+    const setIds = Object.values(SYMBOL_SET_IDS);
+    const currentIndex = setIds.indexOf(state.symbolSet);
+    const nextIndex = (currentIndex + 1) % setIds.length;
+    setSymbolSet(setIds[nextIndex]);
+  };
+
   // Helper to calculate last score change (used for animations)
   const getLastScoreChange = () => {
     const lastAction = state.undoStack.length > 0 ? state.undoStack[state.undoStack.length - 1] : null;
@@ -1042,6 +1076,8 @@ export const GameProvider = ({ children }) => {
     handleNumberSelect,
     formatTime,
     cycleTheme,
+    cycleSymbolSet,
+    setSymbolSet,
     debugFillBoard,
     debugCheatMode,
     getLastScoreChange,

@@ -31,7 +31,8 @@ const GameScreenContent = () => {
     handleNumberSelect,
     notesMode,
     showBuildNotes,
-    gameCompleted
+    gameCompleted,
+    symbolSet
   } = useGameContext();
 
   // Use custom hook to handle app state changes
@@ -79,6 +80,7 @@ const GameScreenContent = () => {
             showFeedback={showFeedback}
             cellFeedback={cellFeedback}
             cellNotes={cellNotes}
+            symbolSet={symbolSet}
           />
         </View>
 

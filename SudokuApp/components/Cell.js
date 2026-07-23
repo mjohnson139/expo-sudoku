@@ -3,21 +3,21 @@ import { View, Text, StyleSheet, Platform } from 'react-native';
 import Symbol from './Symbol';
 import { SYMBOL_SET_IDS, getSymbolLabel } from '../utils/symbolSets';
 
-// Step 1 of the Fungiku seam: values render through <Symbol>, but the symbol set
-// is hardcoded to "numbers" so the board is visually identical to before. State
-// + a toggle arrive in Step 2 (docs/fungiku-plan.md §4, §6).
-const SYMBOL_SET = SYMBOL_SET_IDS.NUMBERS;
-
-// Performance-optimized Cell component
-const Cell = ({ 
-  value, 
+// Performance-optimized Cell component. The active symbol set arrives as a prop
+// (threaded from GameContext through Grid, like `theme`) so the board's numeric
+// values render as digits or Fungiku glyphs without changing game logic
+// (docs/fungiku-plan.md §4, §6 Step 2). Defaults to "numbers" so the render is
+// unchanged if the prop is ever absent.
+const Cell = ({
+  value,
   isSelected,
-  isInitialCell, 
+  isInitialCell,
   relationType,
-  isCorrect, 
-  showFeedback, 
-  extraStyle, 
+  isCorrect,
+  showFeedback,
+  extraStyle,
   theme,
+  symbolSet = SYMBOL_SET_IDS.NUMBERS,
   notes = [] // Array of numbers 1-9 that are notes for this cell
 }) => {
   // Memoize background color calculation
@@ -110,8 +110,8 @@ const Cell = ({
   if (value !== 0) {
     // Cell has a value
     return (
-      <View style={cellStyle} accessibilityLabel={`Cell value: ${getSymbolLabel(SYMBOL_SET, value)}`}>
-        <Symbol symbolSet={SYMBOL_SET} value={value} textStyle={textStyle} />
+      <View style={cellStyle} accessibilityLabel={`Cell value: ${getSymbolLabel(symbolSet, value)}`}>
+        <Symbol symbolSet={symbolSet} value={value} textStyle={textStyle} />
       </View>
     );
   } else {

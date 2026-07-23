@@ -3,6 +3,7 @@ import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { useGameContext } from '../contexts/GameContext';
 import { ACTIONS } from '../contexts/GameContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import SymbolSetSelector from './SymbolSetSelector';
 
 // Constants for consistent sizes
 const ICON_SIZE = 24;
@@ -43,8 +44,9 @@ const GameHeader = () => {
           <Text style={[styles.title, { color: theme.colors.title }]}>Sudoku</Text>
         </View>
 
-        {/* Right: Theme Selector Button */}
+        {/* Right: Symbol-set toggle + Theme Selector Button */}
         <View style={styles.rightSection}>
+          <SymbolSetSelector />
           <TouchableOpacity
             style={[styles.themeButton, { borderColor: theme.colors.title }]}
             onPress={cycleTheme}
@@ -92,7 +94,9 @@ const styles = StyleSheet.create({
   },
   rightSection: {
     flex: 1,
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
     paddingRight: 8,
   },
   title: {

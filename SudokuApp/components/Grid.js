@@ -8,10 +8,11 @@ const Grid = ({
   onCellPress, 
   selectedCell, 
   initialCells = [], 
-  theme, 
-  showFeedback = false, 
-  cellFeedback = {}, 
-  cellNotes = {}
+  theme,
+  showFeedback = false,
+  cellFeedback = {},
+  cellNotes = {},
+  symbolSet
 }) => {
   // Memoize all the cell relations based on the selected cell and board state
   // This prevents recalculating relations for all 81 cells on every render
@@ -127,12 +128,13 @@ const Grid = ({
           showFeedback={showFeedback && !isInitialCell && num !== 0}
           extraStyle={cellBorderStyles[cellKey]}
           theme={theme}
+          symbolSet={symbolSet}
           notes={notes}
         />
       </TouchableOpacity>
     );
   }, [
-    selectedCell, 
+    selectedCell,
     cellRelations,
     initialCells,
     showFeedback,
@@ -140,6 +142,7 @@ const Grid = ({
     cellNotes,
     cellBorderStyles,
     theme,
+    symbolSet,
     onCellPress
   ]);
 
