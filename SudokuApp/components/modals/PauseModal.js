@@ -2,7 +2,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View } from 'react-native';
 import { useGameContext, ACTIONS } from '../../contexts/GameContext';
-import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 // Constants for consistent sizes
 const ICON_SIZE = 24;

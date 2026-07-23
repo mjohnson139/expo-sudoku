@@ -1,6 +1,5 @@
 {
   "expo": {
-    "sdkVersion": "53.0.0",
     "name": "SudokuApp",
     "slug": "expo-sudoku",
     "version": "2.8.0",
@@ -8,15 +7,18 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/e6c3fb8f-7922-4b6d-8721-3d52df091af9"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.mjohnson139.sudokuapp",
-      "infoPlist.ITSAppUsesNonExemptEncryption": false
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -41,8 +43,15 @@
     },
     "owner": "mjohnson139",
     "plugins": [
-      "expo-font"
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff"
+        }
+      ]
     ]
   }
 }
-
