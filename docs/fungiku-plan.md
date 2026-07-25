@@ -368,8 +368,14 @@ the step's real acceptance test, alongside its automated checks.
 | 5 | ~~**Board UI**~~ ✅ — the real board component: region-boundary borders, themed styling, win flow, **palette tuning** | The **finished board**, styled to the app's themes, replacing the preview's rough grid |
 | 6 | ~~**Input ergonomics & assists**~~ ✅ (§2) — **drag to sweep X's**, rule-out button | **Swipe a finger across cells to rule them out**; a *Rule out* button |
 | 7 | ~~**Feedback & hints**~~ ✅ (§11) — correctness feedback on placements, and a hint ladder | **Optional "show mistakes" for mushrooms**, and a hint you can ask for when stuck |
-| 8 | **Ladder & scoring** — training ladder, size progression, scoring | Level progression and a score |
-| 9 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
+| 8 | **Bigger boards, up to 10×10** (§12) — a 10th region colour, legibility at 32px cells, a generation-cost bound | **A playable 10×10** that generates without a visible freeze |
+| 9 | **Ladder & scoring** — training ladder, size progression, scoring | Level progression and a score |
+| 10 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
+
+**Why bigger boards come before the ladder:** the ladder has to know its own top
+end. §12.1 measured it — generation cost goes off a cliff between 10×10 and 11×11,
+which is what set the ceiling at 10 — and the ladder's whole table is denominated
+in sizes. Building it against a 5–8 range first would mean reworking it.
 
 **Why feedback and hints come before scoring:** scoring has to know what a
 mistake and a hint are *worth*, so the ladder step needs both to already exist.
@@ -406,8 +412,10 @@ Step 5 replaced that rough grid with the themed, responsive board.
 3. ~~**Hub vs. resume on launch**~~ — **decided in Step 3: hub-first.** The app
    opens on the hub and a game with saved progress carries a *Continue* badge, so
    both games stay discoverable. Revisit only if it grates on device.
-4. **Ladder shape** — v1 ships **5×5 → 8×8**. Where should it top out, and
-   should size be a free choice or unlocked by progression?
+4. **Ladder shape** — **top end decided 2026-07-25: 10×10** (§12). The operator
+   asked for 12×12 first; measuring showed it takes seven seconds to generate, and
+   10×10 (284 ms) is the last affordable size, so the ceiling moved there. Still
+   open: **is size a free choice or unlocked by progression?**
 5. ~~**Assist defaults**~~ — **moot as of 2026-07-25.** The rule-out assist became
    a button you tap rather than a mode with a setting, so there is no default to
    choose. (§2)
@@ -511,3 +519,181 @@ Requirements on any hint:
 
 Carried into §8 as #6 and #7: how strong hints should go for a family game, and
 whether correctness feedback should default on for younger players.
+
+## 12. Board sizes up to 10×10 (operator request, 2026-07-25)
+
+The operator first asked for the ladder to reach **12×12**. Measuring the cost
+(§12.1) showed a 12×12 takes **7.3 seconds to generate, synchronously on the main
+thread** — so the operator revised the target to **10×10** the same day. That is
+the requirement: **the ladder tops out at 10×10.**
+
+The measurements are kept below rather than deleted, because they are the reason
+for the ceiling. If generation is ever made substantially cheaper, they are also
+the evidence for raising it.
+
+**`MIN_SIZE = 5` exists; there is no upper bound.** `generate()` will happily
+accept size 20 and never return. Add a **`MAX_SIZE = 10`** and reject above it,
+the same way 4×4 is rejected below.
+
+### 12.1 Generation time — measured, not guessed
+
+Twelve seeds per size, on this machine:
+
+| Size | ok | median | p90 | max |
+|------|----|--------|-----|-----|
+| 8×8 | 12/12 | **6 ms** | 21 ms | 25 ms |
+| 9×9 | 12/12 | 30 ms | 82 ms | 103 ms |
+| 10×10 | 12/12 | **284 ms** | 519 ms | **584 ms** |
+| 11×11 | 12/12 | 2,536 ms | 4,124 ms | 5,096 ms |
+| 12×12 | 12/12 | 7,286 ms | 30,618 ms | 41,830 ms |
+
+**Correctness is fine — nothing failed at any size.** The problem is purely cost,
+and it goes off a cliff between 10 and 11: an order of magnitude per size, from
+284 ms to 2.5 s to 7.3 s. **10×10 is the last size that is affordable without
+re-engineering the generator**, which is exactly why the ceiling sits there.
+
+The cost is in the uniqueness loop (`generate` → `findSolutions` → `breakSolution`,
+up to `PERTURB_BUDGET` times). Each `findSolutions` call is a backtracking search,
+re-run after every perturbation.
+
+**At a 10×10 ceiling, none of that needs fixing** — 284 ms median is a hitch, not a
+freeze. Two things it does need:
+
+1. **A generation hitch you can see is worse than one you are told about.** Half a
+   second of frozen UI on "New puzzle" at the top size reads as a bug. Either show
+   a brief loading state, or confirm on device that it is imperceptible — don't
+   assume.
+2. **A regression bound in the test suite.** 10×10 sits one size below a
+   ten-times cliff, so a change that makes generation modestly slower would push
+   the top size from *hitch* to *freeze* with no other symptom. Assert a generous
+   ceiling (or count perturbation rounds, which is machine-independent) so that
+   regression is visible.
+
+If the ceiling is ever to rise past 10, the generator has to get cheaper first,
+and there are four directions worth trying, cheapest first:
+
+1. **Profile before optimizing.** Is it the number of perturbation rounds, or the
+   cost of each `findSolutions`? The fix differs completely. Instrument the loop
+   and count.
+2. **Bake the ladder's puzzles as data.** A level is a deterministic
+   `{size, seed}` pair, so its `regions` array can be generated once at build
+   time and shipped as JSON. That removes runtime cost for every ladder level —
+   but not for free-play reseeding, so it is a partial answer.
+3. **Generate off the main thread, with a loading state.** Honest and simple, and
+   at 12×12 it would still feel bad at 40 seconds.
+4. **Construct for uniqueness instead of perturbing toward it.** The current
+   approach grows regions randomly and then hammers them until only one solution
+   survives. Biasing region growth to produce tight constraints, or building
+   region-by-region while tracking solution count, would attack the exponent
+   rather than the constant. The most work and the most upside.
+
+### 12.2 The palette needs 10 colours and has 9
+
+`REGION_COLORS` holds nine entries — the eight Okabe–Ito swatches plus the
+mushroom red — and `getRegionColor` wraps with `regionId % palette.length`. **At
+10 regions, region 9 renders identically to region 0.** Region colour is how the
+player sees region boundaries at all, so this is a correctness bug at the new top
+size, not a cosmetic one.
+
+The 10×10 ceiling makes this a **one-colour problem**, which is the cheapest
+version of it. Sampling sRGB inside the light theme's L\* 65–97 band and picking
+the farthest-apart set:
+
+| Fills | Best achievable worst-pair ΔE |
+|-------|-------------------------------|
+| 9 | 24.50 |
+| **10** | **23.78** |
+| 11 | 21.90 |
+| 12 | 21.80 |
+
+For comparison the **shipped 9-colour palette manages ΔE 17.11**, so ten
+well-chosen fills would be *better separated* than what ships today. The ΔE 15
+floor in `utils/__tests__/symbolSets.test.js` is safe with room to spare.
+
+Two constraints that the ΔE number does **not** capture, and which the work must
+respect:
+
+- **Colourblind safety is a separate property.** Okabe–Ito was chosen precisely
+  because its hues survive the common CVD types. A tenth hue chosen only to
+  maximize ΔE for normal vision may collide under deutan or protan. **Check the
+  extended palette under CVD simulation, not just ΔE.** One new hue is a much
+  smaller risk than three, but it is still a check, not an assumption.
+- **The `corners` shape cue in `symbolSets.js` is still unused by the Fungiku
+  board.** Ten regions is close to where colour alone starts carrying too much, so
+  it is worth knowing the second channel already exists if the tenth colour proves
+  hard to place.
+
+### 12.3 Legibility at 32-pixel cells
+
+`useBoardSize()` returns a fixed 324 on native, so a 10×10 cell is **32 px** (450
+on web gives 45 px). At that size:
+
+- the mushroom glyph lands around 19 px — probably fine, needs looking at;
+- the **mistake badge is `cell * 0.28` ≈ 9 px, which is small enough to need
+  checking on a real screen** rather than in a browser at 45 px;
+- the conflict ring at `cell - 6` leaves a 26 px ring — tighter than at 5×5 but
+  not tight;
+- region-boundary borders at 2 px against 32 px cells are heavier than intended,
+  though nothing like the 27 px case.
+
+None of this is hard, but the top size needs a deliberate pass rather than
+inheriting constants tuned for 5×5. The 6-pixel tap-vs-drag threshold deserves the
+same scrutiny: it was tuned against roughly 40 px cells, and a 32 px cell means
+less room to press without registering a stroke. **That is a device question, not
+a browser one.**
+
+### 12.4 A finding about hints on bigger boards
+
+Measured while timing generation: the length of a pure forced-move chain from an
+empty board, using the Step 7 propagator.
+
+| Size | Average forced moves found |
+|------|----------------------------|
+| 8×8 | 1.2 of 8 |
+| 10×10 | 2.0 of 10 |
+| 12×12 | 1.1 of 12 |
+
+**The nudge is shallow, and bigger boards make that more obvious.** It finds an
+opening move and then runs dry, because `findForcedDeduction` only knows one rule:
+a row, column or region with exactly one candidate. Human solvers also use
+pigeonhole arguments — "every candidate for this region lies in one row, so that
+row's mushroom is in this region" — which eliminate far more.
+
+That is not a blocker for 10×10, but a hint that helps twice out of ten placements
+will feel thin. Worth strengthening the propagator, or accepting that the reveal
+rung carries more of the load on large boards (§8 #6).
+
+## 13. Ladder & scoring — notes parked for Step 9
+
+The ladder was briefed as Step 8 until the board-size work displaced it (§7, "Why
+bigger boards come before the ladder"). The research done for that brief is kept here so the
+Step 9 session does not repeat it.
+
+- **A level is a `{size, seed}` pair.** Both are already deterministic, so the
+  ladder is a data table in its own module and tuning it is editing data. Assert
+  in a test that **every row actually generates** — `generate()` rejects sizes
+  below 5, so a typo in the table becomes a crash for whoever reaches that level
+  rather than a failing build.
+- **`hintsUsed` is already counted and persisted per puzzle**, and
+  `selectMistakes` already knows when a placement is wrong. That is the currency
+  scoring is denominated in, and the reason feedback and hints shipped first.
+- **Ladder progress forces the first storage schema change.** Today a version
+  mismatch in `games/fungiku/storage.js` returns null and the board starts fresh.
+  That is fine for a board and **not** fine for someone's progress: bump
+  `FUNGIKU_STORAGE_VERSION` and write a migration for the existing
+  `{size, seed, marks, showMistakes, hintsUsed}` shape.
+- **Fungiku has no timer at all.** Sudoku scores on time with completion bonuses
+  (`contexts/GameContext.js`). Whether Fungiku gets a clock is a decision to make
+  deliberately, not to inherit — a family puzzle that times you plays differently.
+- **The sibling color-loop app already solved this problem**: a training ladder
+  with per-level star thresholds in `games/colorloop/levels.ts`, and the
+  progression thinking in its `docs/game-design.md`. Read it before designing a
+  second one.
+- **Thresholds and difficulty curves are guesses until played.** Draft them, say
+  so in the PR, and flag them for on-device tuning — color-loop's were left the
+  same way and are still on its backlog.
+- **Keep a free-play route** whatever the ladder does. The size chips are how
+  regression cases at a given size get checked by hand.
+- **The hub's Continue badge** (`utils/gameProgress.js` → `describeFungikuProgress`)
+  probably wants to name the *level* rather than the board size once a ladder
+  exists.
