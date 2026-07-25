@@ -52,6 +52,9 @@ export const saveFungikuState = debounce(async (state) => {
         size: state.size,
         seed: state.seed,
         marks: state.marks,
+        // `strokeOpen` deliberately does not persist — it is transient gesture
+        // bookkeeping. Nor does anything about the rule-out assist: it is an
+        // action the player taps, not a mode with a remembered setting.
       })
     );
   } catch (error) {

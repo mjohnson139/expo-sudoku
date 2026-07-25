@@ -96,8 +96,14 @@ empty → X (eliminated) → 🍄 (mushroom) → empty
 - **Conflicts show live:** any two mushrooms sharing a row, column, or region,
   or touching each other, are highlighted (the reference glows them). Conflicts
   do not block placement — the player fixes them.
-- **Optional assist (later step):** auto-place X's in a placed mushroom's row,
-  column, region, and neighbors. A setting, off by default.
+- **The rule-out assist is a button, not a mode** (operator decision,
+  2026-07-25): one tap marks every cell the mushrooms already on the board
+  forbid — their rows, columns, regions and neighbors. It is an action the player
+  asks for, never something that fires behind them as they place. It only fills
+  blanks, never disturbs a mushroom (not even a conflicting one), and undoes as a
+  single action. Being explicit is what keeps it an aid rather than a mode that
+  quietly does the deduction for you.
+- **Feedback and hints have their own requirements — see §11.**
 
 No number pad. No 3×3 notes mini-grid. No digit feedback.
 
@@ -141,6 +147,49 @@ Two hazards worth knowing before writing the gesture:
    mouse drag on the web build, and that is worth having, but touch feel — does
    it fight the ScrollView, does it fire on a tap-with-jitter — is a device
    question. This one needs an Expo Go pass before it merges.
+
+### The ScrollView race, and how it was settled (device finding, 2026-07-25)
+
+The first implementation claimed the responder on **movement**, past a small
+threshold. On device that lost to the enclosing `ScrollView`: **a vertical drag
+scrolled the page instead of painting.** The ScrollView is tracking the same
+touch, and once vertical movement passes *its* slop it takes the gesture — via
+`onInterceptTouchEvent` on Android, and on iOS because `canCancelContentTouches`
+defaults to letting a scroll view cancel a child's touch. Claiming later than the
+scroll view decides is a race you lose.
+
+**The board must claim the touch at touch-down**, in the capture phase, so there
+is no window in which the gesture can be read as a scroll. Three parts, all
+required:
+
+1. `onStartShouldSetPanResponderCapture` **and** `onStartShouldSetPanResponder`
+   both return true. The capture claim is what pre-empts the ScrollView on
+   native; register the bubble-phase one too, because react-native-web does not
+   reliably honour a capture-phase claim on touch start and taps die without it.
+2. `scrollEnabled={false}` on the ScrollView while a finger is down on the board.
+   This is the part that reliably stops Android. Plus
+   `canCancelContentTouches={false}` on iOS, and
+   `onShouldBlockNativeResponder: () => true` in the responder config.
+3. Because the board owns the touch from the start, **a per-cell `Touchable`
+   never sees a press** — taps have to be recognized by the responder itself
+   (release under the drag threshold = tap) and dispatched from there. Cells
+   become plain `View`s that keep their accessibility labels plus
+   `onAccessibilityTap`.
+
+**Accepted trade-off:** you cannot scroll this screen by dragging on the board.
+Drag anywhere else. The content fits without scrolling on a normal phone even at
+8×8, so the ScrollView is really insurance for small or landscape screens.
+
+**Known regression from part 3:** on web, cells were focusable buttons and are
+now plain views, so keyboard tabbing to a cell is gone. Nobody asked for keyboard
+play and the labels (the accessibility channel that matters here) are intact, but
+it is a real loss — revisit if web keyboard play ever matters.
+
+**None of this is verifiable in a browser.** The web build never reproduced the
+bug: react-native-web uses ordinary overflow scrolling, so even synthetic touch
+drags painted correctly before the fix. What a browser *can* check is that taps,
+strokes, and jittery taps all still behave — do that, then confirm the scroll
+behavior on device.
 
 ## 3. The board
 
@@ -260,9 +309,14 @@ the step's real acceptance test, alongside its automated checks.
 | 3 | ~~**Game shell + hub**~~ ✅ (§6) — screen router, game registry, hub screen, back-to-hub, Fungiku's own screen | **The hub**: app opens on a home screen with **Sudoku and Fungiku side by side as peers**; Fungiku is a real destination, not a button in Sudoku's menu |
 | 4 | ~~**State**~~ ✅ — reducer + context: mark cycling, live conflict validation, win detection, undo/redo, persistence | The Fungiku screen becomes **playable**: tap-to-cycle X/🍄, live conflict highlighting, `🍄 X/N` counter, win banner |
 | 5 | ~~**Board UI**~~ ✅ — the real board component: region-boundary borders, themed styling, win flow, **palette tuning** | The **finished board**, styled to the app's themes, replacing the preview's rough grid |
-| 6 | **Input ergonomics & assists** (§2) — **drag to sweep X's**, then optional auto-X | **Swipe a finger across cells to rule them out**; assist toggle |
-| 7 | **Ladder & scoring** — training ladder, size progression, scoring | Level progression and a score |
-| 8 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
+| 6 | ~~**Input ergonomics & assists**~~ ✅ (§2) — **drag to sweep X's**, rule-out button | **Swipe a finger across cells to rule them out**; a *Rule out* button |
+| 7 | **Feedback & hints** (§11) — correctness feedback on placements, and a hint ladder | **Optional "show mistakes" for mushrooms**, and a hint you can ask for when stuck |
+| 8 | **Ladder & scoring** — training ladder, size progression, scoring | Level progression and a score |
+| 9 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
+
+**Why feedback and hints come before scoring:** scoring has to know what a
+mistake and a hint are *worth*, so the ladder step needs both to already exist.
+Building scoring first would mean guessing at the currency it is denominated in.
 
 **Why drag-to-sweep sits at Step 6, not earlier:** it needs the real board's
 touch and geometry layer, which Step 5 builds. Writing the gesture against the
@@ -297,7 +351,16 @@ Step 5 replaced that rough grid with the themed, responsive board.
    both games stay discoverable. Revisit only if it grates on device.
 4. **Ladder shape** — v1 ships **5×5 → 8×8**. Where should it top out, and
    should size be a free choice or unlocked by progression?
-5. **Assist defaults** — should auto-X be on by default for younger players?
+5. ~~**Assist defaults**~~ — **moot as of 2026-07-25.** The rule-out assist became
+   a button you tap rather than a mode with a setting, so there is no default to
+   choose. (§2)
+6. **How strong should hints go?** (§11) The hint ladder ends at *reveal a correct
+   mushroom*, which solves a cell outright. For a family game that may be exactly
+   right — or it may feel like cheating and want capping at a nudge. Needs a
+   judgement call once hints are playable.
+7. **Should correctness feedback default on for younger players?** (§11) It turns
+   a deduction puzzle into trial-and-error for anyone who leaves it on, which is
+   an argument for off — but "off" for a seven-year-old may just mean stuck.
 
 ## 9. Edge cases to get right
 
@@ -322,3 +385,72 @@ Step 5 replaced that rough grid with the themed, responsive board.
   Sudoku board*. Built on the superseded "display mode" model: Fungiku is a
   separate mode with its own board, so a symbol-set toggle over the 9×9 numeric
   grid has no place. Closed rather than merged.
+
+## 11. Feedback on your moves, and hints (operator request, 2026-07-25)
+
+Two related gaps. Today the board tells you when you have **broken a rule**, and
+nothing else: it never tells you that a legal move was *wrong*, and when you are
+genuinely stuck your only options are guess or walk away. Both need answering
+before scoring exists, because scoring has to know what a mistake and a hint are
+worth.
+
+### 11.1 Feedback
+
+Four kinds, in increasing intrusiveness. The first exists; the rest are this
+requirement.
+
+1. **Rule feedback — shipped, always on.** Any two mushrooms sharing a row,
+   column or region, or touching, are ringed and recoloured. This is *local*
+   consistency: it catches a move that contradicts another move.
+2. **Correctness feedback — opt-in.** Flag a mushroom that is not where the
+   puzzle's single solution has it, even though it breaks no rule yet. The
+   engine already knows the answer (`generate()` returns `solution`, and
+   `findSolutions` recovers it from `regions`), so this is cheap to compute. It
+   must be **opt-in**: left on, it turns a deduction puzzle into trial-and-error.
+   Mirror Sudoku's existing **"Show Mistakes"** switch — same words, same
+   placement in the menu, so the app has one vocabulary for the idea.
+3. **Positive confirmation.** A correct placement should *feel* correct, not
+   merely fail to turn red. A small settle or pulse on the mushroom, in the app's
+   motion language. This is the half of feedback that makes a game feel good and
+   the half most often skipped.
+4. **Progress feedback.** The `🍄 X/N` counter exists. Consider also surfacing
+   *structure* solved — "3 of 5 regions settled" — which is what a player
+   actually reasons about.
+
+Two consequences of the rules worth writing down, because they shape the work:
+
+- **X marks are never wrong.** They are a thinking aid with no bearing on the win
+  (§9), so correctness feedback applies to **mushrooms only**. Flagging a
+  "wrong" X would be telling the player how to think.
+- **There is no such thing as a complete-but-wrong board.** Uniqueness (rule 5)
+  means N mushrooms placed with no conflicts *is* the solution — so correctness
+  feedback is purely a **mid-solve** aid. It can never be the thing that tells
+  you a finished board is wrong, because a finished legal board cannot be.
+
+### 11.2 Hints
+
+A ladder of increasing strength. A hint is **always an explicit request** — never
+automatic, never on a timer — and each rung should cost more than the last once
+scoring exists.
+
+| Rung | Hint | Strength | Cost to build |
+|------|------|----------|---------------|
+| 1 | **Rule out** — mark everything the placed mushrooms forbid | Reveals nothing the player could not derive mechanically | **Shipped** (§2) |
+| 2 | **Nudge** — name a row, column or region where a deduction is available, without saying what it is | Preserves the "aha"; the best hint in a teaching game | Needs a **deductive** solver — constraint propagation, not the backtracking one. `findSolutions` can say *what* the answer is but not that a step is *forced*. This is the real work in the step. |
+| 3 | **Reveal a mushroom** — place one correct mushroom from the solution | Solves a cell outright | Trivial: the solution is known |
+| 4 | **Point out a mistake** — "one of your mushrooms is wrong", optionally which | Undoes a wrong branch without explaining | Trivial: compare against the solution |
+
+Requirements on any hint:
+
+- **Never place a conflicting mushroom.** A hint that creates a conflict is worse
+  than no hint.
+- **A revealing hint is one undoable action**, like the rule-out button.
+- **Count hints used**, per puzzle — the ladder step will want that for scoring,
+  and it is much easier to record from the start than to retrofit.
+- **A hint must never be the only path forward.** If rung 2 cannot find a forced
+  deduction, say so honestly rather than silently falling through to rung 3.
+
+### 11.3 Open questions this raises
+
+Carried into §8 as #6 and #7: how strong hints should go for a family game, and
+whether correctness feedback should default on for younger players.

@@ -10,6 +10,7 @@ import {
   isSolved,
   countMushrooms,
   createEmptyMarks,
+  cellsRuledOutBy,
 } from '../engine';
 
 // Sizes the v1 ladder ships (plan §8). Kept small so the suite stays fast.
@@ -316,5 +317,67 @@ describe('createEmptyMarks', () => {
     const marks = createEmptyMarks(7);
     expect(marks).toHaveLength(49);
     expect(marks.every((m) => m === MARKS.EMPTY)).toBe(true);
+  });
+});
+
+describe('cellsRuledOutBy', () => {
+  const size = 5;
+  // A deliberately simple region layout: five horizontal bands, so "same region"
+  // is "same row" and the region rule is easy to reason about separately.
+  const bands = Array.from({ length: size * size }, (_, i) => Math.floor(i / size));
+
+  it('excludes the cell itself', () => {
+    expect(cellsRuledOutBy(12, bands, size).has(12)).toBe(false);
+  });
+
+  it('rules out the whole row and column', () => {
+    const out = cellsRuledOutBy(12, bands, size); // row 2, col 2
+
+    for (let i = 0; i < size; i++) {
+      if (i !== 2) {
+        expect(out.has(2 * size + i)).toBe(true); // row
+        expect(out.has(i * size + 2)).toBe(true); // column
+      }
+    }
+  });
+
+  it('rules out the eight touching cells, diagonals included', () => {
+    const out = cellsRuledOutBy(12, bands, size);
+
+    [6, 7, 8, 11, 13, 16, 17, 18].forEach((n) => expect(out.has(n)).toBe(true));
+  });
+
+  it('rules out every cell of the same region', () => {
+    const regions = [...bands];
+    regions[24] = regions[12]; // put a far-away cell in the same region
+
+    expect(cellsRuledOutBy(12, regions, size).has(24)).toBe(true);
+  });
+
+  it('leaves cells that break no rule alone', () => {
+    // Row 0, col 4 with band regions: different row, different column,
+    // different region, not touching row 2.
+    expect(cellsRuledOutBy(12, bands, size).has(4)).toBe(false);
+  });
+
+  it('clips at the board edges for a corner cell', () => {
+    const out = cellsRuledOutBy(0, bands, size);
+
+    expect(out.has(1)).toBe(true);
+    expect(out.has(size)).toBe(true);
+    expect(out.has(size + 1)).toBe(true); // the one diagonal neighbour
+    expect([...out].every((c) => c >= 0 && c < size * size)).toBe(true);
+  });
+
+  it('agrees with findConflicts: a second mushroom on a ruled-out cell conflicts', () => {
+    const out = cellsRuledOutBy(12, bands, size);
+
+    out.forEach((cell) => {
+      const marks = createEmptyMarks(size);
+      marks[12] = MARKS.MUSHROOM;
+      marks[cell] = MARKS.MUSHROOM;
+
+      expect(findConflicts(marks, bands, size).size).toBeGreaterThan(0);
+    });
   });
 });

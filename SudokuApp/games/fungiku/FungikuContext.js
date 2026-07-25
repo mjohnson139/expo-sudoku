@@ -13,6 +13,7 @@ import {
   selectConflicts,
   selectIsSolved,
   selectMushroomCount,
+  selectRuleOutCells,
 } from './reducer';
 
 /**
@@ -26,7 +27,7 @@ import {
  */
 const FungikuContext = createContext();
 
-/** Board sizes offered today. The real ladder arrives in Step 6. */
+/** Board sizes offered today. The real ladder arrives in a later step. */
 export const SIZES = [5, 6, 7, 8];
 
 // Stable object identity, so the persistence hook never sees a "new" adapter.
@@ -58,10 +59,33 @@ export const FungikuProvider = ({ children }) => {
     [state.marks]
   );
 
+  // How many cells one tap of "Rule out" would fill. Drives whether the button
+  // is enabled, so it never sits there offering to do nothing.
+  const ruleOutCount = useMemo(
+    () => selectRuleOutCells(state).size,
+    [state.marks, state.regions, state.size]
+  );
+
   const cycleCell = useCallback(
     (cell) => dispatch({ type: FUNGIKU_ACTIONS.CYCLE_CELL, payload: { cell } }),
     [dispatch]
   );
+
+  // --- drag-to-sweep (plan §2) ---------------------------------------------
+  // A stroke is many paints across many frames but exactly one undoable action:
+  // beginStroke arms the undo entry, the first effective paint spends it.
+  const beginStroke = useCallback(
+    () => dispatch({ type: FUNGIKU_ACTIONS.BEGIN_STROKE }),
+    [dispatch]
+  );
+  const paintCells = useCallback(
+    (cells, mode) => dispatch({ type: FUNGIKU_ACTIONS.PAINT_CELLS, payload: { cells, mode } }),
+    [dispatch]
+  );
+  const endStroke = useCallback(() => dispatch({ type: FUNGIKU_ACTIONS.END_STROKE }), [dispatch]);
+
+  /** One tap: mark everything the placed mushrooms forbid (plan §2). */
+  const ruleOut = useCallback(() => dispatch({ type: FUNGIKU_ACTIONS.RULE_OUT }), [dispatch]);
 
   /**
    * Start a puzzle. Generation happens here rather than in the reducer so a
@@ -106,6 +130,11 @@ export const FungikuProvider = ({ children }) => {
       canRedo: selectCanRedo(state),
       minSize: MIN_SIZE,
       cycleCell,
+      beginStroke,
+      paintCells,
+      endStroke,
+      ruleOut,
+      ruleOutCount,
       startPuzzle,
       nextPuzzle,
       changeSize,
@@ -113,7 +142,25 @@ export const FungikuProvider = ({ children }) => {
       undo,
       redo,
     }),
-    [state, conflicts, mushroomCount, solved, hasMarks, cycleCell, startPuzzle, nextPuzzle, changeSize, clearMarks, undo, redo]
+    [
+      state,
+      conflicts,
+      mushroomCount,
+      solved,
+      hasMarks,
+      cycleCell,
+      beginStroke,
+      paintCells,
+      endStroke,
+      ruleOut,
+      ruleOutCount,
+      startPuzzle,
+      nextPuzzle,
+      changeSize,
+      clearMarks,
+      undo,
+      redo,
+    ]
   );
 
   // Wait for hydration so a saved board never flashes as an empty one.
