@@ -215,6 +215,12 @@ ladder.
   cell".** Resetting a shared value happens immediately while re-pointing it is a
   React state update, so for a frame it is still attached to the *previous* cell.
   On device that showed up as the previously placed mushroom shrinking.
+- **Never mix `setValue()` with `useNativeDriver: true`** — plan §2 has the full
+  rule. The native driver does not keep the JS value in step, so a value that is
+  reset with `setValue()` can be left stranded at the reset value *permanently*.
+  On device that showed up as five of eight mushrooms sitting small on a solved
+  board. If you `setValue()` it, drive it with `useNativeDriver: false`,
+  `stopAnimation()` before restarting, and finish with an explicit rest.
 - **A banner mounting above the board invalidates the board's measured origin.**
   `onLayout` does not save you: on web it is backed by a ResizeObserver, which
   watches size and not position, so a board that merely *moves* never fires it.

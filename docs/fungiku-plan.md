@@ -219,6 +219,35 @@ value driven with `useNativeDriver`:
   animation values instead of one shared value; claiming a touch at touch-down
   instead of racing for it.
 
+#### Never mix `setValue()` with `useNativeDriver: true`
+
+The concrete rule that came out of the second bug, worth stating on its own
+because it is easy to write by accident and impossible to see on web.
+
+With `useNativeDriver: true` the animation runs on the native side and **the
+JS-side `Animated.Value` is not kept in step**. So a value that is reset with
+`setValue()` and then animated natively can end up with its JS copy stranded at
+the reset value. Anything that later initializes from the JS value renders the
+stranded number — permanently, not for a frame.
+
+The operator caught exactly that: on a **solved** 8×8, five of eight mushrooms sat
+noticeably smaller than the rest, each one stuck at the pop animation's start
+scale. A solved board is stationary, which is what made it obvious that these were
+resting values and not animation frames.
+
+So:
+
+- **If a value is reset with `setValue()`, drive it with `useNativeDriver: false`.**
+  The JS value is then the single source of truth and lands exactly on the target.
+  A one-cell scale on the JS driver costs nothing worth measuring.
+- **`stopAnimation()` before restarting** a value, or a fast place/remove/place
+  leaves two animations driving it.
+- **Finish with an explicit rest**: `.start(() => value.setValue(1))`, so an
+  interrupted animation cannot leave a permanent visual defect.
+- Values animated only with `timing`/`spring` to an explicit `toValue` in *both*
+  directions, and never `setValue()`d, are safe on the native driver — the win
+  banner's entrance and the board's win lift both qualify and stay native.
+
 ## 3. The board
 
 - **Region color = cell background**, filling the whole cell (the reference is a

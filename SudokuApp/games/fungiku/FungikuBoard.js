@@ -128,13 +128,29 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     const value = popValues[placed[0]];
     if (!value) return;
 
+    // Stop anything already running on this cell's value before restarting it.
+    // Placing, removing and replacing a mushroom quickly would otherwise leave
+    // two springs driving one value.
+    value.stopAnimation();
     value.setValue(0.45);
     Animated.spring(value, {
       toValue: 1,
       friction: 5,
       tension: 140,
-      useNativeDriver: true,
-    }).start();
+      // **Deliberately NOT the native driver.** This value has to *rest* at
+      // exactly 1, and it is reset with setValue() on every placement — and
+      // mixing setValue() with useNativeDriver leaves the JS-side value as a
+      // stale copy, because the animation runs natively and does not write back.
+      // The operator caught the result: on a solved 8×8, five of eight mushrooms
+      // sat permanently smaller than the rest, their scale stranded at the pop's
+      // start value. With the JS driver the value is the single source of truth
+      // and lands on 1.
+      useNativeDriver: false,
+    }).start(() => {
+      // Belt and braces: whatever interrupts the spring, the cell must not be
+      // left mid-pop. A stuck scale is a permanent visual defect, not a glitch.
+      value.setValue(1);
+    });
   }, [marks, popValues]);
 
   // Re-measure whenever something *above* the board appears or disappears.
