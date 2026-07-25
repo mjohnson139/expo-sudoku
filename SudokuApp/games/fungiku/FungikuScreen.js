@@ -22,6 +22,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     mushroomCount,
     solved,
     conflicts,
+    hasMarks,
     canUndo,
     canRedo,
     undo,
@@ -93,7 +94,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             icon="eraser"
             label="Clear"
             onPress={clearMarks}
-            disabled={mushroomCount === 0 && !canUndo}
+            disabled={!hasMarks}
             theme={theme}
           />
         </View>
