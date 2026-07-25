@@ -1,11 +1,24 @@
 # Fungiku — Feature Plan
 
-**Fungiku is a display mode for Sudoku, not a new game.** The board, the
-generator, the reducer, undo/redo, notes, feedback, and win detection all stay
-exactly as they are. What changes is *how a cell's value is drawn*: instead of
-the digits 1–9, a puzzle shows **8 color swatches plus one mushroom character**.
-It's the family "meowdoku" concept — one symbol is a creature, the rest are
-colors — dropped in as a symbol set the player can switch on.
+**Fungiku is a mushroom logic puzzle: place one mushroom per row, per column,
+and per color region, with no two mushrooms touching.** The board is a grid of
+contiguous **color regions**, and the *only* thing the player places is a
+**mushroom** (plus an "X" eliminate-mark as a thinking aid). There is no number
+pad, no digits, and no notes grid.
+
+This is the **Queens / Star-Battle** genre — the same ruleset as LinkedIn's
+*Queens* and the family-tested "meowdoku" reference, which states its rules on
+the board: *1 Cat per column & row · 1 Cat per color · Cats cannot touch*.
+
+> **Replan note (2026-07-25).** An earlier version of this document described
+> Fungiku as a *display mode for Sudoku* — a rendering skin that swapped the
+> digits 1–9 for swatches over the existing numeric 9×9 board. The reference
+> screenshots the operator supplied show that is **not** the target game: the
+> real mechanic merges the symbols into **color regions** and makes the mushroom
+> the **only input**. That is a different puzzle with a different generator,
+> different rules, a different win condition, and a different input model, so it
+> cannot be a skin over Sudoku. This document is the replanned source of truth.
+> See §10 for exactly what carried over from the old plan and what was dropped.
 
 ## For the implementer (start here)
 
@@ -13,145 +26,244 @@ colors — dropped in as a symbol set the player can switch on.
   subdirectory (Expo · React Native · JavaScript).
 - **This document is the source of truth** for scope and approach — read it end
   to end before writing code.
-- **Process:** follow `.github/dev-process.md` — open one GitHub issue with a
-  markdown-checkbox implementation plan, work **one delivery step per branch**,
-  commit after each step, and **prompt the operator to test after each step.**
-- **Order of work is fixed:** do **Step 0 (the Expo upgrade) first**, as its own
-  branch + PR, verify it in Expo Go on a device, and get it merged **before any
-  Fungiku code.** Everything in §1–§5 is a rendering skin; none of it should be
-  touched until the app runs on the current SDK.
-- **Golden rule for the feature:** Fungiku changes only how a value is *drawn*.
-  The board stays numeric (`1..9`) internally — do **not** modify the generator
-  (`sudoku-gen`), the `GameContext` reducer, notes, undo/redo, feedback logic,
-  or win detection.
+- **Process:** follow `.github/dev-process.md` — the tracker is issue #65, work
+  **one delivery step per branch**, commit after each step, and **prompt the
+  operator to test after each step.**
+- **Branching: this feature lands on an epic branch, not `main`.** Every step
+  PR targets **`epic/fungiku`**. The epic branch merges to `main` once Fungiku
+  is playable end to end, so `main` never carries a half-built game mode.
 
-## Step 0 — Pre-step: upgrade Expo to the latest SDK
+  ```
+  main ─── epic/fungiku ─── feature/fungiku-<step>   (PRs target the epic)
+  ```
 
-The app is currently on **Expo SDK 53** (`SudokuApp/app.json` pins
-`"sdkVersion": "53.0.0"`; `expo` is `53.0.9`, React Native `0.79.2`, React
-`19.0.0`). **Expo Go only runs the newest SDK**, so on our devices the app won't
-open until it's upgraded. This is a native-level change and gets its own branch
-and PR, done and verified before Fungiku.
+- **Every step must ship something the operator can look at in Expo Go.** Even
+  the pure-logic steps: if a step has no natural UI, it carries a small preview
+  or debug surface so progress is visually verifiable on a device, and direction
+  can be corrected early instead of after the whole mode is built. A step whose
+  only evidence is a passing test suite is not done. Preview scaffolding is
+  explicitly temporary — it is replaced by the real UI as later steps land.
+- **Fungiku is a separate game mode, not a change to classic Sudoku.** Classic
+  Sudoku keeps working exactly as it does today. Do **not** modify the Sudoku
+  generator (`sudoku-gen` / `boardFactory`), the Sudoku reducer logic, the
+  number pad, or Sudoku's notes / feedback / win detection. Fungiku's logic
+  lives in its own module tree under `SudokuApp/games/fungiku/`.
 
-- **Pick the target:** determine the current latest Expo SDK (e.g.
-  `npm view expo version`, or the Expo release notes) and upgrade to it — don't
-  assume a specific number, "latest" moves.
-- **Upgrade** from `SudokuApp/`: `npx expo install expo@latest`, then
-  `npx expo install --fix` to realign React, React Native, and every
-  `expo-*` / `react-native-*` dependency to the versions that SDK expects.
-  **Inspect the package.json diff** — `expo install --fix` has a known habit of
-  duplicating packages across `dependencies` / `devDependencies`.
-- **Reconcile `SudokuApp/app.json`:** update the pinned `"sdkVersion"` to match
-  the new SDK (or remove the pin so it's inferred). Keep `newArchEnabled: true`.
-- **Watch these deps specifically:** `react-native-paper`,
-  `react-native-gesture-handler`, `react-native-safe-area-context`,
-  `@expo/metro-runtime`, and `react-native-vector-icons` — the Fungiku feature
-  uses `MaterialCommunityIcons` from it, so if the new SDK prefers
-  `@expo/vector-icons`, migrate and confirm the `mushroom` glyph still renders.
-- **Verify (in this order):** `npx expo-doctor` is clean → the app bundles on
-  web (`expo start --web`) → **it actually opens and plays in Expo Go on a
-  device.** The device check is the real gate; the cloud/simulator can't confirm
-  Expo Go compatibility, and gesture/touch (cell selection, the number pad)
-  especially needs a real device pass.
-- **Stop after the upgrade PR** for the operator to test in Expo Go, and get it
-  merged before starting Step 1.
+## 1. The rules (exactly)
 
-## 1. Why this belongs in expo-sudoku (and not as its own game)
+For an **N×N** grid partitioned into **N contiguous color regions**:
 
-The mechanic *is* Sudoku. Everything that makes Sudoku work already lives here:
-`sudoku-gen` generation, the `GameContext` reducer, notes, undo/redo, the timer,
-win detection, feedback mode, seven themes. A creature-and-swatches skin is a
-**rendering concern over the existing numeric board** — the cell values stay
-`1..9` internally; only their glyphs change. Building it as a standalone game
-would mean re-implementing all of the above to gain nothing.
+1. **One mushroom per row.**
+2. **One mushroom per column.**
+3. **One mushroom per color region.**
+4. **No two mushrooms touch** — not orthogonally, not diagonally.
+5. Every generated puzzle has **exactly one solution**.
 
-This also rides the grain of the app's existing **theme system**: Fungiku is
-essentially "a theme that swaps glyphs for swatches," selected the same way
-themes are today.
+N mushrooms are placed in total. The puzzle is won when all N are placed legally
+— there is no "fill every cell" step. The header shows a **`🍄 X/N`** counter, as
+the reference does.
 
-## 2. The rendering seam
+### A useful consequence (drives the whole engine)
 
-A cell's value is drawn in exactly two components — that's the entire surface:
+Rules 1 and 2 mean the solution is a **permutation**: let `col[r]` be the column
+of the mushroom in row `r`; every column is used exactly once. Because no two
+mushrooms share a row, the only way two can touch is if they sit in **adjacent
+rows**. So rule 4 collapses to one cheap condition:
 
-| Where | Today | Fungiku mode |
-|-------|-------|--------------|
-| `components/Cell.js` | `<Text>{value}</Text>` | `<Symbol value={value} />` |
-| `components/NumberPad.js` | digit label per button | swatch / mushroom per button |
-| `components/Cell.js` notes 3×3 grid | mini digit per note | mini swatch / mushroom |
+```
+|col[r] − col[r+1]| ≥ 2   for every r
+```
 
-A new `components/Symbol.js` owns the mapping `value → glyph` for the active
-symbol set. Number mode returns the digit `<Text>` (today's behavior verbatim),
-so the default path is unchanged and low-risk.
+Region membership (rule 3) is then a separate per-region-once constraint. This
+makes both generation and solving small, fast, and easy to test.
 
-## 3. Symbol set design
+## 2. Input model — mushrooms only
 
-- **8 swatches + 1 mushroom** for a 9×9 board. Which value is the mushroom is
-  fixed per game (e.g. always `1`, or chosen at game start) — logically it's
-  just another symbol; cosmetically it's the star.
-- **Swatch palette** lives in a new `utils/symbolSets.js`, colorblind-checked:
-  distinct hues *and* distinct lightness, plus a subtle per-swatch shape/corner
-  treatment so color isn't the only channel. Eight highly-distinct swatches is
-  the main design risk — see §6 open questions.
-- **The mushroom**, staged so nothing blocks on art:
-  1. **Placeholder (ships first):** the `mushroom` glyph from
-     `react-native-vector-icons/MaterialCommunityIcons` — already a dependency,
-     zero new assets. It renders in a cell and on a number-pad button as-is.
-  2. **Art swap (later):** a single static transparent PNG in
-     `SudokuApp/assets/mushrooms/` behind the same `<Symbol>` seam — a pure
-     asset change, no logic touched. Sprite-sheet / frame animation is
-     deliberately out of scope; any liveliness comes from container-level
-     `Animated` transforms if we want it (placement pop, win wiggle),
-     consistent with the app's existing animation direction.
+A cell is in exactly one of three **marks**, and a tap cycles them:
 
-## 4. Where the toggle lives + persistence
+```
+empty → X (eliminated) → 🍄 (mushroom) → empty
+```
 
-- Add a **symbol-set selector** next to `ThemeSelector` in the top strip (same
-  pattern: an icon button that cycles `Numbers → Fungiku`), or a row in the game
-  menu — pick one in review. `GameContext` gains `symbolSet` state and a
-  `cycleSymbolSet`/`setSymbolSet` action, mirroring `currentThemeName` /
-  `cycleTheme`.
-- Persist it the same way the theme is persisted (AsyncStorage via the existing
-  `usePersistentReducer`), so the family's choice survives relaunch.
-- Symbol set is **orthogonal to theme and difficulty** — any theme, any
-  difficulty, numbers or Fungiku.
+- **X** is a player aid only. It has **no** effect on win detection and is never
+  required — the equivalent of the reference's X's, and of pencil marks.
+- **🍄** is the real placement.
+- **Conflicts show live:** any two mushrooms sharing a row, column, or region,
+  or touching each other, are highlighted (the reference glows them). Conflicts
+  do not block placement — the player fixes them.
+- **Optional assist (later step):** auto-place X's in a placed mushroom's row,
+  column, region, and neighbors. A setting, off by default.
 
-## 5. Edge cases to get right (cheap, but easy to miss)
+No number pad. No 3×3 notes mini-grid. No digit feedback.
 
-- **Feedback mode can't use text color.** Correct/incorrect today are conveyed
-  by *text* color (`correctValueText` / `incorrectValueText`). A swatch already
-  owns its color, so feedback needs a non-color channel in Fungiku mode: a
-  cell-border tint or a small ✓/✗ corner overlay. This is the one real UI
-  design decision in the feature.
-- **Notes** render as the 3×3 mini-grid — in Fungiku they become mini-swatches
-  (and a mini-mushroom). Legibility at that size needs a quick device check;
-  falling back to keeping notes as digits is an acceptable v1 if mini-swatches
-  read poorly.
-- **Accessibility:** `Cell.js` sets `accessibilityLabel={`Cell value: ${value}`}`.
-  Keep a stable label per symbol (e.g. "teal" / "mushroom") so screen readers
-  and tests still work — don't drop the numeric identity underneath.
-- **NumberPad "used-up" dimming** already counts value usage on the board; it's
-  value-based, not glyph-based, so it keeps working untouched.
+## 3. The board
 
-## 6. Delivery steps (small, one branch per step per dev-process.md)
+- **Region color = cell background**, filling the whole cell (the reference is a
+  solid pastel grid). Colors come from the existing colorblind-aware palette in
+  `utils/symbolSets.js` (Okabe–Ito hues, distinct in both hue and lightness).
+- **Region borders are the structural lines** — a thick border between cells of
+  *different* regions, a hairline between cells of the same region. This
+  replaces Sudoku's fixed 3×3 box borders, whose geometry does not apply here.
+- **The mushroom glyph** is the `MaterialCommunityIcons` `mushroom` placeholder
+  from Step 1, swapped for static PNG art later behind the same `<Symbol>` seam.
+- **Accessibility:** every cell keeps a stable label — region name + mark, e.g.
+  *"blue region, mushroom"* / *"green region, eliminated"* — so the board is
+  readable without relying on color.
 
-0. **Pre-step — upgrade Expo to the latest SDK** (see the Step 0 section above).
-   Own branch + PR, verified in Expo Go, **merged before anything below.**
-1. `components/Symbol.js` + `utils/symbolSets.js` (numbers set + Fungiku set with
-   MCI mushroom placeholder). Wire `Cell.js` to render through `<Symbol>` — with
-   `symbolSet` hardcoded to `numbers` first, proving zero visual change.
-2. Add `symbolSet` to `GameContext` (state, action, persistence) + the selector
-   control. Now toggleable end-to-end on the board.
-3. Route `NumberPad.js` and the notes mini-grid through `<Symbol>`.
-4. Feedback-in-color-mode treatment (border/overlay) — the §5 design decision.
-5. Static-PNG art swap when mushroom art lands (floating; asset-only).
+## 4. The engine (the one genuinely new piece)
 
-## 7. Open questions for the operator
+Pure JavaScript, no React, fully unit-tested, deterministic from a seed.
 
-1. **What's shown in the UI** — call the mode "Fungiku" (fun, on-brand with the
-   family name) or something plain like "Colors"? The internal name can stay
-   `fungiku` either way.
-2. **8-swatch legibility** at 9×9. If eight distinct swatches prove too busy for
-   kids, the faithful "simplified" fix is **smaller boards (4×4 / 6×6)** — but
-   `sudoku-gen` is 9×9-only, so that needs a size-generic generator and is a
-   separate, larger piece of work. Flagged, not assumed.
-3. **Feedback channel** in color mode (border tint vs. ✓/✗ overlay) — §5.
+**`generate({ size, seed })` → `{ size, seed, regions, solution }`**
+
+1. **Seeded RNG** so a puzzle is reproducible (and a seed is shareable).
+2. **Place the N mushrooms:** randomized backtracking over a column permutation
+   subject to `|col[r] − col[r+1]| ≥ 2` (§1).
+3. **Grow the regions:** seed one region at each mushroom cell, then expand by
+   randomized multi-source BFS until every cell is claimed. Contiguity holds by
+   construction (a cell is only ever added adjacent to its own region), and each
+   region contains exactly one solution mushroom, so the generated placement is
+   always *a* valid solution.
+4. **Force uniqueness:** count solutions with the solver; while more than one
+   exists, perturb the regions (move a boundary cell to a neighboring region,
+   preserving contiguity and the one-mushroom-per-region invariant) and
+   re-count. Fall back to a full regenerate if the perturbation budget runs out.
+
+**`countSolutions(regions, size, limit)`** — backtracking row by row, pruning on
+column-used, region-used, and the adjacent-row column-gap rule; stops early at
+`limit` (2 is enough to answer "is it unique?").
+
+**Shared validation helpers** used by both the engine and the reducer, so the
+rules live in exactly one place: `findConflicts(...)` and `isSolved(...)`.
+
+**Difficulty** ≈ grid size + region-shape irregularity. Sizes ship as a ladder
+(§7) starting at **5×5** — matching the reference's Level 1 → 10 progression.
+
+## 5. What is reused vs. new
+
+| Reused as-is | New for Fungiku |
+|---|---|
+| Theme system + header / top strip / timer chrome | Region+mushroom generator, solver, uniqueness |
+| `usePersistentReducer` + `utils/storage.js` pattern | Mark-cycle reducer, conflict validation, win detection |
+| Swatch palette in `utils/symbolSets.js` (→ region colors) | Region-colored board with region-boundary borders |
+| `Symbol.js` mushroom glyph + the art-swap seam | `🍄 X/N` counter, mode entry point, level ladder |
+| Undo/redo, scoring, win-modal patterns | |
+
+**Not used by this mode:** `sudoku-gen` / `boardFactory`, `NumberPad.js`, the
+notes mini-grid, digit correct/incorrect feedback. All of it stays in place and
+untouched for classic Sudoku.
+
+## 6. Menu, navigation, and the hub
+
+**Today the app opens straight into Sudoku, and Fungiku is reached from a button
+inside Sudoku's own game menu.** That structure says "Sudoku is the app and
+Fungiku is a guest." With two games it needs a shell where both are peers —
+otherwise every later step keeps building into the wrong shape.
+
+### The shell
+
+- **`App.js` owns a small screen router** — the route is `'hub'` or a game id.
+  No navigation library: two or three games don't justify `react-navigation`'s
+  native setup, and this matches the sibling **color-loop** app, whose hub lives
+  in `App.tsx` with each game self-contained under `games/<name>/`. Revisit only
+  if the app grows genuinely deep navigation.
+- **Game registry — `games/registry.js`.** One entry per game:
+  `{ id, title, tagline, icon, accent, Screen }`. The hub renders its cards from
+  the registry, so adding a third game is a registry entry, not a UI edit.
+- **Hub screen — `screens/HubScreen.js`.** App title, one card per game,
+  theme-aware, with a **"Continue"** affordance when a game has saved progress.
+- **Back to the hub** — every game screen gets a home affordance in its header.
+- **`games/fungiku/FungikuScreen.js`** — Fungiku becomes a real screen reached
+  from the hub. The menu-modal preview entry goes away.
+- **Sudoku's files stay where they are** for now; the registry points at the
+  existing `GameScreen`. Relocating Sudoku under `games/sudoku/` to match the
+  convention is optional tidy-up, deliberately deferred to keep the step small.
+
+### Behaviors to get right
+
+- **Resume.** Sudoku restores a saved game on launch today. With a hub in front,
+  the hub shows first and the card carries a *Continue* badge — predictable, and
+  it keeps both games discoverable. (The alternative, auto-jumping into a game in
+  progress, hides the other game; operator decision in §8.)
+- **Timer.** Leaving Sudoku for the hub must **pause its timer** — today it only
+  pauses on the menu and on backgrounding, so navigating away would leave it
+  running while nobody is playing.
+- **Difficulty.** Sudoku opens its difficulty menu when no game is in progress;
+  entering from the hub must still land there.
+- **Separate persistence keys per game**, so the two modes never clobber each
+  other's saved state.
+- **Leaving mid-game is not quitting** — navigating to the hub must not reset
+  progress.
+
+### App identity
+
+The app is titled "Sudoku" but will host two games, so the hub needs a name of
+its own. Flagged as an open question (§8) — it is a branding decision, not a
+technical one.
+
+## 7. Delivery steps (one branch per step, per dev-process.md)
+
+Each step names **what the operator can see in Expo Go** when it lands — that is
+the step's real acceptance test, alongside its automated checks.
+
+| # | Step | Visible in Expo Go |
+|---|------|--------------------|
+| 0 | ~~Upgrade Expo SDK~~ ✅ merged (#66) — SDK 54 | App runs on the current SDK |
+| 1 | ~~Rendering seam — `Symbol.js` + `symbolSets.js`~~ ✅ merged (#67) | Zero visual change (that was the point) |
+| 2 | **Engine** — seeded generator, solver, uniqueness, shared `findConflicts` / `isSolved`, Jest tests | **Engine preview**: generated boards with their color regions and solution mushrooms; switch size 5–8, reseed, show/hide the solution |
+| 3 | **Game shell + hub** (§6) — screen router, game registry, hub screen, back-to-hub, Fungiku's own screen | **The hub**: app opens on a home screen with **Sudoku and Fungiku side by side as peers**; Fungiku is a real destination, not a button in Sudoku's menu |
+| 4 | **State** — reducer + context: mark cycling, live conflict validation, win detection, undo/redo, persistence | The Fungiku screen becomes **playable**: tap-to-cycle X/🍄, live conflict highlighting, `🍄 X/N` counter, win banner |
+| 5 | **Board UI** — the real board component: region-boundary borders, themed styling, win flow, palette tuning | The **finished board**, styled to the app's themes, replacing the preview's rough grid |
+| 6 | **Assists & polish** — optional auto-X, win animation, level ladder, scoring | Assist toggle, win celebration, level progression |
+| 7 | **Art swap** (floating, asset-only) | Static mushroom art replaces the icon glyph |
+
+**Why the shell comes before the game logic:** Fungiku currently hangs off
+Sudoku's menu, which is the wrong shape to keep building into. Doing the hub at
+Step 3 means Step 4's playable board lands in a real Fungiku screen instead of a
+modal nested inside another game — no throwaway work, and the two games read as
+peers from the moment there is anything to play.
+
+The preview is scaffolding, not the product: Step 2 builds it read-only to judge
+the engine's output, Step 3 gives it a real home, Step 4 makes it playable, and
+Step 5 supersedes it with the finished board.
+
+## 8. Open questions for the operator
+
+1. **Mode name in the UI** — **decided: "Fungiku"** (internal id `fungiku`).
+2. **What is the app called now?** It ships as "Sudoku" but is about to host two
+   games as peers (§6). The hub needs a title, and the app's name, icon and
+   store listing follow from it. Options: keep "Sudoku" and treat Fungiku as a
+   bonus (undersells it), rename to a neutral puzzle-collection brand, or lead
+   with the family name. This is a branding call, not a technical one, and it
+   blocks nothing — but the hub in Step 3 will show *some* title, so a
+   placeholder gets chosen there if this is still open.
+3. **Hub vs. resume on launch** — should the app always open on the hub with a
+   *Continue* badge (recommended: both games stay discoverable), or jump
+   straight back into a game already in progress?
+4. **Ladder shape** — v1 ships **5×5 → 8×8**. Where should it top out, and
+   should size be a free choice or unlocked by progression?
+5. **Assist defaults** — should auto-X be on by default for younger players?
+
+## 9. Edge cases to get right
+
+- **A 4×4 board is impossible** under these rules — with one mushroom per column
+  and `|Δcol| ≥ 2` between adjacent rows, no arrangement exists for N=4 — so the
+  ladder starts at **5×5**. The generator must reject sizes it cannot satisfy.
+- **Region growth can starve** a region if BFS order is unlucky; expansion must
+  keep every region non-empty (it always retains its seed mushroom cell).
+- **Uniqueness is the expensive part** — cap the perturbation budget and fall
+  back to regenerating rather than looping forever.
+- **X marks must never affect win detection** — only mushrooms count.
+- **Persistence** stores the seed + size + the player's marks, not the whole
+  board; the puzzle is rebuilt deterministically from the seed on restore.
+
+## 10. Disposition of the pre-replan work
+
+- **Step 0 (#66, merged)** — SDK 54 upgrade. Unaffected, keep.
+- **Step 1 (#67, merged)** — `Symbol.js` + `utils/symbolSets.js`. **Kept**; the
+  palette becomes the region colors and the mushroom glyph is the placed marker.
+  The "numbers ↔ fungiku glyph swap" framing is obsolete.
+- **Old Step 2 (PR #68, closed unmerged)** — a numbers↔Fungiku toggle *on the
+  Sudoku board*. Built on the superseded "display mode" model: Fungiku is a
+  separate mode with its own board, so a symbol-set toggle over the 9×9 numeric
+  grid has no place. Closed rather than merged.
