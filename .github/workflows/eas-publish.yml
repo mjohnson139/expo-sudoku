@@ -5,6 +5,11 @@ on:
   push:
     branches:
       - main
+      # Epic branches are long-lived integration branches. They get their own
+      # EAS Update branch so in-progress work is openable in Expo Go between
+      # step PRs -- once a step PR merges into the epic there is no open PR
+      # left, so the PR-preview job below would otherwise leave nothing to test.
+      - 'epic/**'
   pull_request:
 
 permissions:
@@ -27,7 +32,10 @@ jobs:
 # Merge to main -> publish the production EAS Update
   publish-mobile:
     name: Publish EAS Update (main)
-    if: github.event_name == 'push'
+    # Pinned to main explicitly: this job hardcodes `--branch main`, so it must
+    # never run for the epic pushes added to the trigger above -- that would
+    # publish in-progress work onto the production update branch.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -55,6 +63,57 @@ jobs:
             --environment production \
             --non-interactive
         working-directory: ${{ env.APP_DIR }}
+
+# --------------------------------------------------------------------------
+# Push to an epic branch -> publish an EAS Update branch of the same name, so
+# the epic is always openable in Expo Go (project -> Branches) even when no
+# step PR is open.
+  publish-epic:
+    name: Publish EAS Update (epic branch)
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/epic/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Install EAS CLI
+        run: npm install -g eas-cli
+
+      - name: Publish this epic branch to EAS Update
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          eas update --branch "$BRANCH" \
+            --message "Auto-publish from $BRANCH (${GITHUB_SHA::7})" \
+            --platform all \
+            --environment preview \
+            --non-interactive
+        working-directory: ${{ env.APP_DIR }}
+
+      - name: Summarize how to open it in Expo Go
+        run: |
+          BRANCH="${GITHUB_REF#refs/heads/}"
+          {
+            echo "## 📱 Open this epic in Expo Go"
+            echo
+            echo "Published EAS Update branch: **\`$BRANCH\`**"
+            echo
+            echo "In Expo Go, open the **expo-sudoku** project and pick the"
+            echo "\`$BRANCH\` branch. The runtime is \`exposdk:54.0.0\`, which is"
+            echo "what Expo Go runs, so it opens directly."
+            echo
+            echo "Branch page: https://expo.dev/accounts/mjohnson139/projects/expo-sudoku/branches/$BRANCH"
+          } >> "$GITHUB_STEP_SUMMARY"
 
 # --------------------------------------------------------------------------
 # Open / update a PR -> publish a preview EAS Update and comment a QR code
