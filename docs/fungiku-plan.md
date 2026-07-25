@@ -215,8 +215,8 @@ the step's real acceptance test, alongside its automated checks.
 |---|------|--------------------|
 | 0 | ~~Upgrade Expo SDK~~ ✅ merged (#66) — SDK 54 | App runs on the current SDK |
 | 1 | ~~Rendering seam — `Symbol.js` + `symbolSets.js`~~ ✅ merged (#67) | Zero visual change (that was the point) |
-| 2 | **Engine** — seeded generator, solver, uniqueness, shared `findConflicts` / `isSolved`, Jest tests | **Engine preview**: generated boards with their color regions and solution mushrooms; switch size 5–8, reseed, show/hide the solution |
-| 3 | **Game shell + hub** (§6) — screen router, game registry, hub screen, back-to-hub, Fungiku's own screen | **The hub**: app opens on a home screen with **Sudoku and Fungiku side by side as peers**; Fungiku is a real destination, not a button in Sudoku's menu |
+| 2 | ~~**Engine**~~ ✅ merged (#69) — seeded generator, solver, uniqueness, shared `findConflicts` / `isSolved`, Jest tests | **Engine preview**: generated boards with their color regions and solution mushrooms; switch size 5–8, reseed, show/hide the solution |
+| 3 | ~~**Game shell + hub**~~ ✅ (§6) — screen router, game registry, hub screen, back-to-hub, Fungiku's own screen | **The hub**: app opens on a home screen with **Sudoku and Fungiku side by side as peers**; Fungiku is a real destination, not a button in Sudoku's menu |
 | 4 | **State** — reducer + context: mark cycling, live conflict validation, win detection, undo/redo, persistence | The Fungiku screen becomes **playable**: tap-to-cycle X/🍄, live conflict highlighting, `🍄 X/N` counter, win banner |
 | 5 | **Board UI** — the real board component: region-boundary borders, themed styling, win flow, palette tuning | The **finished board**, styled to the app's themes, replacing the preview's rough grid |
 | 6 | **Assists & polish** — optional auto-X, win animation, level ladder, scoring | Assist toggle, win celebration, level progression |
@@ -240,11 +240,12 @@ Step 5 supersedes it with the finished board.
    store listing follow from it. Options: keep "Sudoku" and treat Fungiku as a
    bonus (undersells it), rename to a neutral puzzle-collection brand, or lead
    with the family name. This is a branding call, not a technical one, and it
-   blocks nothing — but the hub in Step 3 will show *some* title, so a
-   placeholder gets chosen there if this is still open.
-3. **Hub vs. resume on launch** — should the app always open on the hub with a
-   *Continue* badge (recommended: both games stay discoverable), or jump
-   straight back into a game already in progress?
+   blocks nothing. **Step 3 shipped the placeholder "Puzzle Box"** in
+   `SudokuApp/utils/appIdentity.js`; a final answer changes those constants plus
+   `app.json`, the icon and the store listing.
+3. ~~**Hub vs. resume on launch**~~ — **decided in Step 3: hub-first.** The app
+   opens on the hub and a game with saved progress carries a *Continue* badge, so
+   both games stay discoverable. Revisit only if it grates on device.
 4. **Ladder shape** — v1 ships **5×5 → 8×8**. Where should it top out, and
    should size be a free choice or unlocked by progression?
 5. **Assist defaults** — should auto-X be on by default for younger players?

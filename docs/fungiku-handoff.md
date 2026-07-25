@@ -92,96 +92,134 @@ operator to test in Expo Go.**
 
 ---
 
-## Next step: **Step 3 — game shell + hub navigation**
+## Next step: **Step 4 — Fungiku state: make the board playable**
 
-Branch: **`feature/fungiku-hub`** off `epic/fungiku`.
-Plan: **§6 ("Menu, navigation, and the hub")** plus the §7 table row for step 3.
+Branch: **`feature/fungiku-state`** off `epic/fungiku`.
+Plan: **§1 (rules)**, **§2 (input model)**, **§9 (edge cases)**, plus the §7 table
+row for step 4.
 
 ### Why this step exists
 
-**Fungiku currently feels like an afterthought — because structurally it is
-one.** The app opens straight into Sudoku, and Fungiku is reached from a button
-inside Sudoku's own game menu. That says "Sudoku is the app, Fungiku is a
-guest." This step makes them **peers behind a hub**, before more game logic gets
-built into the wrong shape.
+Fungiku now has a real screen off the hub, but the thing on it is still a
+**read-only engine preview** — you can look at generated boards and reseed them,
+and that is all. This step is where Fungiku becomes **a game you can play**: tap
+cells to place mushrooms, see conflicts as you go, and win.
 
 ### Read first
 
-- `SudokuApp/App.js` — renders `GameScreen` directly today; becomes the router.
-- `SudokuApp/screens/GameScreen.js`, `components/GameHeader.js`,
-  `components/modals/GameMenuModal.js` — Sudoku's entry, header, and the menu
-  currently hosting the Fungiku preview button.
-- `SudokuApp/games/fungiku/FungikuPreview.js` — moves onto Fungiku's own screen.
-- `SudokuApp/contexts/GameContext.js` — Sudoku's timer/menu/persistence
-  behavior, which must not regress.
+- `SudokuApp/games/fungiku/engine.js` — **the rules already live here.** Exports
+  `MARKS`, `nextMark`, `createEmptyMarks`, `findConflicts`, `isSolved`,
+  `countMushrooms`, `generate({ size, seed })`, `MIN_SIZE`. Read the whole file
+  before writing state code; you should not need to write a single
+  row/column/region/adjacency check yourself.
+- `SudokuApp/games/fungiku/__tests__/engine.test.js` — how the engine is already
+  covered, and the style to extend for the reducer.
+- `SudokuApp/games/fungiku/FungikuScreen.js` — the shell you build into. Its
+  body is `<FungikuPreview theme={theme} />` and that is the line that changes.
+- `SudokuApp/games/fungiku/FungikuPreview.js` — the read-only scaffolding. Its
+  board rendering (region-boundary borders, `getRegionColor`) is a fine starting
+  point to lift; Step 5 replaces it with the real board component.
+- `SudokuApp/contexts/GameContext.js` + `hooks/usePersistentReducer.js` — the
+  **pattern** to follow for Fungiku's own context: a reducer, a provider, and
+  persistence through `usePersistentReducer`. Read it as a model, don't edit it.
+- `SudokuApp/utils/storage.js` — Sudoku's persistence. Note it is written around
+  a **single hardcoded key** (`STORAGE_KEY = '@SudokuGame'`) and a Sudoku-shaped
+  `stripTransient`; Fungiku needs its own key and its own transient list, so
+  expect to generalize this or add a Fungiku sibling. **Keep the two games'
+  keys separate** — that is a §6 requirement.
+- `SudokuApp/games/registry.js` — Fungiku's entry has `readProgress: null`. Once
+  Fungiku persists state, give it a real `readProgress` so its hub card gets the
+  same **Continue** badge Sudoku has. `utils/gameProgress.js` is where the pure,
+  unit-tested progress-summary logic lives.
 
 ### Scope — ONLY this
 
-1. **Screen router in `App.js`** — route is `'hub'` or a game id. **Do not add a
-   navigation library.** Two or three games don't justify `react-navigation`'s
-   native setup, and this matches the sibling **color-loop** app, whose hub lives
-   in `App.tsx` with each game under `games/<name>/`.
-2. **Game registry — `games/registry.js`** — one entry per game:
-   `{ id, title, tagline, icon, accent, Screen }`. The hub renders its cards from
-   the registry, so a third game is a registry entry, not a UI edit.
-3. **Hub screen — `screens/HubScreen.js`** — app title, a card per game,
-   theme-aware, with a **Continue** affordance when a game has saved progress.
-4. **Back-to-hub** — a home affordance in each game's header.
-5. **`games/fungiku/FungikuScreen.js`** — Fungiku's own screen, initially hosting
-   the preview content. **Remove the Fungiku button from `GameMenuModal`.**
-6. **Sudoku's files stay where they are.** The registry points at the existing
-   `GameScreen`. Relocating Sudoku under `games/sudoku/` is deliberately
-   deferred — do not do it here.
+1. **`games/fungiku/reducer.js` (or `FungikuContext.js`)** — Fungiku's own state:
+   the generated puzzle (regions + solution), the player's `marks`, size, seed,
+   derived conflicts, win flag, and undo/redo.
+2. **Tap-to-cycle input** — `empty → X → 🍄 → empty` via `nextMark`. X is an aid
+   only: it must never affect win detection.
+3. **Live conflict highlighting** — recompute via `findConflicts` on every
+   change. Conflicts are shown, **not blocked**; the player fixes them.
+4. **Win detection** via `isSolved`, plus the **`🍄 X/N` counter** in the header
+   (`countMushrooms`).
+5. **Undo/redo** over mark changes.
+6. **Persistence** under Fungiku's own storage key, so a Fungiku game survives
+   leaving for the hub and relaunching — and a real `readProgress` in the
+   registry so the hub card shows Continue.
+7. **Extend the Jest suite**: reducer behavior (cycling, undo/redo, win, X's not
+   counting), and the progress summary if you add one for Fungiku.
 
-### Behaviors that are easy to get wrong (plan §6)
+### Behaviors that are easy to get wrong
 
-- **Pause Sudoku's timer when leaving for the hub.** Today it only pauses on the
-  menu and on backgrounding, so navigating away would leave the clock running
-  with nobody playing. This is the top thing to get right in this step.
-- **Entering Sudoku from the hub must still reach difficulty selection** — its
-  menu auto-opens when no game is in progress.
-- **Navigating to the hub is not quitting** — in-progress state must survive.
-- **Per-game storage keys stay separate** so the games never clobber each other.
+- **X's are cosmetic.** `isSolved` must be reached with X's anywhere on the
+  board, and a board full of X's and no mushrooms is not a win.
+- **Conflicts don't block.** Placing a mushroom that conflicts must succeed and
+  simply highlight — this is how the player reasons.
+- **Win is N mushrooms placed legally, not a filled grid** (plan §1). There is no
+  "every cell filled" step; don't reach for Sudoku's `filledCount` model.
+- **Undo/redo must not desync derived state** — conflicts and the counter are
+  derived from `marks`, so recompute rather than storing and rewinding them
+  separately.
+- **Don't let Fungiku's save clobber Sudoku's.** Separate keys, separate
+  transient-field lists. Verify by starting both games and relaunching.
+- **The engine owns the rules.** If you hand-write an adjacency or region check
+  outside `engine.js`, that's a bug.
 
 ### Out of scope for this step
 
-- **No Fungiku game logic.** No reducer, no marks, no tap-to-place — that is
-  Step 4. The Fungiku screen just hosts the existing read-only preview.
+- **No finished board UI.** Region-boundary polish, themed cell styling, the win
+  flow/animation and the palette tuning pass are **Step 5**. Getting it playable
+  on top of the preview's rough grid is the goal here.
 - **No palette fixing.** At 8 regions sky blue/blue read similarly as pastel
-  fills (orange/yellow too). Logged against **Step 5's palette tuning pass**.
-- **No Sudoku gameplay changes.** Timer-pause-on-navigate and a header home
-  button are the only expected Sudoku-side edits.
-
-### App title — pick a placeholder, don't block
-
-The app ships as "Sudoku" but will now host two games as peers, so the hub needs
-a title. This is an **open branding question the operator hasn't answered**
-(§8 #2). Pick a sensible placeholder, keep it as a **single constant that's
-trivial to change**, and say in your PR exactly where to change it.
+  fills (orange/yellow too). Still logged against **Step 5**.
+- **No assists, ladder or scoring** — that is Step 6, including the auto-X
+  toggle (§8 #5).
+- **No Sudoku changes.** Fungiku gets its own reducer and context; Sudoku's are
+  a reference, not a shared dependency to refactor.
 
 ### Visible in Expo Go when this lands
 
-The app opens on a **hub showing Sudoku and Fungiku side by side as peers**; you
-can tap into either game and get back. Verify in a browser: hub → Sudoku → back
-→ Fungiku → back, no page errors, and **the Sudoku timer paused after navigating
-away**. Screenshot the hub.
+Open Fungiku from the hub and **play it**: tap a cell through
+empty → X → 🍄, watch conflicting mushrooms highlight, watch the `🍄 X/N`
+counter climb, and **win a 5×5**. Leaving for the hub and coming back must find
+the board where you left it, with a Continue badge on the Fungiku card. Verify in
+a browser end to end (a 5×5 is small enough to solve by clicking through), no
+page errors, and screenshot both a mid-game conflict state and the win.
 
 ---
 
 ## Open questions for the operator (carry these forward)
 
 1. ~~**Mode name**~~ — decided: **"Fungiku"** (internal id `fungiku`).
-2. **App name** — it ships as "Sudoku" but is about to host two games as peers.
-   Keep "Sudoku" (undersells Fungiku), a neutral puzzle-collection brand, or lead
-   with the family name? The app name, icon and store listing follow from it.
-   *Unanswered — use a placeholder.*
-3. **Hub vs. resume on launch** — always open on the hub with a *Continue* badge
-   (recommended: both games stay discoverable), or jump straight back into a game
-   in progress? *Unanswered — build the hub-first behavior.*
+2. **App name** — **still unanswered, and now visible on screen.** Step 3 shipped
+   the placeholder **"Puzzle Box"** (tagline "Pick a puzzle") in
+   `SudokuApp/utils/appIdentity.js` — change those two constants and the hub
+   follows. A final answer also has to land in `app.json` (`expo.name`,
+   `web.name`/`shortName`), the icon and the store listing. Keep "Sudoku"
+   (undersells Fungiku), pick a neutral puzzle-collection brand, or lead with the
+   family name?
+3. ~~**Hub vs. resume on launch**~~ — built hub-first in Step 3: the app opens on
+   the hub and the Sudoku card carries a *Continue* badge. Revisit only if the
+   operator dislikes it on device.
 4. **Ladder shape** — v1 targets 5×5 → 8×8. Where should it top out, and is size
    a free choice or unlocked by progression? *(Step 6 concern.)*
 5. **Assist defaults** — should auto-X be on by default for younger players?
    *(Step 6 concern.)*
+
+### Noted in passing, for a later step
+
+- **Quitting a Sudoku game doesn't clear its save.** `saveState` skips writing
+  when `gameStarted` is false, so the previous snapshot survives "New Game" until
+  a difficulty is picked. Pre-existing, and self-consistent (the hub's Continue
+  badge describes exactly the game re-entering Sudoku would restore), but it
+  means "New Game" then leaving mid-choice still shows Continue.
+- **Re-entering a game from the hub always lands on the Pause modal**, because a
+  restored game is a paused game. Correct, but it means the header (and the way
+  back home) is behind one Resume tap.
+- **`useAppTheme` reads the theme out of Sudoku's saved state** so the hub and
+  Fungiku follow the player's choice. A genuinely app-level theme owned by the
+  shell is the right home for this once Fungiku has real UI to theme (Step 5).
 
 ## Steps already done
 
@@ -191,3 +229,4 @@ away**. Screenshot the hub.
 | 1 | Rendering seam — `Symbol.js` + `symbolSets.js` | merged to `main` (#67) |
 | — | ~~Symbol-set toggle on the Sudoku board~~ | closed unmerged (#68) — superseded by the replan |
 | 2 | Replan + engine + preview + hub design | merged to `epic/fungiku` (#69, `fecb271`) |
+| 3 | Game shell + hub — router, registry, `HubScreen`, `FungikuScreen`, back-to-hub | PR to `epic/fungiku` |

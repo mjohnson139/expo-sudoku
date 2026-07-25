@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { describeSudokuProgress } from './gameProgress';
 
 // Constants
+// One key per game, so the modes never clobber each other's saved state
+// (docs/fungiku-plan.md §6). Fungiku gets its own key when it becomes playable.
 export const STORAGE_KEY = '@SudokuGame';
 export const STORAGE_VERSION = 2; // Incremented to handle addition of gameCompleted flag
 
@@ -112,6 +115,31 @@ export const loadState = async () => {
     console.error('Error loading game state:', error);
     return null;
   }
+};
+
+/**
+ * Read a summary of the saved Sudoku game for the hub's Continue affordance.
+ *
+ * The hub renders before any game screen mounts, so it cannot ask GameContext —
+ * it reads the same persisted snapshot the Sudoku screen hydrates from.
+ *
+ * @returns {Promise<{label: string, detail: string}|null>} null when there is
+ *   no game to continue.
+ */
+export const readSudokuProgress = async () => {
+  return describeSudokuProgress(await loadState());
+};
+
+/**
+ * Read the last theme the player chose, so the hub and Fungiku match Sudoku
+ * instead of always rendering in the default palette. Returns null when nothing
+ * has been saved yet; callers fall back to the default theme.
+ *
+ * @returns {Promise<string|null>}
+ */
+export const readSavedThemeName = async () => {
+  const saved = await loadState();
+  return saved?.currentThemeName || null;
 };
 
 /**

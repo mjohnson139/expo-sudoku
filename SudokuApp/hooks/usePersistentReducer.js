@@ -51,6 +51,20 @@ const usePersistentReducer = (reducer, initialState, actionType) => {
     };
   }, [state]);
   
+  // Flush any pending write when the provider unmounts.
+  //
+  // Writes are debounced by 500ms, and a game screen unmounts as soon as the
+  // player leaves for the hub — without this, leaving right after a move would
+  // drop that move. Leaving a game is not quitting it (plan §6), so the last
+  // state has to reach storage before the screen goes away.
+  useEffect(() => {
+    return () => {
+      if (saveState.flush) {
+        saveState.flush();
+      }
+    };
+  }, []);
+
   // Load saved state on initial mount
   useEffect(() => {
     const hydrateState = async () => {
