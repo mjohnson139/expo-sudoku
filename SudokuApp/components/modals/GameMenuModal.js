@@ -3,6 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, Modal, Animated, View, Switch } fro
 import { useGameContext, ACTIONS } from '../../contexts/GameContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import appJson from '../../app.json';
+import FungikuPreview from '../../games/fungiku/FungikuPreview';
 
 // Constants for consistent sizes
 const ICON_SIZE = 24;
@@ -27,6 +28,9 @@ const GameMenuModal = () => {
 
   // Animation for menu modal
   const [menuAnim] = React.useState(new Animated.Value(0));
+
+  // Fungiku engine preview (temporary scaffolding — see the button below).
+  const [showFungikuPreview, setShowFungikuPreview] = React.useState(false);
 
   React.useEffect(() => {
     if (showMenu) {
@@ -153,6 +157,24 @@ const GameMenuModal = () => {
               </TouchableOpacity>
             )}
 
+            {/* Fungiku engine preview — scaffolding so the in-progress Fungiku
+                mode is viewable in Expo Go at every step (plan §6). Replaced by
+                the real mode entry in Step 5. */}
+            <TouchableOpacity
+              style={[styles.menuButton, styles.buildButton]}
+              onPress={() => setShowFungikuPreview(true)}
+              accessibilityLabel="Preview Fungiku puzzles"
+              accessibilityRole="button"
+            >
+              <MaterialCommunityIcons
+                name="mushroom"
+                size={ICON_SIZE}
+                color="#333"
+                style={styles.menuButtonIcon}
+              />
+              <Text style={[styles.menuButtonText, { color: theme.colors.text || '#333' }]}>Fungiku (preview)</Text>
+            </TouchableOpacity>
+
             {/* Build Notes button */}
             <TouchableOpacity
               style={[styles.menuButton, styles.buildButton]}
@@ -231,6 +253,12 @@ const GameMenuModal = () => {
           </Text>
         </View>
       </Animated.View>
+
+      <FungikuPreview
+        visible={showFungikuPreview}
+        onClose={() => setShowFungikuPreview(false)}
+        theme={theme}
+      />
     </Modal>
   );
 };

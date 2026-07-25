@@ -29,6 +29,20 @@ the board: *1 Cat per column & row · 1 Cat per color · Cats cannot touch*.
 - **Process:** follow `.github/dev-process.md` — the tracker is issue #65, work
   **one delivery step per branch**, commit after each step, and **prompt the
   operator to test after each step.**
+- **Branching: this feature lands on an epic branch, not `main`.** Every step
+  PR targets **`epic/fungiku`**. The epic branch merges to `main` once Fungiku
+  is playable end to end, so `main` never carries a half-built game mode.
+
+  ```
+  main ─── epic/fungiku ─── feature/fungiku-<step>   (PRs target the epic)
+  ```
+
+- **Every step must ship something the operator can look at in Expo Go.** Even
+  the pure-logic steps: if a step has no natural UI, it carries a small preview
+  or debug surface so progress is visually verifiable on a device, and direction
+  can be corrected early instead of after the whole mode is built. A step whose
+  only evidence is a passing test suite is not done. Preview scaffolding is
+  explicitly temporary — it is replaced by the real UI as later steps land.
 - **Fungiku is a separate game mode, not a change to classic Sudoku.** Classic
   Sudoku keeps working exactly as it does today. Do **not** modify the Sudoku
   generator (`sudoku-gen` / `boardFactory`), the Sudoku reducer logic, the
@@ -141,21 +155,23 @@ untouched for classic Sudoku.
 
 ## 6. Delivery steps (one branch per step, per dev-process.md)
 
-0. ~~**Pre-step — upgrade Expo to the latest SDK.**~~ ✅ merged (#66) — SDK 54.
-1. ~~**Rendering seam** — `Symbol.js` + `symbolSets.js`.~~ ✅ merged (#67). The
-   mushroom glyph and the swatch palette carry into this plan as the placed
-   marker and the region colors.
-2. **Engine** — `games/fungiku/engine.js`: seeded generator, solver, uniqueness,
-   plus the shared `findConflicts` / `isSolved` helpers. Jest unit tests. No UI.
-3. **State** — Fungiku reducer + context: mark cycling, live conflict
-   validation, win detection, undo/redo, AsyncStorage persistence.
-4. **Board UI** — region-colored grid with region-boundary borders,
-   tap-to-cycle X/🍄, conflict highlighting, `🍄 X/N` counter, win flow.
-5. **Mode entry** — how the player gets into Fungiku (mode selector alongside
-   classic Sudoku) plus size/level selection.
-6. **Assists & polish** — optional auto-X, win animation, level ladder, scoring.
-7. **Art swap** (floating, asset-only) — static mushroom PNG behind the
-   `<Symbol>` seam.
+Each step names **what the operator can see in Expo Go** when it lands — that is
+the step's real acceptance test, alongside its automated checks.
+
+| # | Step | Visible in Expo Go |
+|---|------|--------------------|
+| 0 | ~~Upgrade Expo SDK~~ ✅ merged (#66) — SDK 54 | App runs on the current SDK |
+| 1 | ~~Rendering seam — `Symbol.js` + `symbolSets.js`~~ ✅ merged (#67) | Zero visual change (that was the point) |
+| 2 | **Engine** — seeded generator, solver, uniqueness, shared `findConflicts` / `isSolved`, Jest tests | **Engine preview**: generated boards with their color regions and solution mushrooms; switch size 5–8, reseed, show/hide the solution |
+| 3 | **State** — reducer + context: mark cycling, live conflict validation, win detection, undo/redo, persistence | Preview gains **tap-to-cycle** X/🍄 with live conflict highlighting and a win banner — the puzzle becomes playable, if plain |
+| 4 | **Board UI** — the real board component: region-boundary borders, themed styling, `🍄 X/N` counter, win flow | The **actual game board**, styled to the app's themes, replacing the preview's rough grid |
+| 5 | **Mode entry** — mode selector alongside classic Sudoku, size/level selection | Fungiku reachable as a **real mode** from the menu; preview scaffolding removed |
+| 6 | **Assists & polish** — optional auto-X, win animation, level ladder, scoring | Assist toggle, win celebration, level progression |
+| 7 | **Art swap** (floating, asset-only) | Static mushroom art replaces the icon glyph |
+
+Steps 2 and 3 share the preview surface: Step 2 builds it read-only to judge the
+engine's output, Step 3 makes it interactive to prove the rules. It is
+scaffolding, not the product — Step 4 supersedes it and Step 5 deletes it.
 
 ## 7. Open questions for the operator
 

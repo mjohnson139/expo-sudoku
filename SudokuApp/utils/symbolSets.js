@@ -47,6 +47,44 @@ const FUNGIKU_SWATCHES = {
 };
 
 /**
+ * Region colors for the Fungiku board (docs/fungiku-plan.md §3). Regions reuse
+ * the same colorblind-safe palette as the swatches above so there is exactly one
+ * source of color truth; the mushroom's own red rounds the list out to nine, one
+ * per region for boards up to 9×9.
+ *
+ * Each entry carries the saturated `color` (borders, labels, emphasis) and a
+ * pastel `background` for filling a whole cell — the reference art is a soft
+ * pastel grid, and a full cell of saturated Okabe–Ito would overwhelm the
+ * mushroom drawn on top of it. `name` stays the stable, non-visual identity used
+ * for accessibility labels.
+ */
+const mixWithWhite = (hex, weight) => {
+  const n = parseInt(hex.slice(1), 16);
+  const blend = (channel) => Math.round(channel + (255 - channel) * weight);
+  const r = blend((n >> 16) & 255);
+  const g = blend((n >> 8) & 255);
+  const b = blend(n & 255);
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
+};
+
+export const REGION_COLORS = [
+  ...Object.keys(FUNGIKU_SWATCHES)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((value) => FUNGIKU_SWATCHES[value]),
+  MUSHROOM,
+].map(({ color, name }) => ({
+  color,
+  name,
+  background: mixWithWhite(color, 0.62),
+}));
+
+/** The palette entry for a region id, wrapping around if ids exceed the palette. */
+export function getRegionColor(regionId) {
+  return REGION_COLORS[regionId % REGION_COLORS.length];
+}
+
+/**
  * resolveSymbol(setId, value) → a plain descriptor Symbol.js knows how to draw:
  *   { kind: 'text',   value, text,  label }               // numbers
  *   { kind: 'swatch', value, color, corners, label }      // fungiku color
