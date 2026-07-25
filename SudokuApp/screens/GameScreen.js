@@ -18,7 +18,7 @@ import useAppStateListener from '../hooks/useAppStateListener';
  * Main game screen for Sudoku
  * Uses GameContext for state management
  */
-const GameScreenContent = () => {
+const GameScreenContent = ({ onExitToHub }) => {
   const {
     board,
     selectedCell,
@@ -57,8 +57,8 @@ const GameScreenContent = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Header with menu button, title, theme selector */}
-        <GameHeader />
+      {/* Header with home button, menu button, title, theme selector */}
+        <GameHeader onHomePress={onExitToHub} />
 
         {/* Top strip with Timer (right) */}
         <View style={{ width: gridContainerSize }}>
@@ -115,11 +115,19 @@ const GameScreenContent = () => {
 
 /**
  * GameScreen wrapper that provides the GameProvider context
+ *
+ * Leaving for the hub unmounts this screen, and that is what pauses the game:
+ * the timer interval lives in GameProvider, so it stops with the screen, and
+ * `timerActive` is never persisted — a restored game always comes back paused
+ * (see utils/storage.js). The clock therefore cannot advance while the player is
+ * on the hub, and the board is waiting where they left it when they return.
+ *
+ * @param {Function} onExitToHub - provided by the router in App.js.
  */
-const GameScreen = () => {
+const GameScreen = ({ onExitToHub }) => {
   return (
     <GameProvider>
-      <GameScreenContent />
+      <GameScreenContent onExitToHub={onExitToHub} />
     </GameProvider>
   );
 };
