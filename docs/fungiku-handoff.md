@@ -146,7 +146,10 @@ cells to place mushrooms, see conflicts as you go, and win.
 5. **Undo/redo** over mark changes.
 6. **Persistence** under Fungiku's own storage key, so a Fungiku game survives
    leaving for the hub and relaunching — and a real `readProgress` in the
-   registry so the hub card shows Continue.
+   registry so the hub card shows Continue. **Store `size` + `seed` + `marks`
+   only** and rebuild the puzzle with `generate({ size, seed })` on restore:
+   generation is deterministic, so persisting regions and the solution would just
+   be a second, staler copy of the truth.
 7. **Extend the Jest suite**: reducer behavior (cycling, undo/redo, win, X's not
    counting), and the progress summary if you add one for Fungiku.
 
