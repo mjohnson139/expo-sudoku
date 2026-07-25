@@ -142,6 +142,49 @@ Two hazards worth knowing before writing the gesture:
    it fight the ScrollView, does it fire on a tap-with-jitter — is a device
    question. This one needs an Expo Go pass before it merges.
 
+### The ScrollView race, and how it was settled (device finding, 2026-07-25)
+
+The first implementation claimed the responder on **movement**, past a small
+threshold. On device that lost to the enclosing `ScrollView`: **a vertical drag
+scrolled the page instead of painting.** The ScrollView is tracking the same
+touch, and once vertical movement passes *its* slop it takes the gesture — via
+`onInterceptTouchEvent` on Android, and on iOS because `canCancelContentTouches`
+defaults to letting a scroll view cancel a child's touch. Claiming later than the
+scroll view decides is a race you lose.
+
+**The board must claim the touch at touch-down**, in the capture phase, so there
+is no window in which the gesture can be read as a scroll. Three parts, all
+required:
+
+1. `onStartShouldSetPanResponderCapture` **and** `onStartShouldSetPanResponder`
+   both return true. The capture claim is what pre-empts the ScrollView on
+   native; register the bubble-phase one too, because react-native-web does not
+   reliably honour a capture-phase claim on touch start and taps die without it.
+2. `scrollEnabled={false}` on the ScrollView while a finger is down on the board.
+   This is the part that reliably stops Android. Plus
+   `canCancelContentTouches={false}` on iOS, and
+   `onShouldBlockNativeResponder: () => true` in the responder config.
+3. Because the board owns the touch from the start, **a per-cell `Touchable`
+   never sees a press** — taps have to be recognized by the responder itself
+   (release under the drag threshold = tap) and dispatched from there. Cells
+   become plain `View`s that keep their accessibility labels plus
+   `onAccessibilityTap`.
+
+**Accepted trade-off:** you cannot scroll this screen by dragging on the board.
+Drag anywhere else. The content fits without scrolling on a normal phone even at
+8×8, so the ScrollView is really insurance for small or landscape screens.
+
+**Known regression from part 3:** on web, cells were focusable buttons and are
+now plain views, so keyboard tabbing to a cell is gone. Nobody asked for keyboard
+play and the labels (the accessibility channel that matters here) are intact, but
+it is a real loss — revisit if web keyboard play ever matters.
+
+**None of this is verifiable in a browser.** The web build never reproduced the
+bug: react-native-web uses ordinary overflow scrolling, so even synthetic touch
+drags painted correctly before the fix. What a browser *can* check is that taps,
+strokes, and jittery taps all still behave — do that, then confirm the scroll
+behavior on device.
+
 ## 3. The board
 
 - **Region color = cell background**, filling the whole cell (the reference is a

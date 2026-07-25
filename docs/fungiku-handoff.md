@@ -192,10 +192,16 @@ ladder.
 
 ### Noted in passing, for a later step
 
-- **Dragging on the board never scrolls the page.** The stroke claims the
-  responder and refuses to hand it back mid-sweep, which is what makes painting
-  reliable — but it means the board is not a place you can scroll from. Drag
-  outside the board instead. Fine on a tall phone; revisit if the screen grows.
+- **Dragging on the board never scrolls the page.** The board claims every touch
+  at touch-down — that is the fix for the operator's device report that a vertical
+  drag scrolled instead of painting (plan §2, "The ScrollView race"). It means the
+  board is not a place you can scroll from; drag outside it. Fine on a tall phone
+  even at 8×8; revisit if the screen grows.
+- **Web cells are no longer keyboard-focusable.** They were `TouchableOpacity`
+  (focusable buttons) and are now plain `View`s, because the board owns the touch
+  and a child Touchable would never see a press. Labels and `onAccessibilityTap`
+  are intact; keyboard tabbing to a cell is not. Revisit if web keyboard play
+  ever matters.
 - **Auto rule-out marks are ordinary X marks once placed.** Cycling the mushroom
   away leaves them behind; undo takes the placement and its marks back together.
   Retracting them on removal would need per-mark provenance, which is ambiguous

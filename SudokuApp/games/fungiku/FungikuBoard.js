@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Animated, Easing, PanResponder } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, StyleSheet, Animated, Easing, PanResponder } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MARKS } from './engine';
 import { getRegionPalette } from '../../utils/symbolSets';
@@ -39,7 +39,7 @@ const MARK_LABELS = {
  */
 const DRAG_THRESHOLD = 6;
 
-const FungikuBoard = ({ isDark, theme }) => {
+const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   const { size, regions, marks, conflicts, cycleCell, paintCells, beginStroke, endStroke, solved } =
     useFungikuContext();
 
@@ -49,11 +49,22 @@ const FungikuBoard = ({ isDark, theme }) => {
 
   // --- drag to sweep X's (plan §2) -----------------------------------------
   //
-  // The responder is claimed on *movement*, not on touch-down, so the per-cell
-  // Touchables keep handling simple taps — which keeps the full
-  // empty → X → 🍄 cycle and, just as importantly, their accessibility labels
-  // and screen-reader activation. Once the finger moves past the threshold the
-  // board takes over and the child's press is cancelled.
+  // The board claims every touch that starts on it, in the **capture phase, at
+  // touch-down**. That is not an optimization — it is the fix for a bug the
+  // operator hit on device: claiming on *movement* instead means racing the
+  // enclosing ScrollView, and vertically the ScrollView wins. It is already
+  // tracking the same touch, and once vertical movement passes its slop it takes
+  // it — via onInterceptTouchEvent on Android, and on iOS because
+  // canCancelContentTouches defaults to letting a scroll view cancel a child's
+  // touch. So the page scrolled instead of X's appearing.
+  //
+  // Claiming at touch-down removes the race entirely: there is no window in
+  // which the ScrollView can decide the gesture is a scroll. The cost is that
+  // taps arrive here rather than at a per-cell Touchable, so this component
+  // distinguishes them (release under the threshold = tap), and the cells keep
+  // their accessibility labels plus onAccessibilityTap for screen readers.
+  //
+  // FungikuScreen completes the fix on the ScrollView side.
   const { ref: boardRef, onLayout, measure, toLocal } = useBoardOrigin();
 
   // Refs, not state: these change many times per frame during a stroke and must
@@ -61,6 +72,10 @@ const FungikuBoard = ({ isDark, theme }) => {
   const startPoint = useRef(null);
   const lastCell = useRef(-1);
   const paintMode = useRef(PAINT_MODES.X);
+  const isStroke = useRef(false);
+
+  // Tap feedback, which the per-cell Touchables used to give for free.
+  const [pressedCell, setPressedCell] = useState(-1);
 
   // The latest marks/geometry, readable from inside gesture callbacks that were
   // created once and would otherwise close over a stale render.
@@ -73,45 +88,90 @@ const FungikuBoard = ({ isDark, theme }) => {
     return cellFromPoint({ x, y, cellSize, size: boardCells });
   };
 
+  /**
+   * Touch-down bookkeeping, shared by the capture- and bubble-phase claims.
+   * Idempotent: only one of the two ever runs for a given touch, but running it
+   * twice would do no harm.
+   */
+  const beginTouch = (event) => {
+    startPoint.current = {
+      x: event.nativeEvent.pageX,
+      y: event.nativeEvent.pageY,
+    };
+    isStroke.current = false;
+
+    // Re-measure here rather than only on layout: the win banner above the board
+    // mounts and unmounts, which moves the board.
+    measure();
+
+    // Freeze scrolling for as long as the finger is down on the board. Belt and
+    // braces with canCancelContentTouches on the screen: this is the one that
+    // reliably stops Android's ScrollView.
+    onTouchActiveChange?.(true);
+
+    setPressedCell(cellAt(startPoint.current.x, startPoint.current.y));
+  };
+
+  /** Common tail for release and terminate: hand scrolling back. */
+  const finish = () => {
+    lastCell.current = -1;
+    isStroke.current = false;
+    setPressedCell(-1);
+    onTouchActiveChange?.(false);
+  };
+
   const responder = useMemo(
     () =>
       PanResponder.create({
-        // Capture phase: observe where the touch began without claiming it, so
-        // the stroke can start from the cell the finger actually went down on
-        // rather than wherever it happened to be when the threshold tripped.
+        // Claim at touch-down, before the ScrollView can start interpreting the
+        // touch as a scroll. This is the fix.
+        //
+        // Registered in *both* phases on purpose. The capture phase is what
+        // pre-empts the ScrollView on native; but react-native-web does not
+        // appear to honour a capture-phase claim on touch start, and with the
+        // cells now plain Views that left touch taps dead — nothing handled
+        // them. The bubble-phase handler is the fallback that keeps taps working
+        // wherever capture isn't honoured. Whichever fires first wins; the other
+        // is never consulted, and `beginTouch` is safe to run either way.
         onStartShouldSetPanResponderCapture: (event) => {
-          startPoint.current = {
-            x: event.nativeEvent.pageX,
-            y: event.nativeEvent.pageY,
-          };
-          return false;
+          beginTouch(event);
+          return true;
+        },
+        onStartShouldSetPanResponder: (event) => {
+          beginTouch(event);
+          return true;
         },
 
-        onMoveShouldSetPanResponder: (_event, gesture) =>
-          Math.hypot(gesture.dx, gesture.dy) > DRAG_THRESHOLD,
+        // Already the responder, so these only matter if something upstream
+        // tries to hand the touch over mid-gesture.
+        onMoveShouldSetPanResponderCapture: () => true,
+        onMoveShouldSetPanResponder: () => true,
 
-        onPanResponderGrant: () => {
-          // Re-measure here, not just on layout: the win banner above the board
-          // mounts and unmounts, which moves the board.
-          measure();
+        onPanResponderMove: (event, gesture) => {
+          if (!isStroke.current) {
+            // Still ambiguous: a tap is a touch that never travels this far.
+            if (Math.hypot(gesture.dx, gesture.dy) <= DRAG_THRESHOLD) return;
 
-          const origin = startPoint.current;
-          const first = origin ? cellAt(origin.x, origin.y) : -1;
+            isStroke.current = true;
+            setPressedCell(-1);
 
-          // The first cell decides the whole stroke: starting on an X erases,
-          // starting anywhere else paints. Fixing the mode up front means
-          // dragging back over your own path doesn't flip cells twice.
-          paintMode.current =
-            first >= 0 && live.current.marks[first] === MARKS.X
-              ? PAINT_MODES.ERASE
-              : PAINT_MODES.X;
+            const first = startPoint.current
+              ? cellAt(startPoint.current.x, startPoint.current.y)
+              : -1;
 
-          beginStroke();
-          lastCell.current = first;
-          if (first >= 0) paintCells([first], paintMode.current);
-        },
+            // The first cell decides the whole stroke: starting on an X erases,
+            // starting anywhere else paints. Fixing the mode up front means
+            // dragging back over your own path doesn't flip cells twice.
+            paintMode.current =
+              first >= 0 && live.current.marks[first] === MARKS.X
+                ? PAINT_MODES.ERASE
+                : PAINT_MODES.X;
 
-        onPanResponderMove: (event) => {
+            beginStroke();
+            lastCell.current = first;
+            if (first >= 0) paintCells([first], paintMode.current);
+          }
+
           const next = cellAt(event.nativeEvent.pageX, event.nativeEvent.pageY);
           if (next < 0 || next === lastCell.current) return;
 
@@ -127,17 +187,30 @@ const FungikuBoard = ({ isDark, theme }) => {
         },
 
         onPanResponderRelease: () => {
-          endStroke();
-          lastCell.current = -1;
+          if (isStroke.current) {
+            endStroke();
+          } else {
+            // Never travelled: it was a tap, so run the full mark cycle. Taps
+            // land here now rather than on a per-cell Touchable, because the
+            // board owns the touch from the moment it starts.
+            const tapped = startPoint.current
+              ? cellAt(startPoint.current.x, startPoint.current.y)
+              : -1;
+            if (tapped >= 0) cycleCell(tapped);
+          }
+          finish();
         },
         onPanResponderTerminate: () => {
-          endStroke();
-          lastCell.current = -1;
+          if (isStroke.current) endStroke();
+          finish();
         },
 
         // Don't let anything steal the stroke mid-sweep (the ScrollView this
         // board sits in would happily take it).
         onPanResponderTerminationRequest: () => false,
+
+        // Android: tell the native responder — the ScrollView — to stand down.
+        onShouldBlockNativeResponder: () => true,
       }),
     // Built once: every value it touches is read through a ref.
     [beginStroke, endStroke, paintCells, measure]
@@ -197,10 +270,14 @@ const FungikuBoard = ({ isDark, theme }) => {
             const inkFaded = entry.ink === '#ffffff' ? '#ffffffaa' : '#1a1a1aaa';
 
             return (
-              <TouchableOpacity
+              <View
                 key={col}
-                onPress={() => cycleCell(index)}
-                activeOpacity={0.6}
+                // A plain View, not a Touchable: the board owns the touch from
+                // touch-down, so a child Touchable would never see a press.
+                // Taps are dispatched by the responder above; these props keep
+                // the cell a first-class accessibility target, and
+                // onAccessibilityTap is what a screen reader activates.
+                accessible
                 accessibilityRole="button"
                 // Region name and mark are both spelled out, so the board is
                 // usable without relying on color (plan §5). These labels are
@@ -209,10 +286,13 @@ const FungikuBoard = ({ isDark, theme }) => {
                   MARK_LABELS[mark] || 'empty'
                 }${conflicting ? ', conflict' : ''}`}
                 accessibilityHint="Taps cycle empty, ruled out, mushroom"
+                onAccessibilityTap={() => cycleCell(index)}
                 style={{
                   width: cell,
                   height: cell,
                   backgroundColor: entry.background,
+                  // Press feedback, previously TouchableOpacity's activeOpacity.
+                  opacity: pressedCell === index ? 0.6 : 1,
                   alignItems: 'center',
                   justifyContent: 'center',
                   borderTopColor: differs(row - 1, col) ? outline : hairline,
@@ -258,7 +338,7 @@ const FungikuBoard = ({ isDark, theme }) => {
                     color={inkFaded}
                   />
                 )}
-              </TouchableOpacity>
+              </View>
             );
           })}
         </View>

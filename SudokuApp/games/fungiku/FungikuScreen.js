@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Platform, ScrollView, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
@@ -21,6 +21,11 @@ const FUNGIKU_ACCENT = '#a0522d';
  */
 const FungikuScreenContent = ({ onExitToHub }) => {
   const { theme, isDark } = useAppTheme();
+
+  // True while a finger is down on the board, which freezes scrolling so a
+  // vertical sweep paints instead of scrolling the page.
+  const [boardTouchActive, setBoardTouchActive] = useState(false);
+
   const {
     size,
     seed,
@@ -56,7 +61,22 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScreenHeader title="Fungiku" theme={theme} onHomePress={onExitToHub} />
 
-      <ScrollView contentContainerStyle={styles.body}>
+      {/* Two halves of one fix for "a vertical drag scrolls instead of painting"
+          (the board claims the touch at touch-down; see FungikuBoard):
+            scrollEnabled       — frozen while a finger is down on the board.
+                                  This is what reliably stops Android's
+                                  ScrollView from intercepting the drag.
+            canCancelContentTouches (iOS only) — stops UIScrollView cancelling a
+                                  touch the board has already claimed.
+          The trade-off is deliberate: you cannot scroll this screen by dragging
+          on the board. Drag anywhere else. The content fits without scrolling on
+          a normal phone even at 8×8, so the ScrollView is really insurance for
+          small or landscape screens. */}
+      <ScrollView
+        contentContainerStyle={styles.body}
+        scrollEnabled={!boardTouchActive}
+        {...(Platform.OS === 'ios' ? { canCancelContentTouches: false } : null)}
+      >
         {/* The `🍄 X/N` counter (plan §1) — how the player tracks the goal. */}
         <View style={[styles.counterRow, { backgroundColor: surface, borderColor: border }]}>
           <MaterialCommunityIcons name="mushroom" size={20} color={titleColor} />
@@ -77,7 +97,11 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           onNextPuzzle={nextPuzzle}
         />
 
-        <FungikuBoard isDark={isDark} theme={theme} />
+        <FungikuBoard
+          isDark={isDark}
+          theme={theme}
+          onTouchActiveChange={setBoardTouchActive}
+        />
 
         {/* Undo / redo / clear */}
         <View style={styles.controlRow}>
