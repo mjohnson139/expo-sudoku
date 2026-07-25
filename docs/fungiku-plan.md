@@ -26,6 +26,11 @@ the board: *1 Cat per column & row · 1 Cat per color · Cats cannot touch*.
   subdirectory (Expo · React Native · JavaScript).
 - **This document is the source of truth** for scope and approach — read it end
   to end before writing code.
+- **Start here if you are a new session:** **`docs/fungiku-handoff.md`** always
+  describes *the next step only*, so a session can start from a one-line prompt
+  instead of a pasted brief. **Rewriting it for the following step is part of
+  every step's definition of done** — a step that leaves it describing finished
+  work has broken the chain for the next session.
 - **Process:** follow `.github/dev-process.md` — the tracker is issue #65, work
   **one delivery step per branch**, commit after each step, and **prompt the
   operator to test after each step.**
