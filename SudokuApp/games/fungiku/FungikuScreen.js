@@ -16,8 +16,8 @@ const FUNGIKU_ACCENT = '#a0522d';
  * (docs/fungiku-plan.md §6), and as of Step 4 an actually playable game.
  *
  * Layout: header, the `🍄 X/N` counter, the board, then controls. The size and
- * "next puzzle" controls stand in for the training ladder until Step 6; Step 5
- * replaces the board with the finished themed component.
+ * "next puzzle" controls stand in for the training ladder until the ladder step
+ * lands (plan §7).
  */
 const FungikuScreenContent = ({ onExitToHub }) => {
   const { theme, isDark } = useAppTheme();
@@ -40,8 +40,8 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     clearMarks,
     changeSize,
     nextPuzzle,
-    autoX,
-    toggleAutoX,
+    ruleOut,
+    ruleOutCount,
   } = useFungikuContext();
 
   const titleColor = theme.colors.title;
@@ -128,36 +128,36 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           />
         </View>
 
-        {/* Assist toggle (plan §2). Off by default: left on it does most of the
-            deduction for you, which is the whole game. */}
+        {/* Rule out (plan §2). An action the player asks for, not a mode that
+            acts behind them: one tap marks everything the mushrooms already on
+            the board forbid. Disabled when there is nothing left to mark, so it
+            never offers to do nothing. */}
         <View style={styles.controlRow}>
           <TouchableOpacity
-            onPress={toggleAutoX}
+            onPress={ruleOut}
+            disabled={ruleOutCount === 0}
             style={[
               styles.wideButton,
               { borderColor: border },
-              autoX && { backgroundColor: titleColor, borderColor: titleColor },
+              ruleOutCount === 0 && styles.toolButtonDisabled,
             ]}
-            accessibilityRole="switch"
-            accessibilityState={{ checked: autoX }}
-            // The state is named in the label as well as in accessibilityState:
-            // `checked` does not survive to `aria-checked` on web, so the label
-            // is the only place a screen reader (or a test) can read it reliably.
-            accessibilityLabel={`Auto rule-out, ${autoX ? 'on' : 'off'}`}
-            accessibilityHint="When on, placing a mushroom rules out its row, column, color and neighbours"
+            accessibilityRole="button"
+            accessibilityState={{ disabled: ruleOutCount === 0 }}
+            accessibilityLabel={
+              ruleOutCount === 0
+                ? 'Rule out, nothing to mark'
+                : `Rule out ${ruleOutCount} cell${ruleOutCount === 1 ? '' : 's'}`
+            }
+            accessibilityHint="Marks every cell the mushrooms you have placed forbid"
           >
-            <MaterialCommunityIcons
-              name={autoX ? 'checkbox-marked' : 'checkbox-blank-outline'}
-              size={18}
-              color={autoX ? surface : titleColor}
-            />
-            <Text style={[styles.buttonText, { color: autoX ? surface : titleColor }]}>
-              Auto rule-out
+            <MaterialCommunityIcons name="auto-fix" size={18} color={titleColor} />
+            <Text style={[styles.buttonText, { color: titleColor }]}>
+              {ruleOutCount === 0 ? 'Rule out' : `Rule out ${ruleOutCount}`}
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Board size + next puzzle — the stand-in for Step 7's ladder */}
+        {/* Board size + next puzzle — the stand-in for the ladder step */}
         <Text style={[styles.label, { color: titleColor }]}>Board size</Text>
         <View style={styles.controlRow}>
           {SIZES.map((option) => (

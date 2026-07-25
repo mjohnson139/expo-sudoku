@@ -13,6 +13,7 @@ import {
   selectConflicts,
   selectIsSolved,
   selectMushroomCount,
+  selectRuleOutCells,
 } from './reducer';
 
 /**
@@ -26,7 +27,7 @@ import {
  */
 const FungikuContext = createContext();
 
-/** Board sizes offered today. The real ladder arrives in Step 6. */
+/** Board sizes offered today. The real ladder arrives in a later step. */
 export const SIZES = [5, 6, 7, 8];
 
 // Stable object identity, so the persistence hook never sees a "new" adapter.
@@ -58,6 +59,13 @@ export const FungikuProvider = ({ children }) => {
     [state.marks]
   );
 
+  // How many cells one tap of "Rule out" would fill. Drives whether the button
+  // is enabled, so it never sits there offering to do nothing.
+  const ruleOutCount = useMemo(
+    () => selectRuleOutCells(state).size,
+    [state.marks, state.regions, state.size]
+  );
+
   const cycleCell = useCallback(
     (cell) => dispatch({ type: FUNGIKU_ACTIONS.CYCLE_CELL, payload: { cell } }),
     [dispatch]
@@ -76,11 +84,8 @@ export const FungikuProvider = ({ children }) => {
   );
   const endStroke = useCallback(() => dispatch({ type: FUNGIKU_ACTIONS.END_STROKE }), [dispatch]);
 
-  const setAutoX = useCallback(
-    (value) => dispatch({ type: FUNGIKU_ACTIONS.SET_AUTO_X, payload: value }),
-    [dispatch]
-  );
-  const toggleAutoX = useCallback(() => setAutoX(!state.autoX), [setAutoX, state.autoX]);
+  /** One tap: mark everything the placed mushrooms forbid (plan §2). */
+  const ruleOut = useCallback(() => dispatch({ type: FUNGIKU_ACTIONS.RULE_OUT }), [dispatch]);
 
   /**
    * Start a puzzle. Generation happens here rather than in the reducer so a
@@ -91,15 +96,13 @@ export const FungikuProvider = ({ children }) => {
       try {
         dispatch({
           type: FUNGIKU_ACTIONS.NEW_PUZZLE,
-          // The assist is a preference, not part of the puzzle — it has to
-          // survive starting a new board.
-          payload: buildPuzzleState({ size, seed, autoX: state.autoX }),
+          payload: buildPuzzleState({ size, seed }),
         });
       } catch (error) {
         console.error('Fungiku generation failed:', error);
       }
     },
-    [dispatch, state.size, state.seed, state.autoX]
+    [dispatch, state.size, state.seed]
   );
 
   const nextPuzzle = useCallback(
@@ -130,8 +133,8 @@ export const FungikuProvider = ({ children }) => {
       beginStroke,
       paintCells,
       endStroke,
-      setAutoX,
-      toggleAutoX,
+      ruleOut,
+      ruleOutCount,
       startPuzzle,
       nextPuzzle,
       changeSize,
@@ -149,8 +152,8 @@ export const FungikuProvider = ({ children }) => {
       beginStroke,
       paintCells,
       endStroke,
-      setAutoX,
-      toggleAutoX,
+      ruleOut,
+      ruleOutCount,
       startPuzzle,
       nextPuzzle,
       changeSize,

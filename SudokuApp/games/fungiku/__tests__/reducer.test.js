@@ -10,6 +10,7 @@ import {
   selectConflicts,
   selectIsSolved,
   selectMushroomCount,
+  selectRuleOutCells,
 } from '../reducer';
 import { MARKS, MIN_SIZE, createEmptyMarks } from '../engine';
 
@@ -380,89 +381,94 @@ describe('drag strokes', () => {
   });
 });
 
-describe('the auto rule-out assist', () => {
+describe('the rule-out button', () => {
   const base = buildPuzzleState({ size: 5, seed: 1 });
-  const setAutoX = (state, value) =>
-    fungikuReducer(state, { type: FUNGIKU_ACTIONS.SET_AUTO_X, payload: value });
+  const ruleOut = (state) => fungikuReducer(state, { type: FUNGIKU_ACTIONS.RULE_OUT });
+  const undo = (state) => fungikuReducer(state, { type: FUNGIKU_ACTIONS.UNDO });
 
-  it('is off by default', () => {
-    expect(base.autoX).toBe(false);
+  it('does nothing on an empty board', () => {
+    // Nothing is placed, so nothing is forbidden yet.
+    expect(selectRuleOutCells(base).size).toBe(0);
+    expect(ruleOut(base)).toBe(base);
   });
 
-  it('does nothing when off', () => {
-    const placed = placeMushroom(base, 12);
-
-    expect(placed.marks.filter((m) => m !== MARKS.EMPTY)).toEqual([MARKS.MUSHROOM]);
-  });
-
-  it('rules out the row, column, region and neighbours when on', () => {
-    const on = setAutoX(base, true);
+  it('marks the row, column, region and neighbours of a placed mushroom', () => {
     const cell = 12; // row 2, col 2
-    const placed = placeMushroom(on, cell);
+    const placed = placeMushroom(base, cell);
+    const after = ruleOut(placed);
 
-    expect(placed.marks[cell]).toBe(MARKS.MUSHROOM);
+    expect(after.marks[cell]).toBe(MARKS.MUSHROOM);
 
     for (let i = 0; i < 5; i++) {
       if (i !== 2) {
-        expect(placed.marks[2 * 5 + i]).toBe(MARKS.X);
-        expect(placed.marks[i * 5 + 2]).toBe(MARKS.X);
+        expect(after.marks[2 * 5 + i]).toBe(MARKS.X);
+        expect(after.marks[i * 5 + 2]).toBe(MARKS.X);
       }
     }
-    [6, 7, 8, 11, 13, 16, 17, 18].forEach((n) => {
-      expect(placed.marks[n]).toBe(MARKS.X);
+    [6, 7, 8, 11, 13, 16, 17, 18].forEach((n) => expect(after.marks[n]).toBe(MARKS.X));
+
+    const region = base.regions[cell];
+    base.regions.forEach((r, i) => {
+      if (r === region && i !== cell) expect(after.marks[i]).toBe(MARKS.X);
     });
-    const region = on.regions[cell];
-    on.regions.forEach((r, i) => {
-      if (r === region && i !== cell) expect(placed.marks[i]).toBe(MARKS.X);
-    });
   });
 
-  it('fills as part of the same undo entry as the placement', () => {
-    const on = setAutoX(base, true);
-    const placed = placeMushroom(on, 12);
-    const back = fungikuReducer(placed, { type: FUNGIKU_ACTIONS.UNDO });
+  it('accounts for every placed mushroom at once, not just the last', () => {
+    const two = placeMushroom(placeMushroom(base, 0), 12);
+    const after = ruleOut(two);
 
-    // One undo returns to the intermediate X of the two-tap placement, not to a
-    // board still littered with assist marks.
-    expect(back.marks[12]).toBe(MARKS.X);
-    expect(back.marks.filter((m) => m === MARKS.X)).toHaveLength(1);
+    // Row 0 belongs to the mushroom at 0; row 2 to the one at 12.
+    expect(after.marks[1]).toBe(MARKS.X);
+    expect(after.marks[14]).toBe(MARKS.X);
   });
 
-  it('never disturbs an existing mushroom', () => {
-    const on = setAutoX(base, true);
-    const second = placeMushroom(placeMushroom(on, 0), 12);
+  it('is one undoable action however many cells it fills', () => {
+    const placed = placeMushroom(base, 12);
+    const after = ruleOut(placed);
 
-    expect(second.marks[0]).toBe(MARKS.MUSHROOM);
+    expect(after.undoStack).toHaveLength(placed.undoStack.length + 1);
+    expect(undo(after).marks).toEqual(placed.marks);
   });
 
-  it('only fires on the tap that places a mushroom', () => {
-    const on = setAutoX(base, true);
-    const toX = cycle(on, 12);
+  it('never disturbs a mushroom, including a conflicting one', () => {
+    // Two mushrooms in row 0 conflict; each rules the other's cell out, and
+    // neither may be overwritten — the player is mid-deduction.
+    const conflicting = placeMushroom(placeMushroom(base, 0), 3);
+    const after = ruleOut(conflicting);
 
-    // First tap is just an X — nothing is ruled out by an X.
-    expect(toX.marks.filter((m) => m !== MARKS.EMPTY)).toEqual([MARKS.X]);
+    expect(after.marks[0]).toBe(MARKS.MUSHROOM);
+    expect(after.marks[3]).toBe(MARKS.MUSHROOM);
+  });
+
+  it('only fills blanks, leaving existing marks alone', () => {
+    const placed = placeMushroom(base, 12);
+    const after = ruleOut(placed);
+    const again = ruleOut(after);
+
+    // Second tap has nothing left to do, so it is a no-op with no undo entry.
+    expect(again).toBe(after);
+    expect(selectRuleOutCells(after).size).toBe(0);
+  });
+
+  it('reports how many cells it would fill, for the button label', () => {
+    const placed = placeMushroom(base, 12);
+
+    expect(selectRuleOutCells(placed).size).toBeGreaterThan(0);
+    expect(selectRuleOutCells(placed).has(12)).toBe(false);
   });
 
   it('leaves its X marks behind when the mushroom is cycled away', () => {
-    // Deliberate: assist marks become ordinary X marks the moment they land.
-    // Retracting them would mean tracking which mushroom placed each one, and
-    // that is ambiguous as soon as two mushrooms rule out the same cell. Undo is
-    // the way to take a placement and its marks back together (covered above).
-    const on = setAutoX(base, true);
-    const placed = placeMushroom(on, 12);
-    const cycledAway = cycle(placed, 12);
+    // Deliberate: they become ordinary X marks the moment they land. Retracting
+    // them would need per-mark provenance, which is ambiguous as soon as two
+    // mushrooms rule out the same cell. Undo is how you take the assist back.
+    const after = ruleOut(placeMushroom(base, 12));
+    const cycledAway = cycle(after, 12);
 
     expect(cycledAway.marks[12]).toBe(MARKS.EMPTY);
     expect(cycledAway.marks.filter((m) => m === MARKS.X).length).toBeGreaterThan(0);
   });
 
-  it('survives starting a new puzzle', () => {
-    expect(buildPuzzleState({ size: 6, seed: 2, autoX: true }).autoX).toBe(true);
-  });
-
-  it('still cannot win a board on X marks alone', () => {
-    const on = setAutoX(base, true);
-
-    expect(selectIsSolved(placeMushroom(on, 12))).toBe(false);
+  it('cannot win a board on its own', () => {
+    expect(selectIsSolved(ruleOut(placeMushroom(base, 12)))).toBe(false);
   });
 });
