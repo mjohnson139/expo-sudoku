@@ -97,8 +97,18 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   // merely fail to turn red. Deliberately fires for **every** mushroom placed,
   // right or wrong — animating only correct ones would leak the solution to
   // anyone who had left correctness feedback switched off.
-  const [poppedCell, setPoppedCell] = useState(-1);
-  const pop = useRef(new Animated.Value(1)).current;
+  //
+  // **One Animated.Value per cell, not one shared value pointed at "the cell that
+  // just popped".** That shared-value version had a real bug: resetting the value
+  // to 0 happens imperatively and immediately, but re-pointing it at the new cell
+  // is a React state update that only lands on the next render — so for those
+  // frames the value sat at 0 while still attached to the *previous* mushroom,
+  // and the earlier mushroom visibly shrank and snapped back. Per-cell values
+  // remove the class of bug rather than patching the ordering.
+  const popValues = useMemo(
+    () => Array.from({ length: size * size }, () => new Animated.Value(1)),
+    [size]
+  );
   const previousMarks = useRef(marks);
 
   useEffect(() => {
@@ -106,8 +116,8 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     previousMarks.current = marks;
     if (before === marks || before.length !== marks.length) return;
 
-    // A single new mushroom means a placement; several at once means a reveal or
-    // an undo, which should not pop.
+    // A single new mushroom means a placement; several at once means an undo or a
+    // restore, which should not pop.
     const placed = marks.reduce(
       (found, mark, cell) =>
         mark === MARKS.MUSHROOM && before[cell] !== MARKS.MUSHROOM ? [...found, cell] : found,
@@ -115,15 +125,17 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     );
     if (placed.length !== 1) return;
 
-    setPoppedCell(placed[0]);
-    pop.setValue(0);
-    Animated.spring(pop, {
+    const value = popValues[placed[0]];
+    if (!value) return;
+
+    value.setValue(0.45);
+    Animated.spring(value, {
       toValue: 1,
       friction: 5,
       tension: 140,
       useNativeDriver: true,
     }).start();
-  }, [marks, pop]);
+  }, [marks, popValues]);
 
   // Re-measure whenever something *above* the board appears or disappears.
   //
@@ -404,20 +416,10 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
 
                 {mark === MARKS.MUSHROOM && (
                   <Animated.View
-                    style={
-                      index === poppedCell
-                        ? {
-                            transform: [
-                              {
-                                scale: pop.interpolate({
-                                  inputRange: [0, 1],
-                                  outputRange: [0.4, 1],
-                                }),
-                              },
-                            ],
-                          }
-                        : null
-                    }
+                    // This cell's own pop value, which rests at 1. Only the cell
+                    // that was just placed is ever away from 1, so no other
+                    // mushroom can be affected.
+                    style={{ transform: [{ scale: popValues[index] }] }}
                   >
                     <MaterialCommunityIcons
                       name="mushroom"

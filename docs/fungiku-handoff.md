@@ -207,6 +207,14 @@ ladder.
   default for a family game — but it means a frustrated player cannot skip to the
   answer. Flagged against §8 #6; making reveal always available is a small change
   if the operator wants it.
+- **Native gesture/animation bugs do not reproduce in the web build, and a
+  passing browser check can be a false pass.** Both bugs the operator has found
+  were invisible on web — see plan §2, "A pattern worth knowing". Use the browser
+  to prove nothing broke; ask for a device pass to prove the native bug is fixed.
+- **One `Animated.Value` per cell, never one shared value pointed at "the current
+  cell".** Resetting a shared value happens immediately while re-pointing it is a
+  React state update, so for a frame it is still attached to the *previous* cell.
+  On device that showed up as the previously placed mushroom shrinking.
 - **A banner mounting above the board invalidates the board's measured origin.**
   `onLayout` does not save you: on web it is backed by a ResizeObserver, which
   watches size and not position, so a board that merely *moves* never fires it.

@@ -191,6 +191,34 @@ drags painted correctly before the fix. What a browser *can* check is that taps,
 strokes, and jittery taps all still behave — do that, then confirm the scroll
 behavior on device.
 
+### A pattern worth knowing: native-only gesture and animation bugs
+
+**Both bugs the operator has found were invisible in the web build**, and for the
+same underlying reason — react-native-web substitutes browser behavior for the
+native machinery:
+
+| Bug | Why the browser could not show it |
+|-----|-----------------------------------|
+| Vertical drag scrolled instead of painting (Step 6) | RNW uses ordinary overflow scrolling, not a native `ScrollView` with touch interception |
+| Placing a mushroom shrank the previously placed one (Step 7) | `useNativeDriver: true` is a no-op on RNW, and React commits the re-render inside the same frame, so the bad intermediate state is never painted |
+
+The second one is worth dwelling on, because it produced a **false pass**: a
+per-frame `requestAnimationFrame` probe of the buggy build reported the earlier
+mushroom never shrinking. The check was not wrong about what it measured; it was
+measuring a platform where the bug does not exist.
+
+So when a fix targets `PanResponder`, a native `ScrollView`, or an `Animated`
+value driven with `useNativeDriver`:
+
+- **Use the browser to prove you have not broken anything** — taps, strokes,
+  labels, no page errors. That is real value and it has caught real regressions.
+- **Do not present a passing browser check as evidence the native bug is fixed.**
+  Say which platform the evidence comes from, and ask for a device pass.
+- Prefer fixes that remove the *class* of problem over fixes that reorder
+  operations, precisely because you cannot test the ordering locally. Per-cell
+  animation values instead of one shared value; claiming a touch at touch-down
+  instead of racing for it.
+
 ## 3. The board
 
 - **Region color = cell background**, filling the whole cell (the reference is a
