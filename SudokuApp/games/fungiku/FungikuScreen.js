@@ -42,16 +42,25 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     nextPuzzle,
     ruleOut,
     ruleOutCount,
+    showMistakes,
+    toggleMistakes,
+    mistakes,
+    hint,
+    hintsUsed,
+    requestHint,
+    revealMushroom,
+    dismissHint,
+    canReveal,
   } = useFungikuContext();
 
   const titleColor = theme.colors.title;
   const surface = theme.colors.numberPad.background;
   const border = theme.colors.numberPad.border;
 
-  // The hint follows the state of play instead of always explaining the tap
-  // cycle — telling a player who has just won how to tap a cell was Step 4's
-  // one loose end.
-  const hint = solved
+  // The status line follows the state of play instead of always explaining the
+  // tap cycle. (Named `statusText`, not `hint` — `hint` is the hint object from
+  // context, and shadowing it here silently broke the build once.)
+  const statusText = solved
     ? 'One per row, column and color — none touching'
     : conflicts.size > 0
       ? `${conflicts.size} mushroom${conflicts.size === 1 ? '' : 's'} breaking a rule`
@@ -86,8 +95,43 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           >
             {mushroomCount}/{size}
           </Text>
-          <Text style={[styles.counterHint, { color: titleColor }]}>{hint}</Text>
+          <Text style={[styles.counterHint, { color: titleColor }]}>{statusText}</Text>
         </View>
+
+        {/* Hint output (plan §11.2). A hint is an explicit request, so its
+            result gets its own line rather than a fleeting toast — and the
+            "nothing is forced" case says so, with the reveal as a second,
+            deliberate tap. */}
+        {hint && !solved && (
+          <View style={[styles.hintBanner, { backgroundColor: surface, borderColor: border }]}>
+            <MaterialCommunityIcons
+              name={hint.kind === 'mistake' ? 'alert' : 'lightbulb-on-outline'}
+              size={18}
+              color={titleColor}
+            />
+            <Text style={[styles.hintText, { color: titleColor }]}>{hint.message}</Text>
+
+            {hint.offerReveal && canReveal && (
+              <TouchableOpacity
+                onPress={revealMushroom}
+                style={[styles.hintAction, { borderColor: titleColor }]}
+                accessibilityRole="button"
+                accessibilityLabel="Reveal a mushroom"
+              >
+                <Text style={[styles.hintActionText, { color: titleColor }]}>Reveal</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              onPress={dismissHint}
+              style={styles.hintDismiss}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss hint"
+            >
+              <MaterialCommunityIcons name="close" size={16} color={titleColor} />
+            </TouchableOpacity>
+          </View>
+        )}
 
         <FungikuWinBanner
           solved={solved}
@@ -153,6 +197,54 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             <MaterialCommunityIcons name="auto-fix" size={18} color={titleColor} />
             <Text style={[styles.buttonText, { color: titleColor }]}>
               {ruleOutCount === 0 ? 'Rule out' : `Rule out ${ruleOutCount}`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Hint (plan §11.2) and the correctness-feedback switch (§11.1). Both
+            are opt-in by nature: a hint is asked for, and mistakes are only shown
+            to a player who wants them shown. */}
+        <View style={styles.controlRow}>
+          <TouchableOpacity
+            onPress={requestHint}
+            disabled={solved}
+            style={[
+              styles.wideButton,
+              { borderColor: border },
+              solved && styles.toolButtonDisabled,
+            ]}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: solved }}
+            accessibilityLabel={hintsUsed > 0 ? `Hint, ${hintsUsed} used` : 'Hint'}
+            accessibilityHint="Gives the weakest hint that still helps"
+          >
+            <MaterialCommunityIcons name="lightbulb-on-outline" size={18} color={titleColor} />
+            <Text style={[styles.buttonText, { color: titleColor }]}>
+              {hintsUsed > 0 ? `Hint (${hintsUsed})` : 'Hint'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={toggleMistakes}
+            style={[
+              styles.wideButton,
+              { borderColor: border },
+              showMistakes && { backgroundColor: titleColor, borderColor: titleColor },
+            ]}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: showMistakes }}
+            // The state is named in the label because accessibilityState.checked
+            // does not reach aria-checked on web.
+            accessibilityLabel={`Show mistakes, ${showMistakes ? 'on' : 'off'}`}
+            accessibilityHint="Flags mushrooms that break no rule but are in the wrong cell"
+          >
+            <MaterialCommunityIcons
+              name={showMistakes ? 'checkbox-marked' : 'checkbox-blank-outline'}
+              size={18}
+              color={showMistakes ? surface : titleColor}
+            />
+            <Text style={[styles.buttonText, { color: showMistakes ? surface : titleColor }]}>
+              Mistakes{showMistakes && mistakes.size > 0 ? ` (${mistakes.size})` : ''}
             </Text>
           </TouchableOpacity>
         </View>
@@ -252,6 +344,35 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: 6,
     marginRight: 10,
+  },
+  hintBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    marginBottom: 12,
+    maxWidth: 360,
+  },
+  hintText: {
+    fontSize: 12,
+    marginLeft: 8,
+    flexShrink: 1,
+  },
+  hintAction: {
+    borderWidth: 1,
+    borderRadius: 7,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    marginLeft: 8,
+  },
+  hintActionText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  hintDismiss: {
+    paddingLeft: 8,
   },
   counterHint: {
     fontSize: 11,

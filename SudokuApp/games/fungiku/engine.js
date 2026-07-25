@@ -437,6 +437,77 @@ export function createEmptyMarks(size) {
 }
 
 /**
+ * Find one **forced** placement given the mushrooms already on the board.
+ *
+ * This is a different question from the one `findSolutions` answers, and the
+ * distinction is the whole point of hint rung 2 (plan §11.2). `findSolutions`
+ * backtracks: it can tell you *what* the answer is, but not that any particular
+ * step follows from the board in front of you. A hint that says "row 3 has only
+ * one cell left" teaches; a hint that says "the answer is here" does not.
+ *
+ * So this does constraint propagation instead. Candidates are the cells no placed
+ * mushroom forbids; a row, column or region with exactly one candidate has a
+ * forced placement. **Only placed mushrooms constrain the search — never the
+ * player's X marks**, which are beliefs and may be wrong. Deducing from a wrong X
+ * would produce a confidently wrong hint.
+ *
+ * @returns {{kind: 'row'|'column'|'region', index: number, cell: number}|null}
+ *   `index` is the row/column number or region id — enough to point at without
+ *   giving the cell away. null when nothing is forced from here.
+ */
+export function findForcedDeduction(marks, regions, size) {
+  const blocked = new Array(size * size).fill(false);
+  const filledRows = new Set();
+  const filledCols = new Set();
+  const filledRegions = new Set();
+
+  marks.forEach((mark, cell) => {
+    if (mark !== MARKS.MUSHROOM) return;
+    filledRows.add(Math.floor(cell / size));
+    filledCols.add(cell % size);
+    filledRegions.add(regions[cell]);
+    cellsRuledOutBy(cell, regions, size).forEach((ruled) => {
+      blocked[ruled] = true;
+    });
+  });
+
+  const isCandidate = (cell) => !blocked[cell] && marks[cell] !== MARKS.MUSHROOM;
+
+  /** The one candidate in `cells`, or -1 if there are none or several. */
+  const soleCandidate = (cells) => {
+    const found = cells.filter(isCandidate);
+    return found.length === 1 ? found[0] : -1;
+  };
+
+  // Rows first, then columns, then regions: rows and columns are the constraints
+  // a player scans naturally, so a nudge about them lands more easily.
+  for (let row = 0; row < size; row++) {
+    if (filledRows.has(row)) continue;
+    const cell = soleCandidate(Array.from({ length: size }, (_, col) => idx(row, col, size)));
+    if (cell >= 0) return { kind: 'row', index: row, cell };
+  }
+
+  for (let col = 0; col < size; col++) {
+    if (filledCols.has(col)) continue;
+    const cell = soleCandidate(Array.from({ length: size }, (_, row) => idx(row, col, size)));
+    if (cell >= 0) return { kind: 'column', index: col, cell };
+  }
+
+  const regionIds = [...new Set(regions)];
+  for (const region of regionIds) {
+    if (filledRegions.has(region)) continue;
+    const cells = [];
+    regions.forEach((r, cell) => {
+      if (r === region) cells.push(cell);
+    });
+    const cell = soleCandidate(cells);
+    if (cell >= 0) return { kind: 'region', index: region, cell };
+  }
+
+  return null;
+}
+
+/**
  * Every cell a mushroom at `cell` rules out: its whole row, its whole column,
  * its whole color region, and the eight cells touching it (plan §1). `cell`
  * itself is not included.
