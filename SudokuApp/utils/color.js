@@ -191,6 +191,73 @@ export const deltaE = (hexA, hexB) => {
 };
 
 /**
+ * Dichromat simulation matrices (Viénot, Brettel & Mollon 1999) in the form
+ * composed for sRGB primaries, applied in **linear** sRGB. `protan` and `deutan`
+ * are the common red-green types; `tritan` is the rare blue-yellow one.
+ *
+ * Every row sums to 1, which is the property to check these against: it means a
+ * neutral stays neutral, because a gray has no hue for a dichromat to lose. The
+ * *other* well-known form of these matrices — `[0, 2.02344, -2.52581]` and
+ * friends — operates on LMS cone responses, not on RGB. Applying that one
+ * directly to linear RGB is a common shortcut and it is wrong: it turns mid-gray
+ * into teal, which is how this version got caught.
+ */
+const CVD_MATRICES = {
+  protan: [
+    [0.11238, 0.88762, 0],
+    [0.11238, 0.88762, 0],
+    [0.00401, -0.00401, 1],
+  ],
+  deutan: [
+    [0.29275, 0.70725, 0],
+    [0.29275, 0.70725, 0],
+    [-0.02234, 0.02234, 1],
+  ],
+  tritan: [
+    [1, 0.14461, -0.14461],
+    [0, 1, 0],
+    [0, 0.15117, 0.84883],
+  ],
+};
+
+/** The colour-vision deficiencies the palette is checked against. */
+export const CVD_TYPES = Object.keys(CVD_MATRICES);
+
+const linearToSrgb = (v) => {
+  const c = v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055;
+  return Math.max(0, Math.min(255, c * 255));
+};
+
+/**
+ * `hex` as a dichromat sees it.
+ *
+ * This exists because **ΔE and colourblind safety are different properties**, and
+ * the region palette needs both. Okabe–Ito was chosen for hues that survive the
+ * common CVD types — but the board tints those hues toward the theme surface, and
+ * tinting spends exactly the separation the palette was picked for. A tenth fill
+ * chosen only to maximize ΔE for normal vision can sit right on top of an
+ * existing one under deutan, and nothing else in the suite would notice.
+ *
+ * Simulation is a model, not a measurement: treat the numbers as a *relative*
+ * bar ("no worse than what already ships") rather than an absolute threshold.
+ * That is how `utils/__tests__/symbolSets.test.js` uses them.
+ */
+export const simulateCvd = (hex, type) => {
+  const m = CVD_MATRICES[type];
+  if (!m) return hex;
+
+  const { r, g, b } = hexToRgb(hex);
+  const v = [srgbToLinear(r), srgbToLinear(g), srgbToLinear(b)];
+  const out = m.map((row) => row[0] * v[0] + row[1] * v[1] + row[2] * v[2]);
+
+  return rgbToHex({
+    r: linearToSrgb(out[0]),
+    g: linearToSrgb(out[1]),
+    b: linearToSrgb(out[2]),
+  });
+};
+
+/**
  * The closest pair in a list of colors, as `{ a, b, distance }`. The palette
  * test asserts on this: a palette is only as readable as its worst pair.
  */
@@ -216,5 +283,7 @@ export default {
   readableOn,
   hexToLab,
   deltaE,
+  simulateCvd,
+  CVD_TYPES,
   closestPair,
 };

@@ -1,6 +1,6 @@
-import React, { createContext, useCallback, useContext, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import usePersistentReducer from '../../hooks/usePersistentReducer';
-import { MARKS, MIN_SIZE } from './engine';
+import { MARKS, MAX_SIZE, MIN_SIZE } from './engine';
 import { loadFungikuState, saveFungikuState } from './storage';
 import {
   DEFAULT_SEED,
@@ -29,11 +29,29 @@ import {
  */
 const FungikuContext = createContext();
 
-/** Board sizes offered today. The real ladder arrives in a later step. */
-export const SIZES = [5, 6, 7, 8];
+/**
+ * Board sizes offered today — every size the engine supports, derived there from
+ * MIN_SIZE/MAX_SIZE rather than listed here, so a chip the UI offers and a size
+ * `generate()` accepts cannot drift apart. The real ladder arrives in a later
+ * step and will pick its rungs from this same range.
+ */
+export { SIZES } from './engine';
 
 // Stable object identity, so the persistence hook never sees a "new" adapter.
 const FUNGIKU_PERSISTENCE = { load: loadFungikuState, save: saveFungikuState };
+
+/**
+ * At and above this size, generation is deferred by a frame so the "Generating…"
+ * state can paint before the main thread is blocked (plan §12.1).
+ *
+ * Generation is synchronous and its cost is a cliff: on the machine that
+ * measured it, 8×8 takes 5 ms, 9×9 51 ms and 10×10 **414 ms median, 789 ms
+ * worst**. A phone's JS engine is slower again. Below the threshold the work is
+ * over before a frame could have been drawn, and deferring would only add
+ * latency; at and above it, a "New puzzle" tap that freezes for half a second
+ * reads as a bug, so the player is told what is happening instead.
+ */
+const DEFER_GENERATION_AT_SIZE = 9;
 
 export const FungikuProvider = ({ children }) => {
   // Generated once. `useReducer` ignores this argument after mount, but
@@ -119,22 +137,70 @@ export const FungikuProvider = ({ children }) => {
     [dispatch]
   );
 
+  // --- starting a puzzle, and the hitch at the top size ---------------------
+  //
+  // True while a big board is being generated. It exists so the half-second the
+  // main thread spends inside `generate()` at 10×10 is *announced* rather than
+  // experienced as a frozen app (plan §12.1).
+  const [generating, setGenerating] = useState(false);
+
+  // Identifies the most recent request. A tap that arrives while an earlier
+  // deferred generation is still pending invalidates it, so rapid taps on
+  // "New puzzle" resolve to the last one asked for rather than racing.
+  const requestId = useRef(0);
+  useEffect(
+    () => () => {
+      // Unmounted (left for the hub): make any pending callback a no-op rather
+      // than let it dispatch into a dead provider.
+      requestId.current += 1;
+    },
+    []
+  );
+
   /**
    * Start a puzzle. Generation happens here rather than in the reducer so a
    * failure surfaces as a caught error instead of a throw mid-dispatch.
    */
   const startPuzzle = useCallback(
     ({ size = state.size, seed = state.seed }) => {
-      try {
-        dispatch({
-          type: FUNGIKU_ACTIONS.NEW_PUZZLE,
-          // The feedback switch is a preference and carries over; the hint count
-          // is per-puzzle and resets.
-          payload: buildPuzzleState({ size, seed, showMistakes: state.showMistakes }),
-        });
-      } catch (error) {
-        console.error('Fungiku generation failed:', error);
+      const run = () => {
+        try {
+          dispatch({
+            type: FUNGIKU_ACTIONS.NEW_PUZZLE,
+            // The feedback switch is a preference and carries over; the hint
+            // count is per-puzzle and resets.
+            payload: buildPuzzleState({ size, seed, showMistakes: state.showMistakes }),
+          });
+        } catch (error) {
+          console.error('Fungiku generation failed:', error);
+        }
+      };
+
+      // Small boards: generate inline. The work finishes inside the same frame,
+      // so deferring would add a frame of latency and buy nothing.
+      if (size < DEFER_GENERATION_AT_SIZE) {
+        run();
+        return;
       }
+
+      const id = (requestId.current += 1);
+      setGenerating(true);
+
+      // Two hops on purpose. The state update above only *schedules* a render;
+      // requestAnimationFrame runs after that render is committed, and the
+      // timeout after the frame it belongs to has been handed off — so
+      // "Generating…" is on screen before the main thread disappears into the
+      // generator. A bare setTimeout(0) can run before the frame is drawn.
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (requestId.current !== id) return; // superseded, or unmounted
+          try {
+            run();
+          } finally {
+            setGenerating(false);
+          }
+        }, 0);
+      });
     },
     [dispatch, state.size, state.seed, state.showMistakes]
   );
@@ -163,6 +229,8 @@ export const FungikuProvider = ({ children }) => {
       canUndo: selectCanUndo(state),
       canRedo: selectCanRedo(state),
       minSize: MIN_SIZE,
+      maxSize: MAX_SIZE,
+      generating,
       cycleCell,
       beginStroke,
       paintCells,
@@ -188,6 +256,7 @@ export const FungikuProvider = ({ children }) => {
       mushroomCount,
       solved,
       hasMarks,
+      generating,
       cycleCell,
       beginStroke,
       paintCells,
