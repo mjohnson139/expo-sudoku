@@ -1,0 +1,56 @@
+import GameScreen from '../screens/GameScreen';
+import FungikuScreen from './fungiku/FungikuScreen';
+import { readSudokuProgress } from '../utils/storage';
+import { readFungikuProgress } from './fungiku/storage';
+
+/**
+ * The game registry — the single list of games the hub knows about
+ * (docs/fungiku-plan.md §6).
+ *
+ * Adding a game is an entry here, not a UI edit: the hub renders its cards from
+ * this list and `App.js` routes to `Screen` by `id`.
+ *
+ * Each entry:
+ *   id           route id, also the storage namespace for that game
+ *   title        name on the card and in the game's header
+ *   tagline      one line describing the game to someone who has never played it
+ *   icon         MaterialCommunityIcons name
+ *   accent       color used for the card's icon tile
+ *   Screen       component rendered for the route; receives { onExitToHub }
+ *   readProgress optional `async () => ({ label, detail }) | null` for the card's
+ *                Continue affordance. Null/absent means "no resumable state".
+ *
+ * Sudoku's files intentionally stay where they are for now — the entry points at
+ * the existing `screens/GameScreen`. Relocating it under `games/sudoku/` to match
+ * the convention is deferred.
+ */
+export const HUB_ROUTE = 'hub';
+
+export const GAMES = [
+  {
+    id: 'sudoku',
+    title: 'Sudoku',
+    tagline: 'Fill the 9×9 grid — every row, column and box holds 1–9.',
+    icon: 'grid',
+    accent: '#4a648c',
+    Screen: GameScreen,
+    readProgress: readSudokuProgress,
+  },
+  {
+    id: 'fungiku',
+    title: 'Fungiku',
+    tagline: 'One mushroom per row, column and color — none touching.',
+    icon: 'mushroom',
+    accent: '#a0522d',
+    Screen: FungikuScreen,
+    readProgress: readFungikuProgress,
+  },
+];
+
+/**
+ * Look up a game by route id.
+ * @returns {Object|null} the registry entry, or null for an unknown id.
+ */
+export const getGame = (id) => GAMES.find((game) => game.id === id) || null;
+
+export default GAMES;
