@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, Platform, useWindowDimensions, Text } from 'react-native';
+import { View, StyleSheet, Platform, Text } from 'react-native';
 import Grid from '../components/Grid';
 import NumberPad from '../components/NumberPad';
 import BuildNotes from '../components/BuildNotes';
@@ -13,6 +13,7 @@ import WinModal from '../components/modals/WinModal';
 import { GameProvider, useGameContext, ACTIONS } from '../contexts/GameContext';
 import appJson from '../app.json';
 import useAppStateListener from '../hooks/useAppStateListener';
+import useBoardSize from '../hooks/useBoardSize';
 
 /**
  * Main game screen for Sudoku
@@ -37,8 +38,8 @@ const GameScreenContent = ({ onExitToHub }) => {
   // Use custom hook to handle app state changes
   useAppStateListener();
   
-  // Use our optimized grid container size hook
-  const gridContainerSize = useGridContainerSize();
+  // Shared with Fungiku's board (hooks/useBoardSize.js) — same numbers as before
+  const gridContainerSize = useBoardSize();
 
   /**
    * Stable ‑ re‑created only when the game is completed (rare).
@@ -130,40 +131,6 @@ const GameScreen = ({ onExitToHub }) => {
       <GameScreenContent onExitToHub={onExitToHub} />
     </GameProvider>
   );
-};
-
-// This function uses useWindowDimensions and React.useMemo to optimize performance
-const useGridContainerSize = () => {
-  // Get window dimensions with React Native hook - this will update automatically on resize
-  const { width, height } = useWindowDimensions();
-  
-  // Use React.useMemo to avoid recalculating on every render
-  return React.useMemo(() => {
-    // Base size for mobile
-    const baseSize = 324;
-    
-    // For web platform, use responsive sizing based on screen width
-    if (Platform.OS === 'web') {
-      const smallerDimension = Math.min(width, height);
-      
-      // Limit grid size on web for larger screens
-      // On small screens, make it proportionally smaller
-      const maxWebSize = 450; // Maximum grid size on web
-      const minWebSize = 270; // Minimum grid size on web
-      
-      // Calculate the responsive size based on screen dimensions
-      const responsiveSize = Math.min(
-        maxWebSize,
-        Math.max(minWebSize, smallerDimension * 0.7)
-      );
-      
-      // Round to nearest pixel for clean rendering
-      return Math.floor(responsiveSize);
-    }
-    
-    // Return default size for mobile platforms
-    return baseSize;
-  }, [width, height]); // Only recalculate when dimensions change
 };
 
 const styles = StyleSheet.create({

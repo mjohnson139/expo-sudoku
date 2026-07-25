@@ -92,103 +92,102 @@ operator to test in Expo Go.**
 
 ---
 
-## Next step: **Step 5 — the real board UI**
+## Next step: **Step 6 — drag to sweep X's (+ the auto-X assist)**
 
-Branch: **`feature/fungiku-board`** off `epic/fungiku`.
-Plan: **§3 (the board)**, **§5 (accessibility)**, plus the §7 table row for step 5.
+Branch: **`feature/fungiku-input`** off `epic/fungiku`.
+Plan: **§2, and specifically the "Drag to sweep X's" subsection** — the operator
+asked for this directly, and that subsection is the spec. Read it before anything
+else.
 
 ### Why this step exists
 
-Fungiku is playable, but it is playable on **the engine preview's rough grid**:
-flat pastel fills, hairline borders, a plain green banner for a win, and one
-hardcoded 320px board that ignores the screen it is on. Sudoku's board is themed,
-responsive and animated; Fungiku's is not. This step makes the board look like
-part of the same app.
-
-**It is also where the palette problem gets fixed** — see below. That is the one
-item here with a real correctness angle, not just polish.
+**Ruling out cells is the most repetitive thing about playing Fungiku.** Once you
+know a mushroom can't be anywhere along a row, or anywhere touching one you have
+already placed, you currently tap each of those cells individually — and each one
+takes *one* tap to reach X. The operator's words: *"I want to be able to drag my
+finger to place Xs in places where mushrooms wouldn't be."* This is the gesture
+that makes X's cheap enough to actually reason with, and it is the last thing
+standing between the current build and a game that feels good to play.
 
 ### Read first
 
-- `SudokuApp/games/fungiku/FungikuBoard.js` — what you are replacing. Note what
-  it already gets right and must keep: region-boundary borders (thick edge
-  wherever the neighbor's region differs), the conflict ring *plus* red glyph so
-  the signal is not color-only, and per-cell accessibility labels of the form
-  `Row 1, column 4, orange region, mushroom, conflict`. **Do not regress those
-  labels — the Playwright drive-through addresses cells through them.**
-- `SudokuApp/utils/symbolSets.js` — `REGION_COLORS` / `getRegionColor` and the
-  `mixWithWhite(color, 0.62)` that generates the pastel fills. **This is the
-  palette bug's home.** Each entry also carries a `corners` shape cue that the
-  Fungiku board does not use yet.
-- `SudokuApp/components/Grid.js` + `components/Cell.js` — how Sudoku's board
-  handles theming, selection and sizing. The reference for what "themed" means
-  here; don't refactor them.
-- `SudokuApp/screens/GameScreen.js` — `useGridContainerSize()` is the existing
-  responsive-sizing hook (web gets `min(width,height) * 0.7` clamped 270–450,
-  native gets a fixed 324). Fungiku's board should size the same way instead of
-  its own `BOARD_MAX = 320`.
-- `SudokuApp/utils/themes.js` — the seven themes a Fungiku board has to look
-  right in. `classic`/`pastel` are the easy ones; **check `dark`** — today's
-  pastel fills on a dark background are the untested case.
-- `SudokuApp/hooks/useAppTheme.js` — reads the theme name out of *Sudoku's* saved
-  state as a stopgap. Promoting this to a real app-level theme owned by the shell
-  belongs in this step (see scope 5).
+- **`docs/fungiku-plan.md` §2, "Drag to sweep X's"** — the behavior spec: drag
+  paints X and never cycles, the first cell decides paint-vs-erase for the whole
+  stroke, mushrooms are never overwritten, one undo entry per stroke, and fast
+  diagonal strokes must fill every cell crossed. Both hazards are written up
+  there too; do not skip them.
+- `SudokuApp/games/fungiku/FungikuBoard.js` — what you are changing. Today every
+  cell is its own `TouchableOpacity` with an `onPress`. A drag needs a **single
+  responder over the whole board** that maps a point to a cell, so this is the
+  one real restructure in the step.
+- `SudokuApp/games/fungiku/reducer.js` — `CYCLE_CELL` and `CLEAR_MARKS` are the
+  models to copy. `pushHistory` already snapshots the whole `marks` array, which
+  is exactly what "one undo entry per stroke" needs — add a `PAINT_CELLS`-style
+  action that applies a whole stroke through one `pushHistory`, rather than
+  dispatching per cell.
+- `SudokuApp/hooks/useBoardSize.js` — the board's pixel size, which you need to
+  turn a touch point into a row/column.
+- `SudokuApp/games/fungiku/__tests__/reducer.test.js` — extend this. The stroke
+  reducer is pure and deserves the same coverage as cycling.
 
 ### Scope — ONLY this
 
-1. **🎨 Palette tuning pass — do this first, it is the real bug.** At 7×7 and 8×8
-   the pastel fills collide: **sky blue vs. blue** are nearly indistinguishable,
-   and **orange vs. yellow** are close behind. Okabe–Ito is colorblind-safe at
-   full saturation, but `mixWithWhite(…, 0.62)` compresses the hues toward a
-   common light gray. Fix it properly — vary lightness as well as hue so adjacent
-   regions differ on two channels, and **consider using the `corners` shape cue
-   that already exists in `symbolSets.js`** so identity never rests on color
-   alone. Verify at 8×8 across several seeds, not just one.
-2. **The real board component** — themed cell fills, borders and region outlines
-   drawn from `utils/themes.js` rather than hardcoded `#33333355`, and a board
-   that sizes to the screen via the same approach as `useGridContainerSize()`.
-3. **The win flow** — today a win is a static green banner. Give it the app's
-   motion language (Sudoku has `WinModal` and a score animation to look at) and
-   decide whether Fungiku wins in a modal or in place. Note the small bug: the
-   counter hint still reads "Tap a cell: empty → ✕ → 🍄" after a win.
-4. **Accessibility beyond the labels** — the labels are already good; add the
-   things a themed board can lose: adequate contrast for the X glyph and the
-   mushroom against every theme's fills, and a non-color cue for conflict that
-   survives a dark theme.
-5. **App-level theme** — replace `useAppTheme`'s read of Sudoku's saved state
-   with a theme the shell owns, so the hub and Fungiku aren't inheriting a
-   Sudoku implementation detail. Sudoku keeps its own `CHANGE_THEME` behavior;
-   this is about where the *shell's* theme comes from.
+1. **The drag gesture on the board.** One `PanResponder` on the board container;
+   resolve the cell under the finger and paint as the stroke moves.
+2. **A stroke action in the reducer** — takes the set of cells and the mode
+   (paint X / erase to empty), applies it in one go, records **one** undo entry,
+   and skips mushroom cells.
+3. **Taps keep working exactly as they do now**, including the full
+   `empty → X → 🍄 → empty` cycle and the accessibility labels. A tap is a
+   degenerate stroke only if that does not change tap behavior — otherwise keep
+   the tap path separate.
+4. **Auto-X assist (the other half of §2's assist bullet)** — a toggle that, when
+   a mushroom is placed, fills X into that mushroom's row, column, region and
+   eight neighbors. **Off by default** unless the operator answers §8 #5
+   otherwise. Reuse the same stroke action so it is one undo entry.
+5. **Extend the Jest suite** for the stroke reducer and the auto-X fill.
 
 ### Behaviors that are easy to get wrong
 
-- **Region outlines are the board's structure** (plan §3). They replace Sudoku's
-  3×3 box lines and are how the player sees the regions at all — if the themed
-  restyle makes them subtle, the puzzle becomes unreadable.
-- **Don't let theming swallow the conflict signal.** Conflict has to stay obvious
-  on a pastel fill *and* on a dark theme.
-- **Keep the accessibility labels stable.** They are the test seam.
-- **Don't touch the engine or the reducer.** This step is rendering. If a rule
-  question comes up, the answer is already in `engine.js`.
-- **8×8 is the stress case** for both palette and layout — a 320px board at 8×8
-  gives 40px cells; check the mushroom glyph and X are still legible.
+- **`locationX`/`locationY` lie on the new architecture.** In a `PanResponder`
+  they are relative to the touched *child*, not the responder. Use
+  `pageX`/`pageY` minus the board's measured origin, and **re-measure at gesture
+  grant**, not only on layout — this screen's board sits under a win banner that
+  mounts and unmounts, so the board moves. (§2 has the full note; the sibling
+  color-loop app lost time to exactly this.)
+- **The board lives inside a `ScrollView`.** A vertical drag will fight it. You
+  will need to claim the responder deliberately (and probably
+  `onMoveShouldSetPanResponderCapture`) so a sweep paints instead of scrolling —
+  and check that the page can still be scrolled by dragging *outside* the board.
+- **Interpolate between move events.** A fast stroke delivers sparse points; walk
+  the line between consecutive points, or a quick swipe leaves gaps.
+- **Never overwrite a mushroom.** Losing a deduced placement to a stray swipe is
+  the worst failure this feature can have.
+- **Don't regress the accessibility labels.** They are how the browser tests
+  address cells, and they are Fungiku's only non-visual channel.
 
 ### Out of scope for this step
 
-- **No assists, ladder or scoring** — auto-X, level progression and scoring are
-  Step 6, including the §8 #5 assist-default question.
-- **No art swap** — static mushroom PNGs are the floating Step 7.
-- **No new game logic.** Marks, conflicts, win detection, undo/redo and
-  persistence all landed in Step 4 and are covered by 107 passing tests.
-- **No Sudoku restyling.** Read `Grid`/`Cell` for reference; leave them alone.
+- **No ladder, progression or scoring** — that is Step 7.
+- **No art swap** — Step 8, and it is gated on artwork rather than code.
+- **No engine or win-detection changes.** X's still have no effect on winning; a
+  drag that fills the whole board with X's must not win it (there is already a
+  test for that shape — keep it green).
 
 ### Visible in Expo Go when this lands
 
-A Fungiku board that looks like it belongs in the app: themed to match whatever
-theme is active, sized to the screen, with **eight visually distinct regions at
-8×8** and a win that feels like a win. Verify in a browser across at least
-`classic` and `dark`, at 5×5 and 8×8, no page errors, and screenshot 8×8 in two
-themes so the palette fix is reviewable side by side.
+**Swipe a finger across a row of cells and watch them all become ✕ in one
+motion**, then swipe back over them to clear them, with a single Undo taking back
+the whole sweep. Turn the auto-X toggle on, place a mushroom, and watch its row,
+column, region and neighbors fill themselves in.
+
+### ⚠️ This step cannot be signed off in a browser
+
+Playwright can fake a mouse drag on the web build and you **should** add that —
+it will catch the geometry being wrong. But whether the gesture fights the
+ScrollView, whether a tap-with-jitter accidentally paints, and whether the stroke
+feels responsive under a real thumb are all device questions. **Get an Expo Go
+pass from the operator before this merges**, and say so in the PR.
 
 ## Open questions for the operator (carry these forward)
 
@@ -214,8 +213,6 @@ themes so the palette fix is reviewable side by side.
   are. Leaving for the hub and returning gives you your board back with an empty
   undo stack. Deliberate (the stacks are mark snapshots and would bloat the save);
   revisit only if it bothers the operator.
-- **The counter hint doesn't change after a win** — it still reads "Tap a cell:
-  empty → ✕ → 🍄". Folded into Step 5's win flow.
 - **Quitting a Sudoku game doesn't clear its save.** `saveState` skips writing
   when `gameStarted` is false, so the previous snapshot survives "New Game" until
   a difficulty is picked. Pre-existing, and self-consistent (the hub's Continue
@@ -224,9 +221,15 @@ themes so the palette fix is reviewable side by side.
 - **Re-entering a game from the hub always lands on the Pause modal**, because a
   restored game is a paused game. Correct, but it means the header (and the way
   back home) is behind one Resume tap.
-- **`useAppTheme` reads the theme out of Sudoku's saved state** so the hub and
-  Fungiku follow the player's choice. Promoting this to a shell-owned theme is
-  now **scope item 5 of Step 5**.
+- **Sudoku still keeps its own copy of the theme.** Step 5 moved the *shell* off
+  Sudoku's saved game and onto `@AppTheme` (`utils/appTheme.js`), and Sudoku
+  writes through to it when the player cycles themes — but Sudoku still hydrates
+  its own `currentThemeName` from its own save. Making Sudoku read the shared key
+  is the other half, and it touches Sudoku's hydration path, so it was left out.
+- **The region palette is tuned, not hand-picked.** `utils/symbolSets.js` derives
+  its fills from per-hue tint weights chosen by maximizing the worst pairwise
+  CIEDE2000 distance under a lightness band. `utils/__tests__/symbolSets.test.js`
+  holds the floor. **Re-tune with the same objective — do not eyeball it.**
 
 ## Steps already done
 
@@ -236,5 +239,6 @@ themes so the palette fix is reviewable side by side.
 | 1 | Rendering seam — `Symbol.js` + `symbolSets.js` | merged to `main` (#67) |
 | — | ~~Symbol-set toggle on the Sudoku board~~ | closed unmerged (#68) — superseded by the replan |
 | 2 | Replan + engine + preview + hub design | merged to `epic/fungiku` (#69, `fecb271`) |
-| 3 | Game shell + hub — router, registry, `HubScreen`, `FungikuScreen`, back-to-hub | PR to `epic/fungiku` |
-| 4 | Fungiku state — reducer, tap-to-cycle marks, live conflicts, win, undo/redo, own-key persistence | PR to `epic/fungiku` |
+| 3 | Game shell + hub — router, registry, `HubScreen`, `FungikuScreen`, back-to-hub | merged to `epic/fungiku` (#70, `a9caf92`) |
+| 4 | Fungiku state — reducer, tap-to-cycle marks, live conflicts, win, undo/redo, own-key persistence | merged to `epic/fungiku` (#70, `a9caf92`) |
+| 5 | Board UI — palette fix with a tested ΔE floor, themed + responsive board, animated win | PR to `epic/fungiku` |
