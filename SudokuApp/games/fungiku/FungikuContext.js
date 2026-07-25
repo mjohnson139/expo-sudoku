@@ -63,6 +63,25 @@ export const FungikuProvider = ({ children }) => {
     [dispatch]
   );
 
+  // --- drag-to-sweep (plan §2) ---------------------------------------------
+  // A stroke is many paints across many frames but exactly one undoable action:
+  // beginStroke arms the undo entry, the first effective paint spends it.
+  const beginStroke = useCallback(
+    () => dispatch({ type: FUNGIKU_ACTIONS.BEGIN_STROKE }),
+    [dispatch]
+  );
+  const paintCells = useCallback(
+    (cells, mode) => dispatch({ type: FUNGIKU_ACTIONS.PAINT_CELLS, payload: { cells, mode } }),
+    [dispatch]
+  );
+  const endStroke = useCallback(() => dispatch({ type: FUNGIKU_ACTIONS.END_STROKE }), [dispatch]);
+
+  const setAutoX = useCallback(
+    (value) => dispatch({ type: FUNGIKU_ACTIONS.SET_AUTO_X, payload: value }),
+    [dispatch]
+  );
+  const toggleAutoX = useCallback(() => setAutoX(!state.autoX), [setAutoX, state.autoX]);
+
   /**
    * Start a puzzle. Generation happens here rather than in the reducer so a
    * failure surfaces as a caught error instead of a throw mid-dispatch.
@@ -72,13 +91,15 @@ export const FungikuProvider = ({ children }) => {
       try {
         dispatch({
           type: FUNGIKU_ACTIONS.NEW_PUZZLE,
-          payload: buildPuzzleState({ size, seed }),
+          // The assist is a preference, not part of the puzzle — it has to
+          // survive starting a new board.
+          payload: buildPuzzleState({ size, seed, autoX: state.autoX }),
         });
       } catch (error) {
         console.error('Fungiku generation failed:', error);
       }
     },
-    [dispatch, state.size, state.seed]
+    [dispatch, state.size, state.seed, state.autoX]
   );
 
   const nextPuzzle = useCallback(
@@ -106,6 +127,11 @@ export const FungikuProvider = ({ children }) => {
       canRedo: selectCanRedo(state),
       minSize: MIN_SIZE,
       cycleCell,
+      beginStroke,
+      paintCells,
+      endStroke,
+      setAutoX,
+      toggleAutoX,
       startPuzzle,
       nextPuzzle,
       changeSize,
@@ -113,7 +139,25 @@ export const FungikuProvider = ({ children }) => {
       undo,
       redo,
     }),
-    [state, conflicts, mushroomCount, solved, hasMarks, cycleCell, startPuzzle, nextPuzzle, changeSize, clearMarks, undo, redo]
+    [
+      state,
+      conflicts,
+      mushroomCount,
+      solved,
+      hasMarks,
+      cycleCell,
+      beginStroke,
+      paintCells,
+      endStroke,
+      setAutoX,
+      toggleAutoX,
+      startPuzzle,
+      nextPuzzle,
+      changeSize,
+      clearMarks,
+      undo,
+      redo,
+    ]
   );
 
   // Wait for hydration so a saved board never flashes as an empty one.

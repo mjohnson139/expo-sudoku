@@ -1,6 +1,7 @@
 import {
   DEFAULT_SEED,
   FUNGIKU_ACTIONS,
+  PAINT_MODES,
   buildPuzzleState,
   createInitialFungikuState,
   fungikuReducer,
@@ -276,5 +277,192 @@ describe('unknown actions', () => {
   it('leave state untouched', () => {
     const state = createInitialFungikuState();
     expect(fungikuReducer(state, { type: 'NOPE' })).toBe(state);
+  });
+});
+
+describe('drag strokes', () => {
+  const initial = buildPuzzleState({ size: 5, seed: 1 });
+  const begin = (state) => fungikuReducer(state, { type: FUNGIKU_ACTIONS.BEGIN_STROKE });
+  const end = (state) => fungikuReducer(state, { type: FUNGIKU_ACTIONS.END_STROKE });
+  const paint = (state, cells, mode = PAINT_MODES.X) =>
+    fungikuReducer(state, { type: FUNGIKU_ACTIONS.PAINT_CELLS, payload: { cells, mode } });
+  const undoOne = (state) => fungikuReducer(state, { type: FUNGIKU_ACTIONS.UNDO });
+
+  /** A whole stroke, the way the gesture drives it. */
+  const stroke = (state, batches, mode = PAINT_MODES.X) =>
+    end(batches.reduce((acc, cells) => paint(acc, cells, mode), begin(state)));
+
+  it('paints X across every cell of the stroke', () => {
+    const state = stroke(initial, [[0], [1, 2], [3, 4]]);
+
+    expect(state.marks.slice(0, 5)).toEqual([MARKS.X, MARKS.X, MARKS.X, MARKS.X, MARKS.X]);
+  });
+
+  it('records one undo entry for the whole stroke, not one per cell', () => {
+    const state = stroke(initial, [[0], [1, 2], [3, 4]]);
+
+    expect(state.undoStack).toHaveLength(1);
+    expect(undoOne(state).marks).toEqual(initial.marks);
+  });
+
+  it('erases back to empty when the stroke is an erase', () => {
+    const painted = stroke(initial, [[0, 1, 2]]);
+    const erased = stroke(painted, [[0, 1, 2]], PAINT_MODES.ERASE);
+
+    expect(erased.marks.slice(0, 3)).toEqual([MARKS.EMPTY, MARKS.EMPTY, MARKS.EMPTY]);
+    expect(erased.undoStack).toHaveLength(2); // one per stroke
+  });
+
+  it('never overwrites a mushroom', () => {
+    // Losing a deduced placement to a stray swipe is the worst failure here.
+    const withMushroom = placeMushroom(initial, 2);
+    const swept = stroke(withMushroom, [[0, 1, 2, 3, 4]]);
+
+    expect(swept.marks[2]).toBe(MARKS.MUSHROOM);
+    expect(swept.marks[1]).toBe(MARKS.X);
+    expect(swept.marks[3]).toBe(MARKS.X);
+  });
+
+  it('does not overwrite a mushroom on an erase stroke either', () => {
+    const withMushroom = placeMushroom(initial, 2);
+    const swept = stroke(withMushroom, [[0, 1, 2, 3, 4]], PAINT_MODES.ERASE);
+
+    expect(swept.marks[2]).toBe(MARKS.MUSHROOM);
+  });
+
+  it('is a no-op when the stroke changes nothing, leaving no undo entry', () => {
+    const painted = stroke(initial, [[0, 1]]);
+    const again = stroke(painted, [[0, 1]]);
+
+    expect(again.marks).toEqual(painted.marks);
+    expect(again.undoStack).toHaveLength(painted.undoStack.length);
+  });
+
+  it('still records one entry when the first cells of a stroke change nothing', () => {
+    // The stroke starts over an existing X (no change), then reaches blanks —
+    // the undo entry has to survive until the first cell that actually paints.
+    const seeded = stroke(initial, [[0]]);
+    const swept = stroke(seeded, [[0], [1], [2]]);
+
+    expect(swept.marks.slice(0, 3)).toEqual([MARKS.X, MARKS.X, MARKS.X]);
+    expect(swept.undoStack).toHaveLength(2);
+    expect(undoOne(swept).marks).toEqual(seeded.marks);
+  });
+
+  it('ignores cells outside the board', () => {
+    const state = stroke(initial, [[-1, 0, 25, 1.5]]);
+
+    expect(state.marks[0]).toBe(MARKS.X);
+    expect(state.marks).toHaveLength(25);
+  });
+
+  it('ignores an empty paint', () => {
+    const opened = begin(initial);
+    expect(paint(opened, [])).toBe(opened);
+    expect(paint(opened, null)).toBe(opened);
+  });
+
+  it('keeps strokeOpen out of the way once spent', () => {
+    const opened = begin(initial);
+    expect(opened.strokeOpen).toBe(true);
+
+    const painted = paint(opened, [0]);
+    expect(painted.strokeOpen).toBe(false);
+    expect(end(painted).strokeOpen).toBe(false);
+  });
+
+  it('cannot win the board by sweeping X everywhere', () => {
+    const all = Array.from({ length: 25 }, (_, i) => i);
+    const swept = stroke(initial, [all]);
+
+    expect(selectIsSolved(swept)).toBe(false);
+    expect(selectMushroomCount(swept)).toBe(0);
+  });
+});
+
+describe('the auto rule-out assist', () => {
+  const base = buildPuzzleState({ size: 5, seed: 1 });
+  const setAutoX = (state, value) =>
+    fungikuReducer(state, { type: FUNGIKU_ACTIONS.SET_AUTO_X, payload: value });
+
+  it('is off by default', () => {
+    expect(base.autoX).toBe(false);
+  });
+
+  it('does nothing when off', () => {
+    const placed = placeMushroom(base, 12);
+
+    expect(placed.marks.filter((m) => m !== MARKS.EMPTY)).toEqual([MARKS.MUSHROOM]);
+  });
+
+  it('rules out the row, column, region and neighbours when on', () => {
+    const on = setAutoX(base, true);
+    const cell = 12; // row 2, col 2
+    const placed = placeMushroom(on, cell);
+
+    expect(placed.marks[cell]).toBe(MARKS.MUSHROOM);
+
+    for (let i = 0; i < 5; i++) {
+      if (i !== 2) {
+        expect(placed.marks[2 * 5 + i]).toBe(MARKS.X);
+        expect(placed.marks[i * 5 + 2]).toBe(MARKS.X);
+      }
+    }
+    [6, 7, 8, 11, 13, 16, 17, 18].forEach((n) => {
+      expect(placed.marks[n]).toBe(MARKS.X);
+    });
+    const region = on.regions[cell];
+    on.regions.forEach((r, i) => {
+      if (r === region && i !== cell) expect(placed.marks[i]).toBe(MARKS.X);
+    });
+  });
+
+  it('fills as part of the same undo entry as the placement', () => {
+    const on = setAutoX(base, true);
+    const placed = placeMushroom(on, 12);
+    const back = fungikuReducer(placed, { type: FUNGIKU_ACTIONS.UNDO });
+
+    // One undo returns to the intermediate X of the two-tap placement, not to a
+    // board still littered with assist marks.
+    expect(back.marks[12]).toBe(MARKS.X);
+    expect(back.marks.filter((m) => m === MARKS.X)).toHaveLength(1);
+  });
+
+  it('never disturbs an existing mushroom', () => {
+    const on = setAutoX(base, true);
+    const second = placeMushroom(placeMushroom(on, 0), 12);
+
+    expect(second.marks[0]).toBe(MARKS.MUSHROOM);
+  });
+
+  it('only fires on the tap that places a mushroom', () => {
+    const on = setAutoX(base, true);
+    const toX = cycle(on, 12);
+
+    // First tap is just an X — nothing is ruled out by an X.
+    expect(toX.marks.filter((m) => m !== MARKS.EMPTY)).toEqual([MARKS.X]);
+  });
+
+  it('leaves its X marks behind when the mushroom is cycled away', () => {
+    // Deliberate: assist marks become ordinary X marks the moment they land.
+    // Retracting them would mean tracking which mushroom placed each one, and
+    // that is ambiguous as soon as two mushrooms rule out the same cell. Undo is
+    // the way to take a placement and its marks back together (covered above).
+    const on = setAutoX(base, true);
+    const placed = placeMushroom(on, 12);
+    const cycledAway = cycle(placed, 12);
+
+    expect(cycledAway.marks[12]).toBe(MARKS.EMPTY);
+    expect(cycledAway.marks.filter((m) => m === MARKS.X).length).toBeGreaterThan(0);
+  });
+
+  it('survives starting a new puzzle', () => {
+    expect(buildPuzzleState({ size: 6, seed: 2, autoX: true }).autoX).toBe(true);
+  });
+
+  it('still cannot win a board on X marks alone', () => {
+    const on = setAutoX(base, true);
+
+    expect(selectIsSolved(placeMushroom(on, 12))).toBe(false);
   });
 });

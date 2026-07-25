@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { View, StyleSheet, TouchableOpacity, Animated, Easing } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Animated, Easing, PanResponder } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MARKS } from './engine';
 import { getRegionPalette } from '../../utils/symbolSets';
 import useBoardSize from '../../hooks/useBoardSize';
+import useBoardOrigin from '../../hooks/useBoardOrigin';
+import { cellFromPoint, cellsAlongLine } from './geometry';
+import { PAINT_MODES } from './reducer';
 import { useFungikuContext } from './FungikuContext';
 
 /**
@@ -29,12 +32,116 @@ const MARK_LABELS = {
   [MARKS.MUSHROOM]: 'mushroom',
 };
 
+/**
+ * How far the finger must travel before a touch becomes a stroke instead of a
+ * tap. Small enough that the cell you started on is still under your finger, big
+ * enough that a slightly shaky tap does not paint.
+ */
+const DRAG_THRESHOLD = 6;
+
 const FungikuBoard = ({ isDark, theme }) => {
-  const { size, regions, marks, conflicts, cycleCell, solved } = useFungikuContext();
+  const { size, regions, marks, conflicts, cycleCell, paintCells, beginStroke, endStroke, solved } =
+    useFungikuContext();
 
   const boardSize = useBoardSize();
   const cell = Math.floor(boardSize / size);
   const glyph = Math.round(cell * 0.62);
+
+  // --- drag to sweep X's (plan §2) -----------------------------------------
+  //
+  // The responder is claimed on *movement*, not on touch-down, so the per-cell
+  // Touchables keep handling simple taps — which keeps the full
+  // empty → X → 🍄 cycle and, just as importantly, their accessibility labels
+  // and screen-reader activation. Once the finger moves past the threshold the
+  // board takes over and the child's press is cancelled.
+  const { ref: boardRef, onLayout, measure, toLocal } = useBoardOrigin();
+
+  // Refs, not state: these change many times per frame during a stroke and must
+  // never trigger a re-render of their own.
+  const startPoint = useRef(null);
+  const lastCell = useRef(-1);
+  const paintMode = useRef(PAINT_MODES.X);
+
+  // The latest marks/geometry, readable from inside gesture callbacks that were
+  // created once and would otherwise close over a stale render.
+  const live = useRef({ marks, cell, size });
+  live.current = { marks, cell, size };
+
+  const cellAt = (pageX, pageY) => {
+    const { x, y } = toLocal(pageX, pageY);
+    const { cell: cellSize, size: boardCells } = live.current;
+    return cellFromPoint({ x, y, cellSize, size: boardCells });
+  };
+
+  const responder = useMemo(
+    () =>
+      PanResponder.create({
+        // Capture phase: observe where the touch began without claiming it, so
+        // the stroke can start from the cell the finger actually went down on
+        // rather than wherever it happened to be when the threshold tripped.
+        onStartShouldSetPanResponderCapture: (event) => {
+          startPoint.current = {
+            x: event.nativeEvent.pageX,
+            y: event.nativeEvent.pageY,
+          };
+          return false;
+        },
+
+        onMoveShouldSetPanResponder: (_event, gesture) =>
+          Math.hypot(gesture.dx, gesture.dy) > DRAG_THRESHOLD,
+
+        onPanResponderGrant: () => {
+          // Re-measure here, not just on layout: the win banner above the board
+          // mounts and unmounts, which moves the board.
+          measure();
+
+          const origin = startPoint.current;
+          const first = origin ? cellAt(origin.x, origin.y) : -1;
+
+          // The first cell decides the whole stroke: starting on an X erases,
+          // starting anywhere else paints. Fixing the mode up front means
+          // dragging back over your own path doesn't flip cells twice.
+          paintMode.current =
+            first >= 0 && live.current.marks[first] === MARKS.X
+              ? PAINT_MODES.ERASE
+              : PAINT_MODES.X;
+
+          beginStroke();
+          lastCell.current = first;
+          if (first >= 0) paintCells([first], paintMode.current);
+        },
+
+        onPanResponderMove: (event) => {
+          const next = cellAt(event.nativeEvent.pageX, event.nativeEvent.pageY);
+          if (next < 0 || next === lastCell.current) return;
+
+          // Fill everything between the last point and this one — at speed a
+          // finger can skip several cells between move events.
+          const span =
+            lastCell.current >= 0
+              ? cellsAlongLine(lastCell.current, next, live.current.size)
+              : [next];
+
+          lastCell.current = next;
+          paintCells(span, paintMode.current);
+        },
+
+        onPanResponderRelease: () => {
+          endStroke();
+          lastCell.current = -1;
+        },
+        onPanResponderTerminate: () => {
+          endStroke();
+          lastCell.current = -1;
+        },
+
+        // Don't let anything steal the stroke mid-sweep (the ScrollView this
+        // board sits in would happily take it).
+        onPanResponderTerminationRequest: () => false,
+      }),
+    // Built once: every value it touches is read through a ref.
+    [beginStroke, endStroke, paintCells, measure]
+  );
 
   const palette = useMemo(() => getRegionPalette(isDark), [isDark]);
 
@@ -58,6 +165,9 @@ const FungikuBoard = ({ isDark, theme }) => {
 
   return (
     <Animated.View
+      ref={boardRef}
+      onLayout={onLayout}
+      {...responder.panHandlers}
       style={[
         styles.board,
         {

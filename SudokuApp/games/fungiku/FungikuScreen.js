@@ -35,6 +35,8 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     clearMarks,
     changeSize,
     nextPuzzle,
+    autoX,
+    toggleAutoX,
   } = useFungikuContext();
 
   const titleColor = theme.colors.title;
@@ -48,7 +50,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     ? 'One per row, column and color — none touching'
     : conflicts.size > 0
       ? `${conflicts.size} mushroom${conflicts.size === 1 ? '' : 's'} breaking a rule`
-      : 'Tap a cell: empty → ✕ → 🍄';
+      : 'Tap to cycle · drag to sweep ✕';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -102,7 +104,36 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           />
         </View>
 
-        {/* Board size + next puzzle — the stand-in for Step 6's ladder */}
+        {/* Assist toggle (plan §2). Off by default: left on it does most of the
+            deduction for you, which is the whole game. */}
+        <View style={styles.controlRow}>
+          <TouchableOpacity
+            onPress={toggleAutoX}
+            style={[
+              styles.wideButton,
+              { borderColor: border },
+              autoX && { backgroundColor: titleColor, borderColor: titleColor },
+            ]}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: autoX }}
+            // The state is named in the label as well as in accessibilityState:
+            // `checked` does not survive to `aria-checked` on web, so the label
+            // is the only place a screen reader (or a test) can read it reliably.
+            accessibilityLabel={`Auto rule-out, ${autoX ? 'on' : 'off'}`}
+            accessibilityHint="When on, placing a mushroom rules out its row, column, color and neighbours"
+          >
+            <MaterialCommunityIcons
+              name={autoX ? 'checkbox-marked' : 'checkbox-blank-outline'}
+              size={18}
+              color={autoX ? surface : titleColor}
+            />
+            <Text style={[styles.buttonText, { color: autoX ? surface : titleColor }]}>
+              Auto rule-out
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Board size + next puzzle — the stand-in for Step 7's ladder */}
         <Text style={[styles.label, { color: titleColor }]}>Board size</Text>
         <View style={styles.controlRow}>
           {SIZES.map((option) => (

@@ -17,6 +17,7 @@
 import {
   MARKS,
   MIN_SIZE,
+  cellsRuledOutBy,
   createEmptyMarks,
   countMushrooms,
   findConflicts,
@@ -32,7 +33,19 @@ export const FUNGIKU_ACTIONS = {
   UNDO: 'FUNGIKU_UNDO',
   REDO: 'FUNGIKU_REDO',
   RESTORE_SAVED_GAME: 'FUNGIKU_RESTORE_SAVED_GAME',
+
+  // Drag-to-sweep (plan §2). A stroke paints many cells over many frames but
+  // must undo as one action, so the gesture opens a stroke, paints repeatedly,
+  // and closes it.
+  BEGIN_STROKE: 'FUNGIKU_BEGIN_STROKE',
+  PAINT_CELLS: 'FUNGIKU_PAINT_CELLS',
+  END_STROKE: 'FUNGIKU_END_STROKE',
+
+  SET_AUTO_X: 'FUNGIKU_SET_AUTO_X',
 };
+
+/** What a drag stroke does to the cells it crosses. */
+export const PAINT_MODES = { X: 'x', ERASE: 'erase' };
 
 export const DEFAULT_SIZE = MIN_SIZE;
 export const DEFAULT_SEED = 1;
@@ -44,7 +57,12 @@ export const DEFAULT_SEED = 1;
  *
  * @param {{size: number, seed: number, marks?: string[]}} opts
  */
-export const buildPuzzleState = ({ size = DEFAULT_SIZE, seed = DEFAULT_SEED, marks } = {}) => {
+export const buildPuzzleState = ({
+  size = DEFAULT_SIZE,
+  seed = DEFAULT_SEED,
+  marks,
+  autoX = false,
+} = {}) => {
   const puzzle = generate({ size, seed });
 
   return {
@@ -59,6 +77,13 @@ export const buildPuzzleState = ({ size = DEFAULT_SIZE, seed = DEFAULT_SEED, mar
         : createEmptyMarks(puzzle.size),
     undoStack: [],
     redoStack: [],
+    // Assist preference (plan §2). Off by default until the operator says
+    // otherwise (§8 #5) — it removes most of the deduction if left on.
+    autoX: !!autoX,
+    // Transient: true between BEGIN_STROKE and the stroke's first effective
+    // paint, which is the paint that records the single undo entry. Never
+    // persisted (see ./storage.js).
+    strokeOpen: false,
   };
 };
 
@@ -94,7 +119,63 @@ export function fungikuReducer(state, action) {
       // shown, never blocked — spotting and fixing them is the puzzle.
       const marks = state.marks.slice();
       marks[cell] = nextMark(marks[cell]);
+
+      // The auto-X assist rides along inside the same action, so placing a
+      // mushroom and the X's it implies are a single undo (plan §2).
+      //
+      // Note the marks it places are *ordinary* X marks: cycling the mushroom
+      // away later leaves them behind, and undo is how you take a placement and
+      // its marks back together. Retracting them on removal would mean tracking
+      // which mushroom placed each mark, which is ambiguous the moment two
+      // mushrooms rule out the same cell.
+      if (state.autoX && marks[cell] === MARKS.MUSHROOM) {
+        cellsRuledOutBy(cell, state.regions, state.size).forEach((ruled) => {
+          // Only fill blanks: never disturb another mushroom, and never
+          // overwrite an X the player placed deliberately.
+          if (marks[ruled] === MARKS.EMPTY) marks[ruled] = MARKS.X;
+        });
+      }
+
       return pushHistory(state, marks);
+    }
+
+    case FUNGIKU_ACTIONS.SET_AUTO_X:
+      return { ...state, autoX: !!action.payload };
+
+    case FUNGIKU_ACTIONS.BEGIN_STROKE:
+      // Nothing is painted yet; the first effective paint spends this flag on
+      // the stroke's one undo entry.
+      return state.strokeOpen ? state : { ...state, strokeOpen: true };
+
+    case FUNGIKU_ACTIONS.END_STROKE:
+      return state.strokeOpen ? { ...state, strokeOpen: false } : state;
+
+    case FUNGIKU_ACTIONS.PAINT_CELLS: {
+      const { cells, mode } = action.payload;
+      if (!Array.isArray(cells) || cells.length === 0) return state;
+
+      const target = mode === PAINT_MODES.ERASE ? MARKS.EMPTY : MARKS.X;
+
+      let marks = null;
+      cells.forEach((cell) => {
+        if (!Number.isInteger(cell) || cell < 0 || cell >= state.marks.length) return;
+
+        // A stroke never disturbs a mushroom (plan §2) — losing a deduced
+        // placement to a stray swipe is the worst thing this gesture could do.
+        const current = (marks || state.marks)[cell];
+        if (current === MARKS.MUSHROOM || current === target) return;
+
+        if (!marks) marks = state.marks.slice();
+        marks[cell] = target;
+      });
+
+      // Nothing actually changed: leave the stroke open so the *next* cell it
+      // reaches is the one that records the undo entry.
+      if (!marks) return state;
+
+      return state.strokeOpen
+        ? { ...pushHistory(state, marks), strokeOpen: false }
+        : { ...state, marks };
     }
 
     case FUNGIKU_ACTIONS.CLEAR_MARKS: {

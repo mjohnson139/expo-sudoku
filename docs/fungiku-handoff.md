@@ -92,102 +92,85 @@ operator to test in Expo Go.**
 
 ---
 
-## Next step: **Step 6 — drag to sweep X's (+ the auto-X assist)**
+## Next step: **Step 7 — the training ladder and scoring**
 
-Branch: **`feature/fungiku-input`** off `epic/fungiku`.
-Plan: **§2, and specifically the "Drag to sweep X's" subsection** — the operator
-asked for this directly, and that subsection is the spec. Read it before anything
-else.
+Branch: **`feature/fungiku-ladder`** off `epic/fungiku`.
+Plan: the §7 table row for step 7, plus **§8 #4**, which this step needs answered
+(or defaulted, with the default stated in the PR).
 
 ### Why this step exists
 
-**Ruling out cells is the most repetitive thing about playing Fungiku.** Once you
-know a mushroom can't be anywhere along a row, or anywhere touching one you have
-already placed, you currently tap each of those cells individually — and each one
-takes *one* tap to reach X. The operator's words: *"I want to be able to drag my
-finger to place Xs in places where mushrooms wouldn't be."* This is the gesture
-that makes X's cheap enough to actually reason with, and it is the last thing
-standing between the current build and a game that feels good to play.
+Fungiku is a complete puzzle you can play, but it has **no shape as a game**. You
+pick a size from four chips and press "New puzzle" for a random seed; nothing
+tracks what you have done, nothing gets harder, nothing tells you that you are
+improving. This step turns a puzzle generator into something worth coming back
+to.
 
 ### Read first
 
-- **`docs/fungiku-plan.md` §2, "Drag to sweep X's"** — the behavior spec: drag
-  paints X and never cycles, the first cell decides paint-vs-erase for the whole
-  stroke, mushrooms are never overwritten, one undo entry per stroke, and fast
-  diagonal strokes must fill every cell crossed. Both hazards are written up
-  there too; do not skip them.
-- `SudokuApp/games/fungiku/FungikuBoard.js` — what you are changing. Today every
-  cell is its own `TouchableOpacity` with an `onPress`. A drag needs a **single
-  responder over the whole board** that maps a point to a cell, so this is the
-  one real restructure in the step.
-- `SudokuApp/games/fungiku/reducer.js` — `CYCLE_CELL` and `CLEAR_MARKS` are the
-  models to copy. `pushHistory` already snapshots the whole `marks` array, which
-  is exactly what "one undo entry per stroke" needs — add a `PAINT_CELLS`-style
-  action that applies a whole stroke through one `pushHistory`, rather than
-  dispatching per cell.
-- `SudokuApp/hooks/useBoardSize.js` — the board's pixel size, which you need to
-  turn a touch point into a row/column.
-- `SudokuApp/games/fungiku/__tests__/reducer.test.js` — extend this. The stroke
-  reducer is pure and deserves the same coverage as cycling.
+- `SudokuApp/games/fungiku/reducer.js` and `FungikuContext.js` — where progress
+  state has to live, and how `size`/`seed` currently change (`changeSize` resets
+  to seed 1; `nextPuzzle` bumps the seed).
+- `SudokuApp/games/fungiku/storage.js` — persistence is `size` + `seed` + `marks`
+  + `autoX`. Ladder progress is the first thing that needs a **schema change**;
+  bump `FUNGIKU_STORAGE_VERSION` and decide what an old save migrates to (today
+  a version mismatch returns null and the board starts fresh — that is fine for
+  a board, less fine for someone's progress).
+- `SudokuApp/utils/gameProgress.js` + `games/registry.js` — `describeFungikuProgress`
+  feeds the hub's Continue badge. With a ladder, the badge probably wants to say
+  which *level* you are on rather than which board size.
+- **The sibling color-loop app is the reference for this exact problem** — it has
+  a training ladder in `games/colorloop/levels.ts` with per-level star
+  thresholds, and its `docs/game-design.md` covers the progression thinking.
+  Worth reading before designing a second one from scratch.
+- `SudokuApp/contexts/GameContext.js` — Sudoku's scoring (time-based, with
+  completion bonuses) is a model for what "scoring" can mean here. Fungiku has no
+  timer at all today, which is a decision this step has to make deliberately.
 
 ### Scope — ONLY this
 
-1. **The drag gesture on the board.** One `PanResponder` on the board container;
-   resolve the cell under the finger and paint as the stroke moves.
-2. **A stroke action in the reducer** — takes the set of cells and the mode
-   (paint X / erase to empty), applies it in one go, records **one** undo entry,
-   and skips mushroom cells.
-3. **Taps keep working exactly as they do now**, including the full
-   `empty → X → 🍄 → empty` cycle and the accessibility labels. A tap is a
-   degenerate stroke only if that does not change tap behavior — otherwise keep
-   the tap path separate.
-4. **Auto-X assist (the other half of §2's assist bullet)** — a toggle that, when
-   a mushroom is placed, fills X into that mushroom's row, column, region and
-   eight neighbors. **Off by default** unless the operator answers §8 #5
-   otherwise. Reuse the same stroke action so it is one undo entry.
-5. **Extend the Jest suite** for the stroke reducer and the auto-X fill.
+1. **A level ladder** — an ordered list of levels, each pinning a `size` and a
+   `seed` (both already deterministic, so a level *is* a `{size, seed}` pair).
+   Keep it data, in its own module, so tuning is editing a table.
+2. **Progression + persistence** — which levels are complete, and what unlocks.
+   Bump the storage version and migrate rather than discarding progress.
+3. **A level-select surface** on the Fungiku screen, replacing the raw size chips
+   as the primary path. Keep a way to play an arbitrary size — the chips are
+   useful for testing, and "free play" is a reasonable answer to §8 #4.
+4. **Scoring** — decide what it measures and say why in the PR. If it needs a
+   timer, add one, and note that Fungiku deliberately had none until now.
+5. **Hub integration** — the Continue badge should reflect ladder position.
+6. **Tests** — the ladder table and progression logic are pure; cover them. Pin
+   that every level in the table actually generates (a bad `{size, seed}` pair
+   would otherwise only fail when a player reaches it).
 
 ### Behaviors that are easy to get wrong
 
-- **`locationX`/`locationY` lie on the new architecture.** In a `PanResponder`
-  they are relative to the touched *child*, not the responder. Use
-  `pageX`/`pageY` minus the board's measured origin, and **re-measure at gesture
-  grant**, not only on layout — this screen's board sits under a win banner that
-  mounts and unmounts, so the board moves. (§2 has the full note; the sibling
-  color-loop app lost time to exactly this.)
-- **The board lives inside a `ScrollView`.** A vertical drag will fight it. You
-  will need to claim the responder deliberately (and probably
-  `onMoveShouldSetPanResponderCapture`) so a sweep paints instead of scrolling —
-  and check that the page can still be scrolled by dragging *outside* the board.
-- **Interpolate between move events.** A fast stroke delivers sparse points; walk
-  the line between consecutive points, or a quick swipe leaves gaps.
-- **Never overwrite a mushroom.** Losing a deduced placement to a stray swipe is
-  the worst failure this feature can have.
-- **Don't regress the accessibility labels.** They are how the browser tests
-  address cells, and they are Fungiku's only non-visual channel.
+- **Every level must be generatable.** `generate()` throws for `size < 5`; a
+  typo in the table becomes a crash for whoever reaches that level. Assert the
+  whole table in a test.
+- **Don't lose existing progress on the schema change.** A player mid-board today
+  has `{size, seed, marks, autoX}` and no ladder state; that has to migrate to
+  something sensible, not to a wiped save.
+- **Star thresholds and difficulty curves are guesses until played.** Draft them,
+  say in the PR that they are estimates, and flag them for the operator to tune
+  on device — the same way color-loop's ladder was left.
+- **Keep free play reachable.** Locking size behind progression makes the 8×8
+  regression cases harder to check; a dev/test path must survive.
 
 ### Out of scope for this step
 
-- **No ladder, progression or scoring** — that is Step 7.
-- **No art swap** — Step 8, and it is gated on artwork rather than code.
-- **No engine or win-detection changes.** X's still have no effect on winning; a
-  drag that fills the whole board with X's must not win it (there is already a
-  test for that shape — keep it green).
+- **No art swap** — Step 8, gated on artwork rather than code.
+- **No new input features.** Tap, drag-to-sweep and auto-X are done; don't
+  revisit them.
+- **No engine changes.** Levels are `{size, seed}` pairs over the existing
+  generator.
 
 ### Visible in Expo Go when this lands
 
-**Swipe a finger across a row of cells and watch them all become ✕ in one
-motion**, then swipe back over them to clear them, with a single Undo taking back
-the whole sweep. Turn the auto-X toggle on, place a mushroom, and watch its row,
-column, region and neighbors fill themselves in.
-
-### ⚠️ This step cannot be signed off in a browser
-
-Playwright can fake a mouse drag on the web build and you **should** add that —
-it will catch the geometry being wrong. But whether the gesture fights the
-ScrollView, whether a tap-with-jitter accidentally paints, and whether the stroke
-feels responsive under a real thumb are all device questions. **Get an Expo Go
-pass from the operator before this merges**, and say so in the PR.
+A **level list** you progress through, with completed levels marked, and a score
+or rating when you solve one. The hub's Fungiku card says where you are in the
+ladder.
 
 ## Open questions for the operator (carry these forward)
 
@@ -208,6 +191,20 @@ pass from the operator before this merges**, and say so in the PR.
    *(Step 6 concern.)*
 
 ### Noted in passing, for a later step
+
+- **Dragging on the board never scrolls the page.** The stroke claims the
+  responder and refuses to hand it back mid-sweep, which is what makes painting
+  reliable — but it means the board is not a place you can scroll from. Drag
+  outside the board instead. Fine on a tall phone; revisit if the screen grows.
+- **Auto rule-out marks are ordinary X marks once placed.** Cycling the mushroom
+  away leaves them behind; undo takes the placement and its marks back together.
+  Retracting them on removal would need per-mark provenance, which is ambiguous
+  as soon as two mushrooms rule out the same cell. Revisit only if it annoys the
+  operator in practice.
+- **`accessibilityState.checked` does not reach `aria-checked` on web.** The
+  auto rule-out toggle names its state in its `accessibilityLabel`
+  ("Auto rule-out, on") because that is the only place a screen reader or a test
+  can read it reliably. Worth remembering for any future toggle.
 
 - **Fungiku's undo history is not persisted** — only `size` + `seed` + `marks`
   are. Leaving for the hub and returning gives you your board back with an empty
@@ -241,4 +238,5 @@ pass from the operator before this merges**, and say so in the PR.
 | 2 | Replan + engine + preview + hub design | merged to `epic/fungiku` (#69, `fecb271`) |
 | 3 | Game shell + hub — router, registry, `HubScreen`, `FungikuScreen`, back-to-hub | merged to `epic/fungiku` (#70, `a9caf92`) |
 | 4 | Fungiku state — reducer, tap-to-cycle marks, live conflicts, win, undo/redo, own-key persistence | merged to `epic/fungiku` (#70, `a9caf92`) |
-| 5 | Board UI — palette fix with a tested ΔE floor, themed + responsive board, animated win | PR to `epic/fungiku` |
+| 5 | Board UI — palette fix with a tested ΔE floor, themed + responsive board, animated win | merged to `epic/fungiku` (#71, `905bfa2`) |
+| 6 | Input ergonomics — drag to sweep X's, auto rule-out assist | PR to `epic/fungiku` |

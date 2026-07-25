@@ -260,7 +260,7 @@ the step's real acceptance test, alongside its automated checks.
 | 3 | ~~**Game shell + hub**~~ ✅ (§6) — screen router, game registry, hub screen, back-to-hub, Fungiku's own screen | **The hub**: app opens on a home screen with **Sudoku and Fungiku side by side as peers**; Fungiku is a real destination, not a button in Sudoku's menu |
 | 4 | ~~**State**~~ ✅ — reducer + context: mark cycling, live conflict validation, win detection, undo/redo, persistence | The Fungiku screen becomes **playable**: tap-to-cycle X/🍄, live conflict highlighting, `🍄 X/N` counter, win banner |
 | 5 | ~~**Board UI**~~ ✅ — the real board component: region-boundary borders, themed styling, win flow, **palette tuning** | The **finished board**, styled to the app's themes, replacing the preview's rough grid |
-| 6 | **Input ergonomics & assists** (§2) — **drag to sweep X's**, then optional auto-X | **Swipe a finger across cells to rule them out**; assist toggle |
+| 6 | ~~**Input ergonomics & assists**~~ ✅ (§2) — **drag to sweep X's**, optional auto-X | **Swipe a finger across cells to rule them out**; assist toggle |
 | 7 | **Ladder & scoring** — training ladder, size progression, scoring | Level progression and a score |
 | 8 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
 

@@ -435,3 +435,41 @@ export function countMushrooms(marks) {
 export function createEmptyMarks(size) {
   return new Array(size * size).fill(MARKS.EMPTY);
 }
+
+/**
+ * Every cell a mushroom at `cell` rules out: its whole row, its whole column,
+ * its whole color region, and the eight cells touching it (plan §1). `cell`
+ * itself is not included.
+ *
+ * This lives in the engine because it is a restatement of the rules, and the
+ * rules exist in exactly one place. It powers the optional auto-X assist
+ * (plan §2), which is precisely "mark everything this placement forbids".
+ *
+ * @returns {Set<number>} flat indices
+ */
+export function cellsRuledOutBy(cell, regions, size) {
+  const out = new Set();
+  const row = Math.floor(cell / size);
+  const col = cell % size;
+  const region = regions[cell];
+
+  for (let i = 0; i < size; i++) {
+    out.add(idx(row, i, size)); // rule 1: one per row
+    out.add(idx(i, col, size)); // rule 2: one per column
+  }
+
+  // rule 3: one per region
+  for (let i = 0; i < regions.length; i++) {
+    if (regions[i] === region) out.add(i);
+  }
+
+  // rule 4: no two mushrooms touch, diagonals included
+  for (let r = row - 1; r <= row + 1; r++) {
+    for (let c = col - 1; c <= col + 1; c++) {
+      if (r >= 0 && c >= 0 && r < size && c < size) out.add(idx(r, c, size));
+    }
+  }
+
+  out.delete(cell);
+  return out;
+}

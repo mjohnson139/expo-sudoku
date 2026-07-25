@@ -35,7 +35,12 @@ export const loadFungikuState = async () => {
 
     // Rebuilding through buildPuzzleState also validates the save: a `marks`
     // array of the wrong length for this size is discarded, not rendered.
-    return buildPuzzleState({ size: saved.size, seed: saved.seed, marks: saved.marks });
+    return buildPuzzleState({
+      size: saved.size,
+      seed: saved.seed,
+      marks: saved.marks,
+      autoX: saved.autoX,
+    });
   } catch (error) {
     console.error('Error loading Fungiku state:', error);
     return null;
@@ -52,6 +57,9 @@ export const saveFungikuState = debounce(async (state) => {
         size: state.size,
         seed: state.seed,
         marks: state.marks,
+        // The assist preference persists; `strokeOpen` deliberately does not —
+        // it is transient gesture bookkeeping.
+        autoX: !!state.autoX,
       })
     );
   } catch (error) {
