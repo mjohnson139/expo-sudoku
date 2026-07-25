@@ -7,7 +7,33 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test": "jest"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/__tests__/**/*.test.js"
+    ],
+    "transform": {
+      "^.+\\.js$": [
+        "babel-jest",
+        {
+          "presets": [
+            [
+              "@babel/preset-env",
+              {
+                "targets": {
+                  "node": "current"
+                }
+              }
+            ]
+          ],
+          "babelrc": false,
+          "configFile": false
+        }
+      ]
+    }
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.3.0",
@@ -29,7 +55,10 @@
     "sudoku-gen": "^1.0.2"
   },
   "devDependencies": {
-    "@babel/core": "^7.29.0"
+    "@babel/core": "^7.29.0",
+    "@babel/preset-env": "^7.29.7",
+    "babel-jest": "^29.7.0",
+    "jest": "~29.7.0"
   },
   "private": true
 }
