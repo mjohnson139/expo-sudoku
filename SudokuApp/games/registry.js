@@ -1,6 +1,7 @@
 import GameScreen from '../screens/GameScreen';
 import FungikuScreen from './fungiku/FungikuScreen';
 import { readSudokuProgress } from '../utils/storage';
+import { readFungikuProgress } from './fungiku/storage';
 
 /**
  * The game registry — the single list of games the hub knows about
@@ -42,9 +43,7 @@ export const GAMES = [
     icon: 'mushroom',
     accent: '#a0522d',
     Screen: FungikuScreen,
-    // Nothing to resume yet: Fungiku is a read-only engine preview until the
-    // game loop lands. It gets a readProgress once it has saved state.
-    readProgress: null,
+    readProgress: readFungikuProgress,
   },
 ];
 

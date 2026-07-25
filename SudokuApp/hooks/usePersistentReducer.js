@@ -4,53 +4,70 @@ import { loadState, saveState } from '../utils/storage';
 
 /**
  * Custom hook that extends useReducer with persistence capabilities
- * 
+ *
  * This hook:
- * 1. Hydrates the initial state from AsyncStorage
- * 2. Saves state changes to AsyncStorage (debounced)
+ * 1. Hydrates the initial state from storage
+ * 2. Saves state changes to storage (debounced)
  * 3. Handles app state changes to ensure state is saved when app backgrounds
- * 
+ * 4. Flushes any pending write when it unmounts
+ *
+ * Persistence is injected so each game keeps its own storage key and its own
+ * idea of what is worth saving (docs/fungiku-plan.md §6). Sudoku's loaders are
+ * the default, so its call site reads exactly as it did before Fungiku existed.
+ *
  * @param {Function} reducer - The reducer function
  * @param {Object} initialState - The initial state
  * @param {string} actionType - The action type to dispatch when restoring state
+ * @param {Object} [persistence] - `{ load, save }`; `save` needs a `.flush()`
  * @returns {[Object, Function, boolean]} - [state, dispatch, hydrated]
  */
-const usePersistentReducer = (reducer, initialState, actionType) => {
+const usePersistentReducer = (
+  reducer,
+  initialState,
+  actionType,
+  persistence = { load: loadState, save: saveState }
+) => {
   // Track if the state has been hydrated from storage
   const [hydrated, setHydrated] = useState(false);
-  
+
   // Use a ref to hold the actual reducer to avoid unnecessary rerenders
   const reducerRef = useRef(reducer);
-  
+
+  // Persistence functions are read through a ref so passing a fresh object
+  // literal on every render can't retrigger hydration or resubscribe listeners.
+  const persistenceRef = useRef(persistence);
+  persistenceRef.current = persistence;
+
   // Create a wrapper reducer that will save state changes
   const persistentReducer = (state, action) => {
     // Call the original reducer
     const newState = reducerRef.current(state, action);
-    
+
     // Save the new state (debounced in the storage utility)
-    saveState(newState);
-    
+    persistenceRef.current.save(newState);
+
     return newState;
   };
-  
+
   // Initialize with the provided initial state
   const [state, dispatch] = useReducer(persistentReducer, initialState);
-  
+
   // Set up app state listener for background saves
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'background' || nextAppState === 'inactive') {
         // Force an immediate save when app is backgrounded
-        saveState.flush && saveState.flush();
-        saveState(state);
+        const { save } = persistenceRef.current;
+        save.flush && save.flush();
+        save(state);
       }
     });
-    
+
     return () => {
       subscription.remove();
     };
   }, [state]);
-  
+
   // Flush any pending write when the provider unmounts.
   //
   // Writes are debounced by 500ms, and a game screen unmounts as soon as the
@@ -59,8 +76,9 @@ const usePersistentReducer = (reducer, initialState, actionType) => {
   // state has to reach storage before the screen goes away.
   useEffect(() => {
     return () => {
-      if (saveState.flush) {
-        saveState.flush();
+      const { save } = persistenceRef.current;
+      if (save.flush) {
+        save.flush();
       }
     };
   }, []);
@@ -69,16 +87,16 @@ const usePersistentReducer = (reducer, initialState, actionType) => {
   useEffect(() => {
     const hydrateState = async () => {
       try {
-        const savedState = await loadState();
-        
+        const savedState = await persistenceRef.current.load();
+
         if (savedState !== null) {
           // Dispatch the restore action with the saved state
-          dispatch({ 
-            type: actionType, 
-            payload: savedState 
+          dispatch({
+            type: actionType,
+            payload: savedState,
           });
         }
-        
+
         // Mark as hydrated whether we restored state or not
         setHydrated(true);
       } catch (error) {
@@ -86,10 +104,10 @@ const usePersistentReducer = (reducer, initialState, actionType) => {
         setHydrated(true); // Still mark as hydrated to prevent blocking UI
       }
     };
-    
+
     hydrateState();
   }, [actionType]);
-  
+
   return [state, dispatch, hydrated];
 };
 

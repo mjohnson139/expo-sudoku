@@ -1,45 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { describeSudokuProgress } from './gameProgress';
+import debounce from './debounce';
 
 // Constants
 // One key per game, so the modes never clobber each other's saved state
-// (docs/fungiku-plan.md §6). Fungiku gets its own key when it becomes playable.
+// (docs/fungiku-plan.md §6). Fungiku's lives in games/fungiku/storage.js.
 export const STORAGE_KEY = '@SudokuGame';
 export const STORAGE_VERSION = 2; // Incremented to handle addition of gameCompleted flag
-
-/**
- * Debounce function to limit the frequency of calls
- * @param {Function} func - The function to debounce
- * @param {number} wait - The wait time in milliseconds
- * @returns {Function} - The debounced function
- */
-const debounce = (func, wait) => {
-  let timeout = null;
-  let lastArgs;
-  let lastThis;
-
-  const invoke = () => {
-    const result = func.apply(lastThis, lastArgs);
-    timeout = null;
-    return result;
-  };
-
-  const debounced = function (...args) {
-    lastArgs = args;
-    lastThis = this;
-    clearTimeout(timeout);
-    timeout = setTimeout(invoke, wait);
-  };
-
-  debounced.flush = () => {
-    if (timeout) {
-      clearTimeout(timeout);
-      return invoke();
-    }
-  };
-
-  return debounced;
-};
 
 /**
  * Remove transient UI-only state fields before saving

@@ -1,4 +1,5 @@
-import { describeSudokuProgress, formatElapsed } from '../gameProgress';
+import { describeFungikuProgress, describeSudokuProgress, formatElapsed } from '../gameProgress';
+import { MARKS, createEmptyMarks } from '../../games/fungiku/engine';
 
 describe('formatElapsed', () => {
   it('formats seconds as mm:ss', () => {
@@ -60,5 +61,48 @@ describe('describeSudokuProgress', () => {
 
   it('omits the difficulty rather than showing an empty separator', () => {
     expect(describeSudokuProgress({ gameStarted: true, elapsedSeconds: 30 }).label).toBe('00:30');
+  });
+});
+
+describe('describeFungikuProgress', () => {
+  const saveWith = (mutate) => {
+    const marks = createEmptyMarks(5);
+    mutate(marks);
+    return { size: 5, seed: 3, marks };
+  };
+
+  it('summarizes a board in progress', () => {
+    const saved = saveWith((marks) => {
+      marks[0] = MARKS.MUSHROOM;
+      marks[7] = MARKS.MUSHROOM;
+      marks[9] = MARKS.X;
+    });
+
+    expect(describeFungikuProgress(saved)).toEqual({
+      label: '5×5',
+      detail: '2 of 5 placed',
+    });
+  });
+
+  it('counts a board marked only with Xs as worth continuing', () => {
+    const saved = saveWith((marks) => {
+      marks[4] = MARKS.X;
+    });
+
+    expect(describeFungikuProgress(saved)).toEqual({
+      label: '5×5',
+      detail: '0 of 5 placed',
+    });
+  });
+
+  it('returns null for an untouched board', () => {
+    expect(describeFungikuProgress(saveWith(() => {}))).toBeNull();
+  });
+
+  it('returns null for a missing or malformed save', () => {
+    expect(describeFungikuProgress(null)).toBeNull();
+    expect(describeFungikuProgress(undefined)).toBeNull();
+    expect(describeFungikuProgress({ size: 5 })).toBeNull();
+    expect(describeFungikuProgress({ marks: [MARKS.MUSHROOM] })).toBeNull();
   });
 });

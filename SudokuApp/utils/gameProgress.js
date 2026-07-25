@@ -5,6 +5,7 @@
  * part of the hub's progress logic worth unit-testing, and the test runner is a
  * plain node environment (see package.json's jest config).
  */
+import { MARKS } from '../games/fungiku/engine';
 
 const TOTAL_SUDOKU_CELLS = 81;
 
@@ -43,4 +44,30 @@ export const describeSudokuProgress = (saved) => {
   };
 };
 
-export default { describeSudokuProgress, formatElapsed };
+/**
+ * Summarize a saved Fungiku board for a hub card.
+ *
+ * Takes the raw saved blob (`{ size, seed, marks }`) rather than a rebuilt
+ * state, so the hub never has to run the generator just to draw a badge.
+ *
+ * @param {Object|null} saved
+ * @returns {{label: string, detail: string}|null} null when the board is
+ *   untouched — an empty grid is not something to continue.
+ */
+export const describeFungikuProgress = (saved) => {
+  if (!saved || !Number.isFinite(saved.size) || !Array.isArray(saved.marks)) {
+    return null;
+  }
+
+  const touched = saved.marks.some((mark) => mark && mark !== MARKS.EMPTY);
+  if (!touched) return null;
+
+  const placed = saved.marks.filter((mark) => mark === MARKS.MUSHROOM).length;
+
+  return {
+    label: `${saved.size}×${saved.size}`,
+    detail: `${placed} of ${saved.size} placed`,
+  };
+};
+
+export default { describeSudokuProgress, describeFungikuProgress, formatElapsed };

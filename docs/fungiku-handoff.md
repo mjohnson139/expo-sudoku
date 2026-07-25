@@ -92,105 +92,103 @@ operator to test in Expo Go.**
 
 ---
 
-## Next step: **Step 4 — Fungiku state: make the board playable**
+## Next step: **Step 5 — the real board UI**
 
-Branch: **`feature/fungiku-state`** off `epic/fungiku`.
-Plan: **§1 (rules)**, **§2 (input model)**, **§9 (edge cases)**, plus the §7 table
-row for step 4.
+Branch: **`feature/fungiku-board`** off `epic/fungiku`.
+Plan: **§3 (the board)**, **§5 (accessibility)**, plus the §7 table row for step 5.
 
 ### Why this step exists
 
-Fungiku now has a real screen off the hub, but the thing on it is still a
-**read-only engine preview** — you can look at generated boards and reseed them,
-and that is all. This step is where Fungiku becomes **a game you can play**: tap
-cells to place mushrooms, see conflicts as you go, and win.
+Fungiku is playable, but it is playable on **the engine preview's rough grid**:
+flat pastel fills, hairline borders, a plain green banner for a win, and one
+hardcoded 320px board that ignores the screen it is on. Sudoku's board is themed,
+responsive and animated; Fungiku's is not. This step makes the board look like
+part of the same app.
+
+**It is also where the palette problem gets fixed** — see below. That is the one
+item here with a real correctness angle, not just polish.
 
 ### Read first
 
-- `SudokuApp/games/fungiku/engine.js` — **the rules already live here.** Exports
-  `MARKS`, `nextMark`, `createEmptyMarks`, `findConflicts`, `isSolved`,
-  `countMushrooms`, `generate({ size, seed })`, `MIN_SIZE`. Read the whole file
-  before writing state code; you should not need to write a single
-  row/column/region/adjacency check yourself.
-- `SudokuApp/games/fungiku/__tests__/engine.test.js` — how the engine is already
-  covered, and the style to extend for the reducer.
-- `SudokuApp/games/fungiku/FungikuScreen.js` — the shell you build into. Its
-  body is `<FungikuPreview theme={theme} />` and that is the line that changes.
-- `SudokuApp/games/fungiku/FungikuPreview.js` — the read-only scaffolding. Its
-  board rendering (region-boundary borders, `getRegionColor`) is a fine starting
-  point to lift; Step 5 replaces it with the real board component.
-- `SudokuApp/contexts/GameContext.js` + `hooks/usePersistentReducer.js` — the
-  **pattern** to follow for Fungiku's own context: a reducer, a provider, and
-  persistence through `usePersistentReducer`. Read it as a model, don't edit it.
-- `SudokuApp/utils/storage.js` — Sudoku's persistence. Note it is written around
-  a **single hardcoded key** (`STORAGE_KEY = '@SudokuGame'`) and a Sudoku-shaped
-  `stripTransient`; Fungiku needs its own key and its own transient list, so
-  expect to generalize this or add a Fungiku sibling. **Keep the two games'
-  keys separate** — that is a §6 requirement.
-- `SudokuApp/games/registry.js` — Fungiku's entry has `readProgress: null`. Once
-  Fungiku persists state, give it a real `readProgress` so its hub card gets the
-  same **Continue** badge Sudoku has. `utils/gameProgress.js` is where the pure,
-  unit-tested progress-summary logic lives.
+- `SudokuApp/games/fungiku/FungikuBoard.js` — what you are replacing. Note what
+  it already gets right and must keep: region-boundary borders (thick edge
+  wherever the neighbor's region differs), the conflict ring *plus* red glyph so
+  the signal is not color-only, and per-cell accessibility labels of the form
+  `Row 1, column 4, orange region, mushroom, conflict`. **Do not regress those
+  labels — the Playwright drive-through addresses cells through them.**
+- `SudokuApp/utils/symbolSets.js` — `REGION_COLORS` / `getRegionColor` and the
+  `mixWithWhite(color, 0.62)` that generates the pastel fills. **This is the
+  palette bug's home.** Each entry also carries a `corners` shape cue that the
+  Fungiku board does not use yet.
+- `SudokuApp/components/Grid.js` + `components/Cell.js` — how Sudoku's board
+  handles theming, selection and sizing. The reference for what "themed" means
+  here; don't refactor them.
+- `SudokuApp/screens/GameScreen.js` — `useGridContainerSize()` is the existing
+  responsive-sizing hook (web gets `min(width,height) * 0.7` clamped 270–450,
+  native gets a fixed 324). Fungiku's board should size the same way instead of
+  its own `BOARD_MAX = 320`.
+- `SudokuApp/utils/themes.js` — the seven themes a Fungiku board has to look
+  right in. `classic`/`pastel` are the easy ones; **check `dark`** — today's
+  pastel fills on a dark background are the untested case.
+- `SudokuApp/hooks/useAppTheme.js` — reads the theme name out of *Sudoku's* saved
+  state as a stopgap. Promoting this to a real app-level theme owned by the shell
+  belongs in this step (see scope 5).
 
 ### Scope — ONLY this
 
-1. **`games/fungiku/reducer.js` (or `FungikuContext.js`)** — Fungiku's own state:
-   the generated puzzle (regions + solution), the player's `marks`, size, seed,
-   derived conflicts, win flag, and undo/redo.
-2. **Tap-to-cycle input** — `empty → X → 🍄 → empty` via `nextMark`. X is an aid
-   only: it must never affect win detection.
-3. **Live conflict highlighting** — recompute via `findConflicts` on every
-   change. Conflicts are shown, **not blocked**; the player fixes them.
-4. **Win detection** via `isSolved`, plus the **`🍄 X/N` counter** in the header
-   (`countMushrooms`).
-5. **Undo/redo** over mark changes.
-6. **Persistence** under Fungiku's own storage key, so a Fungiku game survives
-   leaving for the hub and relaunching — and a real `readProgress` in the
-   registry so the hub card shows Continue. **Store `size` + `seed` + `marks`
-   only** and rebuild the puzzle with `generate({ size, seed })` on restore:
-   generation is deterministic, so persisting regions and the solution would just
-   be a second, staler copy of the truth.
-7. **Extend the Jest suite**: reducer behavior (cycling, undo/redo, win, X's not
-   counting), and the progress summary if you add one for Fungiku.
+1. **🎨 Palette tuning pass — do this first, it is the real bug.** At 7×7 and 8×8
+   the pastel fills collide: **sky blue vs. blue** are nearly indistinguishable,
+   and **orange vs. yellow** are close behind. Okabe–Ito is colorblind-safe at
+   full saturation, but `mixWithWhite(…, 0.62)` compresses the hues toward a
+   common light gray. Fix it properly — vary lightness as well as hue so adjacent
+   regions differ on two channels, and **consider using the `corners` shape cue
+   that already exists in `symbolSets.js`** so identity never rests on color
+   alone. Verify at 8×8 across several seeds, not just one.
+2. **The real board component** — themed cell fills, borders and region outlines
+   drawn from `utils/themes.js` rather than hardcoded `#33333355`, and a board
+   that sizes to the screen via the same approach as `useGridContainerSize()`.
+3. **The win flow** — today a win is a static green banner. Give it the app's
+   motion language (Sudoku has `WinModal` and a score animation to look at) and
+   decide whether Fungiku wins in a modal or in place. Note the small bug: the
+   counter hint still reads "Tap a cell: empty → ✕ → 🍄" after a win.
+4. **Accessibility beyond the labels** — the labels are already good; add the
+   things a themed board can lose: adequate contrast for the X glyph and the
+   mushroom against every theme's fills, and a non-color cue for conflict that
+   survives a dark theme.
+5. **App-level theme** — replace `useAppTheme`'s read of Sudoku's saved state
+   with a theme the shell owns, so the hub and Fungiku aren't inheriting a
+   Sudoku implementation detail. Sudoku keeps its own `CHANGE_THEME` behavior;
+   this is about where the *shell's* theme comes from.
 
 ### Behaviors that are easy to get wrong
 
-- **X's are cosmetic.** `isSolved` must be reached with X's anywhere on the
-  board, and a board full of X's and no mushrooms is not a win.
-- **Conflicts don't block.** Placing a mushroom that conflicts must succeed and
-  simply highlight — this is how the player reasons.
-- **Win is N mushrooms placed legally, not a filled grid** (plan §1). There is no
-  "every cell filled" step; don't reach for Sudoku's `filledCount` model.
-- **Undo/redo must not desync derived state** — conflicts and the counter are
-  derived from `marks`, so recompute rather than storing and rewinding them
-  separately.
-- **Don't let Fungiku's save clobber Sudoku's.** Separate keys, separate
-  transient-field lists. Verify by starting both games and relaunching.
-- **The engine owns the rules.** If you hand-write an adjacency or region check
-  outside `engine.js`, that's a bug.
+- **Region outlines are the board's structure** (plan §3). They replace Sudoku's
+  3×3 box lines and are how the player sees the regions at all — if the themed
+  restyle makes them subtle, the puzzle becomes unreadable.
+- **Don't let theming swallow the conflict signal.** Conflict has to stay obvious
+  on a pastel fill *and* on a dark theme.
+- **Keep the accessibility labels stable.** They are the test seam.
+- **Don't touch the engine or the reducer.** This step is rendering. If a rule
+  question comes up, the answer is already in `engine.js`.
+- **8×8 is the stress case** for both palette and layout — a 320px board at 8×8
+  gives 40px cells; check the mushroom glyph and X are still legible.
 
 ### Out of scope for this step
 
-- **No finished board UI.** Region-boundary polish, themed cell styling, the win
-  flow/animation and the palette tuning pass are **Step 5**. Getting it playable
-  on top of the preview's rough grid is the goal here.
-- **No palette fixing.** At 8 regions sky blue/blue read similarly as pastel
-  fills (orange/yellow too). Still logged against **Step 5**.
-- **No assists, ladder or scoring** — that is Step 6, including the auto-X
-  toggle (§8 #5).
-- **No Sudoku changes.** Fungiku gets its own reducer and context; Sudoku's are
-  a reference, not a shared dependency to refactor.
+- **No assists, ladder or scoring** — auto-X, level progression and scoring are
+  Step 6, including the §8 #5 assist-default question.
+- **No art swap** — static mushroom PNGs are the floating Step 7.
+- **No new game logic.** Marks, conflicts, win detection, undo/redo and
+  persistence all landed in Step 4 and are covered by 107 passing tests.
+- **No Sudoku restyling.** Read `Grid`/`Cell` for reference; leave them alone.
 
 ### Visible in Expo Go when this lands
 
-Open Fungiku from the hub and **play it**: tap a cell through
-empty → X → 🍄, watch conflicting mushrooms highlight, watch the `🍄 X/N`
-counter climb, and **win a 5×5**. Leaving for the hub and coming back must find
-the board where you left it, with a Continue badge on the Fungiku card. Verify in
-a browser end to end (a 5×5 is small enough to solve by clicking through), no
-page errors, and screenshot both a mid-game conflict state and the win.
-
----
+A Fungiku board that looks like it belongs in the app: themed to match whatever
+theme is active, sized to the screen, with **eight visually distinct regions at
+8×8** and a win that feels like a win. Verify in a browser across at least
+`classic` and `dark`, at 5×5 and 8×8, no page errors, and screenshot 8×8 in two
+themes so the palette fix is reviewable side by side.
 
 ## Open questions for the operator (carry these forward)
 
@@ -212,6 +210,12 @@ page errors, and screenshot both a mid-game conflict state and the win.
 
 ### Noted in passing, for a later step
 
+- **Fungiku's undo history is not persisted** — only `size` + `seed` + `marks`
+  are. Leaving for the hub and returning gives you your board back with an empty
+  undo stack. Deliberate (the stacks are mark snapshots and would bloat the save);
+  revisit only if it bothers the operator.
+- **The counter hint doesn't change after a win** — it still reads "Tap a cell:
+  empty → ✕ → 🍄". Folded into Step 5's win flow.
 - **Quitting a Sudoku game doesn't clear its save.** `saveState` skips writing
   when `gameStarted` is false, so the previous snapshot survives "New Game" until
   a difficulty is picked. Pre-existing, and self-consistent (the hub's Continue
@@ -221,8 +225,8 @@ page errors, and screenshot both a mid-game conflict state and the win.
   restored game is a paused game. Correct, but it means the header (and the way
   back home) is behind one Resume tap.
 - **`useAppTheme` reads the theme out of Sudoku's saved state** so the hub and
-  Fungiku follow the player's choice. A genuinely app-level theme owned by the
-  shell is the right home for this once Fungiku has real UI to theme (Step 5).
+  Fungiku follow the player's choice. Promoting this to a shell-owned theme is
+  now **scope item 5 of Step 5**.
 
 ## Steps already done
 
@@ -233,3 +237,4 @@ page errors, and screenshot both a mid-game conflict state and the win.
 | — | ~~Symbol-set toggle on the Sudoku board~~ | closed unmerged (#68) — superseded by the replan |
 | 2 | Replan + engine + preview + hub design | merged to `epic/fungiku` (#69, `fecb271`) |
 | 3 | Game shell + hub — router, registry, `HubScreen`, `FungikuScreen`, back-to-hub | PR to `epic/fungiku` |
+| 4 | Fungiku state — reducer, tap-to-cycle marks, live conflicts, win, undo/redo, own-key persistence | PR to `epic/fungiku` |

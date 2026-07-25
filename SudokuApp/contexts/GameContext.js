@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef, useCallback } from
 import SUDOKU_THEMES from '../utils/themes';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
 import usePersistentReducer from '../hooks/usePersistentReducer';
+import { loadState, saveState } from '../utils/storage';
 import { debugFillBoard as debugFillBoardUtil, debugCheatMode as debugCheatModeUtil } from '../utils/debugUtils';
 import { calculateAllNotes } from '../utils/notesHelper';
 
@@ -884,12 +885,18 @@ function gameReducer(state, action) {
 // Create context
 const GameContext = createContext();
 
+// Stable object identity so the persistence hook never sees a "new" adapter.
+const SUDOKU_PERSISTENCE = { load: loadState, save: saveState };
+
 // Game provider component
 export const GameProvider = ({ children }) => {
   const [state, dispatch, hydrated] = usePersistentReducer(
     gameReducer,
     initialState,
-    ACTIONS.RESTORE_SAVED_GAME
+    ACTIONS.RESTORE_SAVED_GAME,
+    // Sudoku's own storage key and transient-field rules; Fungiku passes its
+    // own pair, so the two games never write over each other (plan §6).
+    SUDOKU_PERSISTENCE
   );
   const timerRef = useRef(null);
   
