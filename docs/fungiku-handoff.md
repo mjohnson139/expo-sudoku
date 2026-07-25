@@ -92,126 +92,130 @@ operator to test in Expo Go.**
 
 ---
 
-## Next step: **Step 8 — bigger boards, up to 12×12**
+## Next step: **Step 8 — bigger boards, up to 10×10**
 
 Branch: **`feature/fungiku-big-boards`** off `epic/fungiku`.
-Plan: **§12** end to end (it is all new, written 2026-07-25), plus the §7 note
-"Why bigger boards come before the ladder".
+Plan: **§12** end to end (all new, 2026-07-25), plus the §7 note "Why bigger
+boards come before the ladder".
 
 ### Why this step exists
 
-The operator asked for the ladder to reach **12×12**. That answers half of §8 #4,
-and it is not a table entry — it is an engineering problem. Two things built for
-boards of 5–8 do not survive the jump, and one of them is measured to be
-catastrophic:
+The ladder needs a ceiling, and it is now decided: **10×10**. The operator asked
+for 12×12 first; measuring the generator showed a 12×12 takes **7.3 seconds
+median and 41.8 seconds worst case**, synchronously on the main thread, so the
+target moved down to the last affordable size. Cost per size goes off a cliff:
 
-- **Generation is synchronous and superlinear.** Twelve seeds per size on this
-  machine: 8×8 median **6 ms**, 10×10 **284 ms**, 11×11 **2.5 s**, 12×12
-  **7.3 s median and 41.8 s worst case**. Nothing *failed* at any size — the
-  boards are correct — but tapping "New puzzle" on a 12×12 freezes the app for
-  seven seconds typically. That reads as a crash. Full table in §12.1.
-- **The palette has nine colours and wraps.** `getRegionColor` does
-  `regionId % palette.length`, so at 10, 11 and 12 regions **two different
-  regions render identically**. Region colour is the only way the player sees
-  region boundaries, so that is a correctness bug at those sizes, not a cosmetic
-  one. §12.2 has the measurement showing 12 well-chosen fills would actually be
-  *better* separated (ΔE 21.80) than the 9 that ship today (17.11).
+| Size | median | worst |
+|------|--------|-------|
+| 8×8 | 6 ms | 25 ms |
+| 10×10 | **284 ms** | **584 ms** |
+| 11×11 | 2,536 ms | 5,096 ms |
+| 12×12 | 7,286 ms | 41,830 ms |
 
-The ladder (now Step 9) has to know its own ceiling, and one candidate fix here —
-baking level layouts as data — is itself a ladder design decision. Doing sizes
-first avoids building a 5–8 ladder and then reworking it.
+**Read that as good news for this step.** The hard engineering problem — making
+the uniqueness loop cheap enough for 12×12 — is off the table. What remains is
+small and concrete:
+
+- **The palette wraps at 9.** `getRegionColor` does `regionId % palette.length`
+  over nine entries, so **at 10 regions, region 9 renders identically to region
+  0**. Region colour is the only way the player sees region boundaries, so that is
+  a correctness bug at the new top size. §12.2 measured that 10 well-chosen fills
+  reach worst-pair ΔE 23.78 — *better* separated than the 9 shipping today at
+  17.11 — so this is a one-colour problem with headroom.
+- **There is no upper bound at all.** `MIN_SIZE = 5` exists; `generate()` accepts
+  size 20 and never returns.
+- **Cells get to 32 px** at 10×10 inside the fixed 324pt native board, and several
+  constants were tuned against 5×5.
 
 ### Read first
 
-- **§12 of the plan.** It has the generation timings, the palette measurement, the
-  27-pixel legibility list, and four candidate approaches to the cost ranked
-  cheapest-first. Do not re-derive any of it.
-- `SudokuApp/games/fungiku/engine.js` — `generate()` grows regions randomly and
-  then perturbs toward uniqueness (`findSolutions` → `breakSolution`, up to
-  `PERTURB_BUDGET` rounds). **The cost is in that loop, and §12.1 candidate #1 is
-  to profile it before optimizing**: whether it is the number of rounds or the
-  cost of each search changes the fix completely. `MIN_SIZE = 5` exists; there is
-  no upper bound, so size 20 is accepted and never returns.
-- `SudokuApp/utils/symbolSets.js` — `HUE_ORDER` + `LIGHT_TINTS`/`DARK_TINTS`
-  build both theme palettes; `getRegionColor` wraps. The `corners` shape cue in
-  this module is **defined but unused by the Fungiku board** — twelve regions is
-  where colour alone starts carrying too much, so this is the moment to add a
-  second channel.
+- **§12 of the plan.** Generation timings, the palette measurement, the
+  32-pixel legibility list, and (in §12.1) the four ranked approaches to
+  generation cost — kept for the day the ceiling might rise, **not work for this
+  step**. Do not re-derive any of it.
+- `SudokuApp/games/fungiku/engine.js` — `MIN_SIZE` and the perturbation loop
+  (`generate` → `findSolutions` → `breakSolution`, up to `PERTURB_BUDGET` rounds).
+  You are adding a bound here, not rewriting the loop.
+- `SudokuApp/utils/symbolSets.js` — `HUE_ORDER` + `LIGHT_TINTS`/`DARK_TINTS` build
+  both theme palettes; `getRegionColor` wraps. The `corners` shape cue in this
+  module is **defined but unused by the Fungiku board** — worth knowing the second
+  channel exists if the tenth colour proves hard to place.
 - `SudokuApp/utils/__tests__/symbolSets.test.js` — holds the ΔE 15 worst-pair
-  floor that the current palette clears at 17.11. Extending to 12 must keep it
-  green; §12.2 says that is achievable.
-- `SudokuApp/hooks/useBoardSize.js` — returns a fixed **324** on native, so a
-  12×12 cell is **27 px** (web's 450 gives 37 px). §12.3 lists what breaks at
-  that size — notably the mistake badge at `cell * 0.28` ≈ 7 px.
+  floor that today's palette clears at 17.11. Extending to 10 must keep it green;
+  §12.2 says that is comfortable.
+- `SudokuApp/hooks/useBoardSize.js` — fixed **324** on native, so a 10×10 cell is
+  **32 px** (web's 450 gives 45 px, which is why the browser will not show you the
+  problem).
 - `SudokuApp/games/fungiku/FungikuScreen.js` — where the size chips live. Four
-  chips become up to eight; that is a layout question, not just a data one.
+  chips become six; that is a layout question, not just a data one.
 
 ### Scope — ONLY this
 
-1. **Make 12×12 generate promptly, or cap honestly.** Profile the perturbation
-   loop first (§12.1 #1), then pick from #2–#4. Whatever the outcome, the app must
-   never block the main thread for seconds: a loading state around generation
-   (§12.1 #3) is a safety net worth having regardless of how fast it gets.
-   **If 12×12 cannot be made interactive, cap the ladder where it can be and say
-   so in the PR** — an honest 10×10 ceiling beats a 12×12 that freezes.
-2. **Add `MAX_SIZE = 12`** and reject above it, the same way sizes below 5 are
-   rejected today. Right now there is no upper bound at all.
-3. **Extend the palette to 12 distinguishable fills per theme**, derived the same
-   way §5's was — maximize the worst pairwise CIEDE2000 distance under the
-   lightness band. **Do not eyeball it, and do not stop at ΔE:** check the three
-   new hues under colourblind simulation (§12.2), because Okabe–Ito was chosen for
-   CVD safety and a hue picked purely to maximize ΔE for normal vision can collide
-   under deutan or protan.
-4. **Make `getRegionColor` stop wrapping silently.** Repeating a colour across two
-   regions must be impossible-by-construction or loud, not quiet.
-5. **A legibility pass at 27 px** (§12.3): mistake badge, conflict ring, region
-   borders, glyph size. Sizes tuned for 5×5 do not scale down by themselves.
-6. **Sizes reachable from the UI**, so the operator can actually play a 12×12 in
-   Expo Go.
-7. **Tests** — the palette floor extended to 12 entries, `MAX_SIZE` rejection, and
-   a generation test at the top size that would catch a regression to
-   multi-second cost. Keep it a bound with headroom, not a tight timing assert:
-   CI machines vary.
+1. **Add `MAX_SIZE = 10`** to the engine and reject above it, the same way sizes
+   below 5 are rejected today.
+2. **Add a 10th region colour per theme**, derived the same way §5's palette was —
+   maximize the worst pairwise CIEDE2000 distance under the lightness band. **Do
+   not eyeball it, and do not stop at ΔE:** check the new hue under colourblind
+   simulation (§12.2). Okabe–Ito was chosen for CVD survival, and one hue picked
+   purely to maximize ΔE for normal vision can still collide under deutan or
+   protan.
+3. **Make `getRegionColor` stop wrapping silently.** Two regions sharing a colour
+   must be impossible-by-construction or loud, not quiet — that is the bug class
+   this step is closing, and leaving the modulo in place just moves the boundary
+   to 11.
+4. **Sizes 9 and 10 reachable from the UI**, so the operator can actually play a
+   10×10 in Expo Go. Six chips need a layout that survives a narrow phone.
+5. **Confirm the generation hitch is acceptable at the top size** — 284 ms median,
+   584 ms worst, on the main thread. Either show a brief loading state or verify on
+   device that it is imperceptible. **Don't assume; a visible freeze on "New
+   puzzle" reads as a bug.**
+6. **A legibility pass at 32 px** (§12.3): mistake badge (`cell * 0.28` ≈ 9 px),
+   conflict ring, region borders, glyph size.
+7. **Tests** — the palette floor extended to 10 entries, `MAX_SIZE` rejection, and
+   a **generation-cost bound at the top size**. 10×10 sits one size below a
+   ten-times cliff, so a change that makes generation modestly slower would turn
+   the top size from *hitch* into *freeze* with no other symptom.
 
 ### Behaviors that are easy to get wrong
 
-- **Don't ship a size the app cannot generate promptly.** This is the one
-  requirement that outranks "support 12×12".
-- **A timing test on CI is a flake factory.** Assert a generous ceiling (or count
-  perturbation rounds instead of milliseconds) rather than a tight duration.
+- **A timing test on CI is a flake factory.** Assert a generous ceiling, or count
+  perturbation rounds instead of milliseconds — rounds are machine-independent,
+  which is what you actually want from a regression bound.
 - **Re-tune the palette with the same objective, never by hand.** The test floor
   exists precisely so a well-meaning hand-picked swatch can't quietly regress
   separation.
-- **ΔE is not colourblind safety.** They are different properties; twelve hues is
-  where that gap starts to matter.
-- **The board's measured origin.** If this step adds anything above the board (a
-  generation spinner, for instance), it must go into the deps of `FungikuBoard`'s
-  re-measure effect — currently `[hint, solved, measure]` — or the first tap after
-  it appears lands on the wrong cell. `onLayout` does not save you; see the note
+- **ΔE is not colourblind safety.** Different properties; one new hue is a small
+  risk, not no risk.
+- **The board's measured origin.** If this step adds anything above the board — a
+  generation spinner, for instance — it must go into the deps of `FungikuBoard`'s
+  re-measure effect, currently `[hint, solved, measure]`, or the first tap after it
+  appears lands on the wrong cell. `onLayout` will not save you; see the note
   below.
-- **Bigger boards mean smaller cells mean fatter fingers.** The existing tap
-  threshold (6 px before a tap becomes a stroke) was tuned against ~40 px cells.
-  At 27 px it may need revisiting — and that is a device question, not a browser
-  one.
+- **Smaller cells, same fingers.** The 6-pixel tap-vs-drag threshold was tuned
+  against roughly 40 px cells. At 32 px there is less room to press without
+  registering a stroke, and **that is a device question the browser cannot answer**
+  — web renders at 45 px, larger than native, so the browser is the wrong place to
+  judge any of §12.3.
 
 ### Out of scope for this step
 
-- **No ladder, no scoring** — Step 9. This step decides the ceiling the ladder
-  will use; it does not build progression. Research already gathered for that step
-  is parked in plan **§13** so it isn't lost.
+- **No generator re-engineering.** §12.1's four approaches exist for the day the
+  ceiling might rise past 10. At 10 the generator is fast enough; leave it alone
+  and spend the step on the palette, the bound, and legibility.
+- **No ladder, no scoring** — Step 9. This step fixes the ceiling the ladder will
+  use; it does not build progression. Research already gathered for that step is
+  parked in plan **§13** so it isn't lost.
 - **No art swap** — Step 10, gated on artwork rather than code.
-- **No hint-strength work.** §12.4 found the forced-move nudge is shallow (it
-  averages 1–2 deductions from an empty board at any size), which will be more
-  obvious on a 12×12. Real, and worth doing — but strengthening the propagator
-  with pigeonhole reasoning is its own change. Note it in the PR; don't smuggle it
-  in.
+- **No hint-strength work.** §12.4 found the forced-move nudge is shallow (2 of 10
+  deductions from an empty 10×10 board). Real, and worth doing — but strengthening
+  the propagator with pigeonhole reasoning is its own change. Note it in the PR;
+  don't smuggle it in.
 
 ### Visible in Expo Go when this lands
 
-**A playable 12×12** — twelve visibly different region colours, legible marks at
-27-pixel cells, and a "New puzzle" tap that either returns quickly or shows an
-honest loading state instead of freezing. If the ceiling ends up below 12, the
-largest size that *is* playable, with the reason in the PR.
+**A playable 10×10** — ten visibly different region colours with no repeat,
+legible marks at 32-pixel cells, and a "New puzzle" tap at the top size that
+doesn't read as a freeze.
 
 ## Open questions for the operator (carry these forward)
 
@@ -226,8 +230,9 @@ largest size that *is* playable, with the reason in the PR.
 3. ~~**Hub vs. resume on launch**~~ — built hub-first in Step 3: the app opens on
    the hub and the Sudoku card carries a *Continue* badge. Revisit only if the
    operator dislikes it on device.
-4. **Ladder shape** — **top end decided: 12×12** (operator, 2026-07-25; plan
-   §12). Still open: **is size a free choice or unlocked by progression?**
+4. **Ladder shape** — **top end decided: 10×10** (operator, 2026-07-25; plan
+   §12). 12×12 was asked for first and withdrawn once measured at 7.3 s to
+   generate. Still open: **is size a free choice or unlocked by progression?**
 5. ~~**Assist defaults**~~ — moot: the rule-out assist became a button you tap
    rather than a mode with a setting, so there is no default to choose. (§2)
 6. **How strong should hints go?** (§11) The ladder ends at *reveal a correct
