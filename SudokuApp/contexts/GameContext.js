@@ -3,6 +3,7 @@ import SUDOKU_THEMES from '../utils/themes';
 import { generateSudoku, isCorrectValue as checkCorrectValue } from '../utils/boardFactory';
 import usePersistentReducer from '../hooks/usePersistentReducer';
 import { loadState, saveState } from '../utils/storage';
+import { saveAppThemeName } from '../utils/appTheme';
 import { debugFillBoard as debugFillBoardUtil, debugCheatMode as debugCheatModeUtil } from '../utils/debugUtils';
 import { calculateAllNotes } from '../utils/notesHelper';
 
@@ -1018,11 +1019,16 @@ export const GameProvider = ({ children }) => {
     const currentIndex = themeKeys.indexOf(state.currentThemeName);
     const nextIndex = (currentIndex + 1) % themeKeys.length;
     const nextThemeName = themeKeys[nextIndex];
-    
+
     dispatch({
       type: ACTIONS.CHANGE_THEME,
       payload: nextThemeName,
     });
+
+    // The theme is an app-level preference, not a Sudoku one: write it through so
+    // the hub and Fungiku follow along (see utils/appTheme.js). Sudoku still
+    // renders from its own state, so this is additive.
+    saveAppThemeName(nextThemeName);
   };
   
   // Helper to calculate last score change (used for animations)

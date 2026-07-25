@@ -101,6 +101,47 @@ empty → X (eliminated) → 🍄 (mushroom) → empty
 
 No number pad. No 3×3 notes mini-grid. No digit feedback.
 
+### Drag to sweep X's across a run of cells (operator request, 2026-07-25)
+
+Tapping each cell to rule it out is the most repetitive thing about playing
+Fungiku: once you know a mushroom can't be anywhere in a row, a region edge or a
+mushroom's neighborhood, you want to **swipe a finger across those cells and have
+them all become X**, not tap eight times. This is the paint gesture every
+Star-Battle app has, and it is what makes X's cheap enough to actually use for
+reasoning.
+
+Behavior, so it stays predictable:
+
+- **Drag paints X, it does not cycle.** A tap keeps the full
+  `empty → X → 🍄 → empty` cycle; a drag only ever writes X. Cycling under a
+  moving finger would scatter mushrooms across the board.
+- **The first cell of the drag decides the whole stroke.** Starting on an empty
+  cell paints X; starting on an X **erases** back to empty (the same
+  paint/erase convention as a drawing app). Either way the mode is fixed for the
+  stroke, so dragging back over your own path doesn't flip cells twice.
+- **Mushrooms are never overwritten by a drag.** A stroke passing over a placed
+  mushroom skips it. Losing a deduced placement to a stray swipe would be the
+  worst possible failure here.
+- **One undo entry per stroke, not per cell.** The reducer already snapshots
+  `marks`, so a stroke is a single snapshot taken at gesture start — undo takes
+  back the whole sweep.
+- **Diagonal and fast strokes must fill every cell crossed**, not just the ones
+  a move event happened to land in.
+
+Two hazards worth knowing before writing the gesture:
+
+1. **`locationX`/`locationY` are unreliable on the new architecture** — in a
+   `PanResponder` they are relative to the touched *child* view, not the
+   responder. Resolve the cell from `pageX`/`pageY` minus the board's measured
+   origin, and re-measure at gesture grant rather than only on layout, because a
+   flex-centered board shifts when banners appear. (The sibling color-loop app
+   was bitten by exactly this on the SDK 54 upgrade, in both its games *and* a
+   slider.)
+2. **A drag gesture cannot be verified in simulation.** Playwright can fake a
+   mouse drag on the web build, and that is worth having, but touch feel — does
+   it fight the ScrollView, does it fire on a tap-with-jitter — is a device
+   question. This one needs an Expo Go pass before it merges.
+
 ## 3. The board
 
 - **Region color = cell background**, filling the whole cell (the reference is a
@@ -218,9 +259,16 @@ the step's real acceptance test, alongside its automated checks.
 | 2 | ~~**Engine**~~ ✅ merged (#69) — seeded generator, solver, uniqueness, shared `findConflicts` / `isSolved`, Jest tests | **Engine preview**: generated boards with their color regions and solution mushrooms; switch size 5–8, reseed, show/hide the solution |
 | 3 | ~~**Game shell + hub**~~ ✅ (§6) — screen router, game registry, hub screen, back-to-hub, Fungiku's own screen | **The hub**: app opens on a home screen with **Sudoku and Fungiku side by side as peers**; Fungiku is a real destination, not a button in Sudoku's menu |
 | 4 | ~~**State**~~ ✅ — reducer + context: mark cycling, live conflict validation, win detection, undo/redo, persistence | The Fungiku screen becomes **playable**: tap-to-cycle X/🍄, live conflict highlighting, `🍄 X/N` counter, win banner |
-| 5 | **Board UI** — the real board component: region-boundary borders, themed styling, win flow, palette tuning | The **finished board**, styled to the app's themes, replacing the preview's rough grid |
-| 6 | **Assists & polish** — optional auto-X, win animation, level ladder, scoring | Assist toggle, win celebration, level progression |
-| 7 | **Art swap** (floating, asset-only) | Static mushroom art replaces the icon glyph |
+| 5 | ~~**Board UI**~~ ✅ — the real board component: region-boundary borders, themed styling, win flow, **palette tuning** | The **finished board**, styled to the app's themes, replacing the preview's rough grid |
+| 6 | **Input ergonomics & assists** (§2) — **drag to sweep X's**, then optional auto-X | **Swipe a finger across cells to rule them out**; assist toggle |
+| 7 | **Ladder & scoring** — training ladder, size progression, scoring | Level progression and a score |
+| 8 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
+
+**Why drag-to-sweep sits at Step 6, not earlier:** it needs the real board's
+touch and geometry layer, which Step 5 builds. Writing the gesture against the
+preview grid's per-cell `TouchableOpacity` would mean throwing it away a step
+later. It leads Step 6 because it is the ergonomic fix that makes X's worth
+using, and auto-X (the other half of that step) is the same concern.
 
 **Why the shell comes before the game logic:** Fungiku currently hangs off
 Sudoku's menu, which is the wrong shape to keep building into. Doing the hub at
@@ -229,9 +277,9 @@ modal nested inside another game — no throwaway work, and the two games read a
 peers from the moment there is anything to play.
 
 The preview was scaffolding, not the product: Step 2 built it read-only to judge
-the engine's output, Step 3 gave it a real home, and **Step 4 retired it** —
-`FungikuPreview.js` is gone, replaced by the interactive `FungikuBoard.js`. Step 5
-supersedes that rough grid with the finished, themed board.
+the engine's output, Step 3 gave it a real home, **Step 4 retired it** —
+`FungikuPreview.js` is gone, replaced by the interactive `FungikuBoard.js` — and
+Step 5 replaced that rough grid with the themed, responsive board.
 
 ## 8. Open questions for the operator
 

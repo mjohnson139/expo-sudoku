@@ -23,7 +23,7 @@ const ICON_SIZE = 30;
  * instead of dropping the player straight back into one of them.
  */
 const HubScreen = ({ onSelectGame }) => {
-  const theme = useAppTheme();
+  const { theme } = useAppTheme();
 
   // Keyed by game id; a missing entry just means "nothing to continue".
   const [progress, setProgress] = useState({});

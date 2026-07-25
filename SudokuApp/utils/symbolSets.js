@@ -17,6 +17,8 @@
  * corner/shape cue (`corners`) so color is never the only channel of identity.
  */
 
+import { mix, readableOn } from './color';
+
 export const SYMBOL_SET_IDS = { NUMBERS: 'numbers', FUNGIKU: 'fungiku' };
 
 // Which cell value is drawn as the mushroom (the "star"). Fixed per game — it's
@@ -52,36 +54,92 @@ const FUNGIKU_SWATCHES = {
  * source of color truth; the mushroom's own red rounds the list out to nine, one
  * per region for boards up to 9×9.
  *
- * Each entry carries the saturated `color` (borders, labels, emphasis) and a
- * pastel `background` for filling a whole cell — the reference art is a soft
- * pastel grid, and a full cell of saturated Okabe–Ito would overwhelm the
- * mushroom drawn on top of it. `name` stays the stable, non-visual identity used
- * for accessibility labels.
+ * Each entry carries the saturated `color` (borders, labels, emphasis), a
+ * `background` that fills a whole cell, an `ink` color guaranteed to be legible
+ * on that background, and the `conflictInk` used to flag a rule-breaking
+ * mushroom. `name` stays the stable, non-visual identity used for accessibility
+ * labels.
+ *
+ * ### Why the fills are tuned per hue rather than tinted uniformly
+ *
+ * The first version tinted every hue toward white by the same 0.62. That reads
+ * fine at 5×5 with four regions, and falls apart at 8×8: **sky blue and blue
+ * came out only ΔE 6.67 apart** (roughly "the same color, slightly different"),
+ * with orange/yellow and several others close behind — 7 of 36 pairs under
+ * ΔE 15. Okabe–Ito is colorblind-safe at full saturation, but a uniform tint
+ * pulls every hue toward a common light gray and throws that away.
+ *
+ * The fix is to vary **lightness as well as hue**: each hue gets its own tint
+ * weight, chosen by maximizing the worst pairwise CIEDE2000 distance subject to
+ * every fill staying inside a lightness band (so the board is still a soft grid,
+ * not nine saturated blocks). That search gives:
+ *
+ *   light theme: worst pair ΔE 17.11, **0 of 36 pairs under 15**
+ *   dark theme:  worst pair ΔE 18.55, 0 of 36 pairs under 15
+ *
+ * `utils/__tests__/symbolSets.test.js` pins a floor under those numbers, so a
+ * future "let's soften the palette" tweak fails a test instead of quietly
+ * reintroducing the bug. Re-tune with the same objective rather than by eye.
  */
-const mixWithWhite = (hex, weight) => {
-  const n = parseInt(hex.slice(1), 16);
-  const blend = (channel) => Math.round(channel + (255 - channel) * weight);
-  const r = blend((n >> 16) & 255);
-  const g = blend((n >> 8) & 255);
-  const b = blend(n & 255);
-  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
-};
-
-export const REGION_COLORS = [
+const HUE_ORDER = [
   ...Object.keys(FUNGIKU_SWATCHES)
     .map(Number)
     .sort((a, b) => a - b)
     .map((value) => FUNGIKU_SWATCHES[value]),
   MUSHROOM,
-].map(({ color, name }) => ({
-  color,
-  name,
-  background: mixWithWhite(color, 0.62),
-}));
+];
+
+// Order matches HUE_ORDER: orange, sky blue, green, yellow, blue, red, pink,
+// gray, mushroom-red. Tuned, not picked by hand — see the note above.
+const LIGHT_TINTS = [0.1, 0.76, 0.62, 0.1, 0.46, 0.62, 0.7, 0.44, 0.54];
+const DARK_TINTS = [0.7, 0.38, 0.55, 0.55, 0.54, 0.12, 0.24, 0.18, 0.55];
+
+// What the fills are blended toward. Dark themes blend toward a dark surface
+// instead of white — pastel fills on a near-black background were the untested
+// case, and they glared.
+const LIGHT_SURFACE = '#ffffff';
+const DARK_SURFACE = '#1e1e1e';
+
+/**
+ * Conflict colors, one per mode. Both clear WCAG's 3:1 floor for non-text
+ * graphics against *every* fill in their palette (light 5.64:1, dark 3.10:1) —
+ * the obvious `#C1272D` only managed 2.55:1 on the warmer fills, which is why
+ * the conflict marker is not simply "the mushroom, but red".
+ */
+const CONFLICT_INK = { light: '#6B0000', dark: '#FFC9C9' };
+
+const buildRegionPalette = (surface, tints, conflictInk) =>
+  HUE_ORDER.map(({ color, name }, index) => {
+    const background = mix(color, surface, tints[index]);
+    return {
+      color,
+      name,
+      background,
+      // Guaranteed-legible glyph color for this fill, rather than the region's
+      // own hue: at these tints a saturated orange mushroom on an orange fill
+      // would be nearly invisible.
+      ink: readableOn(background),
+      conflictInk,
+    };
+  });
+
+export const REGION_PALETTES = {
+  light: buildRegionPalette(LIGHT_SURFACE, LIGHT_TINTS, CONFLICT_INK.light),
+  dark: buildRegionPalette(DARK_SURFACE, DARK_TINTS, CONFLICT_INK.dark),
+};
+
+/** The light palette, kept as a name for the default set. */
+export const REGION_COLORS = REGION_PALETTES.light;
+
+/** The whole palette for a mode. */
+export function getRegionPalette(isDark = false) {
+  return isDark ? REGION_PALETTES.dark : REGION_PALETTES.light;
+}
 
 /** The palette entry for a region id, wrapping around if ids exceed the palette. */
-export function getRegionColor(regionId) {
-  return REGION_COLORS[regionId % REGION_COLORS.length];
+export function getRegionColor(regionId, isDark = false) {
+  const palette = getRegionPalette(isDark);
+  return palette[regionId % palette.length];
 }
 
 /**
