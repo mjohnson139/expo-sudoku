@@ -11,7 +11,7 @@
  *     MaterialCommunityIcons "mushroom" glyph as a placeholder until static art
  *     lands behind this same seam (plan §3, Step 5).
  *
- * Colorblind-awareness (plan §3/§6): the swatch palette is the Okabe–Ito
+ * Colorblind-awareness (plan §3/§8): the swatch palette is the Okabe–Ito
  * colorblind-safe set, so hues stay distinct under the common CVD types, and it
  * spans a range of lightness. On top of color, each swatch carries a distinct
  * corner/shape cue (`corners`) so color is never the only channel of identity.

@@ -158,8 +158,9 @@ const GameMenuModal = () => {
             )}
 
             {/* Fungiku engine preview — scaffolding so the in-progress Fungiku
-                mode is viewable in Expo Go at every step (plan §6). Replaced by
-                the real mode entry in Step 5. */}
+                mode is viewable in Expo Go at every step (plan §7). Temporary:
+                Step 3 gives Fungiku its own screen off the hub (plan §6) and
+                this entry goes away. */}
             <TouchableOpacity
               style={[styles.menuButton, styles.buildButton]}
               onPress={() => setShowFungikuPreview(true)}

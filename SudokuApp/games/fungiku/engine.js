@@ -19,7 +19,7 @@
  */
 
 // Marks a cell can hold. X is a player aid only and never affects win
-// detection (plan §2, §8).
+// detection (plan §2, §9).
 export const MARKS = { EMPTY: 'empty', X: 'x', MUSHROOM: 'mushroom' };
 
 // Tap order: empty -> X -> mushroom -> empty (plan §2).
@@ -34,7 +34,7 @@ export function nextMark(mark) {
 
 /**
  * Smallest solvable board. N=4 is impossible: one mushroom per column with a
- * gap of >= 2 between adjacent rows has no arrangement (plan §8), so the ladder
+ * gap of >= 2 between adjacent rows has no arrangement (plan §9), so the ladder
  * starts at 5.
  */
 export const MIN_SIZE = 5;
@@ -321,7 +321,7 @@ function regionIsContiguous(regions, size, region) {
 }
 
 // How hard to try nudging one layout to uniqueness before regenerating, and how
-// many full regenerations to attempt (plan §8: never loop forever).
+// many full regenerations to attempt (plan §9: never loop forever).
 const PERTURB_BUDGET = 400;
 const REGENERATE_BUDGET = 40;
 
@@ -411,7 +411,7 @@ export function findConflicts(marks, regions, size) {
 
 /**
  * Won when exactly N mushrooms are placed with no conflicts. X marks are
- * ignored entirely (plan §8) — they are a thinking aid, never a requirement.
+ * ignored entirely (plan §9) — they are a thinking aid, never a requirement.
  */
 export function isSolved(marks, regions, size) {
   let count = 0;

@@ -18,7 +18,7 @@ the board: *1 Cat per column & row · 1 Cat per color · Cats cannot touch*.
 > the **only input**. That is a different puzzle with a different generator,
 > different rules, a different win condition, and a different input model, so it
 > cannot be a skin over Sudoku. This document is the replanned source of truth.
-> See §9 for exactly what carried over from the old plan and what was dropped.
+> See §10 for exactly what carried over from the old plan and what was dropped.
 
 ## For the implementer (start here)
 
@@ -137,7 +137,7 @@ column-used, region-used, and the adjacent-row column-gap rule; stops early at
 rules live in exactly one place: `findConflicts(...)` and `isSolved(...)`.
 
 **Difficulty** ≈ grid size + region-shape irregularity. Sizes ship as a ladder
-(§6) starting at **5×5** — matching the reference's Level 1 → 10 progression.
+(§7) starting at **5×5** — matching the reference's Level 1 → 10 progression.
 
 ## 5. What is reused vs. new
 
@@ -153,7 +153,55 @@ rules live in exactly one place: `findConflicts(...)` and `isSolved(...)`.
 notes mini-grid, digit correct/incorrect feedback. All of it stays in place and
 untouched for classic Sudoku.
 
-## 6. Delivery steps (one branch per step, per dev-process.md)
+## 6. Menu, navigation, and the hub
+
+**Today the app opens straight into Sudoku, and Fungiku is reached from a button
+inside Sudoku's own game menu.** That structure says "Sudoku is the app and
+Fungiku is a guest." With two games it needs a shell where both are peers —
+otherwise every later step keeps building into the wrong shape.
+
+### The shell
+
+- **`App.js` owns a small screen router** — the route is `'hub'` or a game id.
+  No navigation library: two or three games don't justify `react-navigation`'s
+  native setup, and this matches the sibling **color-loop** app, whose hub lives
+  in `App.tsx` with each game self-contained under `games/<name>/`. Revisit only
+  if the app grows genuinely deep navigation.
+- **Game registry — `games/registry.js`.** One entry per game:
+  `{ id, title, tagline, icon, accent, Screen }`. The hub renders its cards from
+  the registry, so adding a third game is a registry entry, not a UI edit.
+- **Hub screen — `screens/HubScreen.js`.** App title, one card per game,
+  theme-aware, with a **"Continue"** affordance when a game has saved progress.
+- **Back to the hub** — every game screen gets a home affordance in its header.
+- **`games/fungiku/FungikuScreen.js`** — Fungiku becomes a real screen reached
+  from the hub. The menu-modal preview entry goes away.
+- **Sudoku's files stay where they are** for now; the registry points at the
+  existing `GameScreen`. Relocating Sudoku under `games/sudoku/` to match the
+  convention is optional tidy-up, deliberately deferred to keep the step small.
+
+### Behaviors to get right
+
+- **Resume.** Sudoku restores a saved game on launch today. With a hub in front,
+  the hub shows first and the card carries a *Continue* badge — predictable, and
+  it keeps both games discoverable. (The alternative, auto-jumping into a game in
+  progress, hides the other game; operator decision in §8.)
+- **Timer.** Leaving Sudoku for the hub must **pause its timer** — today it only
+  pauses on the menu and on backgrounding, so navigating away would leave it
+  running while nobody is playing.
+- **Difficulty.** Sudoku opens its difficulty menu when no game is in progress;
+  entering from the hub must still land there.
+- **Separate persistence keys per game**, so the two modes never clobber each
+  other's saved state.
+- **Leaving mid-game is not quitting** — navigating to the hub must not reset
+  progress.
+
+### App identity
+
+The app is titled "Sudoku" but will host two games, so the hub needs a name of
+its own. Flagged as an open question (§8) — it is a branding decision, not a
+technical one.
+
+## 7. Delivery steps (one branch per step, per dev-process.md)
 
 Each step names **what the operator can see in Expo Go** when it lands — that is
 the step's real acceptance test, alongside its automated checks.
@@ -163,24 +211,40 @@ the step's real acceptance test, alongside its automated checks.
 | 0 | ~~Upgrade Expo SDK~~ ✅ merged (#66) — SDK 54 | App runs on the current SDK |
 | 1 | ~~Rendering seam — `Symbol.js` + `symbolSets.js`~~ ✅ merged (#67) | Zero visual change (that was the point) |
 | 2 | **Engine** — seeded generator, solver, uniqueness, shared `findConflicts` / `isSolved`, Jest tests | **Engine preview**: generated boards with their color regions and solution mushrooms; switch size 5–8, reseed, show/hide the solution |
-| 3 | **State** — reducer + context: mark cycling, live conflict validation, win detection, undo/redo, persistence | Preview gains **tap-to-cycle** X/🍄 with live conflict highlighting and a win banner — the puzzle becomes playable, if plain |
-| 4 | **Board UI** — the real board component: region-boundary borders, themed styling, `🍄 X/N` counter, win flow | The **actual game board**, styled to the app's themes, replacing the preview's rough grid |
-| 5 | **Mode entry** — mode selector alongside classic Sudoku, size/level selection | Fungiku reachable as a **real mode** from the menu; preview scaffolding removed |
+| 3 | **Game shell + hub** (§6) — screen router, game registry, hub screen, back-to-hub, Fungiku's own screen | **The hub**: app opens on a home screen with **Sudoku and Fungiku side by side as peers**; Fungiku is a real destination, not a button in Sudoku's menu |
+| 4 | **State** — reducer + context: mark cycling, live conflict validation, win detection, undo/redo, persistence | The Fungiku screen becomes **playable**: tap-to-cycle X/🍄, live conflict highlighting, `🍄 X/N` counter, win banner |
+| 5 | **Board UI** — the real board component: region-boundary borders, themed styling, win flow, palette tuning | The **finished board**, styled to the app's themes, replacing the preview's rough grid |
 | 6 | **Assists & polish** — optional auto-X, win animation, level ladder, scoring | Assist toggle, win celebration, level progression |
 | 7 | **Art swap** (floating, asset-only) | Static mushroom art replaces the icon glyph |
 
-Steps 2 and 3 share the preview surface: Step 2 builds it read-only to judge the
-engine's output, Step 3 makes it interactive to prove the rules. It is
-scaffolding, not the product — Step 4 supersedes it and Step 5 deletes it.
+**Why the shell comes before the game logic:** Fungiku currently hangs off
+Sudoku's menu, which is the wrong shape to keep building into. Doing the hub at
+Step 3 means Step 4's playable board lands in a real Fungiku screen instead of a
+modal nested inside another game — no throwaway work, and the two games read as
+peers from the moment there is anything to play.
 
-## 7. Open questions for the operator
+The preview is scaffolding, not the product: Step 2 builds it read-only to judge
+the engine's output, Step 3 gives it a real home, Step 4 makes it playable, and
+Step 5 supersedes it with the finished board.
+
+## 8. Open questions for the operator
 
 1. **Mode name in the UI** — **decided: "Fungiku"** (internal id `fungiku`).
-2. **Ladder shape** — v1 ships **5×5 → 8×8**. Where should it top out, and
+2. **What is the app called now?** It ships as "Sudoku" but is about to host two
+   games as peers (§6). The hub needs a title, and the app's name, icon and
+   store listing follow from it. Options: keep "Sudoku" and treat Fungiku as a
+   bonus (undersells it), rename to a neutral puzzle-collection brand, or lead
+   with the family name. This is a branding call, not a technical one, and it
+   blocks nothing — but the hub in Step 3 will show *some* title, so a
+   placeholder gets chosen there if this is still open.
+3. **Hub vs. resume on launch** — should the app always open on the hub with a
+   *Continue* badge (recommended: both games stay discoverable), or jump
+   straight back into a game already in progress?
+4. **Ladder shape** — v1 ships **5×5 → 8×8**. Where should it top out, and
    should size be a free choice or unlocked by progression?
-3. **Assist defaults** — should auto-X be on by default for younger players?
+5. **Assist defaults** — should auto-X be on by default for younger players?
 
-## 8. Edge cases to get right
+## 9. Edge cases to get right
 
 - **A 4×4 board is impossible** under these rules — with one mushroom per column
   and `|Δcol| ≥ 2` between adjacent rows, no arrangement exists for N=4 — so the
@@ -193,7 +257,7 @@ scaffolding, not the product — Step 4 supersedes it and Step 5 deletes it.
 - **Persistence** stores the seed + size + the player's marks, not the whole
   board; the puzzle is rebuilt deterministically from the seed on restore.
 
-## 9. Disposition of the pre-replan work
+## 10. Disposition of the pre-replan work
 
 - **Step 0 (#66, merged)** — SDK 54 upgrade. Unaffected, keep.
 - **Step 1 (#67, merged)** — `Symbol.js` + `utils/symbolSets.js`. **Kept**; the

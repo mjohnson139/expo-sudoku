@@ -6,14 +6,15 @@ import { getRegionColor } from '../../utils/symbolSets';
 
 /**
  * FungikuPreview — a read-only look at what the engine produces
- * (docs/fungiku-plan.md §6). It exists so every delivery step, including the
+ * (docs/fungiku-plan.md §7). It exists so every delivery step, including the
  * pure-logic ones, ships something runnable in Expo Go: here you can see the
  * generated color regions and the solution mushrooms, and reseed to judge
  * whether region shapes and colors are heading the right way.
  *
  * This is deliberately NOT the real board — there is no input, no marks, no
- * conflict handling. The playable board arrives in Step 4 with its own
- * component; this preview is scaffolding to look at the engine's output.
+ * conflict handling. Step 3 moves it onto Fungiku's own screen off the hub,
+ * Step 4 makes it playable, and Step 5 supersedes it with the real board
+ * component. Until then it is scaffolding for looking at the engine's output.
  */
 
 const SIZES = [5, 6, 7, 8];

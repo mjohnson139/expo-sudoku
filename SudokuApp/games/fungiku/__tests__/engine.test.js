@@ -12,7 +12,7 @@ import {
   createEmptyMarks,
 } from '../engine';
 
-// Sizes the v1 ladder ships (plan §6). Kept small so the suite stays fast.
+// Sizes the v1 ladder ships (plan §8). Kept small so the suite stays fast.
 const LADDER = [5, 6, 7, 8];
 const SEEDS = [1, 2, 3, 7, 42, 1337];
 
@@ -93,7 +93,7 @@ describe('createRng', () => {
 });
 
 describe('generate', () => {
-  it.each([4, 3, 0, -1])('rejects size %i as unsolvable (plan §8)', (size) => {
+  it.each([4, 3, 0, -1])('rejects size %i as unsolvable (plan §9)', (size) => {
     expect(() => generate({ size, seed: 1 })).toThrow(/size/i);
   });
 
@@ -266,7 +266,7 @@ describe('isSolved', () => {
     expect(isSolved(marksFromSolution(puzzle), puzzle.regions, size)).toBe(true);
   });
 
-  it('stays true no matter how many X marks are sprinkled around (plan §8)', () => {
+  it('stays true no matter how many X marks are sprinkled around (plan §9)', () => {
     const marks = marksFromSolution(puzzle).map((m) => (m === MARKS.MUSHROOM ? m : MARKS.X));
     expect(isSolved(marks, puzzle.regions, size)).toBe(true);
   });
