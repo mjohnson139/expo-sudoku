@@ -310,7 +310,7 @@ the step's real acceptance test, alongside its automated checks.
 | 4 | ~~**State**~~ ✅ — reducer + context: mark cycling, live conflict validation, win detection, undo/redo, persistence | The Fungiku screen becomes **playable**: tap-to-cycle X/🍄, live conflict highlighting, `🍄 X/N` counter, win banner |
 | 5 | ~~**Board UI**~~ ✅ — the real board component: region-boundary borders, themed styling, win flow, **palette tuning** | The **finished board**, styled to the app's themes, replacing the preview's rough grid |
 | 6 | ~~**Input ergonomics & assists**~~ ✅ (§2) — **drag to sweep X's**, rule-out button | **Swipe a finger across cells to rule them out**; a *Rule out* button |
-| 7 | **Feedback & hints** (§11) — correctness feedback on placements, and a hint ladder | **Optional "show mistakes" for mushrooms**, and a hint you can ask for when stuck |
+| 7 | ~~**Feedback & hints**~~ ✅ (§11) — correctness feedback on placements, and a hint ladder | **Optional "show mistakes" for mushrooms**, and a hint you can ask for when stuck |
 | 8 | **Ladder & scoring** — training ladder, size progression, scoring | Level progression and a score |
 | 9 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
 

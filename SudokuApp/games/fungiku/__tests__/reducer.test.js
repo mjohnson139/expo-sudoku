@@ -1,6 +1,7 @@
 import {
   DEFAULT_SEED,
   FUNGIKU_ACTIONS,
+  HINT_KINDS,
   PAINT_MODES,
   buildPuzzleState,
   createInitialFungikuState,
@@ -9,7 +10,9 @@ import {
   selectCanUndo,
   selectConflicts,
   selectIsSolved,
+  selectMistakes,
   selectMushroomCount,
+  selectRevealCell,
   selectRuleOutCells,
 } from '../reducer';
 import { MARKS, MIN_SIZE, createEmptyMarks } from '../engine';
@@ -470,5 +473,190 @@ describe('the rule-out button', () => {
 
   it('cannot win a board on its own', () => {
     expect(selectIsSolved(ruleOut(placeMushroom(base, 12)))).toBe(false);
+  });
+});
+
+describe('correctness feedback', () => {
+  const base = buildPuzzleState({ size: 5, seed: 1 });
+  const solutionCell = (row) => row * base.size + base.solution[row];
+
+  it('is off by default', () => {
+    expect(base.showMistakes).toBe(false);
+  });
+
+  it('flags a mushroom that breaks no rule but is in the wrong cell', () => {
+    // Pick a cell in row 0 that is not the solution's.
+    const wrong = base.solution[0] === 0 ? 1 : 0;
+    const state = placeMushroom(base, wrong);
+
+    expect(selectConflicts(state).size).toBe(0); // legal so far
+    expect([...selectMistakes(state)]).toEqual([wrong]);
+  });
+
+  it('does not flag a correct mushroom', () => {
+    expect(selectMistakes(placeMushroom(base, solutionCell(0))).size).toBe(0);
+  });
+
+  it('never flags an X mark, however many there are', () => {
+    // X is a thinking aid with no bearing on the win, so there is no wrong X.
+    const allX = base.marks.reduce((acc, _, cell) => cycle(acc, cell), base);
+
+    expect(allX.marks.every((m) => m === MARKS.X)).toBe(true);
+    expect(selectMistakes(allX).size).toBe(0);
+  });
+
+  it('never flags a complete legal board, because there cannot be one that is wrong', () => {
+    // Uniqueness: N mushrooms with no conflicts *is* the solution.
+    const solved = solve(base);
+
+    expect(selectIsSolved(solved)).toBe(true);
+    expect(selectMistakes(solved).size).toBe(0);
+  });
+
+  it('is a preference the switch toggles, independent of the flags themselves', () => {
+    const wrong = base.solution[0] === 0 ? 1 : 0;
+    const placed = placeMushroom(base, wrong);
+    const on = fungikuReducer(placed, { type: FUNGIKU_ACTIONS.TOGGLE_MISTAKES });
+
+    expect(on.showMistakes).toBe(true);
+    // The selector reports mistakes either way — only rendering is gated.
+    expect(selectMistakes(on).size).toBe(1);
+    expect(fungikuReducer(on, { type: FUNGIKU_ACTIONS.TOGGLE_MISTAKES }).showMistakes).toBe(false);
+  });
+
+  it('carries the preference across a new puzzle', () => {
+    expect(buildPuzzleState({ size: 6, seed: 2, showMistakes: true }).showMistakes).toBe(true);
+  });
+});
+
+describe('hints', () => {
+  const base = buildPuzzleState({ size: 5, seed: 1 });
+  const solutionCell = (row) => row * base.size + base.solution[row];
+  const hintFor = (state) => fungikuReducer(state, { type: FUNGIKU_ACTIONS.REQUEST_HINT });
+  const reveal = (state) => fungikuReducer(state, { type: FUNGIKU_ACTIONS.REVEAL_MUSHROOM });
+
+  it('starts with no hint and none used', () => {
+    expect(base.hint).toBeNull();
+    expect(base.hintsUsed).toBe(0);
+  });
+
+  it('reports a mistake before anything else, because a wrong mushroom corrupts every deduction after it', () => {
+    const wrong = base.solution[0] === 0 ? 1 : 0;
+    const state = hintFor(placeMushroom(base, wrong));
+
+    expect(state.hint.kind).toBe(HINT_KINDS.MISTAKE);
+    expect(state.hint.cells).toEqual([wrong]);
+    expect(state.hintsUsed).toBe(1);
+  });
+
+  it('nudges at a group without naming the cell', () => {
+    // Four of five rows solved leaves the fifth forced.
+    let state = base;
+    for (let row = 0; row < 4; row++) state = placeMushroom(state, solutionCell(row));
+
+    const hinted = hintFor(state);
+    expect(hinted.hint.kind).toBe(HINT_KINDS.NUDGE);
+    // The highlight is the whole group, not the single forced cell — that is
+    // what makes it a nudge rather than a reveal.
+    expect(hinted.hint.cells.length).toBeGreaterThan(1);
+    expect(hinted.hint.cells).toContain(solutionCell(4));
+    expect(hinted.hint.message).toMatch(/only one cell/i);
+  });
+
+  it('says so honestly when nothing is forced, instead of quietly revealing', () => {
+    // A synthetic layout where every region is a whole row, so every row, column
+    // and region has five candidates and nothing is forced. (A generated puzzle
+    // often *does* have a forced move on an empty board — a one-cell region is
+    // forced by definition — so this branch needs a board built for it.)
+    const bands = {
+      size: 5,
+      seed: 0,
+      regions: Array.from({ length: 25 }, (_, i) => Math.floor(i / 5)),
+      solution: [0, 2, 4, 1, 3],
+      marks: createEmptyMarks(5),
+      undoStack: [],
+      redoStack: [],
+      showMistakes: false,
+      hintsUsed: 0,
+      hint: null,
+      strokeOpen: false,
+    };
+
+    const hinted = hintFor(bands);
+    expect(hinted.hint.kind).toBe(HINT_KINDS.STUCK);
+    expect(hinted.hint.offerReveal).toBe(true);
+    expect(hinted.hint.cells).toEqual([]);
+    // Nothing was given away, so it does not count against the player.
+    expect(hinted.hintsUsed).toBe(0);
+  });
+
+  it('reveals a correct mushroom as a separate, counted action', () => {
+    const revealed = reveal(base);
+    const cell = revealed.hint.cells[0];
+
+    expect(revealed.hint.kind).toBe(HINT_KINDS.REVEAL);
+    expect(revealed.marks[cell]).toBe(MARKS.MUSHROOM);
+    expect(selectMistakes(revealed).size).toBe(0); // it revealed a *correct* one
+    expect(revealed.hintsUsed).toBe(1);
+  });
+
+  it('never reveals a mushroom that would conflict', () => {
+    // Reveal repeatedly and check the board stays legal throughout.
+    let state = base;
+    for (let i = 0; i < 5; i++) {
+      state = reveal(state);
+      expect(selectConflicts(state).size).toBe(0);
+    }
+    expect(selectIsSolved(state)).toBe(true);
+  });
+
+  it('has nothing safe to reveal when a wrong mushroom blocks every solution cell', () => {
+    // Fill the whole board with mushrooms: every solution cell is occupied or
+    // conflicted, so there is no safe reveal and the cascade reports mistakes.
+    const everywhere = base.marks.reduce((acc, _, cell) => placeMushroom(acc, cell), base);
+
+    expect(selectRevealCell(everywhere)).toBe(-1);
+    expect(reveal(everywhere)).toBe(everywhere);
+    expect(hintFor(everywhere).hint.kind).toBe(HINT_KINDS.MISTAKE);
+  });
+
+  it('is one undoable action', () => {
+    const revealed = reveal(base);
+    const back = fungikuReducer(revealed, { type: FUNGIKU_ACTIONS.UNDO });
+
+    expect(back.marks).toEqual(base.marks);
+  });
+
+  it('goes stale the moment the board changes', () => {
+    const hinted = hintFor(base);
+    expect(hinted.hint).not.toBeNull();
+
+    expect(cycle(hinted, 0).hint).toBeNull();
+
+    // Only an action that *actually changes the board* clears it. A no-op
+    // action leaves the advice alone, because it is still advice about the board
+    // in front of you — so these use a board where each action does something.
+    const played = hintFor(placeMushroom(base, solutionCell(0)));
+    expect(fungikuReducer(played, { type: FUNGIKU_ACTIONS.RULE_OUT }).hint).toBeNull();
+    expect(fungikuReducer(played, { type: FUNGIKU_ACTIONS.UNDO }).hint).toBeNull();
+
+    // ...and a no-op undo on a board with no history keeps it.
+    expect(fungikuReducer(hintFor(base), { type: FUNGIKU_ACTIONS.UNDO }).hint).not.toBeNull();
+  });
+
+  it('can be dismissed', () => {
+    const hinted = hintFor(base);
+    expect(fungikuReducer(hinted, { type: FUNGIKU_ACTIONS.DISMISS_HINT }).hint).toBeNull();
+  });
+
+  it('keeps its count across a hint that follows', () => {
+    const once = reveal(base);
+    expect(reveal(once).hintsUsed).toBe(2);
+  });
+
+  it('resets the count for a new puzzle but not the preference', () => {
+    const fresh = buildPuzzleState({ size: 5, seed: 2, showMistakes: true, hintsUsed: 0 });
+    expect(fresh.hintsUsed).toBe(0);
+    expect(fresh.showMistakes).toBe(true);
   });
 });

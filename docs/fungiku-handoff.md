@@ -92,95 +92,94 @@ operator to test in Expo Go.**
 
 ---
 
-## Next step: **Step 7 — feedback on your moves, and hints**
+## Next step: **Step 8 — the training ladder and scoring**
 
-Branch: **`feature/fungiku-feedback`** off `epic/fungiku`.
-Plan: **§11**, which is the whole spec — read it end to end. Also §8 #6 and #7,
-the two questions this step raises.
+Branch: **`feature/fungiku-ladder`** off `epic/fungiku`.
+Plan: the §7 table row for step 8, plus **§8 #4**, which this step needs answered
+(or defaulted, with the default stated in the PR).
 
 ### Why this step exists
 
-Two gaps, both requested by the operator. Today the board tells you when you have
-**broken a rule** and nothing else: it never tells you a legal move was *wrong*,
-and when you are genuinely stuck your only options are guess or walk away.
+Fungiku is a complete puzzle with feedback and hints, but it has **no shape as a
+game**. You pick a size from four chips and press "New puzzle" for a random seed;
+nothing tracks what you have done, nothing gets harder, nothing tells you that
+you are improving. This step turns a puzzle generator into something worth coming
+back to.
 
-It comes before the ladder and scoring on purpose: **scoring has to know what a
-mistake and a hint are worth.** Building scoring first would mean guessing at the
-currency it is denominated in.
+Feedback and hints landed first on purpose: **scoring now has real events to
+price.** `hintsUsed` is already recorded per puzzle, and `selectMistakes` already
+knows when a placement is wrong.
 
 ### Read first
 
-- **`docs/fungiku-plan.md` §11** — the spec. Four kinds of feedback (§11.1) and a
-  four-rung hint ladder (§11.2), with what each costs to build.
-- `SudokuApp/games/fungiku/engine.js` — `generate()` already returns `solution`,
-  and `findSolutions(regions, size, limit)` recovers it from a layout. That is all
-  correctness feedback and the revealing hints need. What the engine does **not**
-  have is any notion of a move being *forced*, which is what hint rung 2 needs.
-- `SudokuApp/games/fungiku/reducer.js` — `selectConflicts` is the model to copy
-  for a `selectMistakes`-style selector: **derive it, never store it**, or undo
-  will leave stale flags behind. `selectRuleOutCells` shows the shape for "cells a
-  hint would touch".
-- `SudokuApp/games/fungiku/FungikuBoard.js` — where a mistake marker has to
-  render. Note conflicts already own the ring and the recoloured glyph, so a
-  mistake needs a *different* visual channel; and note the accessibility label
-  format, which must grow to carry the new state.
-- `SudokuApp/contexts/GameContext.js` + `components/modals/GameMenuModal.js` —
-  Sudoku's **"Show Mistakes"** switch, its `showFeedback` flag and its
-  `cellFeedback` map. Match its wording and placement so the app has one
-  vocabulary for the idea. Read it; don't refactor it.
-- `SudokuApp/games/fungiku/__tests__/reducer.test.js` — the style to extend. The
-  selectors are pure and deserve the same coverage the others got.
+- `SudokuApp/games/fungiku/reducer.js` — `hintsUsed` is already counted per
+  puzzle and persisted; that is the hook scoring hangs off. Note how `changeSize`
+  and `nextPuzzle` currently work (`changeSize` resets to seed 1, `nextPuzzle`
+  bumps the seed) — a ladder replaces that with a level list.
+- `SudokuApp/games/fungiku/storage.js` — persistence is `size` + `seed` + `marks`
+  + `showMistakes` + `hintsUsed`. Ladder progress is the first thing needing a
+  **schema change**: bump `FUNGIKU_STORAGE_VERSION` and decide what an old save
+  migrates to. Today a version mismatch returns null and the board starts fresh —
+  fine for a board, **not** fine for someone's progress.
+- `SudokuApp/utils/gameProgress.js` + `games/registry.js` —
+  `describeFungikuProgress` feeds the hub's Continue badge. With a ladder the
+  badge probably wants to name the *level* rather than the board size.
+- **The sibling color-loop app is the reference for exactly this problem** — it
+  has a training ladder in `games/colorloop/levels.ts` with per-level star
+  thresholds, and its `docs/game-design.md` covers the progression thinking. Read
+  it before designing a second one from scratch.
+- `SudokuApp/contexts/GameContext.js` — Sudoku's scoring (time-based, with
+  completion bonuses) is one model. Fungiku has **no timer at all** today, which
+  is a decision this step has to make deliberately rather than by accident.
 
 ### Scope — ONLY this
 
-1. **Correctness feedback, opt-in** — a selector flagging mushrooms not in the
-   solution, a switch to turn it on, and a board treatment distinct from
-   conflicts. Off by default pending §8 #7.
-2. **Positive confirmation** — a correct placement should *feel* correct, not
-   merely fail to turn red. A settle or pulse in the app's motion language.
-   §11.1 calls this the most-often-skipped half of feedback; do not skip it.
-3. **Hint rungs 3 and 4** — reveal a correct mushroom, and point out a mistake.
-   Both are trivial given the solution, both are one undoable action.
-4. **Hint rung 2 (the nudge) — attempt it, and be honest if it does not land.**
-   Naming a row/column/region where a deduction is *available* needs constraint
-   propagation, not the existing backtracking solver. It is the real work here
-   and the best hint in a teaching game. If it proves too big, ship rungs 3–4 and
-   say plainly in the PR that the nudge is deferred — **do not fake it** by
-   dressing up a reveal as a nudge.
-5. **Count hints used per puzzle** — the ladder step needs it, and it is far
-   easier to record now than to retrofit.
-6. **Tests** for every new selector, and for the hint invariants below.
+1. **A level ladder as data** — an ordered list, each level pinning a `size` and a
+   `seed`. Both are already deterministic, so a level *is* a `{size, seed}` pair.
+   Keep it a table in its own module so tuning is editing data.
+2. **Progression + persistence** — which levels are complete, and what unlocks.
+   Bump the storage version and **migrate**, don't discard.
+3. **A level-select surface** replacing the raw size chips as the primary path.
+   Keep a free-play route: the chips are how the 8×8 regression cases get
+   checked, and free choice is a reasonable answer to §8 #4.
+4. **Scoring** — decide what it measures and say why in the PR. Hints used and
+   mistakes made are both available now. If it needs a timer, add one, and note
+   that Fungiku deliberately had none until this point.
+5. **Hub integration** — the Continue badge should reflect ladder position.
+6. **Tests** — the ladder table and progression logic are pure; cover them. And
+   **assert that every level in the table actually generates**: a bad
+   `{size, seed}` pair would otherwise only fail when a player reaches it.
 
 ### Behaviors that are easy to get wrong
 
-- **X marks are never wrong.** Correctness feedback applies to **mushrooms only**
-  (§11.1). Flagging a "wrong" X is telling the player how to think.
-- **There is no complete-but-wrong board.** Uniqueness means N mushrooms placed
-  with no conflicts *is* the solution, so correctness feedback is purely a
-  mid-solve aid — it can never be what tells you a finished board is wrong.
-  A test asserting "a legal full board is never flagged" is worth having.
-- **A hint must never place a conflicting mushroom.** Worse than no hint.
-- **Derive feedback, don't store it.** Same reason conflicts are a selector: undo
-  must not be able to leave a stale mistake marker on the board.
-- **Conflicts and mistakes are different things** and can coexist on one cell. Do
-  not let one visual treatment swallow the other, and keep both readable without
-  color (plan §5) and on a dark theme.
-- **Don't regress the cell accessibility labels** — they are the test seam. Extend
-  the format, don't reshape it.
+- **Every level must be generatable.** `generate()` throws below size 5; a typo
+  in the table becomes a crash for whoever reaches that level. Assert the whole
+  table.
+- **Don't lose existing progress on the schema change.** A player mid-board today
+  has `{size, seed, marks, showMistakes, hintsUsed}` and no ladder state; that has
+  to migrate to something sensible, not a wiped save.
+- **Star thresholds and difficulty curves are guesses until played.** Draft them,
+  say in the PR that they are estimates, and flag them for tuning on device — the
+  same way color-loop's ladder was left.
+- **Keep free play reachable**, or the 8×8 palette and layout cases get harder to
+  check.
+- **Don't let scoring change what a hint does.** Hints are counted already; this
+  step prices them, it does not redesign them.
 
 ### Out of scope for this step
 
-- **No ladder, progression or scoring** — Step 8. Count hints, don't price them.
 - **No art swap** — Step 9, gated on artwork rather than code.
-- **No Sudoku changes.** Its "Show Mistakes" is a reference for wording and
-  placement, not something to refactor or share code with.
+- **No new feedback or hint behavior.** Step 7 shipped both; if the operator wants
+  the hint ladder to escalate differently (see the note below), that is its own
+  change, not this step.
+- **No engine changes.** Levels are `{size, seed}` pairs over the existing
+  generator.
 
 ### Visible in Expo Go when this lands
 
-Turn **Show Mistakes** on, place a mushroom that breaks no rule but is in the
-wrong cell, and see it flagged as a mistake rather than as a conflict. Get stuck
-and **ask for a hint**, and get help proportional to what you asked for. A correct
-placement feels like one.
+A **level list** you progress through, with completed levels marked, and a score
+or rating when you solve one. The hub's Fungiku card says where you are in the
+ladder.
 
 ## Open questions for the operator (carry these forward)
 
@@ -201,6 +200,19 @@ placement feels like one.
    *(Step 6 concern.)*
 
 ### Noted in passing, for a later step
+
+- **A reveal is only reachable when nothing is forced.** The hint button gives the
+  weakest hint that still helps, so while any forced deduction exists you get a
+  nudge and never a reveal. That is deliberate — it is the pedagogically right
+  default for a family game — but it means a frustrated player cannot skip to the
+  answer. Flagged against §8 #6; making reveal always available is a small change
+  if the operator wants it.
+- **A banner mounting above the board invalidates the board's measured origin.**
+  `onLayout` does not save you: on web it is backed by a ResizeObserver, which
+  watches size and not position, so a board that merely *moves* never fires it.
+  `FungikuBoard` re-measures in an effect keyed on `[hint, solved]` — the two
+  things that mount a banner. **Anything new added above the board must be added
+  to those deps**, or the first tap after it appears lands on the wrong cell.
 
 - **Dragging on the board never scrolls the page.** The board claims every touch
   at touch-down — that is the fix for the operator's device report that a vertical
@@ -254,4 +266,5 @@ placement feels like one.
 | 3 | Game shell + hub — router, registry, `HubScreen`, `FungikuScreen`, back-to-hub | merged to `epic/fungiku` (#70, `a9caf92`) |
 | 4 | Fungiku state — reducer, tap-to-cycle marks, live conflicts, win, undo/redo, own-key persistence | merged to `epic/fungiku` (#70, `a9caf92`) |
 | 5 | Board UI — palette fix with a tested ΔE floor, themed + responsive board, animated win | merged to `epic/fungiku` (#71, `905bfa2`) |
-| 6 | Input ergonomics — drag to sweep X's, rule-out button | PR to `epic/fungiku` |
+| 6 | Input ergonomics — drag to sweep X's, rule-out button | merged to `epic/fungiku` (#72, `e896fb6`) |
+| 7 | Feedback & hints — mistake flagging, forced-deduction nudge, reveal, placement pop | PR to `epic/fungiku` |

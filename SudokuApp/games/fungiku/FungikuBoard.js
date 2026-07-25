@@ -40,8 +40,24 @@ const MARK_LABELS = {
 const DRAG_THRESHOLD = 6;
 
 const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
-  const { size, regions, marks, conflicts, cycleCell, paintCells, beginStroke, endStroke, solved } =
-    useFungikuContext();
+  const {
+    size,
+    regions,
+    marks,
+    conflicts,
+    mistakes,
+    showMistakes,
+    hint,
+    cycleCell,
+    paintCells,
+    beginStroke,
+    endStroke,
+    solved,
+  } = useFungikuContext();
+
+  // Cells a hint is pointing at: a whole row/column/region for a nudge, a single
+  // cell for a mistake or a reveal.
+  const hintCells = useMemo(() => new Set(hint?.cells || []), [hint]);
 
   const boardSize = useBoardSize();
   const cell = Math.floor(boardSize / size);
@@ -76,6 +92,54 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
 
   // Tap feedback, which the per-cell Touchables used to give for free.
   const [pressedCell, setPressedCell] = useState(-1);
+
+  // Positive confirmation (plan §11.1): a placement should *feel* like one, not
+  // merely fail to turn red. Deliberately fires for **every** mushroom placed,
+  // right or wrong — animating only correct ones would leak the solution to
+  // anyone who had left correctness feedback switched off.
+  const [poppedCell, setPoppedCell] = useState(-1);
+  const pop = useRef(new Animated.Value(1)).current;
+  const previousMarks = useRef(marks);
+
+  useEffect(() => {
+    const before = previousMarks.current;
+    previousMarks.current = marks;
+    if (before === marks || before.length !== marks.length) return;
+
+    // A single new mushroom means a placement; several at once means a reveal or
+    // an undo, which should not pop.
+    const placed = marks.reduce(
+      (found, mark, cell) =>
+        mark === MARKS.MUSHROOM && before[cell] !== MARKS.MUSHROOM ? [...found, cell] : found,
+      []
+    );
+    if (placed.length !== 1) return;
+
+    setPoppedCell(placed[0]);
+    pop.setValue(0);
+    Animated.spring(pop, {
+      toValue: 1,
+      friction: 5,
+      tension: 140,
+      useNativeDriver: true,
+    }).start();
+  }, [marks, pop]);
+
+  // Re-measure whenever something *above* the board appears or disappears.
+  //
+  // `onLayout` is not enough: on web it is backed by a ResizeObserver, which
+  // watches a view's size and not its position — so a board that gets pushed
+  // down by a banner mounting never fires it. And the `measure()` at touch-down
+  // resolves asynchronously, which is too late for that same touch. The result
+  // was a real bug: the first tap after a hint appeared landed on the wrong cell,
+  // or missed the board entirely.
+  //
+  // This effect runs after the banner has been committed, so the origin is right
+  // before the player can touch anything. `hint` and `solved` are the two things
+  // that mount a banner above the board.
+  useEffect(() => {
+    measure();
+  }, [hint, solved, measure]);
 
   // The latest marks/geometry, readable from inside gesture callbacks that were
   // created once and would otherwise close over a stale render.
@@ -260,6 +324,7 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
             const entry = palette[region % palette.length];
             const mark = marks[index];
             const conflicting = conflicts.has(index);
+            const mistaken = mistakes.has(index);
 
             const differs = (r, c) =>
               r < 0 || c < 0 || r >= size || c >= size || regions[r * size + c] !== region;
@@ -284,7 +349,9 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                 // also the seam the browser tests address cells through.
                 accessibilityLabel={`Row ${row + 1}, column ${col + 1}, ${entry.name} region, ${
                   MARK_LABELS[mark] || 'empty'
-                }${conflicting ? ', conflict' : ''}`}
+                }${conflicting ? ', conflict' : ''}${
+                  showMistakes && mistaken ? ', mistake' : ''
+                }${hintCells.has(index) ? ', hint' : ''}`}
                 accessibilityHint="Taps cycle empty, ruled out, mushroom"
                 onAccessibilityTap={() => cycleCell(index)}
                 style={{
@@ -323,11 +390,52 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                   />
                 )}
 
+                {/* A hint points with a dashed inset outline — a third channel,
+                    so it can sit on a cell that is also conflicting or mistaken
+                    without either signal being lost. */}
+                {hintCells.has(index) && (
+                  <View
+                    style={[
+                      styles.hintOutline,
+                      { width: cell - 3, height: cell - 3, borderColor: entry.ink },
+                    ]}
+                  />
+                )}
+
                 {mark === MARKS.MUSHROOM && (
+                  <Animated.View
+                    style={
+                      index === poppedCell
+                        ? {
+                            transform: [
+                              {
+                                scale: pop.interpolate({
+                                  inputRange: [0, 1],
+                                  outputRange: [0.4, 1],
+                                }),
+                              },
+                            ],
+                          }
+                        : null
+                    }
+                  >
+                    <MaterialCommunityIcons
+                      name="mushroom"
+                      size={glyph}
+                      color={conflicting ? entry.conflictInk : entry.ink}
+                    />
+                  </Animated.View>
+                )}
+
+                {/* Mistake badge: legal so far, but not where the solution has it
+                    (plan §11.1). A corner glyph rather than a ring, so it reads
+                    as a different kind of wrong from a conflict. */}
+                {showMistakes && mistaken && (
                   <MaterialCommunityIcons
-                    name="mushroom"
-                    size={glyph}
-                    color={conflicting ? entry.conflictInk : entry.ink}
+                    name="alert"
+                    size={Math.round(cell * 0.28)}
+                    color={entry.conflictInk}
+                    style={styles.mistakeBadge}
                   />
                 )}
 
@@ -357,6 +465,18 @@ const styles = StyleSheet.create({
   conflictRing: {
     position: 'absolute',
     borderWidth: 2.5,
+  },
+  hintOutline: {
+    position: 'absolute',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderRadius: 3,
+    opacity: 0.9,
+  },
+  mistakeBadge: {
+    position: 'absolute',
+    top: 1,
+    right: 1,
   },
 });
 

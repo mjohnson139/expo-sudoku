@@ -11,6 +11,7 @@ import {
   countMushrooms,
   createEmptyMarks,
   cellsRuledOutBy,
+  findForcedDeduction,
 } from '../engine';
 
 // Sizes the v1 ladder ships (plan §8). Kept small so the suite stays fast.
@@ -378,6 +379,97 @@ describe('cellsRuledOutBy', () => {
       marks[cell] = MARKS.MUSHROOM;
 
       expect(findConflicts(marks, bands, size).size).toBeGreaterThan(0);
+    });
+  });
+});
+
+describe('findForcedDeduction', () => {
+  const size = 5;
+  const at = (row, col) => row * size + col;
+  // Five horizontal bands: every region is a whole row, so nothing is forced on
+  // an empty board and the test controls exactly what constrains what.
+  const bands = Array.from({ length: size * size }, (_, i) => Math.floor(i / size));
+
+  it('finds nothing on an unconstrained board', () => {
+    expect(findForcedDeduction(createEmptyMarks(size), bands, size)).toBeNull();
+  });
+
+  it('finds a row with exactly one candidate left', () => {
+    const marks = createEmptyMarks(size);
+    // Two mushrooms, chosen so row 1 is squeezed to exactly one cell:
+    //   (0,0) blocks column 0, and touches (1,0) and (1,1)
+    //   (2,2) blocks column 2, and touches (1,1), (1,2) and (1,3)
+    // That leaves (1,4) as row 1's only candidate. The two do not conflict:
+    // different rows, columns and bands, and rows 0 and 2 do not touch.
+    marks[at(0, 0)] = MARKS.MUSHROOM;
+    marks[at(2, 2)] = MARKS.MUSHROOM;
+
+    expect(findForcedDeduction(marks, bands, size)).toEqual({
+      kind: 'row',
+      index: 1,
+      cell: at(1, 4),
+    });
+  });
+
+  it('finds nothing when a group is over-constrained rather than forced', () => {
+    // Adding a third mushroom in column 4 blocks (1,4) too, so row 1 has *no*
+    // candidates. "Exactly one" is the deduction; zero is a contradiction, and
+    // reporting it as forced would be a confidently wrong hint.
+    const marks = createEmptyMarks(size);
+    marks[at(0, 0)] = MARKS.MUSHROOM;
+    marks[at(2, 2)] = MARKS.MUSHROOM;
+    marks[at(4, 4)] = MARKS.MUSHROOM;
+
+    expect(findForcedDeduction(marks, bands, size)).toBeNull();
+  });
+
+  it('reasons only from mushrooms, never from the player X marks', () => {
+    // X marks are beliefs and may be wrong; deducing from them would produce a
+    // confidently wrong hint.
+    const withXs = createEmptyMarks(size);
+    for (let col = 1; col < size; col++) withXs[at(0, col)] = MARKS.X;
+
+    // Row 0 "looks" forced to column 0 if you trust the X's — it must not be.
+    expect(findForcedDeduction(withXs, bands, size)).toBeNull();
+  });
+
+  it('skips groups that already hold a mushroom', () => {
+    const marks = createEmptyMarks(size);
+    marks[at(0, 0)] = MARKS.MUSHROOM;
+
+    const found = findForcedDeduction(marks, bands, size);
+    // Row 0 is done, so it is never the answer.
+    expect(found === null || found.kind !== 'row' || found.index !== 0).toBe(true);
+  });
+
+  it('finds a one-cell region, which is forced by definition', () => {
+    const regions = [...bands];
+    regions[at(2, 2)] = 99; // a region of exactly one cell
+
+    const found = findForcedDeduction(createEmptyMarks(size), regions, size);
+    expect(found).toEqual({ kind: 'region', index: 99, cell: at(2, 2) });
+  });
+
+  it('agrees with the real generator: every deduction it reports matches the solution', () => {
+    // The strongest check available — a forced move must be the *right* move, or
+    // the hint would confidently mislead.
+    [5, 6, 7].forEach((boardSize) => {
+      [1, 2, 3, 7].forEach((seed) => {
+        const puzzle = generate({ size: boardSize, seed });
+        const marks = createEmptyMarks(boardSize);
+
+        // Walk the puzzle forward, taking forced moves as they appear.
+        for (let step = 0; step < boardSize; step++) {
+          const found = findForcedDeduction(marks, puzzle.regions, boardSize);
+          if (!found) break;
+
+          const row = Math.floor(found.cell / boardSize);
+          const col = found.cell % boardSize;
+          expect(puzzle.solution[row]).toBe(col);
+
+          marks[found.cell] = MARKS.MUSHROOM;
+        }
+      });
     });
   });
 });

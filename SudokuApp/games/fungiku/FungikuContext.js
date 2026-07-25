@@ -12,7 +12,9 @@ import {
   selectCanUndo,
   selectConflicts,
   selectIsSolved,
+  selectMistakes,
   selectMushroomCount,
+  selectRevealCell,
   selectRuleOutCells,
 } from './reducer';
 
@@ -66,6 +68,18 @@ export const FungikuProvider = ({ children }) => {
     [state.marks, state.regions, state.size]
   );
 
+  // Correctness feedback (plan §11.1). Computed whether or not the switch is on:
+  // the hint cascade needs to know about mistakes even when the player has not
+  // asked to see them. Only the *rendering* is gated on `showMistakes`.
+  const mistakes = useMemo(
+    () => selectMistakes(state),
+    [state.marks, state.solution, state.size]
+  );
+  const canReveal = useMemo(
+    () => selectRevealCell(state) >= 0,
+    [state.marks, state.regions, state.solution, state.size]
+  );
+
   const cycleCell = useCallback(
     (cell) => dispatch({ type: FUNGIKU_ACTIONS.CYCLE_CELL, payload: { cell } }),
     [dispatch]
@@ -87,6 +101,24 @@ export const FungikuProvider = ({ children }) => {
   /** One tap: mark everything the placed mushrooms forbid (plan §2). */
   const ruleOut = useCallback(() => dispatch({ type: FUNGIKU_ACTIONS.RULE_OUT }), [dispatch]);
 
+  // --- feedback and hints (plan §11) ---------------------------------------
+  const toggleMistakes = useCallback(
+    () => dispatch({ type: FUNGIKU_ACTIONS.TOGGLE_MISTAKES }),
+    [dispatch]
+  );
+  const requestHint = useCallback(
+    () => dispatch({ type: FUNGIKU_ACTIONS.REQUEST_HINT }),
+    [dispatch]
+  );
+  const revealMushroom = useCallback(
+    () => dispatch({ type: FUNGIKU_ACTIONS.REVEAL_MUSHROOM }),
+    [dispatch]
+  );
+  const dismissHint = useCallback(
+    () => dispatch({ type: FUNGIKU_ACTIONS.DISMISS_HINT }),
+    [dispatch]
+  );
+
   /**
    * Start a puzzle. Generation happens here rather than in the reducer so a
    * failure surfaces as a caught error instead of a throw mid-dispatch.
@@ -96,13 +128,15 @@ export const FungikuProvider = ({ children }) => {
       try {
         dispatch({
           type: FUNGIKU_ACTIONS.NEW_PUZZLE,
-          payload: buildPuzzleState({ size, seed }),
+          // The feedback switch is a preference and carries over; the hint count
+          // is per-puzzle and resets.
+          payload: buildPuzzleState({ size, seed, showMistakes: state.showMistakes }),
         });
       } catch (error) {
         console.error('Fungiku generation failed:', error);
       }
     },
-    [dispatch, state.size, state.seed]
+    [dispatch, state.size, state.seed, state.showMistakes]
   );
 
   const nextPuzzle = useCallback(
@@ -135,6 +169,12 @@ export const FungikuProvider = ({ children }) => {
       endStroke,
       ruleOut,
       ruleOutCount,
+      mistakes,
+      canReveal,
+      toggleMistakes,
+      requestHint,
+      revealMushroom,
+      dismissHint,
       startPuzzle,
       nextPuzzle,
       changeSize,
@@ -154,6 +194,12 @@ export const FungikuProvider = ({ children }) => {
       endStroke,
       ruleOut,
       ruleOutCount,
+      mistakes,
+      canReveal,
+      toggleMistakes,
+      requestHint,
+      revealMushroom,
+      dismissHint,
       startPuzzle,
       nextPuzzle,
       changeSize,
