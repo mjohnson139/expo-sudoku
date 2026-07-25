@@ -92,94 +92,126 @@ operator to test in Expo Go.**
 
 ---
 
-## Next step: **Step 8 — the training ladder and scoring**
+## Next step: **Step 8 — bigger boards, up to 12×12**
 
-Branch: **`feature/fungiku-ladder`** off `epic/fungiku`.
-Plan: the §7 table row for step 8, plus **§8 #4**, which this step needs answered
-(or defaulted, with the default stated in the PR).
+Branch: **`feature/fungiku-big-boards`** off `epic/fungiku`.
+Plan: **§12** end to end (it is all new, written 2026-07-25), plus the §7 note
+"Why bigger boards come before the ladder".
 
 ### Why this step exists
 
-Fungiku is a complete puzzle with feedback and hints, but it has **no shape as a
-game**. You pick a size from four chips and press "New puzzle" for a random seed;
-nothing tracks what you have done, nothing gets harder, nothing tells you that
-you are improving. This step turns a puzzle generator into something worth coming
-back to.
+The operator asked for the ladder to reach **12×12**. That answers half of §8 #4,
+and it is not a table entry — it is an engineering problem. Two things built for
+boards of 5–8 do not survive the jump, and one of them is measured to be
+catastrophic:
 
-Feedback and hints landed first on purpose: **scoring now has real events to
-price.** `hintsUsed` is already recorded per puzzle, and `selectMistakes` already
-knows when a placement is wrong.
+- **Generation is synchronous and superlinear.** Twelve seeds per size on this
+  machine: 8×8 median **6 ms**, 10×10 **284 ms**, 11×11 **2.5 s**, 12×12
+  **7.3 s median and 41.8 s worst case**. Nothing *failed* at any size — the
+  boards are correct — but tapping "New puzzle" on a 12×12 freezes the app for
+  seven seconds typically. That reads as a crash. Full table in §12.1.
+- **The palette has nine colours and wraps.** `getRegionColor` does
+  `regionId % palette.length`, so at 10, 11 and 12 regions **two different
+  regions render identically**. Region colour is the only way the player sees
+  region boundaries, so that is a correctness bug at those sizes, not a cosmetic
+  one. §12.2 has the measurement showing 12 well-chosen fills would actually be
+  *better* separated (ΔE 21.80) than the 9 that ship today (17.11).
+
+The ladder (now Step 9) has to know its own ceiling, and one candidate fix here —
+baking level layouts as data — is itself a ladder design decision. Doing sizes
+first avoids building a 5–8 ladder and then reworking it.
 
 ### Read first
 
-- `SudokuApp/games/fungiku/reducer.js` — `hintsUsed` is already counted per
-  puzzle and persisted; that is the hook scoring hangs off. Note how `changeSize`
-  and `nextPuzzle` currently work (`changeSize` resets to seed 1, `nextPuzzle`
-  bumps the seed) — a ladder replaces that with a level list.
-- `SudokuApp/games/fungiku/storage.js` — persistence is `size` + `seed` + `marks`
-  + `showMistakes` + `hintsUsed`. Ladder progress is the first thing needing a
-  **schema change**: bump `FUNGIKU_STORAGE_VERSION` and decide what an old save
-  migrates to. Today a version mismatch returns null and the board starts fresh —
-  fine for a board, **not** fine for someone's progress.
-- `SudokuApp/utils/gameProgress.js` + `games/registry.js` —
-  `describeFungikuProgress` feeds the hub's Continue badge. With a ladder the
-  badge probably wants to name the *level* rather than the board size.
-- **The sibling color-loop app is the reference for exactly this problem** — it
-  has a training ladder in `games/colorloop/levels.ts` with per-level star
-  thresholds, and its `docs/game-design.md` covers the progression thinking. Read
-  it before designing a second one from scratch.
-- `SudokuApp/contexts/GameContext.js` — Sudoku's scoring (time-based, with
-  completion bonuses) is one model. Fungiku has **no timer at all** today, which
-  is a decision this step has to make deliberately rather than by accident.
+- **§12 of the plan.** It has the generation timings, the palette measurement, the
+  27-pixel legibility list, and four candidate approaches to the cost ranked
+  cheapest-first. Do not re-derive any of it.
+- `SudokuApp/games/fungiku/engine.js` — `generate()` grows regions randomly and
+  then perturbs toward uniqueness (`findSolutions` → `breakSolution`, up to
+  `PERTURB_BUDGET` rounds). **The cost is in that loop, and §12.1 candidate #1 is
+  to profile it before optimizing**: whether it is the number of rounds or the
+  cost of each search changes the fix completely. `MIN_SIZE = 5` exists; there is
+  no upper bound, so size 20 is accepted and never returns.
+- `SudokuApp/utils/symbolSets.js` — `HUE_ORDER` + `LIGHT_TINTS`/`DARK_TINTS`
+  build both theme palettes; `getRegionColor` wraps. The `corners` shape cue in
+  this module is **defined but unused by the Fungiku board** — twelve regions is
+  where colour alone starts carrying too much, so this is the moment to add a
+  second channel.
+- `SudokuApp/utils/__tests__/symbolSets.test.js` — holds the ΔE 15 worst-pair
+  floor that the current palette clears at 17.11. Extending to 12 must keep it
+  green; §12.2 says that is achievable.
+- `SudokuApp/hooks/useBoardSize.js` — returns a fixed **324** on native, so a
+  12×12 cell is **27 px** (web's 450 gives 37 px). §12.3 lists what breaks at
+  that size — notably the mistake badge at `cell * 0.28` ≈ 7 px.
+- `SudokuApp/games/fungiku/FungikuScreen.js` — where the size chips live. Four
+  chips become up to eight; that is a layout question, not just a data one.
 
 ### Scope — ONLY this
 
-1. **A level ladder as data** — an ordered list, each level pinning a `size` and a
-   `seed`. Both are already deterministic, so a level *is* a `{size, seed}` pair.
-   Keep it a table in its own module so tuning is editing data.
-2. **Progression + persistence** — which levels are complete, and what unlocks.
-   Bump the storage version and **migrate**, don't discard.
-3. **A level-select surface** replacing the raw size chips as the primary path.
-   Keep a free-play route: the chips are how the 8×8 regression cases get
-   checked, and free choice is a reasonable answer to §8 #4.
-4. **Scoring** — decide what it measures and say why in the PR. Hints used and
-   mistakes made are both available now. If it needs a timer, add one, and note
-   that Fungiku deliberately had none until this point.
-5. **Hub integration** — the Continue badge should reflect ladder position.
-6. **Tests** — the ladder table and progression logic are pure; cover them. And
-   **assert that every level in the table actually generates**: a bad
-   `{size, seed}` pair would otherwise only fail when a player reaches it.
+1. **Make 12×12 generate promptly, or cap honestly.** Profile the perturbation
+   loop first (§12.1 #1), then pick from #2–#4. Whatever the outcome, the app must
+   never block the main thread for seconds: a loading state around generation
+   (§12.1 #3) is a safety net worth having regardless of how fast it gets.
+   **If 12×12 cannot be made interactive, cap the ladder where it can be and say
+   so in the PR** — an honest 10×10 ceiling beats a 12×12 that freezes.
+2. **Add `MAX_SIZE = 12`** and reject above it, the same way sizes below 5 are
+   rejected today. Right now there is no upper bound at all.
+3. **Extend the palette to 12 distinguishable fills per theme**, derived the same
+   way §5's was — maximize the worst pairwise CIEDE2000 distance under the
+   lightness band. **Do not eyeball it, and do not stop at ΔE:** check the three
+   new hues under colourblind simulation (§12.2), because Okabe–Ito was chosen for
+   CVD safety and a hue picked purely to maximize ΔE for normal vision can collide
+   under deutan or protan.
+4. **Make `getRegionColor` stop wrapping silently.** Repeating a colour across two
+   regions must be impossible-by-construction or loud, not quiet.
+5. **A legibility pass at 27 px** (§12.3): mistake badge, conflict ring, region
+   borders, glyph size. Sizes tuned for 5×5 do not scale down by themselves.
+6. **Sizes reachable from the UI**, so the operator can actually play a 12×12 in
+   Expo Go.
+7. **Tests** — the palette floor extended to 12 entries, `MAX_SIZE` rejection, and
+   a generation test at the top size that would catch a regression to
+   multi-second cost. Keep it a bound with headroom, not a tight timing assert:
+   CI machines vary.
 
 ### Behaviors that are easy to get wrong
 
-- **Every level must be generatable.** `generate()` throws below size 5; a typo
-  in the table becomes a crash for whoever reaches that level. Assert the whole
-  table.
-- **Don't lose existing progress on the schema change.** A player mid-board today
-  has `{size, seed, marks, showMistakes, hintsUsed}` and no ladder state; that has
-  to migrate to something sensible, not a wiped save.
-- **Star thresholds and difficulty curves are guesses until played.** Draft them,
-  say in the PR that they are estimates, and flag them for tuning on device — the
-  same way color-loop's ladder was left.
-- **Keep free play reachable**, or the 8×8 palette and layout cases get harder to
-  check.
-- **Don't let scoring change what a hint does.** Hints are counted already; this
-  step prices them, it does not redesign them.
+- **Don't ship a size the app cannot generate promptly.** This is the one
+  requirement that outranks "support 12×12".
+- **A timing test on CI is a flake factory.** Assert a generous ceiling (or count
+  perturbation rounds instead of milliseconds) rather than a tight duration.
+- **Re-tune the palette with the same objective, never by hand.** The test floor
+  exists precisely so a well-meaning hand-picked swatch can't quietly regress
+  separation.
+- **ΔE is not colourblind safety.** They are different properties; twelve hues is
+  where that gap starts to matter.
+- **The board's measured origin.** If this step adds anything above the board (a
+  generation spinner, for instance), it must go into the deps of `FungikuBoard`'s
+  re-measure effect — currently `[hint, solved, measure]` — or the first tap after
+  it appears lands on the wrong cell. `onLayout` does not save you; see the note
+  below.
+- **Bigger boards mean smaller cells mean fatter fingers.** The existing tap
+  threshold (6 px before a tap becomes a stroke) was tuned against ~40 px cells.
+  At 27 px it may need revisiting — and that is a device question, not a browser
+  one.
 
 ### Out of scope for this step
 
-- **No art swap** — Step 9, gated on artwork rather than code.
-- **No new feedback or hint behavior.** Step 7 shipped both; if the operator wants
-  the hint ladder to escalate differently (see the note below), that is its own
-  change, not this step.
-- **No engine changes.** Levels are `{size, seed}` pairs over the existing
-  generator.
+- **No ladder, no scoring** — Step 9. This step decides the ceiling the ladder
+  will use; it does not build progression. Research already gathered for that step
+  is parked in plan **§13** so it isn't lost.
+- **No art swap** — Step 10, gated on artwork rather than code.
+- **No hint-strength work.** §12.4 found the forced-move nudge is shallow (it
+  averages 1–2 deductions from an empty board at any size), which will be more
+  obvious on a 12×12. Real, and worth doing — but strengthening the propagator
+  with pigeonhole reasoning is its own change. Note it in the PR; don't smuggle it
+  in.
 
 ### Visible in Expo Go when this lands
 
-A **level list** you progress through, with completed levels marked, and a score
-or rating when you solve one. The hub's Fungiku card says where you are in the
-ladder.
+**A playable 12×12** — twelve visibly different region colours, legible marks at
+27-pixel cells, and a "New puzzle" tap that either returns quickly or shows an
+honest loading state instead of freezing. If the ceiling ends up below 12, the
+largest size that *is* playable, with the reason in the PR.
 
 ## Open questions for the operator (carry these forward)
 
@@ -194,10 +226,19 @@ ladder.
 3. ~~**Hub vs. resume on launch**~~ — built hub-first in Step 3: the app opens on
    the hub and the Sudoku card carries a *Continue* badge. Revisit only if the
    operator dislikes it on device.
-4. **Ladder shape** — v1 targets 5×5 → 8×8. Where should it top out, and is size
-   a free choice or unlocked by progression? *(Step 6 concern.)*
-5. **Assist defaults** — should auto-X be on by default for younger players?
-   *(Step 6 concern.)*
+4. **Ladder shape** — **top end decided: 12×12** (operator, 2026-07-25; plan
+   §12). Still open: **is size a free choice or unlocked by progression?**
+5. ~~**Assist defaults**~~ — moot: the rule-out assist became a button you tap
+   rather than a mode with a setting, so there is no default to choose. (§2)
+6. **How strong should hints go?** (§11) The ladder ends at *reveal a correct
+   mushroom*, which solves a cell outright. Right for a family game, or does it
+   want capping at a nudge? Related: a reveal is currently only reachable when
+   nothing is forced, so a frustrated player cannot skip to the answer — see the
+   first note below.
+7. **Should "Show mistakes" default on for younger players?** (§11) It turns a
+   deduction puzzle into trial-and-error for anyone who leaves it on, which argues
+   for off — but "off" for a seven-year-old may just mean stuck. Ships **off**
+   today.
 
 ### Noted in passing, for a later step
 
@@ -281,4 +322,4 @@ ladder.
 | 4 | Fungiku state — reducer, tap-to-cycle marks, live conflicts, win, undo/redo, own-key persistence | merged to `epic/fungiku` (#70, `a9caf92`) |
 | 5 | Board UI — palette fix with a tested ΔE floor, themed + responsive board, animated win | merged to `epic/fungiku` (#71, `905bfa2`) |
 | 6 | Input ergonomics — drag to sweep X's, rule-out button | merged to `epic/fungiku` (#72, `e896fb6`) |
-| 7 | Feedback & hints — mistake flagging, forced-deduction nudge, reveal, placement pop | PR to `epic/fungiku` |
+| 7 | Feedback & hints — mistake flagging, forced-deduction nudge, reveal, placement pop | merged to `epic/fungiku` (#73, `12f72c3`) |
