@@ -10,7 +10,11 @@ on:
       # step PRs -- once a step PR merges into the epic there is no open PR
       # left, so the PR-preview job below would otherwise leave nothing to test.
       - 'epic/**'
+  # `closed` is not in the default set of pull_request activity types, and the
+  # cleanup job at the bottom needs it. The other three are the default types,
+  # respelled here because naming any type replaces the defaults.
   pull_request:
+    types: [opened, synchronize, reopened, closed]
 
 permissions:
   contents: write        # for gh-pages push
@@ -119,8 +123,13 @@ jobs:
 # Open / update a PR -> publish a preview EAS Update and comment a QR code
   preview-mobile:
     name: EAS Update PR preview
-    # Only for PRs from this repo (fork PRs can't access EXPO_TOKEN)
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    # Only for PRs from this repo (fork PRs can't access EXPO_TOKEN), and never
+    # on `closed` -- that activity type exists for the cleanup job below, and
+    # publishing here would recreate the very branch that job just deleted.
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.action != 'closed'
+      && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -155,3 +164,48 @@ jobs:
             --branch pr-${{ github.event.number }}
             --message "PR #${{ github.event.number }} preview (${{ github.event.pull_request.head.sha }})"
             --environment preview
+
+# --------------------------------------------------------------------------
+# PR closed -> delete the EAS Update branch its preview published to.
+#
+# EAS Update branches are a separate namespace from git: closing or merging a PR
+# (and deleting its git branch) leaves `pr-<N>` published forever. Nothing prunes
+# them, so they accumulate -- this repo had built up 68 stale branches, including
+# duplicate pairs from an earlier workflow that published the branch's last path
+# segment as well as its full ref.
+#
+# Safe to delete unconditionally: a `pr-<N>` branch is only ever reachable
+# through the QR code in that PR's preview comment, which is dead once the PR is
+# closed. It is not mapped to a channel, so no installed build resolves updates
+# from it.
+  cleanup-preview:
+    name: Delete the PR's EAS Update branch
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.action == 'closed'
+      && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Set up EAS CLI (with token auth)
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Delete the preview branch
+        # Never fail the run over cleanup: the branch may not exist (a PR closed
+        # before any preview published), and a missing branch is the desired
+        # end state anyway.
+        continue-on-error: true
+        run: eas branch:delete "pr-${{ github.event.number }}" --non-interactive
+        working-directory: ${{ env.APP_DIR }}

@@ -17,6 +17,7 @@
 import {
   MARKS,
   MIN_SIZE,
+  cellsRuledOutBy,
   createEmptyMarks,
   countMushrooms,
   findConflicts,
@@ -32,7 +33,21 @@ export const FUNGIKU_ACTIONS = {
   UNDO: 'FUNGIKU_UNDO',
   REDO: 'FUNGIKU_REDO',
   RESTORE_SAVED_GAME: 'FUNGIKU_RESTORE_SAVED_GAME',
+
+  // Drag-to-sweep (plan §2). A stroke paints many cells over many frames but
+  // must undo as one action, so the gesture opens a stroke, paints repeatedly,
+  // and closes it.
+  BEGIN_STROKE: 'FUNGIKU_BEGIN_STROKE',
+  PAINT_CELLS: 'FUNGIKU_PAINT_CELLS',
+  END_STROKE: 'FUNGIKU_END_STROKE',
+
+  // "Rule out" — one tap marks every cell the mushrooms already on the board
+  // forbid. An action the player asks for, not a mode that acts behind them.
+  RULE_OUT: 'FUNGIKU_RULE_OUT',
 };
+
+/** What a drag stroke does to the cells it crosses. */
+export const PAINT_MODES = { X: 'x', ERASE: 'erase' };
 
 export const DEFAULT_SIZE = MIN_SIZE;
 export const DEFAULT_SEED = 1;
@@ -59,6 +74,10 @@ export const buildPuzzleState = ({ size = DEFAULT_SIZE, seed = DEFAULT_SEED, mar
         : createEmptyMarks(puzzle.size),
     undoStack: [],
     redoStack: [],
+    // Transient: true between BEGIN_STROKE and the stroke's first effective
+    // paint, which is the paint that records the single undo entry. Never
+    // persisted (see ./storage.js).
+    strokeOpen: false,
   };
 };
 
@@ -95,6 +114,59 @@ export function fungikuReducer(state, action) {
       const marks = state.marks.slice();
       marks[cell] = nextMark(marks[cell]);
       return pushHistory(state, marks);
+    }
+
+    case FUNGIKU_ACTIONS.RULE_OUT: {
+      const ruled = selectRuleOutCells(state);
+      if (ruled.size === 0) return state;
+
+      const marks = state.marks.slice();
+      ruled.forEach((cell) => {
+        marks[cell] = MARKS.X;
+      });
+
+      // One undo entry for the whole sweep, same as a drag stroke. The marks it
+      // places are *ordinary* X marks from here on: removing a mushroom later
+      // leaves them behind, and undo is how you take the whole assist back.
+      // Retracting them per-mushroom would need per-mark provenance, which is
+      // ambiguous the moment two mushrooms rule out the same cell.
+      return pushHistory(state, marks);
+    }
+
+    case FUNGIKU_ACTIONS.BEGIN_STROKE:
+      // Nothing is painted yet; the first effective paint spends this flag on
+      // the stroke's one undo entry.
+      return state.strokeOpen ? state : { ...state, strokeOpen: true };
+
+    case FUNGIKU_ACTIONS.END_STROKE:
+      return state.strokeOpen ? { ...state, strokeOpen: false } : state;
+
+    case FUNGIKU_ACTIONS.PAINT_CELLS: {
+      const { cells, mode } = action.payload;
+      if (!Array.isArray(cells) || cells.length === 0) return state;
+
+      const target = mode === PAINT_MODES.ERASE ? MARKS.EMPTY : MARKS.X;
+
+      let marks = null;
+      cells.forEach((cell) => {
+        if (!Number.isInteger(cell) || cell < 0 || cell >= state.marks.length) return;
+
+        // A stroke never disturbs a mushroom (plan §2) — losing a deduced
+        // placement to a stray swipe is the worst thing this gesture could do.
+        const current = (marks || state.marks)[cell];
+        if (current === MARKS.MUSHROOM || current === target) return;
+
+        if (!marks) marks = state.marks.slice();
+        marks[cell] = target;
+      });
+
+      // Nothing actually changed: leave the stroke open so the *next* cell it
+      // reaches is the one that records the undo entry.
+      if (!marks) return state;
+
+      return state.strokeOpen
+        ? { ...pushHistory(state, marks), strokeOpen: false }
+        : { ...state, marks };
     }
 
     case FUNGIKU_ACTIONS.CLEAR_MARKS: {
@@ -139,6 +211,27 @@ export const selectMushroomCount = (state) => countMushrooms(state.marks);
 
 /** Won when N mushrooms sit legally. X marks are ignored entirely (plan §9). */
 export const selectIsSolved = (state) => isSolved(state.marks, state.regions, state.size);
+
+/**
+ * Empty cells that the mushrooms already on the board forbid — what one tap of
+ * "Rule out" fills in (plan §2).
+ *
+ * Only blanks: an existing X is already correct, and a mushroom is never
+ * disturbed, not even a conflicting one (the player is mid-deduction and it is
+ * theirs to move).
+ */
+export const selectRuleOutCells = (state) => {
+  const out = new Set();
+
+  state.marks.forEach((mark, cell) => {
+    if (mark !== MARKS.MUSHROOM) return;
+    cellsRuledOutBy(cell, state.regions, state.size).forEach((ruled) => {
+      if (state.marks[ruled] === MARKS.EMPTY) out.add(ruled);
+    });
+  });
+
+  return out;
+};
 
 export const selectCanUndo = (state) => state.undoStack.length > 0;
 export const selectCanRedo = (state) => state.redoStack.length > 0;

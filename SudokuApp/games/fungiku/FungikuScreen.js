@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Platform, ScrollView, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
@@ -16,11 +16,16 @@ const FUNGIKU_ACCENT = '#a0522d';
  * (docs/fungiku-plan.md §6), and as of Step 4 an actually playable game.
  *
  * Layout: header, the `🍄 X/N` counter, the board, then controls. The size and
- * "next puzzle" controls stand in for the training ladder until Step 6; Step 5
- * replaces the board with the finished themed component.
+ * "next puzzle" controls stand in for the training ladder until the ladder step
+ * lands (plan §7).
  */
 const FungikuScreenContent = ({ onExitToHub }) => {
   const { theme, isDark } = useAppTheme();
+
+  // True while a finger is down on the board, which freezes scrolling so a
+  // vertical sweep paints instead of scrolling the page.
+  const [boardTouchActive, setBoardTouchActive] = useState(false);
+
   const {
     size,
     seed,
@@ -35,6 +40,8 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     clearMarks,
     changeSize,
     nextPuzzle,
+    ruleOut,
+    ruleOutCount,
   } = useFungikuContext();
 
   const titleColor = theme.colors.title;
@@ -48,13 +55,28 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     ? 'One per row, column and color — none touching'
     : conflicts.size > 0
       ? `${conflicts.size} mushroom${conflicts.size === 1 ? '' : 's'} breaking a rule`
-      : 'Tap a cell: empty → ✕ → 🍄';
+      : 'Tap to cycle · drag to sweep ✕';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScreenHeader title="Fungiku" theme={theme} onHomePress={onExitToHub} />
 
-      <ScrollView contentContainerStyle={styles.body}>
+      {/* Two halves of one fix for "a vertical drag scrolls instead of painting"
+          (the board claims the touch at touch-down; see FungikuBoard):
+            scrollEnabled       — frozen while a finger is down on the board.
+                                  This is what reliably stops Android's
+                                  ScrollView from intercepting the drag.
+            canCancelContentTouches (iOS only) — stops UIScrollView cancelling a
+                                  touch the board has already claimed.
+          The trade-off is deliberate: you cannot scroll this screen by dragging
+          on the board. Drag anywhere else. The content fits without scrolling on
+          a normal phone even at 8×8, so the ScrollView is really insurance for
+          small or landscape screens. */}
+      <ScrollView
+        contentContainerStyle={styles.body}
+        scrollEnabled={!boardTouchActive}
+        {...(Platform.OS === 'ios' ? { canCancelContentTouches: false } : null)}
+      >
         {/* The `🍄 X/N` counter (plan §1) — how the player tracks the goal. */}
         <View style={[styles.counterRow, { backgroundColor: surface, borderColor: border }]}>
           <MaterialCommunityIcons name="mushroom" size={20} color={titleColor} />
@@ -75,7 +97,11 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           onNextPuzzle={nextPuzzle}
         />
 
-        <FungikuBoard isDark={isDark} theme={theme} />
+        <FungikuBoard
+          isDark={isDark}
+          theme={theme}
+          onTouchActiveChange={setBoardTouchActive}
+        />
 
         {/* Undo / redo / clear */}
         <View style={styles.controlRow}>
@@ -102,7 +128,36 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           />
         </View>
 
-        {/* Board size + next puzzle — the stand-in for Step 6's ladder */}
+        {/* Rule out (plan §2). An action the player asks for, not a mode that
+            acts behind them: one tap marks everything the mushrooms already on
+            the board forbid. Disabled when there is nothing left to mark, so it
+            never offers to do nothing. */}
+        <View style={styles.controlRow}>
+          <TouchableOpacity
+            onPress={ruleOut}
+            disabled={ruleOutCount === 0}
+            style={[
+              styles.wideButton,
+              { borderColor: border },
+              ruleOutCount === 0 && styles.toolButtonDisabled,
+            ]}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: ruleOutCount === 0 }}
+            accessibilityLabel={
+              ruleOutCount === 0
+                ? 'Rule out, nothing to mark'
+                : `Rule out ${ruleOutCount} cell${ruleOutCount === 1 ? '' : 's'}`
+            }
+            accessibilityHint="Marks every cell the mushrooms you have placed forbid"
+          >
+            <MaterialCommunityIcons name="auto-fix" size={18} color={titleColor} />
+            <Text style={[styles.buttonText, { color: titleColor }]}>
+              {ruleOutCount === 0 ? 'Rule out' : `Rule out ${ruleOutCount}`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Board size + next puzzle — the stand-in for the ladder step */}
         <Text style={[styles.label, { color: titleColor }]}>Board size</Text>
         <View style={styles.controlRow}>
           {SIZES.map((option) => (
