@@ -35,7 +35,13 @@ export const loadFungikuState = async () => {
 
     // Rebuilding through buildPuzzleState also validates the save: a `marks`
     // array of the wrong length for this size is discarded, not rendered.
-    return buildPuzzleState({ size: saved.size, seed: saved.seed, marks: saved.marks });
+    return buildPuzzleState({
+      size: saved.size,
+      seed: saved.seed,
+      marks: saved.marks,
+      showMistakes: saved.showMistakes,
+      hintsUsed: saved.hintsUsed,
+    });
   } catch (error) {
     console.error('Error loading Fungiku state:', error);
     return null;
@@ -52,9 +58,13 @@ export const saveFungikuState = debounce(async (state) => {
         size: state.size,
         seed: state.seed,
         marks: state.marks,
-        // `strokeOpen` deliberately does not persist — it is transient gesture
-        // bookkeeping. Nor does anything about the rule-out assist: it is an
-        // action the player taps, not a mode with a remembered setting.
+        // The feedback switch is a preference and the hint count is per-puzzle
+        // history, so both persist. `strokeOpen` and `hint` deliberately do not:
+        // one is gesture bookkeeping, the other is advice that goes stale the
+        // moment the board changes. Nor does anything about the rule-out assist —
+        // it is an action the player taps, not a mode with a remembered setting.
+        showMistakes: !!state.showMistakes,
+        hintsUsed: state.hintsUsed || 0,
       })
     );
   } catch (error) {

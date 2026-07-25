@@ -57,7 +57,11 @@ const FungikuWinBanner = ({ solved, size, seed, accent, onNextPuzzle }) => {
         toValue: 1,
         duration: 900,
         easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
+        // JS driver, for the same reason as the board's placement pop: this value
+        // is reset with setValue() above, and setValue() mixed with the native
+        // driver leaves the JS value a stale copy — which strands the rotation
+        // part-way instead of returning it to 0deg.
+        useNativeDriver: false,
       }),
     ]);
     animation.start();

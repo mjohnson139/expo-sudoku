@@ -21,6 +21,7 @@ import {
   createEmptyMarks,
   countMushrooms,
   findConflicts,
+  findForcedDeduction,
   generate,
   isSolved,
   nextMark,
@@ -44,6 +45,20 @@ export const FUNGIKU_ACTIONS = {
   // "Rule out" — one tap marks every cell the mushrooms already on the board
   // forbid. An action the player asks for, not a mode that acts behind them.
   RULE_OUT: 'FUNGIKU_RULE_OUT',
+
+  // Feedback and hints (plan §11).
+  TOGGLE_MISTAKES: 'FUNGIKU_TOGGLE_MISTAKES',
+  REQUEST_HINT: 'FUNGIKU_REQUEST_HINT',
+  REVEAL_MUSHROOM: 'FUNGIKU_REVEAL_MUSHROOM',
+  DISMISS_HINT: 'FUNGIKU_DISMISS_HINT',
+};
+
+/** What a hint turned out to be able to offer (plan §11.2). */
+export const HINT_KINDS = {
+  MISTAKE: 'mistake',
+  NUDGE: 'nudge',
+  REVEAL: 'reveal',
+  STUCK: 'stuck',
 };
 
 /** What a drag stroke does to the cells it crosses. */
@@ -59,7 +74,13 @@ export const DEFAULT_SEED = 1;
  *
  * @param {{size: number, seed: number, marks?: string[]}} opts
  */
-export const buildPuzzleState = ({ size = DEFAULT_SIZE, seed = DEFAULT_SEED, marks } = {}) => {
+export const buildPuzzleState = ({
+  size = DEFAULT_SIZE,
+  seed = DEFAULT_SEED,
+  marks,
+  showMistakes = false,
+  hintsUsed = 0,
+} = {}) => {
   const puzzle = generate({ size, seed });
 
   return {
@@ -74,6 +95,15 @@ export const buildPuzzleState = ({ size = DEFAULT_SIZE, seed = DEFAULT_SEED, mar
         : createEmptyMarks(puzzle.size),
     undoStack: [],
     redoStack: [],
+    // Opt-in correctness feedback (plan §11.1). Off by default: left on it turns
+    // a deduction puzzle into trial-and-error. A preference, so it carries across
+    // puzzles; §8 #7 asks whether it should default on for younger players.
+    showMistakes: !!showMistakes,
+    // Per-puzzle, so the ladder step can price hints later (plan §11.2).
+    hintsUsed: Number.isFinite(hintsUsed) ? hintsUsed : 0,
+    // Transient advice, never persisted: it goes stale the moment the board
+    // changes, so every board-changing action clears it.
+    hint: null,
     // Transient: true between BEGIN_STROKE and the stroke's first effective
     // paint, which is the paint that records the single undo entry. Never
     // persisted (see ./storage.js).
@@ -94,6 +124,8 @@ const pushHistory = (state, marks) => ({
   marks,
   undoStack: [...state.undoStack, state.marks],
   redoStack: [],
+  // Advice about a board you have since changed is worse than no advice.
+  hint: null,
 });
 
 export function fungikuReducer(state, action) {
@@ -131,6 +163,85 @@ export function fungikuReducer(state, action) {
       // Retracting them per-mushroom would need per-mark provenance, which is
       // ambiguous the moment two mushrooms rule out the same cell.
       return pushHistory(state, marks);
+    }
+
+    case FUNGIKU_ACTIONS.TOGGLE_MISTAKES:
+      return { ...state, showMistakes: !state.showMistakes };
+
+    case FUNGIKU_ACTIONS.DISMISS_HINT:
+      return state.hint ? { ...state, hint: null } : state;
+
+    /**
+     * One hint, as weak as will still help (plan §11.2). The cascade matters:
+     *
+     * 1. A wrong mushroom on the board corrupts every deduction that follows, so
+     *    saying "row 3 is forced" would be confidently wrong. Mistakes first.
+     * 2. Otherwise nudge: name the row, column or region where something is
+     *    forced, *without* saying which cell. That is the hint that teaches.
+     * 3. Nothing forced from here — **say so** rather than quietly revealing.
+     *    The reveal is a second, deliberate tap.
+     */
+    case FUNGIKU_ACTIONS.REQUEST_HINT: {
+      const mistakes = selectMistakes(state);
+      if (mistakes.size > 0) {
+        const cell = Math.min(...mistakes);
+        return {
+          ...state,
+          hintsUsed: state.hintsUsed + 1,
+          hint: {
+            kind: HINT_KINDS.MISTAKE,
+            cells: [cell],
+            message:
+              mistakes.size === 1
+                ? 'This mushroom is in the wrong place.'
+                : `${mistakes.size} of your mushrooms are in the wrong place — here is one.`,
+          },
+        };
+      }
+
+      const forced = findForcedDeduction(state.marks, state.regions, state.size);
+      if (forced) {
+        return {
+          ...state,
+          hintsUsed: state.hintsUsed + 1,
+          hint: {
+            kind: HINT_KINDS.NUDGE,
+            // The whole row/column/region, deliberately — not `forced.cell`.
+            cells: [...cellsOfGroup(forced, state.regions, state.size)],
+            message: `${describeGroup(forced)} has only one cell left that can hold a mushroom.`,
+          },
+        };
+      }
+
+      // No forced step. Not counted as a hint used: it gave nothing away.
+      return {
+        ...state,
+        hint: {
+          kind: HINT_KINDS.STUCK,
+          cells: [],
+          offerReveal: true,
+          message: 'No single forced step from here. Reveal a mushroom instead?',
+        },
+      };
+    }
+
+    /** The strongest rung: place one correct mushroom outright. */
+    case FUNGIKU_ACTIONS.REVEAL_MUSHROOM: {
+      const cell = selectRevealCell(state);
+      if (cell < 0) return state;
+
+      const marks = state.marks.slice();
+      marks[cell] = MARKS.MUSHROOM;
+
+      return {
+        ...pushHistory(state, marks),
+        hintsUsed: state.hintsUsed + 1,
+        hint: {
+          kind: HINT_KINDS.REVEAL,
+          cells: [cell],
+          message: 'One mushroom revealed.',
+        },
+      };
     }
 
     case FUNGIKU_ACTIONS.BEGIN_STROKE:
@@ -183,6 +294,7 @@ export function fungikuReducer(state, action) {
         marks: state.undoStack[state.undoStack.length - 1],
         undoStack: state.undoStack.slice(0, -1),
         redoStack: [...state.redoStack, state.marks],
+        hint: null,
       };
     }
 
@@ -193,6 +305,7 @@ export function fungikuReducer(state, action) {
         marks: state.redoStack[state.redoStack.length - 1],
         undoStack: [...state.undoStack, state.marks],
         redoStack: state.redoStack.slice(0, -1),
+        hint: null,
       };
     }
 
@@ -235,5 +348,72 @@ export const selectRuleOutCells = (state) => {
 
 export const selectCanUndo = (state) => state.undoStack.length > 0;
 export const selectCanRedo = (state) => state.redoStack.length > 0;
+
+/**
+ * Mushrooms that break no rule *yet* but are not where the puzzle's single
+ * solution has them (plan §11.1). Derived, never stored, so undo cannot leave a
+ * stale flag behind.
+ *
+ * **Mushrooms only.** X marks are a thinking aid with no bearing on the win, so
+ * there is no such thing as a wrong X — flagging one would be telling the player
+ * how to think.
+ *
+ * Note what this can never report: because the puzzle has exactly one solution,
+ * N mushrooms placed with no conflicts *is* that solution. There is no
+ * complete-but-wrong board, so this is purely a mid-solve aid.
+ */
+export const selectMistakes = (state) => {
+  const out = new Set();
+
+  state.marks.forEach((mark, cell) => {
+    if (mark !== MARKS.MUSHROOM) return;
+    const row = Math.floor(cell / state.size);
+    if (state.solution[row] !== cell % state.size) out.add(cell);
+  });
+
+  return out;
+};
+
+/**
+ * Which cell a reveal would fill: a row still missing its mushroom whose solution
+ * cell can be placed **without creating a conflict** (plan §11.2 — "a hint that
+ * creates a conflict is worse than no hint").
+ *
+ * Returns -1 when there is nothing safe to reveal, which in practice means a
+ * wrongly-placed mushroom is in the way. The hint cascade catches that first and
+ * reports the mistake instead.
+ */
+export const selectRevealCell = (state) => {
+  for (let row = 0; row < state.size; row++) {
+    const cell = row * state.size + state.solution[row];
+    if (state.marks[cell] === MARKS.MUSHROOM) continue;
+
+    const trial = state.marks.slice();
+    trial[cell] = MARKS.MUSHROOM;
+    if (!findConflicts(trial, state.regions, state.size).has(cell)) return cell;
+  }
+
+  return -1;
+};
+
+/** Every cell of the row/column/region a nudge points at. */
+const cellsOfGroup = ({ kind, index }, regions, size) => {
+  if (kind === 'row') return Array.from({ length: size }, (_, col) => index * size + col);
+  if (kind === 'column') return Array.from({ length: size }, (_, row) => row * size + index);
+
+  const cells = [];
+  regions.forEach((region, cell) => {
+    if (region === index) cells.push(cell);
+  });
+  return cells;
+};
+
+/** How a nudge names the group it is pointing at, in the player's terms. */
+const describeGroup = ({ kind, index }) => {
+  if (kind === 'row') return `Row ${index + 1}`;
+  if (kind === 'column') return `Column ${index + 1}`;
+  // Regions have no number the player can see — the highlight does the pointing.
+  return 'One color region';
+};
 
 export default fungikuReducer;
