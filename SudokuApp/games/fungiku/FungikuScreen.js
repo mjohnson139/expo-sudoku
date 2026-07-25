@@ -4,7 +4,12 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
 import FungikuBoard from './FungikuBoard';
+import FungikuWinBanner from './FungikuWinBanner';
 import { FungikuProvider, SIZES, useFungikuContext } from './FungikuContext';
+
+// The accent Fungiku is identified by on the hub card; reused for the win banner
+// so winning looks like Fungiku rather than a generic green success box.
+const FUNGIKU_ACCENT = '#a0522d';
 
 /**
  * Fungiku's screen — a peer of the Sudoku screen, reached from the hub
@@ -15,7 +20,7 @@ import { FungikuProvider, SIZES, useFungikuContext } from './FungikuContext';
  * replaces the board with the finished themed component.
  */
 const FungikuScreenContent = ({ onExitToHub }) => {
-  const theme = useAppTheme();
+  const { theme, isDark } = useAppTheme();
   const {
     size,
     seed,
@@ -36,6 +41,15 @@ const FungikuScreenContent = ({ onExitToHub }) => {
   const surface = theme.colors.numberPad.background;
   const border = theme.colors.numberPad.border;
 
+  // The hint follows the state of play instead of always explaining the tap
+  // cycle — telling a player who has just won how to tap a cell was Step 4's
+  // one loose end.
+  const hint = solved
+    ? 'One per row, column and color — none touching'
+    : conflicts.size > 0
+      ? `${conflicts.size} mushroom${conflicts.size === 1 ? '' : 's'} breaking a rule`
+      : 'Tap a cell: empty → ✕ → 🍄';
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScreenHeader title="Fungiku" theme={theme} onHomePress={onExitToHub} />
@@ -50,29 +64,18 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           >
             {mushroomCount}/{size}
           </Text>
-          <Text style={[styles.counterHint, { color: titleColor }]}>
-            {conflicts.size > 0
-              ? 'One per row, column and color — none touching'
-              : 'Tap a cell: empty → ✕ → 🍄'}
-          </Text>
+          <Text style={[styles.counterHint, { color: titleColor }]}>{hint}</Text>
         </View>
 
-        {solved ? (
-          <View style={[styles.winBanner, { borderColor: border }]}>
-            <MaterialCommunityIcons name="party-popper" size={22} color="#1b5e20" />
-            <Text style={styles.winText}>Solved! {size}×{size}, seed {seed}</Text>
-            <TouchableOpacity
-              onPress={nextPuzzle}
-              style={styles.winButton}
-              accessibilityRole="button"
-              accessibilityLabel="Play the next puzzle"
-            >
-              <Text style={styles.winButtonText}>Next puzzle</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
+        <FungikuWinBanner
+          solved={solved}
+          size={size}
+          seed={seed}
+          accent={FUNGIKU_ACCENT}
+          onNextPuzzle={nextPuzzle}
+        />
 
-        <FungikuBoard />
+        <FungikuBoard isDark={isDark} theme={theme} />
 
         {/* Undo / redo / clear */}
         <View style={styles.controlRow}>
@@ -199,34 +202,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     opacity: 0.7,
     flexShrink: 1,
-  },
-  winBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#d4edda',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    marginBottom: 12,
-  },
-  winText: {
-    color: '#1b5e20',
-    fontSize: 14,
-    fontWeight: '700',
-    marginLeft: 8,
-    marginRight: 10,
-  },
-  winButton: {
-    backgroundColor: '#1b5e20',
-    borderRadius: 8,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-  },
-  winButtonText: {
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: '700',
   },
   controlRow: {
     flexDirection: 'row',
