@@ -749,16 +749,20 @@ a browser one.**
 
 #### What shipped
 
-`FungikuBoard` derives four constants from a single `tightCells = cell < 40`
-test, so **every size that had already shipped is drawn exactly as before** (5×5
-through 8×8 are 64px down to 40px cells) and only 9×9 and 10×10 change:
+`FungikuBoard` derives three constants from a single `tightCells = cell < 40`
+test, so the sizes that had already shipped keep them unchanged (5×5 through 8×8
+are 64px down to 40px cells) and only 9×9 and 10×10 step down:
 
 | | ≥ 40px cells | < 40px cells |
 |---|---|---|
-| region-boundary border | 2 | 1.5 |
 | conflict-ring inset | 6 | 4 |
 | conflict-ring stroke | 2.5 | 2 |
 | mistake badge | `cell × 0.28` | `max(11, cell × 0.28)` |
+
+**The board's lines are the exception, and they changed at every size** — see
+§12.5. The first cut of this pass treated the region border as one more constant
+to step down, which was treating a symptom: the lines were drawn in a way that
+was wrong at every size and merely most obvious at the smallest.
 
 The mushroom glyph stays at `cell × 0.62` — 20px at the top size, which the plan
 guessed was fine and nothing since has contradicted.
@@ -791,6 +795,56 @@ row's mushroom is in this region" — which eliminate far more.
 That is not a blocker for 10×10, but a hint that helps twice out of ten placements
 will feel thin. Worth strengthening the propagator, or accepting that the reveal
 rung carries more of the load on large boards (§8 #6).
+
+### 12.5 The board's lines (operator device report, 2026-07-26)
+
+> *"The grid lines could use some darker lines and a clean up of how lines come
+> together."* — operator, on a 9×9 in the Pastel theme
+
+Three defects, one cause. Every line on the board was drawn as a **per-cell
+border**: each cell set its own four border widths and colours, thick where the
+neighbouring cell belonged to a different region. That is the obvious way to do
+it, and it is wrong in three ways that a desktop browser hides:
+
+1. **Every interior region boundary was drawn twice** — once by the cell on each
+   side — so it rendered at *double* width, while the frame around the board was
+   drawn once. Interior boundaries were literally twice the weight of the border
+   containing them.
+2. **Corners notched.** React Native miters adjacent borders, so a cell with a
+   thick top edge and a hairline left edge gets a diagonal seam where they meet;
+   where four cells meet at a region corner, four independent miters fail to line
+   up. This is the "how lines come together" half of the report.
+3. **Borders draw *inside* the cell box**, so a boundary ate width off both
+   neighbours' fills — at 32px cells, an eighth of the cell.
+
+And the darkness half had its own cause: within-region grid lines used the
+theme's `grid.cellBorder`, which is tuned for **Sudoku's white cells**. In the
+Pastel theme that is `#d0d8e6`, which is invisible on a saturated orange or green
+region fill.
+
+**The fix is `FungikuGridLines`**, one memoized overlay of absolutely-positioned
+rectangles drawn on top of the cells. Each edge is drawn exactly once at a width
+that does not depend on how many cells touch it; lines are centred on the edge
+rather than inside one cell; and region segments are extended by half a stroke at
+each end so corners and T-junctions fill in by overlap instead of mitering.
+Collinear runs are merged, so a boundary following a whole row is one View rather
+than ten. Grid lines take their colour from the **fill they sit on** — the
+contrast-picked ink at low alpha, the same rule the mushroom glyph already used —
+so they are legible on every fill in the palette by construction.
+
+Two constraints worth knowing if this is ever touched again:
+
+- **The overlay may not change the board's box.** `cellFromPoint` resolves every
+  tap against the board's measured origin, so the frame is inset fully inside the
+  bounds rather than centred on the edge like the interior lines. A `borderWidth`
+  on the board container would shift every cell out from under the player's
+  finger.
+- **`pointerEvents="none"`.** The board claims every touch at touch-down (§2); an
+  overlay that swallowed one would break the whole gesture layer.
+
+**This changed how every size looks, not just the new ones.** A single-drawn
+2.5px boundary replaces a double-drawn 2px one, so boundaries are lighter and
+even, and the grid inside a region is darker than it was.
 
 ## 13. Ladder & scoring — notes parked for Step 9
 

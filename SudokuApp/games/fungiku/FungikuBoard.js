@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Animated, Easing, PanResponder } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MARKS } from './engine';
@@ -7,6 +7,7 @@ import useBoardSize from '../../hooks/useBoardSize';
 import useBoardOrigin from '../../hooks/useBoardOrigin';
 import { cellFromPoint, cellsAlongLine } from './geometry';
 import { PAINT_MODES } from './reducer';
+import FungikuGridLines from './FungikuGridLines';
 import { useFungikuContext } from './FungikuContext';
 
 /**
@@ -67,20 +68,25 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   // --- legibility at the top size (plan §12.3) ------------------------------
   //
   // The board is a fixed 324pt on native however many cells it holds, so a cell
-  // is 64px at 5×5 and **32px at 10×10**. Several constants below were tuned
-  // against the large end and stop working at the small one, so they step down —
-  // at a threshold that leaves every size that has already shipped (5×5 through
-  // 8×8, cells 64 down to 40) drawn exactly as it is today, and changes only the
-  // two sizes this step adds.
+  // is 64px at 5×5 and **32px at 10×10**. The conflict ring and the mistake badge
+  // were tuned against the large end and stop working at the small one, so they
+  // step down at a threshold that leaves 5×5 through 8×8 (cells 64 down to 40)
+  // exactly as they were, and changes only the two sizes this step adds.
+  //
+  // The board's *lines* are a different story: they changed at every size, because
+  // the way they were drawn was wrong at every size and only obvious at small
+  // ones. See FungikuGridLines.
   //
   // Note what the browser cannot tell you here: web boards are up to 450px, so a
   // 10×10 cell is 45px there — *larger* than a 5×5 native cell. None of this is
   // judgeable outside Expo Go.
   const tightCells = cell < 40;
 
-  // 2px of region border against a 32px cell is a heavy line; against 64px it is
-  // the intended hairline-vs-boundary contrast.
-  const regionBorder = tightCells ? 1.5 : 2;
+  // Region-boundary stroke. Drawn once per edge by FungikuGridLines — when this
+  // was a per-cell border every interior boundary was drawn by *both* cells and
+  // came out at double this, which is why 2 looked heavy and the frame around
+  // the board looked thin by comparison.
+  const regionBorder = tightCells ? 2 : 2.5;
 
   // The conflict ring is inset from the cell edge. A fixed 6px inset leaves only
   // 20px of clear ring at 32px cells, which crowds the 20px mushroom glyph
@@ -341,10 +347,14 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     [beginStroke, endStroke, paintCells, measure]
   );
 
-  // Region outlines come from the theme's grid colors so the board reads as part
-  // of the app; they need to hold up over both light and dark region fills.
+  // Region boundaries come from the theme's grid colors so the board reads as
+  // part of the app; they need to hold up over both light and dark region fills.
+  //
+  // Grid lines *within* a region do not come from the theme — see the note in
+  // FungikuGridLines. `inkAt` gives that overlay the contrast-picked ink for a
+  // region's fill, which is the one color guaranteed legible on it.
   const outline = theme?.colors?.grid?.boxBorder || (isDark ? '#e8e8e8' : '#333333');
-  const hairline = theme?.colors?.grid?.cellBorder || (isDark ? '#ffffff44' : '#33333344');
+  const inkAt = useCallback((region) => getRegionColor(region, isDark).ink, [isDark]);
 
   // The board itself celebrates a win first (a gentle lift), before the banner
   // above it arrives — same "board celebrates first" idea the sibling color-loop
@@ -391,9 +401,6 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
             const conflicting = conflicts.has(index);
             const mistaken = mistakes.has(index);
 
-            const differs = (r, c) =>
-              r < 0 || c < 0 || r >= size || c >= size || regions[r * size + c] !== region;
-
             // X is a thinking aid, so it sits quieter than a mushroom — but it
             // still has to be visible on its own fill, so it is the same
             // contrast-checked ink at reduced strength rather than a fixed gray.
@@ -419,6 +426,9 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                 }${hintCells.has(index) ? ', hint' : ''}`}
                 accessibilityHint="Taps cycle empty, ruled out, mushroom"
                 onAccessibilityTap={() => cycleCell(index)}
+                // No borders here: every line on this board is drawn once, by
+                // the FungikuGridLines overlay below. Per-cell borders drew each
+                // interior boundary twice and mitered at every corner.
                 style={{
                   width: cell,
                   height: cell,
@@ -427,16 +437,6 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                   opacity: pressedCell === index ? 0.6 : 1,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  borderTopColor: differs(row - 1, col) ? outline : hairline,
-                  borderBottomColor: differs(row + 1, col) ? outline : hairline,
-                  borderLeftColor: differs(row, col - 1) ? outline : hairline,
-                  borderRightColor: differs(row, col + 1) ? outline : hairline,
-                  borderTopWidth: differs(row - 1, col) ? regionBorder : StyleSheet.hairlineWidth,
-                  borderBottomWidth: differs(row + 1, col)
-                    ? regionBorder
-                    : StyleSheet.hairlineWidth,
-                  borderLeftWidth: differs(row, col - 1) ? regionBorder : StyleSheet.hairlineWidth,
-                  borderRightWidth: differs(row, col + 1) ? regionBorder : StyleSheet.hairlineWidth,
                 }}
               >
                 {/* Conflict is signalled by a ring *and* a color change, so it
@@ -509,6 +509,17 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
           })}
         </View>
       ))}
+
+      {/* Drawn last so the lines sit on top of the fills rather than being eaten
+          by them. Memoized on the puzzle, so a tap does not rebuild it. */}
+      <FungikuGridLines
+        size={size}
+        cell={cell}
+        regions={regions}
+        width={regionBorder}
+        color={outline}
+        inkAt={inkAt}
+      />
     </Animated.View>
   );
 };

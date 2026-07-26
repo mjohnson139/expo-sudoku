@@ -294,11 +294,22 @@ to the next one — with the hub's Continue badge naming where you are.
   thread before the spinner is ever drawn. The indicator lives inside the
   always-mounted counter row so the board never moves (see the origin note above).
 - **Board constants step down below 40px cells** (`tightCells` in
-  `FungikuBoard`): region borders, conflict ring inset and stroke, mistake badge.
-  The threshold leaves 5×5-8×8 pixel-identical to what shipped. **The 6px
-  tap-vs-drag threshold was deliberately left alone** — it is the one item in
-  plan §12.3 that only a device can settle, since web draws a 10×10 cell at 45px,
-  larger than a native 5×5 cell.
+  `FungikuBoard`): conflict ring inset and stroke, mistake badge. That threshold
+  leaves 5×5-8×8 as they were. **The 6px tap-vs-drag threshold was deliberately
+  left alone** — it is the one item in plan §12.3 that only a device can settle,
+  since web draws a 10×10 cell at 45px, larger than a native 5×5 cell.
+- **Every line on the board is drawn by `FungikuGridLines`, not by cell borders**
+  (plan §12.5, from an operator device report). Per-cell borders drew every
+  interior region boundary **twice** — once by each neighbour, so at double the
+  frame's weight — and mitered at every corner, and ate width off both fills.
+  The overlay draws each edge once, centred on it, with region segments extended
+  half a stroke so junctions fill by overlap. **If you add anything to it: it must
+  keep `pointerEvents="none"` and must not change the board's box**, because
+  `cellFromPoint` resolves every tap against that origin.
+- **Within-region grid lines take their colour from the fill, not the theme.**
+  `grid.cellBorder` is tuned for Sudoku's white cells — in Pastel it is `#d0d8e6`,
+  invisible on a saturated region fill. The contrast-picked ink at low alpha is
+  legible on every fill by construction, the same rule the glyph already used.
 
 ## Steps already done
 
@@ -313,4 +324,4 @@ to the next one — with the hub's Continue badge naming where you are.
 | 5 | Board UI — palette fix with a tested ΔE floor, themed + responsive board, animated win | merged to `epic/fungiku` (#71, `905bfa2`) |
 | 6 | Input ergonomics — drag to sweep X's, rule-out button | merged to `epic/fungiku` (#72, `e896fb6`) |
 | 7 | Feedback & hints — mistake flagging, forced-deduction nudge, reveal, placement pop | merged to `epic/fungiku` (#73, `12f72c3`) |
-| 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds | this PR |
+| 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds, board lines redrawn as an overlay | this PR |
