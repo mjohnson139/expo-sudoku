@@ -306,6 +306,12 @@ to the next one — with the hub's Continue badge naming where you are.
   half a stroke so junctions fill by overlap. **If you add anything to it: it must
   keep `pointerEvents="none"` and must not change the board's box**, because
   `cellFromPoint` resolves every tap against that origin.
+- **Every line is snapped to the device pixel grid** (`PixelRatio.roundToNearestPixel`
+  on position *and* thickness). A 1px line centred on a cell edge lands at
+  `y = 35.5` → device rows 106.5-109.5 on a 3× screen, which antialiases into a
+  faint smear whose visibility depends on the fill behind it. That read as "the
+  grid has misses" when in fact every edge was drawn. **When a rendering bug
+  looks patternless, audit the geometry instead of the screenshot** — plan §12.5.
 - **Within-region grid lines take their colour from the fill, not the theme.**
   `grid.cellBorder` is tuned for Sudoku's white cells — in Pastel it is `#d0d8e6`,
   invisible on a saturated region fill. The contrast-picked ink at low alpha is

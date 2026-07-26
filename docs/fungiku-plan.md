@@ -832,6 +832,34 @@ than ten. Grid lines take their colour from the **fill they sit on** — the
 contrast-picked ink at low alpha, the same rule the mushroom glyph already used —
 so they are legible on every fill in the palette by construction.
 
+**A fourth defect, found after the overlay landed.** The operator's next
+screenshot still showed the grid "with misses" — some lines present, some not,
+with no pattern. Auditing the rendered geometry rather than the screenshot
+showed **every interior edge was covered**: nothing was missing. The problem was
+sub-pixel.
+
+A 1px line centered on a cell edge sits at `y = 35.5`, which on a 3× screen is
+device rows **106.5 to 109.5**. Half pixels cannot be drawn, so the renderer
+antialiases the line across four rows at 50/100/100/50 coverage — and multiplied
+by the line's own 37% alpha, the result is a faint smear whose visibility then
+depends on the fill behind it. Hence "misses": strong enough to see on a pale
+yellow, invisible on a saturated orange.
+
+Region boundaries never showed it because their width happened to put them on
+integers at the sizes that had shipped. That accident is what made this look
+like *some lines are missing* rather than *every thin line is half a pixel off*.
+
+The fix is `PixelRatio.roundToNearestPixel` on both the position **and** the
+thickness of every line, so each covers whole device pixels at full strength.
+Verified by re-auditing: grid lines moved from device rows `106.5..109.5` to
+`107.0..110.0`.
+
+**The lesson is about method, not about pixels.** Two rounds were spent reading
+screenshots for a defect that a twenty-line DOM audit located exactly. When a
+rendering bug looks patternless, measure the geometry — "is every edge covered?"
+and "where does each line land in device pixels?" are both cheap questions with
+unambiguous answers.
+
 Two constraints worth knowing if this is ever touched again:
 
 - **The overlay may not change the board's box.** `cellFromPoint` resolves every
