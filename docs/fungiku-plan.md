@@ -832,23 +832,24 @@ than ten. Grid lines take their colour from the **fill they sit on** — the
 contrast-picked ink at low alpha, the same rule the mushroom glyph already used —
 so they are legible on every fill in the palette by construction.
 
-**And then the stroke went away entirely** (operator, 2026-07-26: *"Do we need
-extra grid lines for color shapes. Try it without"*). The answer was no.
+**The boundary stroke was removed, and put back** (2026-07-26). The operator
+asked *"Do we need extra grid lines for color shapes. Try it without"* — a fair
+challenge: a region is a **colour**, the ten fills are tuned to a measured
+separation floor (§12.2), and where two regions meet the change of fill already
+marks the edge. For normal colour vision the stroke is the same information
+twice. Removing it also deleted every special case in `FungikuGridLines` — the
+run extension, the clamping, the two widths — 140 lines.
 
-§3 called region outlines the board's structure, by analogy with Sudoku's box
-lines. The analogy does not hold: **a Sudoku box is invisible without its line,
-whereas a Fungiku region is a colour** — and ten of them are tuned to a measured
-separation floor (§12.2). The stroke was drawing information the fill already
-carried, and it was the direct cause of nearly every artifact in this section:
-the double-drawing, the mitering, the half-stroke extensions needed to close
-corners, and the ticks where those extensions ran past the frame. A line is now
-drawn only between two cells of the **same** region; where regions meet there is
-nothing, and the change of colour is the edge. The component lost 140 lines.
+It was tried and **rejected on sight**, for colourblind players. That is exactly
+the case colour alone does not cover: when two adjacent fills are hard to tell
+apart, the stroke is what still says *the region ends here*. It is a second
+channel, the same principle as signalling a conflict with a ring **and** a
+colour, and the same reason the palette is checked under dichromat simulation
+instead of by ΔE alone.
 
-**What that spends:** colour becomes the only channel for region identity. It is
-the reason `corners` in `utils/symbolSets.js` is still there, unused — if the
-boundary is ever wanted back for accessibility, a shape cue is a cheaper way to
-pay for it than a stroke on every edge.
+**Record it as decided.** The stroke is not redundant and not a simplification
+opportunity; the experiment has been run. `corners` in `utils/symbolSets.js`
+remains available as a *third* channel if region identity ever needs one.
 
 **A fourth defect, found after the overlay landed.** The operator's next
 screenshot still showed the grid "with misses" — some lines present, some not,
