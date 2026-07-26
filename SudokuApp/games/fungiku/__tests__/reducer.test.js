@@ -14,8 +14,10 @@ import {
   selectMushroomCount,
   selectRevealCell,
   selectRuleOutCells,
+  resolvePuzzleIdentity,
 } from '../reducer';
 import { MARKS, MIN_SIZE, createEmptyMarks } from '../engine';
+import { DEFAULT_DIFFICULTY, sizesForDifficulty } from '../difficulty';
 
 const cycle = (state, cell) =>
   fungikuReducer(state, { type: FUNGIKU_ACTIONS.CYCLE_CELL, payload: { cell } });
@@ -274,6 +276,86 @@ describe('starting another puzzle', () => {
     expect(restored.seed).toBe(9);
     expect(restored.marks[12]).toBe(MARKS.MUSHROOM);
     expect(selectMushroomCount(restored)).toBe(1);
+  });
+});
+
+/**
+ * The difficulty menu's half of the puzzle identity (plan §14.1). Everything
+ * above the reducer speaks in rungs; `resolvePuzzleIdentity` is the one place a
+ * rung becomes a size, and it has to resolve in both directions.
+ */
+describe('resolving a puzzle identity', () => {
+  it('turns a rung into a size, deterministically from the seed', () => {
+    const a = resolvePuzzleIdentity({ difficulty: 'expert', seed: 4 });
+    expect(a).toEqual({ difficulty: 'expert', size: 10 });
+
+    expect(resolvePuzzleIdentity({ difficulty: 'easy', seed: 3 })).toEqual(
+      resolvePuzzleIdentity({ difficulty: 'easy', seed: 3 })
+    );
+  });
+
+  it('lets an explicit size win, and names the rung it belongs to', () => {
+    expect(resolvePuzzleIdentity({ size: 9, seed: 1 })).toEqual({ difficulty: 'hard', size: 9 });
+  });
+
+  it('keeps the caller’s rung when the size really is one of its sizes', () => {
+    // 6×6 is an easy board even on the seed where easy would have generated 5×5.
+    expect(resolvePuzzleIdentity({ difficulty: 'easy', size: 6, seed: 1 })).toEqual({
+      difficulty: 'easy',
+      size: 6,
+    });
+  });
+
+  it('lets the size overrule a rung it does not belong to', () => {
+    expect(resolvePuzzleIdentity({ difficulty: 'easy', size: 10, seed: 1 })).toEqual({
+      difficulty: 'expert',
+      size: 10,
+    });
+  });
+
+  it('resolves from the rung only when no size was given', () => {
+    const resolved = resolvePuzzleIdentity({ seed: 1 });
+    expect(resolved.difficulty).toBe(DEFAULT_DIFFICULTY);
+    expect(sizesForDifficulty(DEFAULT_DIFFICULTY)).toContain(resolved.size);
+  });
+
+  it('passes a bad size through rather than quietly rounding it into range', () => {
+    // `generate()` throwing is how a caller with a bug finds out; a silently
+    // substituted board would hide it. (buildPuzzleState's own test covers the
+    // throw.)
+    expect(resolvePuzzleIdentity({ size: 42, seed: 1 }).size).toBe(42);
+  });
+});
+
+describe('difficulty on built state', () => {
+  it('is carried on every board', () => {
+    expect(buildPuzzleState({ difficulty: 'medium', seed: 1 })).toMatchObject({
+      difficulty: 'medium',
+      size: 7,
+    });
+  });
+
+  it('is derived when only a size is given (the free-play chips)', () => {
+    expect(buildPuzzleState({ size: 8, seed: 1 }).difficulty).toBe('hard');
+  });
+
+  it('boots on the smallest board, labelled easy', () => {
+    // Pinned rather than resolved from the seed: this one generates at mount on
+    // the main thread with no "Generating…" state to hide behind.
+    const state = createInitialFungikuState();
+    expect(state.size).toBe(MIN_SIZE);
+    expect(state.difficulty).toBe(DEFAULT_DIFFICULTY);
+  });
+
+  it('reopens a restored board at its saved size, not at whatever the rung would pick', () => {
+    const marks = createEmptyMarks(6);
+    marks[3] = MARKS.MUSHROOM;
+
+    const restored = buildPuzzleState({ difficulty: 'easy', size: 6, seed: 1, marks });
+
+    expect(restored.size).toBe(6);
+    expect(restored.difficulty).toBe('easy');
+    expect(restored.marks[3]).toBe(MARKS.MUSHROOM);
   });
 });
 

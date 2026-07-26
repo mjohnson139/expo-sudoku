@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
 import FungikuBoard from './FungikuBoard';
+import FungikuMenuModal from './FungikuMenuModal';
 import FungikuWinBanner from './FungikuWinBanner';
-import { FungikuProvider, SIZES, useFungikuContext } from './FungikuContext';
+import { difficultyLabel } from './difficulty';
+import { FungikuProvider, useFungikuContext } from './FungikuContext';
 
 // The accent Fungiku is identified by on the hub card; reused for the win banner
 // so winning looks like Fungiku rather than a generic green success box.
@@ -35,6 +37,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
   const [boardTouchActive, setBoardTouchActive] = useState(false);
 
   const {
+    difficulty,
     size,
     seed,
     mushroomCount,
@@ -46,7 +49,9 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     undo,
     redo,
     clearMarks,
+    changeDifficulty,
     changeSize,
+    changeSeed,
     nextPuzzle,
     ruleOut,
     ruleOutCount,
@@ -66,6 +71,41 @@ const FungikuScreenContent = ({ onExitToHub }) => {
   const surface = theme.colors.numberPad.background;
   const border = theme.colors.numberPad.border;
 
+  // --- the difficulty menu (plan §14.1) ------------------------------------
+  const [menuVisible, setMenuVisible] = useState(false);
+
+  // Opened once, on arrival, when there is nothing to come back to — the same
+  // way Sudoku opens its menu when no game is in progress. A restored board (or
+  // one already being played) is not interrupted: the header button is how you
+  // reach the menu then.
+  //
+  // The provider withholds its children until hydration, so this component's
+  // first render already sees the restored board and `hasMarks` is trustworthy
+  // here. Guarded by a ref rather than by `hasMarks` alone, or clearing the
+  // board mid-game would pop the menu open.
+  const openedOnArrival = useRef(false);
+  useEffect(() => {
+    if (openedOnArrival.current) return;
+    openedOnArrival.current = true;
+    if (!hasMarks) setMenuVisible(true);
+  }, [hasMarks]);
+
+  const closeMenu = () => setMenuVisible(false);
+
+  // Every path out of the menu starts a board, so every one of them closes it.
+  const pickDifficulty = (next) => {
+    closeMenu();
+    changeDifficulty(next);
+  };
+  const pickSize = (next) => {
+    closeMenu();
+    changeSize(next);
+  };
+  const pickSeed = (next) => {
+    closeMenu();
+    changeSeed(next);
+  };
+
   // The status line follows the state of play instead of always explaining the
   // tap cycle. (Named `statusText`, not `hint` — `hint` is the hint object from
   // context, and shadowing it here silently broke the build once.)
@@ -79,7 +119,32 @@ const FungikuScreenContent = ({ onExitToHub }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScreenHeader title="Fungiku" theme={theme} onHomePress={onExitToHub} />
+      {/* Which board you are on lives in the header (plan §14.1), not in a
+          banner above the board. A view that mounts above the board *moves* the
+          board, which invalidates the origin every tap is resolved against —
+          the bug behind FungikuBoard's re-measure effect. The header is always
+          mounted and its subtitle is always present, so its height never
+          changes and there is no origin to invalidate. */}
+      <ScreenHeader
+        title="Fungiku"
+        subtitle={`${difficultyLabel(difficulty)} · ${size}×${size}`}
+        theme={theme}
+        onHomePress={onExitToHub}
+        onMenuPress={() => setMenuVisible(true)}
+      />
+
+      <FungikuMenuModal
+        visible={menuVisible}
+        theme={theme}
+        difficulty={difficulty}
+        size={size}
+        seed={seed}
+        generating={generating}
+        onPickDifficulty={pickDifficulty}
+        onPickSize={pickSize}
+        onPickSeed={pickSeed}
+        onClose={closeMenu}
+      />
 
       {/* Two halves of one fix for "a vertical drag scrolls instead of painting"
           (the board claims the touch at touch-down; see FungikuBoard):
@@ -118,6 +183,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           >
             {mushroomCount}/{size}
           </Text>
+
           <Text
             style={[styles.counterHint, { color: titleColor }]}
             // Announced, because a player who cannot see the spinner still needs
@@ -279,35 +345,13 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Board size + next puzzle — the stand-in for the ladder step.
+        {/* Another board at this difficulty, and the way to the menu.
 
-            Six chips no longer fit one row on a narrow phone (6 × ~56pt beats a
-            360pt screen), so the row wraps rather than squeezing the chips down
-            to something hard to hit. */}
-        <Text style={[styles.label, { color: titleColor }]}>Board size</Text>
-        <View style={[styles.controlRow, styles.chipRow]}>
-          {SIZES.map((option) => (
-            <TouchableOpacity
-              key={option}
-              onPress={() => changeSize(option)}
-              disabled={generating}
-              style={[
-                styles.chip,
-                { borderColor: border },
-                option === size && { backgroundColor: titleColor, borderColor: titleColor },
-                generating && styles.toolButtonDisabled,
-              ]}
-              accessibilityRole="button"
-              accessibilityState={{ disabled: generating, selected: option === size }}
-              accessibilityLabel={`${option} by ${option} board`}
-            >
-              <Text style={[styles.chipText, { color: option === size ? surface : titleColor }]}>
-                {option}×{option}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
+            The size chips and the seed both moved into the menu (plan §14.1) —
+            picking a puzzle is one place now, not a row of developer controls
+            under the board. What is left here is the two things a player wants
+            mid-game without going shopping: another board like this one, and the
+            menu. */}
         <View style={styles.controlRow}>
           <TouchableOpacity
             onPress={nextPuzzle}
@@ -324,7 +368,18 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             accessibilityLabel="Generate the next puzzle"
           >
             <MaterialCommunityIcons name="dice-multiple" size={18} color={titleColor} />
-            <Text style={[styles.buttonText, { color: titleColor }]}>New puzzle (seed {seed})</Text>
+            <Text style={[styles.buttonText, { color: titleColor }]}>New puzzle</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setMenuVisible(true)}
+            style={[styles.wideButton, styles.menuButtonSpacing, { borderColor: border }]}
+            accessibilityRole="button"
+            accessibilityLabel="Change difficulty"
+            accessibilityHint="Opens the menu to pick a difficulty"
+          >
+            <MaterialCommunityIcons name="tune-variant" size={18} color={titleColor} />
+            <Text style={[styles.buttonText, { color: titleColor }]}>Difficulty</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -446,27 +501,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 5,
   },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 18,
-  },
-  chipRow: {
-    flexWrap: 'wrap',
-    alignSelf: 'stretch',
-  },
-  chip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginHorizontal: 4,
-    // Spacing for the second row once the chips wrap.
-    marginVertical: 3,
-  },
-  chipText: {
-    fontSize: 13,
-    fontWeight: '600',
+  menuButtonSpacing: {
+    marginLeft: 8,
   },
   wideButton: {
     flexDirection: 'row',
