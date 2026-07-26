@@ -81,6 +81,21 @@ const FungikuGridLines = ({ size, cell, regions, width, color, inkAt }) => {
       return { key: `grid:${ink}`, boundary: false, ink };
     };
 
+    /**
+     * Where a run of region boundary starts and ends along its line.
+     *
+     * Interior ends are extended half a stroke so a corner or T-junction is
+     * filled by overlap rather than left as a notch — but an end that reaches
+     * the edge of the board is **clamped instead**. Extending there put the
+     * half-stroke *outside* the board, where nothing clips it, and it showed on
+     * device as small ticks poking past the frame. Clamped, the run still runs
+     * right into the frame band and joins it solidly.
+     */
+    const span = (index, last) => ({
+      from: index === 0 ? 0 : index * cell - half,
+      to: last === size ? size * cell : last * cell + half,
+    });
+
     /** Walk one line of edges, emitting a rectangle per run of identical ones. */
     const walk = (count, edgeAtIndex, emit) => {
       let start = 0;
@@ -101,13 +116,11 @@ const FungikuGridLines = ({ size, cell, regions, width, color, inkAt }) => {
         size,
         (col) => edge(r - 1, col, r, col),
         (c0, c1, run) => {
-          const span = (c1 - c0) * cell;
           if (run.boundary) {
+            const { from, to } = span(c0, c1);
             region.push({
               key: `h${r}-${c0}`,
-              // Extended half a stroke at each end so a corner or T-junction is
-              // filled by overlap rather than left as a notch.
-              style: { top: r * cell - half, left: c0 * cell - half, width: span + width, height: width },
+              style: { top: r * cell - half, left: from, width: to - from, height: width },
             });
           } else {
             grid.push({
@@ -115,7 +128,7 @@ const FungikuGridLines = ({ size, cell, regions, width, color, inkAt }) => {
               style: {
                 top: r * cell - gridHalf,
                 left: c0 * cell,
-                width: span,
+                width: (c1 - c0) * cell,
                 height: GRID_LINE_WIDTH,
                 backgroundColor: run.ink,
               },
@@ -131,11 +144,11 @@ const FungikuGridLines = ({ size, cell, regions, width, color, inkAt }) => {
         size,
         (row) => edge(row, c - 1, row, c),
         (r0, r1, run) => {
-          const span = (r1 - r0) * cell;
           if (run.boundary) {
+            const { from, to } = span(r0, r1);
             region.push({
               key: `v${c}-${r0}`,
-              style: { left: c * cell - half, top: r0 * cell - half, height: span + width, width },
+              style: { left: c * cell - half, top: from, height: to - from, width },
             });
           } else {
             grid.push({
@@ -143,7 +156,7 @@ const FungikuGridLines = ({ size, cell, regions, width, color, inkAt }) => {
               style: {
                 left: c * cell - gridHalf,
                 top: r0 * cell,
-                height: span,
+                height: (r1 - r0) * cell,
                 width: GRID_LINE_WIDTH,
                 backgroundColor: run.ink,
               },
