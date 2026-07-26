@@ -247,13 +247,15 @@ double-tap is the part a browser cannot answer.
 8. **Should metering Rule out survive contact with a child?** (plan §14.4)
    Decided metered, but rule-out saves tedium rather than insight. Worth
    re-checking after a family play session.
-9. **Does a rung that spans two sizes read as inconsistent?** (new, Step 9) Easy
-   hands out 5×5 or 6×6 and Hard 8×8 or 9×9, picked from the seed — so two Easy
-   games in a row can be different sizes. It is deterministic (a
-   `{difficulty, seed}` pair is always the same board) and it is what the plan's
-   table asks for, but on device it may just read as "Easy is sometimes bigger".
-   Pinning each rung to one size is a one-line change in
-   `games/fungiku/difficulty.js` (`share` counts) if the operator prefers it.
+9. ~~**Does a rung that spans two sizes read as inconsistent?**~~ — **approved on
+   device, 2026-07-26.** Easy hands out 5×5 or 6×6 and Hard 8×8 or 9×9, picked
+   from the seed, so two Easy games in a row can be different sizes. The operator
+   tested Step 9 in Expo Go and passed it as-is. Pinning each rung to one size is
+   still a one-line change to the `share` counts in `games/fungiku/difficulty.js`
+   if it starts to grate in play.
+10. ~~**Should the difficulty menu open on arrival?**~~ — **approved on device,
+    2026-07-26.** It opens when there is nothing to continue (matching Sudoku) and
+    never interrupts a restored or in-progress board. Revisit only if it annoys.
 
 ### Noted in passing, for a later step
 
@@ -283,6 +285,13 @@ double-tap is the part a browser cannot answer.
   `SHOW_DEVELOPER_CONTROLS` in `FungikuMenuModal.js`. Flip it to `false` and the
   menu is four difficulty buttons; the size chips and the seed input are how a
   size or a reported board gets checked by hand until then.
+- **One red commit status on every PR is not yours.** The
+  `EAS Update — @mjohnson139/expo-sudoku` status errors with *"This Expo account
+  doesn't have a member with a GitHub user that has admin access to this
+  repository"* — an Expo GitHub App permissions issue, identical on #76 and #77,
+  unrelated to any diff. The workflow-based **EAS Update PR preview** job is the
+  one that actually publishes the preview, and it passes. Don't chase it; the
+  operator can fix it in the Expo account's GitHub settings if it ever matters.
 - **A reveal is only reachable when nothing is forced.** The hint button gives the
   weakest hint that still helps, so while any forced deduction exists you get a
   nudge and never a reveal. That is deliberate — it is the pedagogically right
@@ -414,7 +423,7 @@ double-tap is the part a browser cannot answer.
 | 6 | Input ergonomics — drag to sweep X's, rule-out button | merged to `epic/fungiku` (#72, `e896fb6`) |
 | 7 | Feedback & hints — mistake flagging, forced-deduction nudge, reveal, placement pop | merged to `epic/fungiku` (#73, `12f72c3`) |
 | 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds, board lines redrawn as a snapped overlay | merged to `epic/fungiku` (#75, `d4d2018`), operator-tested on device |
-| 9 | Difficulty menu — rungs mapped into `SIZES`, size-from-seed, menu modal, free play + seed behind one flag, real v1→v2 save migration, hub badge names the rung | PR to `epic/fungiku` |
+| 9 | Difficulty menu — rungs mapped into `SIZES` by *share*, size-from-seed, menu modal built to Sudoku's, free play + seed behind one constant, real v1→v2 save migration, difficulty in the header rather than a banner, hub badge names the rung | merged to `epic/fungiku` (#77, `02fcdf1`), operator-tested on device |
 
 ## Steps still to come
 
