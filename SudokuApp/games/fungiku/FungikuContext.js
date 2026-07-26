@@ -16,6 +16,7 @@ import {
   selectMushroomCount,
   selectRevealCell,
   selectRuleOutCells,
+  resolvePuzzleIdentity,
 } from './reducer';
 
 /**
@@ -32,10 +33,12 @@ const FungikuContext = createContext();
 /**
  * Board sizes offered today — every size the engine supports, derived there from
  * MIN_SIZE/MAX_SIZE rather than listed here, so a chip the UI offers and a size
- * `generate()` accepts cannot drift apart. The real ladder arrives in a later
- * step and will pick its rungs from this same range.
+ * `generate()` accepts cannot drift apart. The difficulty rungs map *into* this
+ * range (see ./difficulty.js); the chips are the free-play escape hatch that
+ * reaches a single size directly (plan §14.1).
  */
 export { SIZES } from './engine';
+export { DIFFICULTIES } from './difficulty';
 
 // Stable object identity, so the persistence hook never sees a "new" adapter.
 const FUNGIKU_PERSISTENCE = { load: loadFungikuState, save: saveFungikuState };
@@ -162,14 +165,25 @@ export const FungikuProvider = ({ children }) => {
    * failure surfaces as a caught error instead of a throw mid-dispatch.
    */
   const startPuzzle = useCallback(
-    ({ size = state.size, seed = state.seed }) => {
+    ({ difficulty = state.difficulty, size, seed = state.seed }) => {
+      // Resolved here, before anything is dispatched, because whether this
+      // generation has to be deferred depends on the size — and the difficulty
+      // menu hands over a rung, not a size. Same rule the reducer uses, so the
+      // size decided here is the size that gets built.
+      const identity = resolvePuzzleIdentity({ difficulty, size, seed });
+
       const run = () => {
         try {
           dispatch({
             type: FUNGIKU_ACTIONS.NEW_PUZZLE,
             // The feedback switch is a preference and carries over; the hint
             // count is per-puzzle and resets.
-            payload: buildPuzzleState({ size, seed, showMistakes: state.showMistakes }),
+            payload: buildPuzzleState({
+              difficulty: identity.difficulty,
+              size: identity.size,
+              seed,
+              showMistakes: state.showMistakes,
+            }),
           });
         } catch (error) {
           console.error('Fungiku generation failed:', error);
@@ -178,7 +192,7 @@ export const FungikuProvider = ({ children }) => {
 
       // Small boards: generate inline. The work finishes inside the same frame,
       // so deferring would add a frame of latency and buy nothing.
-      if (size < DEFER_GENERATION_AT_SIZE) {
+      if (identity.size < DEFER_GENERATION_AT_SIZE) {
         run();
         return;
       }
@@ -202,17 +216,40 @@ export const FungikuProvider = ({ children }) => {
         }, 0);
       });
     },
-    [dispatch, state.size, state.seed, state.showMistakes]
+    [dispatch, state.difficulty, state.seed, state.showMistakes]
   );
 
+  /**
+   * Another board like this one. Keeps the *size* rather than re-resolving the
+   * difficulty, so "New puzzle" on a 6×6 easy board never hands back a 5×5 —
+   * a size change is something the player asks for, not a side effect of a
+   * reroll.
+   */
   const nextPuzzle = useCallback(
-    () => startPuzzle({ size: state.size, seed: state.seed + 1 }),
-    [startPuzzle, state.size, state.seed]
+    () => startPuzzle({ difficulty: state.difficulty, size: state.size, seed: state.seed + 1 }),
+    [startPuzzle, state.difficulty, state.size, state.seed]
   );
 
+  /** The menu's primary path in (plan §14.1): a rung, and the seed picks the size. */
+  const changeDifficulty = useCallback(
+    (difficulty, seed = DEFAULT_SEED) => startPuzzle({ difficulty, seed }),
+    [startPuzzle]
+  );
+
+  /** The free-play escape hatch: one exact size, whatever rung it belongs to. */
   const changeSize = useCallback(
     (size) => startPuzzle({ size, seed: DEFAULT_SEED }),
     [startPuzzle]
+  );
+
+  /**
+   * Developer-only: jump straight to a `{difficulty, seed}` board so a reported
+   * one can be reopened by hand. Keeps the current size when there is one, so
+   * typing a seed does not also move you to another board size.
+   */
+  const changeSeed = useCallback(
+    (seed) => startPuzzle({ difficulty: state.difficulty, size: state.size, seed }),
+    [startPuzzle, state.difficulty, state.size]
   );
 
   const clearMarks = useCallback(() => dispatch({ type: FUNGIKU_ACTIONS.CLEAR_MARKS }), [dispatch]);
@@ -245,7 +282,9 @@ export const FungikuProvider = ({ children }) => {
       dismissHint,
       startPuzzle,
       nextPuzzle,
+      changeDifficulty,
       changeSize,
+      changeSeed,
       clearMarks,
       undo,
       redo,
@@ -271,7 +310,9 @@ export const FungikuProvider = ({ children }) => {
       dismissHint,
       startPuzzle,
       nextPuzzle,
+      changeDifficulty,
       changeSize,
+      changeSeed,
       clearMarks,
       undo,
       redo,
