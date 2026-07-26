@@ -92,97 +92,129 @@ operator to test in Expo Go.**
 
 ---
 
-## Next step: **Step 9 — the difficulty menu**
+## Next step: **Step 10 — lives and mistakes**
 
-Branch: **`feature/fungiku-difficulty`** off `epic/fungiku`.
-Plan: **§14** — read **all of it** before starting, not just §14.1. It records
-five operator requirements decided on 2026-07-26 that reshape Steps 9–12, and
-three of them contradict decisions earlier steps made deliberately. §14 explains
-why each reversal is sound; do not re-derive those arguments and do not "fix" the
-contradictions back.
+Branch: **`feature/fungiku-lives`** off `epic/fungiku`.
+Plan: **§14.2 and §14.3** — read **both, in full**, plus §14's preamble and
+§11.1 (which §14.3 supersedes). This step deletes things earlier steps built
+deliberately. §14.3 explains why each removal is sound; do not re-derive those
+arguments and do not put the deleted behaviors back.
 
-### What changed, in one paragraph
+### Why these two are one step
 
-**The training ladder is cancelled.** The operator asked for Fungiku to use the
-same difficulty menu the platform's other game already has — easy · medium ·
-hard · expert — on the reasoning that basic mechanics should work the same way
-across games. §13's ladder research is superseded but kept. Steps 10 and 11 are
-new (lives, then earned assists); the art swap floats out to Step 12.
-
-### Why this step exists
-
-Fungiku's only way into a game is a row of raw size chips. That is a developer
-control, not a way a player picks a puzzle, and it does not match how Sudoku
-works two taps away in the same app.
+§14.2 is a new input gesture (tap = ✕, double-tap = 🍄) and §14.3 is what a
+mushroom placement now costs. They are the same input surface, and building the
+double-tap without the life cost would ship a mushroom-placing gesture with no
+consequence attached. **Do not split them.**
 
 ### Scope — ONLY this
 
-1. **Difficulty as data.** Easy 5×5/6×6 · Medium 7×7 · Hard 8×8/9×9 ·
-   Expert 10×10 (§14.1). **Map into `SIZES`; do not write a second size list** —
-   `SIZES` is derived from the engine bounds so the UI cannot offer a size
-   `generate()` rejects. A difficulty spanning two sizes must pick one
-   **deterministically from the seed**, so `{difficulty, seed}` is always the
-   same board.
-2. **A difficulty picker as the primary path in**, matching Sudoku's vocabulary
-   and placement — `components/modals/GameMenuModal.js` is the shape to copy.
-   Keep the size chips as a free-play escape hatch; they are how a size gets
-   checked by hand.
-3. **The seed field moves into the menu**, developer-only, behind **one flag**
-   (the `BuildNotes` pattern) so hiding it later is a one-constant change.
-4. **The storage migration.** This is the **first change that must not wipe
-   someone's progress**: bump `FUNGIKU_STORAGE_VERSION` and write a real
-   migration for the existing `{size, seed, marks, showMistakes, hintsUsed}`
-   shape. A version mismatch currently discards the save silently — fine for a
-   board, not fine once difficulty and (Step 11) a wallet ride along.
-5. **The hub Continue badge** naming the difficulty rather than the board size
-   (`utils/gameProgress.js` → `describeFungikuProgress`).
-6. **Tests** — above all, **assert every difficulty generates a board at every
-   size it maps to.** A typo becomes a crash for whoever picks that difficulty.
+1. **Tap places ✕, double-tap places 🍄** (§14.2), replacing the three-state
+   cycle. Tap on a filled cell (either mark) clears it — that is what keeps every
+   state reachable once the cycle is gone. Drag-to-sweep is unchanged: a stroke
+   still only paints or erases ✕ and still never disturbs a mushroom.
+2. **A wrong mushroom is flagged immediately, leaves a red ✕, and costs a life**
+   (§14.3). **Three lives at every size** — not scaled per difficulty (the
+   operator's answer). At zero lives the **same board** restarts: same seed,
+   marks cleared, lives reset. A fresh board would punish twice and throw away
+   deduction already done.
+3. **Undo does not refund a life** — *"you don't get lives with info."* Undo still
+   retracts the mark.
+4. **Delete the "Show mistakes" toggle**, `TOGGLE_MISTAKES` and the
+   `showMistakes` field (§14.3 answers open question §8 #7 by deletion). This
+   needs a **storage migration to v3** — the plumbing is now in
+   `games/fungiku/saveMigration.js`, so it is one `MIGRATIONS[2]` entry.
+5. **Decide the conflict rendering explicitly, and say which in the PR** — see
+   below. This is a required output of this step, not an optional note.
+6. **Lives visible on screen**, and it should not move the board (see the deps
+   note below).
 
 ### Read first
 
-- **§14 of the plan**, all of it.
-- `SudokuApp/components/modals/GameMenuModal.js` — Sudoku's four difficulty
-  buttons: the vocabulary, placement and labels to match.
-- `SudokuApp/games/fungiku/storage.js` — `FUNGIKU_STORAGE_VERSION` and what a
-  version mismatch does today.
-- `SudokuApp/games/fungiku/reducer.js` — `buildPuzzleState` turns an identity
-  into a board; it grows a `difficulty` alongside `size`/`seed`.
-- `SudokuApp/games/fungiku/engine.js` — `SIZES`, `MIN_SIZE`, `MAX_SIZE`.
+- **§14.2, §14.3** of the plan, and §11.1 for what is being superseded.
+- `SudokuApp/games/fungiku/reducer.js` — `CYCLE_CELL` is the action that becomes
+  two, and `nextMark`/`MARK_CYCLE` in `engine.js` is the cycle being retired.
+- `SudokuApp/games/fungiku/FungikuBoard.js` — the `PanResponder`, the 6px
+  tap-vs-drag threshold, and where a second tap has to be detected.
+- `SudokuApp/games/fungiku/saveMigration.js` — how to add the v2 → v3 step. The
+  file's header states the rule: **add an entry, never edit an existing one.**
+- `SudokuApp/games/fungiku/difficulty.js` — three lives at every size means this
+  file should need **no change at all**; if you are editing it, re-read §14.3.
 
 ### Behaviors that are easy to get wrong
 
-- **Difficulty is board size and nothing else, on purpose.** There is no board
-  rating and building one is not this step. §12.4 measured `findForcedDeduction`
-  finding **2 of 10 deductions from an empty 10×10** — rating with it today would
-  score nearly everything expert. Build the menu so **rated seeds can slot in
-  behind it later without a UI change**, and leave it there.
-- **Expert generates a 10×10, which costs ~0.4s** and more on a phone. The
-  `generating` flag and the `requestAnimationFrame` + `setTimeout` deferral in
-  `FungikuContext` exist for exactly this — reuse them, do not reinvent. Any
-  picker that generates boards to preview them will be slow in a way the chips
-  never were.
-- **A test that generates every difficulty is the slowest in the suite.** A 10×10
-  costs ~3s *under Jest* (its transform is ~7×), which is why the engine battery
-  samples two seeds at the top size. Budget accordingly.
+- **Do not make single taps wait for the double-tap window.** The naive detector
+  delays every ✕ by ~250 ms, and the ✕ is the most common gesture in the game.
+  Place the ✕ **immediately** and *upgrade* the cell if a second tap lands inside
+  the window.
+- **The upgrade must be one undo entry, not two.** Otherwise undo after a
+  double-tap strands a ✕ the player never asked for. `BEGIN_STROKE`/`PAINT_CELLS`
+  already solve exactly this shape for drags — the same trick applies.
+- **The detector belongs inside the existing gesture, not beside it.** The board
+  claims every touch at touch-down to win the ScrollView race (§2). A second
+  `PanResponder` or a child `Touchable` will never see the second tap.
+- **A screen reader cannot express a double tap.** Cells carry
+  `onAccessibilityTap`; placing a mushroom needs an explicit alternative action
+  named in the `accessibilityLabel` (`accessibilityState` does not survive to the
+  web).
+- **This is a device question.** Double-tap timing — and whether a child can
+  produce one reliably — cannot be answered in a browser (§2, "A pattern worth
+  knowing"). Both native bugs the operator has found were invisible on web.
 - **Anything new above the board joins `FungikuBoard`'s re-measure deps**
   (`[hint, solved, generating, measure]`), or the first tap after it appears
-  lands on the wrong cell. A difficulty banner is exactly that shape.
+  lands on the wrong cell. A lives counter is exactly that shape. **Two places
+  now dodge this properly and are the patterns to copy:** the always-mounted
+  counter row (which is where "Generating…" lives) and the header's subtitle,
+  which Step 9 used for the difficulty because its height never changes.
+
+### The decision this step owes the next one
+
+Once a wrong mushroom is converted to a ✕ on placement, every mushroom left on
+the board sits at a solution cell — and two solution cells can never share a row,
+column or region, or touch. **So two placed mushrooms can no longer conflict,
+ever.** That makes several existing paths unreachable by construction:
+
+- the live conflict rendering from Steps 4–5,
+- `selectMistakes`, `showMistakes` / `TOGGLE_MISTAKES`,
+- hint rung 1 (`HINT_KINDS.MISTAKE`),
+- `selectRevealCell`'s -1 branch.
+
+§14.3 calls the loss of the "these two are fighting" read real, and asks you to
+**decide explicitly whether to remove the conflict rendering or leave it dormant,
+and say which in the PR.** Otherwise a later session finds highlighting that
+never fires and assumes it is broken. `findConflicts` itself **stays** — the
+engine needs it for generation, solving and the reveal-safety check.
+
+Note the screen's status line currently reports conflicts
+(`${conflicts.size} mushrooms breaking a rule` in `FungikuScreen`); whichever way
+you decide, that string is part of the decision.
 
 ### Out of scope for this step
 
-- **No lives, no double-tap** — that is Step 10 (§14.2, §14.3), and it is where
-  `showMistakes` and the conflict rendering get resolved. **Do not start deleting
-  them here.**
-- **No wallet or metering** — Step 11 (§14.4).
-- **No board rating / propagator work.** §14.1 is explicit that difficulty is
-  size-only for now.
-- **No generator re-engineering** (§12.1) and **no art swap** (Step 12).
+- **No wallet or metering** — Step 11 (§14.4). `hintsUsed` stays the per-puzzle
+  counter it is.
+- **No art swap** — Step 12.
+- **No board rating / propagator work** (§14.1, §12.1); difficulty stays
+  size-only.
+- **No new difficulty work.** The menu landed in Step 9 and lives are not
+  per-difficulty.
 
 ### Visible in Expo Go when this lands
 
-**You pick a difficulty, the way you do in Sudoku** — and the hub's Continue
-badge says which one you are in the middle of.
+**A wrong guess costs you something.** You tap to rule a cell out, double-tap to
+commit a mushroom, and a wrong commitment turns red and takes one of your three
+lives — three mistakes and the board you were working on starts over.
+
+### How to verify
+
+`npm test` · `npx expo-doctor` (18/18) · `npx expo export --platform all`, then
+drive the web build (serve `dist/`, Chromium at
+`/opt/pw-browsers/chromium-1194/chrome-linux/chrome` —
+**note the versioned path**, `/opt/pw-browsers/chromium` is a file, not the
+binary; do not run `playwright install`). Prove the migration on a **real** save:
+write a v2 blob into `localStorage['@FungikuGame']`, reload, and confirm the
+board and its marks come back. Then **ask the operator for a device pass** — the
+double-tap is the part a browser cannot answer.
 
 ## Open questions for the operator (carry these forward)
 
@@ -215,20 +247,42 @@ badge says which one you are in the middle of.
 8. **Should metering Rule out survive contact with a child?** (plan §14.4)
    Decided metered, but rule-out saves tedium rather than insight. Worth
    re-checking after a family play session.
+9. **Does a rung that spans two sizes read as inconsistent?** (new, Step 9) Easy
+   hands out 5×5 or 6×6 and Hard 8×8 or 9×9, picked from the seed — so two Easy
+   games in a row can be different sizes. It is deterministic (a
+   `{difficulty, seed}` pair is always the same board) and it is what the plan's
+   table asks for, but on device it may just read as "Easy is sometimes bigger".
+   Pinning each rung to one size is a one-line change in
+   `games/fungiku/difficulty.js` (`share` counts) if the operator prefers it.
 
 ### Noted in passing, for a later step
 
-- **Step 10 makes several existing code paths unreachable, by construction — not
-  by accident.** Once a wrong mushroom is converted to a ✕ on placement, every
-  mushroom left on the board is at a solution cell, and two solution cells can
-  never share a row, column or region or touch. So **two placed mushrooms can no
-  longer conflict**: the live conflict rendering from Steps 4–5 becomes dead UI,
-  along with `selectMistakes`, `showMistakes`/`TOGGLE_MISTAKES`, hint rung 1
-  (`HINT_KINDS.MISTAKE`) and `selectRevealCell`'s -1 branch. Plan §14.3 says
-  this is a real loss to weigh, and asks Step 10 to **decide explicitly whether
-  to remove the conflict rendering or leave it dormant, and say which in the
-  PR** — otherwise a later session finds highlighting that never fires and
-  assumes it is broken. `findConflicts` itself stays; the engine needs it.
+- **A save is migrated now, not discarded — and the plumbing has one rule.**
+  `games/fungiku/saveMigration.js` holds `FUNGIKU_STORAGE_VERSION` and a
+  `MIGRATIONS` map keyed by the version each function upgrades *from*. **Add an
+  entry; never edit an existing one** — an old entry describes a shape already on
+  real devices. It is a separate module from `storage.js` on purpose: it is pure,
+  and the Jest environment is plain node with no AsyncStorage.
+- **The migration derives difficulty from size, never size from difficulty.**
+  Easy spans 5-6, so re-resolving a saved board's size from its new rung would
+  hand the player a different board and strand their deductions. `size` is what
+  the board *is*; `difficulty` is what it was chosen by, and a rung spanning two
+  sizes cannot recover which. Both are persisted for that reason.
+- **An explicitly-passed bad size still throws.** `resolvePuzzleIdentity` resolves
+  a size from the difficulty **only when no size was given**; a size that *was*
+  given passes straight through so `generate()` rejects it loudly. A caller
+  passing size 4 has a bug, and quietly substituting a 5×5 would hide it. There
+  is a test pinning this in both directions.
+- **The difficulty menu is a seam, and rated seeds are what it is waiting for.**
+  Everything above `sizeForDifficulty` speaks in rungs; the only thing a rung
+  resolves to today is a board size. When the propagator is strong enough to rate
+  boards (§12.4 measured it at 2 of 10 deductions from an empty 10×10), rating
+  slots in behind that one function **with no UI change**. Do not add a second
+  concept of difficulty next to it.
+- **Free play and the seed field are behind one constant.**
+  `SHOW_DEVELOPER_CONTROLS` in `FungikuMenuModal.js`. Flip it to `false` and the
+  menu is four difficulty buttons; the size chips and the seed input are how a
+  size or a reported board gets checked by hand until then.
 - **A reveal is only reachable when nothing is forced.** The hint button gives the
   weakest hint that still helps, so while any forced deduction exists you get a
   nudge and never a reveal. That is deliberate — it is the pedagogically right
@@ -360,12 +414,12 @@ badge says which one you are in the middle of.
 | 6 | Input ergonomics — drag to sweep X's, rule-out button | merged to `epic/fungiku` (#72, `e896fb6`) |
 | 7 | Feedback & hints — mistake flagging, forced-deduction nudge, reveal, placement pop | merged to `epic/fungiku` (#73, `12f72c3`) |
 | 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds, board lines redrawn as a snapped overlay | merged to `epic/fungiku` (#75, `d4d2018`), operator-tested on device |
+| 9 | Difficulty menu — rungs mapped into `SIZES`, size-from-seed, menu modal, free play + seed behind one flag, real v1→v2 save migration, hub badge names the rung | PR to `epic/fungiku` |
 
 ## Steps still to come
 
 | # | Step | Plan |
 |---|------|------|
-| 9 | **Difficulty menu** — easy/medium/hard/expert mapped to board size, seeds into the menu, storage migration | §14.1 |
 | 10 | **Lives & mistakes** — tap ✕ / double-tap 🍄, wrong guess costs a life, three lives then restart | §14.2, §14.3 |
 | 11 | **Earned assists** — a wallet; hints and rule-out metered, earned by solving | §14.4 |
 | 12 | **Art swap** — floating, gated on artwork rather than code | §7 |

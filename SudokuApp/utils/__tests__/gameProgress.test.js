@@ -68,10 +68,10 @@ describe('describeFungikuProgress', () => {
   const saveWith = (mutate) => {
     const marks = createEmptyMarks(5);
     mutate(marks);
-    return { size: 5, seed: 3, marks };
+    return { difficulty: 'easy', size: 5, seed: 3, marks };
   };
 
-  it('summarizes a board in progress', () => {
+  it('summarizes a board in progress, named by its difficulty', () => {
     const saved = saveWith((marks) => {
       marks[0] = MARKS.MUSHROOM;
       marks[7] = MARKS.MUSHROOM;
@@ -79,7 +79,7 @@ describe('describeFungikuProgress', () => {
     });
 
     expect(describeFungikuProgress(saved)).toEqual({
-      label: '5×5',
+      label: 'Easy',
       detail: '2 of 5 placed',
     });
   });
@@ -90,9 +90,29 @@ describe('describeFungikuProgress', () => {
     });
 
     expect(describeFungikuProgress(saved)).toEqual({
-      label: '5×5',
+      label: 'Easy',
       detail: '0 of 5 placed',
     });
+  });
+
+  it('names the harder rungs too', () => {
+    const marks = createEmptyMarks(10);
+    marks[0] = MARKS.MUSHROOM;
+
+    expect(describeFungikuProgress({ difficulty: 'expert', size: 10, marks })).toEqual({
+      label: 'Expert',
+      detail: '1 of 10 placed',
+    });
+  });
+
+  it('falls back to the rung the size belongs to when the save has no difficulty', () => {
+    // Belt and braces: callers migrate first, so this covers a blob that did not.
+    const saved = saveWith((marks) => {
+      marks[0] = MARKS.MUSHROOM;
+    });
+    delete saved.difficulty;
+
+    expect(describeFungikuProgress(saved).label).toBe('Easy');
   });
 
   it('returns null for an untouched board', () => {

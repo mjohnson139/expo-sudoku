@@ -5,13 +5,13 @@
  * here: every rule question is answered by `engine.js`, so there is exactly one
  * place a row/column/region/adjacency check exists.
  *
- * What lives in state: the puzzle identity (`size` + `seed`), the puzzle data
- * rebuilt from it (`regions`, `solution`), and the player's `marks`. Conflicts,
- * the mushroom count and the win condition are **derived** from `marks` by the
- * selectors at the bottom rather than stored — storing them would let undo
- * rewind marks and leave stale highlights behind.
+ * What lives in state: the puzzle identity (`difficulty` + `size` + `seed`), the
+ * puzzle data rebuilt from it (`regions`, `solution`), and the player's `marks`.
+ * Conflicts, the mushroom count and the win condition are **derived** from
+ * `marks` by the selectors at the bottom rather than stored — storing them would
+ * let undo rewind marks and leave stale highlights behind.
  *
- * Only `size`, `seed` and `marks` are ever persisted (see ./storage.js);
+ * Only the identity plus `marks` is ever persisted (see ./storage.js);
  * generation is deterministic, so regions and the solution are rebuilt.
  */
 import {
@@ -26,6 +26,13 @@ import {
   isSolved,
   nextMark,
 } from './engine';
+import {
+  DEFAULT_DIFFICULTY,
+  difficultyForSize,
+  isDifficulty,
+  sizeForDifficulty,
+  sizesForDifficulty,
+} from './difficulty';
 
 export const FUNGIKU_ACTIONS = {
   NEW_PUZZLE: 'FUNGIKU_NEW_PUZZLE',
@@ -64,26 +71,70 @@ export const HINT_KINDS = {
 /** What a drag stroke does to the cells it crosses. */
 export const PAINT_MODES = { X: 'x', ERASE: 'erase' };
 
+/**
+ * The board the app boots on, before anything is picked or restored.
+ *
+ * Pinned to the smallest size rather than resolved from `DEFAULT_DIFFICULTY`,
+ * because this one runs at mount on the main thread with no "Generating…" state
+ * to hide behind — the cheapest board there is, is the right one. It is still a
+ * legitimate *easy* board (easy spans 5-6), so the identity stays coherent.
+ */
 export const DEFAULT_SIZE = MIN_SIZE;
 export const DEFAULT_SEED = 1;
+
+/**
+ * Resolve a puzzle identity, keeping `difficulty` and `size` consistent whichever
+ * one the caller actually knows (plan §14.1).
+ *
+ * Two entry paths, and they resolve in opposite directions:
+ *   - **the difficulty menu** knows a rung and not a size, so the size comes from
+ *     `sizeForDifficulty(difficulty, seed)`;
+ *   - **a free-play size chip, and a restored save**, know a size — that size is
+ *     authoritative and the difficulty is the rung it belongs to.
+ *
+ * The second case is why a save is not rewritten on load: a v1 save of a 6×6
+ * reopens as a 6×6 labelled *Easy*, not as whatever Easy would have generated.
+ *
+ * A size that was *given* is passed through even when the engine will reject it,
+ * rather than being quietly rounded into range — `generate()` throwing is how a
+ * caller with a bug (or a corrupt save) finds out. Only an **absent** size is
+ * resolved from the difficulty.
+ */
+export const resolvePuzzleIdentity = ({ difficulty, size, seed }) => {
+  if (size === undefined || size === null) {
+    const rung = isDifficulty(difficulty) ? difficulty : DEFAULT_DIFFICULTY;
+    return { difficulty: rung, size: sizeForDifficulty(rung, seed) };
+  }
+
+  // Keep the caller's rung when the size really is one of its sizes; otherwise
+  // the size wins and names its own rung.
+  const named = isDifficulty(difficulty) && sizesForDifficulty(difficulty).includes(size);
+  return { difficulty: named ? difficulty : difficultyForSize(size), size };
+};
 
 /**
  * Build a fresh state for a puzzle identity. Calls `generate`, which throws for
  * an unsupported size — callers do this outside the reducer so a generation
  * failure never happens mid-dispatch.
  *
- * @param {{size: number, seed: number, marks?: string[]}} opts
+ * @param {{difficulty?: string, size?: number, seed?: number, marks?: string[]}} opts
  */
 export const buildPuzzleState = ({
-  size = DEFAULT_SIZE,
+  difficulty,
+  size,
   seed = DEFAULT_SEED,
   marks,
   showMistakes = false,
   hintsUsed = 0,
 } = {}) => {
-  const puzzle = generate({ size, seed });
+  const identity = resolvePuzzleIdentity({ difficulty, size, seed });
+  const puzzle = generate({ size: identity.size, seed });
 
   return {
+    // What the player picked, and what it resolved to. Both are persisted: the
+    // difficulty is what the hub's Continue badge names, the size is what the
+    // board actually is.
+    difficulty: identity.difficulty,
     size: puzzle.size,
     seed: puzzle.seed,
     regions: puzzle.regions,
@@ -111,7 +162,14 @@ export const buildPuzzleState = ({
   };
 };
 
-export const createInitialFungikuState = () => buildPuzzleState();
+export const createInitialFungikuState = () =>
+  buildPuzzleState({
+    difficulty: DEFAULT_DIFFICULTY,
+    // Explicit, so booting never resolves a seed into a bigger board than it has
+    // to generate synchronously at mount (see DEFAULT_SIZE).
+    size: DEFAULT_SIZE,
+    seed: DEFAULT_SEED,
+  });
 
 /**
  * Undo entries hold a whole `marks` snapshot rather than a per-cell delta.

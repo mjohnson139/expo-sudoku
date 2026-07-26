@@ -6,6 +6,7 @@
  * plain node environment (see package.json's jest config).
  */
 import { MARKS } from '../games/fungiku/engine';
+import { difficultyForSize, difficultyLabel } from '../games/fungiku/difficulty';
 
 const TOTAL_SUDOKU_CELLS = 81;
 
@@ -47,8 +48,14 @@ export const describeSudokuProgress = (saved) => {
 /**
  * Summarize a saved Fungiku board for a hub card.
  *
- * Takes the raw saved blob (`{ size, seed, marks }`) rather than a rebuilt
- * state, so the hub never has to run the generator just to draw a badge.
+ * Takes the raw saved blob (`{ difficulty, size, seed, marks }`) rather than a
+ * rebuilt state, so the hub never has to run the generator just to draw a badge.
+ * Callers pass it through `migrateFungikuSave` first, which is what guarantees
+ * `difficulty` is there; the fallback below covers a blob that skipped that.
+ *
+ * The label **names the rung, not the size** (plan §14.1) — it is what the player
+ * chose, and it is the same vocabulary Sudoku's badge uses one card away. The
+ * size is still visible, in the detail line's total.
  *
  * @param {Object|null} saved
  * @returns {{label: string, detail: string}|null} null when the board is
@@ -63,9 +70,10 @@ export const describeFungikuProgress = (saved) => {
   if (!touched) return null;
 
   const placed = saved.marks.filter((mark) => mark === MARKS.MUSHROOM).length;
+  const label = difficultyLabel(saved.difficulty) || difficultyLabel(difficultyForSize(saved.size));
 
   return {
-    label: `${saved.size}×${saved.size}`,
+    label,
     detail: `${placed} of ${saved.size} placed`,
   };
 };

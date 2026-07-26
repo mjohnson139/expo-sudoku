@@ -374,7 +374,7 @@ the step's real acceptance test, alongside its automated checks.
 | 6 | ~~**Input ergonomics & assists**~~ ✅ (§2) — **drag to sweep X's**, rule-out button | **Swipe a finger across cells to rule them out**; a *Rule out* button |
 | 7 | ~~**Feedback & hints**~~ ✅ (§11) — correctness feedback on placements, and a hint ladder | **Optional "show mistakes" for mushrooms**, and a hint you can ask for when stuck |
 | 8 | ~~**Bigger boards, up to 10×10**~~ ✅ (§12) — `MAX_SIZE`, a 10th region colour, legibility at 32px cells, a generation-cost bound | **A playable 10×10** that generates without a visible freeze |
-| 9 | **Difficulty menu** (§14.1) — easy/medium/hard/expert mapped to board size, seeds moved into the menu, storage migration | **Pick a difficulty like you do in Sudoku**, instead of picking a raw board size |
+| 9 | ~~**Difficulty menu**~~ ✅ (§14.1) — rungs mapped *into* `SIZES`, size picked from the seed, menu modal matching Sudoku's, free play + seed field behind one flag, a real v1→v2 save migration, hub badge names the rung | **Pick a difficulty like you do in Sudoku**, instead of picking a raw board size |
 | 10 | **Lives & mistakes** (§14.2, §14.3) — tap ✕ / double-tap 🍄, wrong guess costs a life, three lives then the board restarts | **A wrong mushroom turns red and costs you a life**; run out and the board resets |
 | 11 | **Earned assists** (§14.4) — a wallet, hints and rule-out metered, earning on solve | **Hints and Rule out can run out**, and solving boards earns more |
 | 12 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
@@ -1000,6 +1000,13 @@ empty 10×10.** Rating boards with it today would score nearly everything
 "expert". Strengthening it with pigeonhole reasoning is real work and its own
 change.
 
+**How this shipped (Step 9).** `games/fungiku/difficulty.js` is the seam: the
+rungs declare a `share` — *how many of `SIZES` each claims*, walking up from the
+bottom — rather than a size list, so the sizes come out of the engine's bounds and
+a second list cannot drift. Shares of 2·1·2·1 over sizes 5-10 produce exactly the
+table below. Everything above `sizeForDifficulty(difficulty, seed)` speaks in
+rungs, so rated seeds slot in behind that one function with no UI change.
+
 So the mapping ships as sizes, and the menu is built so rated seeds can slot in
 behind it later **without a UI change**:
 
@@ -1024,6 +1031,21 @@ game is done. They are currently visible only in the "New puzzle (seed 3)" butto
 label and are not selectable. Put the field behind one flag — the same pattern
 `BuildNotes` already uses — so hiding it later is a one-constant change rather
 than a UI edit.
+
+**Shipped as** `SHOW_DEVELOPER_CONTROLS` in `games/fungiku/FungikuMenuModal.js`,
+covering both the seed input and the free-play size chips (which moved off the
+game screen into the same section). Flip the constant and the menu is four
+difficulty buttons.
+
+**The migration shipped as its own pure module**,
+`games/fungiku/saveMigration.js`: `FUNGIKU_STORAGE_VERSION` plus a `MIGRATIONS`
+map keyed by the version each function upgrades *from*. Separate from
+`storage.js` because that imports AsyncStorage and the Jest environment is plain
+node. The rule for the next bump is **add an entry, never edit an existing one** —
+an old entry describes a shape already on real devices. The v1→v2 step derives
+`difficulty` **from** the saved `size` and leaves the size alone; re-resolving the
+size from the new rung would hand the player a different board (easy spans 5-6)
+and strand the deductions the save exists to preserve.
 
 ### 14.2 Tap places X, double-tap places a mushroom
 
