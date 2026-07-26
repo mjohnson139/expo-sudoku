@@ -1,4 +1,5 @@
 import {
+  CVD_TYPES,
   closestPair,
   contrastRatio,
   deltaE,
@@ -8,6 +9,7 @@ import {
   readableOn,
   relativeLuminance,
   rgbToHex,
+  simulateCvd,
 } from '../color';
 
 describe('hex and rgb', () => {
@@ -115,5 +117,61 @@ describe('closestPair', () => {
 
   it('reports Infinity for a list too short to have a pair', () => {
     expect(closestPair(['#000000']).distance).toBe(Infinity);
+  });
+});
+
+describe('simulateCvd', () => {
+  it('covers the three dichromacies', () => {
+    expect(CVD_TYPES).toEqual(['protan', 'deutan', 'tritan']);
+  });
+
+  it('keeps every row of every matrix summing to 1', () => {
+    // Which is to say: a neutral survives simulation. This is the property that
+    // catches the wrong matrices — the LMS-space form of these same matrices
+    // looks plausible, applies cleanly, and turns mid-gray into teal.
+    ['#000000', '#404040', '#808080', '#c0c0c0', '#ffffff'].forEach((gray) => {
+      CVD_TYPES.forEach((type) => {
+        expect(simulateCvd(gray, type)).toBe(gray);
+      });
+    });
+  });
+
+  it('collapses red and green onto one confusion line for the red-green types', () => {
+    // A protan or deutan sees red and green as the same hue at different
+    // lightnesses, and the matrices say so literally: the simulated red and
+    // green channels come out equal.
+    ['protan', 'deutan'].forEach((type) => {
+      ['#d55e00', '#009e73', '#0072b2'].forEach((hex) => {
+        const { r, g } = hexToRgb(simulateCvd(hex, type));
+        expect(Math.abs(r - g)).toBeLessThanOrEqual(1); // ±1 for sRGB rounding
+      });
+    });
+  });
+
+  it('pulls red and green together for the red-green types, and not for tritan', () => {
+    // Note what this pair does *not* show: Okabe-Ito's vermillion and bluish
+    // green stay well apart under deutan, because the palette was designed to
+    // survive it through lightness. That robustness is what the region fills
+    // spend when they are tinted toward the theme surface — which is why the
+    // palette is checked under simulation rather than assumed safe.
+    const apart = deltaE('#d55e00', '#009e73');
+    const under = (type) =>
+      deltaE(simulateCvd('#d55e00', type), simulateCvd('#009e73', type));
+
+    expect(under('protan')).toBeLessThan(apart);
+    expect(under('deutan')).toBeLessThan(apart);
+    expect(under('tritan')).toBeGreaterThan(apart * 0.9);
+  });
+
+  it('returns the color unchanged for an unknown type', () => {
+    expect(simulateCvd('#d55e00', 'nope')).toBe('#d55e00');
+  });
+
+  it('stays inside the sRGB gamut', () => {
+    ['#ff0000', '#00ff00', '#0000ff', '#f0e442'].forEach((hex) => {
+      CVD_TYPES.forEach((type) => {
+        expect(simulateCvd(hex, type)).toMatch(/^#[0-9a-f]{6}$/);
+      });
+    });
   });
 });

@@ -40,6 +40,29 @@ export function nextMark(mark) {
 export const MIN_SIZE = 5;
 
 /**
+ * Largest supported board (plan §12). Not a taste judgement — a measurement.
+ * Generation cost goes off a cliff one size above this:
+ *
+ *   8×8  6 ms median · 9×9 30 ms · **10×10 284 ms** · 11×11 2.5 s · 12×12 7.3 s
+ *
+ * and it runs synchronously on the main thread. 10 is the last size that is a
+ * hitch rather than a freeze, so it is the ceiling until the generator is made
+ * cheaper (four directions for that are kept in plan §12.1).
+ *
+ * Before this bound existed `generate()` would accept size 20 and simply never
+ * return. It is also what makes region colours safe: the palette holds exactly
+ * MAX_SIZE fills, so no two regions can ever share one (see utils/symbolSets.js).
+ */
+export const MAX_SIZE = 10;
+
+/**
+ * Every board size the game supports, derived from the bounds rather than
+ * written out. The size chips render straight from this, so a size the UI offers
+ * and a size the engine accepts cannot drift apart.
+ */
+export const SIZES = Array.from({ length: MAX_SIZE - MIN_SIZE + 1 }, (_, i) => MIN_SIZE + i);
+
+/**
  * mulberry32 — a tiny, fast, well-distributed seeded PRNG. Deterministic across
  * platforms, so a seed reproduces a puzzle exactly (plan §4) and a seed is
  * shareable.
@@ -329,18 +352,33 @@ const REGENERATE_BUDGET = 40;
  * Generate a Fungiku puzzle.
  *
  * @param {object}  opts
- * @param {number}  opts.size - board size N (>= MIN_SIZE)
+ * @param {number}  opts.size - board size N (MIN_SIZE..MAX_SIZE)
  * @param {number}  opts.seed - integer seed; same seed + size => same puzzle
- * @returns {{ size: number, seed: number, regions: number[], solution: number[] }}
+ * @returns {{ size: number, seed: number, regions: number[], solution: number[],
+ *            rounds: number }}
  *   `regions` is a flat size*size array of region ids; `solution[r]` is the
- *   column of row r's mushroom.
+ *   column of row r's mushroom. `rounds` is how many uniqueness passes it took —
+ *   see below.
+ *
+ * ### Why the result carries `rounds`
+ *
+ * Nearly all of generation's cost is the uniqueness loop, and 10×10 sits one
+ * size below a ten-times cliff: a change that made the loop modestly less
+ * effective would turn the top size from a 284 ms hitch into a freeze, with no
+ * other symptom. That needs a regression bound in the suite — and the bound
+ * cannot be milliseconds, which measure the CI runner rather than the code.
+ * `rounds` counts passes through the loop, which is a property of the algorithm
+ * and identical on every machine.
  */
 export function generate({ size, seed }) {
-  if (!Number.isInteger(size) || size < MIN_SIZE) {
-    throw new Error(`Fungiku board size must be an integer >= ${MIN_SIZE} (got ${size})`);
+  if (!Number.isInteger(size) || size < MIN_SIZE || size > MAX_SIZE) {
+    throw new Error(
+      `Fungiku board size must be an integer from ${MIN_SIZE} to ${MAX_SIZE} (got ${size})`
+    );
   }
 
   const rng = createRng(seed);
+  let rounds = 0;
 
   for (let attempt = 0; attempt < REGENERATE_BUDGET; attempt++) {
     const solution = findPlacement(size, rng);
@@ -352,9 +390,10 @@ export function generate({ size, seed }) {
     // (its mushroom cells are never reassigned), so the puzzle we return always
     // has the placement we generated as its unique answer.
     for (let i = 0; i < PERTURB_BUDGET; i++) {
+      rounds++;
       const sols = findSolutions(regions, size, 2);
       if (sols.length === 1) {
-        return { size, seed, regions, solution };
+        return { size, seed, regions, solution, rounds };
       }
 
       // Prefer surgically breaking a solution that isn't ours; fall back to a

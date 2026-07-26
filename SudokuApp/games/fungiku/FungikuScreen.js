@@ -1,5 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Platform, ScrollView, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Platform,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
@@ -51,6 +59,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     revealMushroom,
     dismissHint,
     canReveal,
+    generating,
   } = useFungikuContext();
 
   const titleColor = theme.colors.title;
@@ -60,11 +69,13 @@ const FungikuScreenContent = ({ onExitToHub }) => {
   // The status line follows the state of play instead of always explaining the
   // tap cycle. (Named `statusText`, not `hint` — `hint` is the hint object from
   // context, and shadowing it here silently broke the build once.)
-  const statusText = solved
-    ? 'One per row, column and color — none touching'
-    : conflicts.size > 0
-      ? `${conflicts.size} mushroom${conflicts.size === 1 ? '' : 's'} breaking a rule`
-      : 'Tap to cycle · drag to sweep ✕';
+  const statusText = generating
+    ? 'Generating…'
+    : solved
+      ? 'One per row, column and color — none touching'
+      : conflicts.size > 0
+        ? `${conflicts.size} mushroom${conflicts.size === 1 ? '' : 's'} breaking a rule`
+        : 'Tap to cycle · drag to sweep ✕';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -86,16 +97,35 @@ const FungikuScreenContent = ({ onExitToHub }) => {
         scrollEnabled={!boardTouchActive}
         {...(Platform.OS === 'ios' ? { canCancelContentTouches: false } : null)}
       >
-        {/* The `🍄 X/N` counter (plan §1) — how the player tracks the goal. */}
+        {/* The `🍄 X/N` counter (plan §1) — how the player tracks the goal, and
+            where a big board's generation hitch is announced (plan §12.1).
+
+            The "Generating…" state deliberately lives *inside this row* rather
+            than in a banner of its own. A view that mounts above the board moves
+            the board, which invalidates the origin every touch is resolved
+            against — the bug behind the hint banner's re-measure effect. This row
+            is always mounted and keeps its height, so the board never moves and
+            there is no origin to invalidate. */}
         <View style={[styles.counterRow, { backgroundColor: surface, borderColor: border }]}>
-          <MaterialCommunityIcons name="mushroom" size={20} color={titleColor} />
+          {generating ? (
+            <ActivityIndicator size="small" color={titleColor} />
+          ) : (
+            <MaterialCommunityIcons name="mushroom" size={20} color={titleColor} />
+          )}
           <Text
             style={[styles.counterText, { color: titleColor }]}
             accessibilityLabel={`${mushroomCount} of ${size} mushrooms placed`}
           >
             {mushroomCount}/{size}
           </Text>
-          <Text style={[styles.counterHint, { color: titleColor }]}>{statusText}</Text>
+          <Text
+            style={[styles.counterHint, { color: titleColor }]}
+            // Announced, because a player who cannot see the spinner still needs
+            // to know why the board stopped responding.
+            accessibilityLiveRegion={generating ? 'polite' : 'none'}
+          >
+            {statusText}
+          </Text>
         </View>
 
         {/* Hint output (plan §11.2). A hint is an explicit request, so its
@@ -249,19 +279,26 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Board size + next puzzle — the stand-in for the ladder step */}
+        {/* Board size + next puzzle — the stand-in for the ladder step.
+
+            Six chips no longer fit one row on a narrow phone (6 × ~56pt beats a
+            360pt screen), so the row wraps rather than squeezing the chips down
+            to something hard to hit. */}
         <Text style={[styles.label, { color: titleColor }]}>Board size</Text>
-        <View style={styles.controlRow}>
+        <View style={[styles.controlRow, styles.chipRow]}>
           {SIZES.map((option) => (
             <TouchableOpacity
               key={option}
               onPress={() => changeSize(option)}
+              disabled={generating}
               style={[
                 styles.chip,
                 { borderColor: border },
                 option === size && { backgroundColor: titleColor, borderColor: titleColor },
+                generating && styles.toolButtonDisabled,
               ]}
               accessibilityRole="button"
+              accessibilityState={{ disabled: generating, selected: option === size }}
               accessibilityLabel={`${option} by ${option} board`}
             >
               <Text style={[styles.chipText, { color: option === size ? surface : titleColor }]}>
@@ -274,8 +311,16 @@ const FungikuScreenContent = ({ onExitToHub }) => {
         <View style={styles.controlRow}>
           <TouchableOpacity
             onPress={nextPuzzle}
-            style={[styles.wideButton, { borderColor: border }]}
+            // A second tap while the top size is still generating would only
+            // queue work the first tap is already doing.
+            disabled={generating}
+            style={[
+              styles.wideButton,
+              { borderColor: border },
+              generating && styles.toolButtonDisabled,
+            ]}
             accessibilityRole="button"
+            accessibilityState={{ disabled: generating }}
             accessibilityLabel="Generate the next puzzle"
           >
             <MaterialCommunityIcons name="dice-multiple" size={18} color={titleColor} />
@@ -406,12 +451,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 18,
   },
+  chipRow: {
+    flexWrap: 'wrap',
+    alignSelf: 'stretch',
+  },
   chip: {
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 8,
     borderWidth: 1,
     marginHorizontal: 4,
+    // Spacing for the second row once the chips wrap.
+    marginVertical: 3,
   },
   chipText: {
     fontSize: 13,

@@ -368,7 +368,7 @@ the step's real acceptance test, alongside its automated checks.
 | 5 | ~~**Board UI**~~ ✅ — the real board component: region-boundary borders, themed styling, win flow, **palette tuning** | The **finished board**, styled to the app's themes, replacing the preview's rough grid |
 | 6 | ~~**Input ergonomics & assists**~~ ✅ (§2) — **drag to sweep X's**, rule-out button | **Swipe a finger across cells to rule them out**; a *Rule out* button |
 | 7 | ~~**Feedback & hints**~~ ✅ (§11) — correctness feedback on placements, and a hint ladder | **Optional "show mistakes" for mushrooms**, and a hint you can ask for when stuck |
-| 8 | **Bigger boards, up to 10×10** (§12) — a 10th region colour, legibility at 32px cells, a generation-cost bound | **A playable 10×10** that generates without a visible freeze |
+| 8 | ~~**Bigger boards, up to 10×10**~~ ✅ (§12) — `MAX_SIZE`, a 10th region colour, legibility at 32px cells, a generation-cost bound | **A playable 10×10** that generates without a visible freeze |
 | 9 | **Ladder & scoring** — training ladder, size progression, scoring | Level progression and a score |
 | 10 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
 
@@ -520,7 +520,27 @@ Requirements on any hint:
 Carried into §8 as #6 and #7: how strong hints should go for a family game, and
 whether correctness feedback should default on for younger players.
 
-## 12. Board sizes up to 10×10 (operator request, 2026-07-25)
+## 12. Board sizes up to 10×10 (operator request, 2026-07-25) — **shipped, Step 8**
+
+**What landed.** `MAX_SIZE = 10` in the engine, with `SIZES` derived from the
+bounds so the chips cannot offer a size `generate()` rejects; a tenth region
+colour, searched for rather than picked; `getRegionColor` no longer wraps; a
+"Generating…" state for the sizes where the hitch is visible; and a legibility
+pass that steps down four constants below 40px cells. Details and measurements
+are in the subsections below, updated with what was found rather than predicted.
+
+**Three things turned out differently from this brief, and all three are worth
+knowing before touching the palette again:**
+
+1. **ΔE and colourblind safety did not merely differ — they pulled in opposite
+   directions.** Maximizing worst-pair ΔE produced ten-colour palettes that beat
+   the shipping nine for normal vision and were *worse than it* under dichromat
+   simulation. §12.2 has the reframed objective that resolved it.
+2. **The first simulation was wrong, and it was the palette's own test that
+   caught it.** See §12.2, "The matrices are a trap".
+3. **The contrast floors are part of the search space, not a check afterwards.**
+   A palette optimized for separation alone failed three existing tests on dark
+   fills; the floors are now constraints on which tints are candidates at all.
 
 The operator first asked for the ladder to reach **12×12**. Measuring the cost
 (§12.1) showed a 12×12 takes **7.3 seconds to generate, synchronously on the main
@@ -557,17 +577,36 @@ up to `PERTURB_BUDGET` times). Each `findSolutions` call is a backtracking searc
 re-run after every perturbation.
 
 **At a 10×10 ceiling, none of that needs fixing** — 284 ms median is a hitch, not a
-freeze. Two things it does need:
+freeze. Two things it does need, and both shipped:
 
-1. **A generation hitch you can see is worse than one you are told about.** Half a
-   second of frozen UI on "New puzzle" at the top size reads as a bug. Either show
-   a brief loading state, or confirm on device that it is imperceptible — don't
-   assume.
-2. **A regression bound in the test suite.** 10×10 sits one size below a
-   ten-times cliff, so a change that makes generation modestly slower would push
-   the top size from *hitch* to *freeze* with no other symptom. Assert a generous
-   ceiling (or count perturbation rounds, which is machine-independent) so that
-   regression is visible.
+1. **A generation hitch you can see is worse than one you are told about.** The
+   counter row shows **"Generating…"** with a spinner at sizes ≥ 9, and the board
+   stops taking touches until the new puzzle arrives.
+
+   Two details that are easy to get wrong. First, **setting the flag is not
+   enough** — the state update only schedules a render, so generating in the same
+   turn blocks the main thread before the spinner is ever drawn. `startPuzzle`
+   hops through `requestAnimationFrame` *and then* a `setTimeout`, which puts the
+   generator after the frame has been handed off. Second, the indicator lives
+   **inside the always-mounted counter row**, not in a banner of its own,
+   precisely because a view mounting above the board moves the board and
+   invalidates the origin every touch is resolved against (§2).
+
+   The threshold is 9, not 10, because a phone is slower than the machine these
+   numbers came from and 9×9's 51 ms median has a 174 ms tail. Below it,
+   generation finishes inside the frame and deferring would only add latency —
+   verified in the browser: a 5×5 never shows the state, a 10×10 always does.
+
+2. **A regression bound in the test suite.** `generate()` now returns the number
+   of **perturbation rounds** it took, and the suite caps the total at the top
+   size. Rounds rather than milliseconds is not a detail: the same generation
+   that takes 0.4s in node takes ~3s under Jest's transform, so a millisecond
+   bound would measure the runner. Rounds are identical everywhere.
+
+   Sampling matters too. Six seeds at 10×10 put 20 seconds on a suite that
+   otherwise runs in three — enough friction to stop people running it — so the
+   top size runs the full battery against two seeds and the sizes below it keep
+   six.
 
 If the ceiling is ever to rise past 10, the generator has to get cheaper first,
 and there are four directions worth trying, cheapest first:
@@ -623,6 +662,72 @@ respect:
   it is worth knowing the second channel already exists if the tenth colour proves
   hard to place.
 
+#### What the search actually found (2026-07-25)
+
+**The warning above understated it.** Maximizing ΔE and preserving colourblind
+separation are not merely different properties — over this hue space they are in
+direct conflict. The ΔE-optimal ten-colour palettes reached worst-pair ΔE 19-21
+for normal vision (against the shipping 17.11) while scoring **below the
+shipping nine** under simulation. Okabe–Ito's CVD robustness lives at full
+saturation, and tinting every hue toward the theme surface is exactly what
+spends it. A palette tuned on ΔE alone would have looked like an improvement in
+every number anyone was checking.
+
+So the objective was inverted. **Normal-vision separation became a constraint** —
+may not fall below what the nine achieved — and **colourblind separation became
+the thing maximized underneath it**, across protan, deutan and tritan in both
+themes, with the contrast floors (§below) as feasibility constraints on which
+tints are candidates at all. The search was a coordinate ascent over per-hue
+tints with random restarts, run across a 288-point grid of candidate tenth hues.
+
+The winner is a lime, **`#96C115`**, and it adds a colour while improving all
+eight measured axes:
+
+| | worst-pair ΔE | nine colours | ten colours |
+|---|---|---|---|
+| light | normal | 17.11 | **17.21** |
+| | protan / deutan / tritan | 4.13 / 5.44 / 14.85 | **6.73 / 5.80 / 16.21** |
+| dark | normal | 18.55 | **18.69** |
+| | protan / deutan / tritan | 5.80 / 6.38 / 18.52 | **6.31 / 6.79 / 19.21** |
+
+0 of 45 pairs under ΔE 15 in both themes. Those per-dichromacy numbers are now
+floors in `utils/__tests__/symbolSets.test.js`.
+
+Two notes on reading them. They are a **relative** bar — simulate, then measure
+ΔE — and a CIEDE2000 distance between two simulated colours is not a calibrated
+statement about what a dichromat can distinguish. It answers "did this get
+worse?", which is the question being asked. And the tenth colour is region-only:
+there is no tenth Sudoku cell value, so it is deliberately not a `FUNGIKU_SWATCHES`
+entry.
+
+**The re-tune changed every fill, not just the new one** — the whole point was
+freedom to move the other nine. Two light fills (orange, sky blue) now sit at
+full strength where they were tinted before. Both are inside the L\* 65-97 band
+that encodes "a soft grid, not saturated blocks", but it is the most visible
+difference and worth a look on device.
+
+#### The matrices are a trap
+
+The first CVD simulation used the Viénot–Brettel–Mollon matrices in their
+**LMS-space** form applied directly to linear RGB — `[0, 2.02344, -2.52581]` and
+friends. This is a common shortcut and it is wrong. It has no obvious symptom on
+saturated colours, which is why it survived a whole tuning run and produced a
+plausible-looking answer.
+
+What exposed it was a one-line test asserting that **mid-gray survives
+simulation** — a gray has no hue for a dichromat to lose. It came out teal. The
+correct form for sRGB primaries has **every row summing to 1**, which is the
+property to check any such matrix against:
+
+```
+protan [0.11238, 0.88762, 0]   deutan [0.29275, 0.70725, 0]   tritan [1, 0.14461, -0.14461]
+       [0.11238, 0.88762, 0]          [0.29275, 0.70725, 0]          [0, 1, 0]
+       [0.00401, -0.00401, 1]         [-0.02234, 0.02234, 1]         [0, 0.15117, 0.84883]
+```
+
+`simulateCvd` in `utils/color.js` is the one implementation, used by both the
+tests and any future tuning, so this cannot diverge again.
+
 ### 12.3 Legibility at 32-pixel cells
 
 `useBoardSize()` returns a fixed 324 on native, so a 10×10 cell is **32 px** (450
@@ -641,6 +746,39 @@ inheriting constants tuned for 5×5. The 6-pixel tap-vs-drag threshold deserves 
 same scrutiny: it was tuned against roughly 40 px cells, and a 32 px cell means
 less room to press without registering a stroke. **That is a device question, not
 a browser one.**
+
+#### What shipped
+
+`FungikuBoard` derives three constants from a single `tightCells = cell < 40`
+test, so the sizes that had already shipped keep them unchanged (5×5 through 8×8
+are 64px down to 40px cells) and only 9×9 and 10×10 step down:
+
+| | ≥ 40px cells | < 40px cells |
+|---|---|---|
+| conflict-ring inset | 6 | 4 |
+| conflict-ring stroke | 2.5 | 2 |
+| mistake badge | `cell × 0.28` | `max(11, cell × 0.28)` |
+
+**The board's lines are the exception, and they changed at every size** — see
+§12.5. The first cut of this pass treated the region border as one more constant
+to step down, which was treating a symptom: the lines were drawn in a way that
+was wrong at every size and merely most obvious at the smallest.
+
+The mushroom glyph stays at `cell × 0.62` — 20px at the top size, which the plan
+guessed was fine and nothing since has contradicted.
+
+**The tap-vs-drag threshold was left at 6px**, deliberately: the risk it guards
+against (a shaky tap registering as a stroke) is measured in absolute pixels of
+finger travel and does not change with cell size. What *does* change is the cost
+of being wrong, since 6px of travel now crosses a fifth of a cell rather than a
+tenth. This was the one item on the list that could not be settled anywhere but a
+device — web renders a 10×10 cell at 45px, *larger* than a native 5×5 cell, so
+the browser is structurally incapable of showing the problem.
+
+**Settled on device (operator, 2026-07-26): 6px holds at 10×10.** The reasoning
+above was right — the threshold is about finger travel, not cell size — so it
+needs no per-size treatment. Leave it alone unless a *smaller* cell than 32px
+ever ships.
 
 ### 12.4 A finding about hints on bigger boards
 
@@ -662,6 +800,103 @@ row's mushroom is in this region" — which eliminate far more.
 That is not a blocker for 10×10, but a hint that helps twice out of ten placements
 will feel thin. Worth strengthening the propagator, or accepting that the reveal
 rung carries more of the load on large boards (§8 #6).
+
+### 12.5 The board's lines (operator device report, 2026-07-26)
+
+> *"The grid lines could use some darker lines and a clean up of how lines come
+> together."* — operator, on a 9×9 in the Pastel theme
+
+Three defects, one cause. Every line on the board was drawn as a **per-cell
+border**: each cell set its own four border widths and colours, thick where the
+neighbouring cell belonged to a different region. That is the obvious way to do
+it, and it is wrong in three ways that a desktop browser hides:
+
+1. **Every interior region boundary was drawn twice** — once by the cell on each
+   side — so it rendered at *double* width, while the frame around the board was
+   drawn once. Interior boundaries were literally twice the weight of the border
+   containing them.
+2. **Corners notched.** React Native miters adjacent borders, so a cell with a
+   thick top edge and a hairline left edge gets a diagonal seam where they meet;
+   where four cells meet at a region corner, four independent miters fail to line
+   up. This is the "how lines come together" half of the report.
+3. **Borders draw *inside* the cell box**, so a boundary ate width off both
+   neighbours' fills — at 32px cells, an eighth of the cell.
+
+And the darkness half had its own cause: within-region grid lines used the
+theme's `grid.cellBorder`, which is tuned for **Sudoku's white cells**. In the
+Pastel theme that is `#d0d8e6`, which is invisible on a saturated orange or green
+region fill.
+
+**The fix is `FungikuGridLines`**, one memoized overlay of absolutely-positioned
+rectangles drawn on top of the cells. Each edge is drawn exactly once at a width
+that does not depend on how many cells touch it; lines are centred on the edge
+rather than inside one cell; and region segments are extended by half a stroke at
+each end so corners and T-junctions fill in by overlap instead of mitering.
+Collinear runs are merged, so a boundary following a whole row is one View rather
+than ten. Grid lines take their colour from the **fill they sit on** — the
+contrast-picked ink at low alpha, the same rule the mushroom glyph already used —
+so they are legible on every fill in the palette by construction.
+
+**The boundary stroke was removed, and put back** (2026-07-26). The operator
+asked *"Do we need extra grid lines for color shapes. Try it without"* — a fair
+challenge: a region is a **colour**, the ten fills are tuned to a measured
+separation floor (§12.2), and where two regions meet the change of fill already
+marks the edge. For normal colour vision the stroke is the same information
+twice. Removing it also deleted every special case in `FungikuGridLines` — the
+run extension, the clamping, the two widths — 140 lines.
+
+It was tried and **rejected on sight**, for colourblind players. That is exactly
+the case colour alone does not cover: when two adjacent fills are hard to tell
+apart, the stroke is what still says *the region ends here*. It is a second
+channel, the same principle as signalling a conflict with a ring **and** a
+colour, and the same reason the palette is checked under dichromat simulation
+instead of by ΔE alone.
+
+**Record it as decided.** The stroke is not redundant and not a simplification
+opportunity; the experiment has been run. `corners` in `utils/symbolSets.js`
+remains available as a *third* channel if region identity ever needs one.
+
+**A fourth defect, found after the overlay landed.** The operator's next
+screenshot still showed the grid "with misses" — some lines present, some not,
+with no pattern. Auditing the rendered geometry rather than the screenshot
+showed **every interior edge was covered**: nothing was missing. The problem was
+sub-pixel.
+
+A 1px line centered on a cell edge sits at `y = 35.5`, which on a 3× screen is
+device rows **106.5 to 109.5**. Half pixels cannot be drawn, so the renderer
+antialiases the line across four rows at 50/100/100/50 coverage — and multiplied
+by the line's own 37% alpha, the result is a faint smear whose visibility then
+depends on the fill behind it. Hence "misses": strong enough to see on a pale
+yellow, invisible on a saturated orange.
+
+Region boundaries never showed it because their width happened to put them on
+integers at the sizes that had shipped. That accident is what made this look
+like *some lines are missing* rather than *every thin line is half a pixel off*.
+
+The fix is `PixelRatio.roundToNearestPixel` on both the position **and** the
+thickness of every line, so each covers whole device pixels at full strength.
+Verified by re-auditing: grid lines moved from device rows `106.5..109.5` to
+`107.0..110.0`.
+
+**The lesson is about method, not about pixels.** Two rounds were spent reading
+screenshots for a defect that a twenty-line DOM audit located exactly. When a
+rendering bug looks patternless, measure the geometry — "is every edge covered?"
+and "where does each line land in device pixels?" are both cheap questions with
+unambiguous answers.
+
+Two constraints worth knowing if this is ever touched again:
+
+- **The overlay may not change the board's box.** `cellFromPoint` resolves every
+  tap against the board's measured origin, so the frame is inset fully inside the
+  bounds rather than centred on the edge like the interior lines. A `borderWidth`
+  on the board container would shift every cell out from under the player's
+  finger.
+- **`pointerEvents="none"`.** The board claims every touch at touch-down (§2); an
+  overlay that swallowed one would break the whole gesture layer.
+
+**This changed how every size looks, not just the new ones.** A single-drawn
+2.5px boundary replaces a double-drawn 2px one, so boundaries are lighter and
+even, and the grid inside a region is darker than it was.
 
 ## 13. Ladder & scoring — notes parked for Step 9
 
