@@ -1,6 +1,8 @@
 import {
   MARKS,
+  MAX_SIZE,
   MIN_SIZE,
+  SIZES,
   nextMark,
   createRng,
   generate,
@@ -14,9 +16,38 @@ import {
   findForcedDeduction,
 } from '../engine';
 
-// Sizes the v1 ladder ships (plan §8). Kept small so the suite stays fast.
-const LADDER = [5, 6, 7, 8];
+// Every size the game offers, the new top sizes included (plan §12).
+const LADDER = SIZES;
 const SEEDS = [1, 2, 3, 7, 42, 1337];
+
+/**
+ * The top size runs against fewer seeds, because generating a 10×10 is not free:
+ * ~0.4s each in plain node, and **~3s each under Jest**, whose transform costs
+ * roughly 7× here. Six seeds at 10×10 put 20 seconds on a suite that otherwise
+ * runs in under three, which is enough friction to stop people running it.
+ *
+ * Two seeds still exercise every invariant at the big sizes; the smaller boards
+ * keep the full six, and they are where a rule bug would show up anyway. Every
+ * 10×10 generation in this file is deliberate — there are three.
+ */
+const BIG_SIZE_SEEDS = [1, 3];
+const seedsFor = (size) => (size >= 9 ? BIG_SIZE_SEEDS : SEEDS);
+
+/**
+ * A ceiling on generation work at the top size, in **perturbation rounds** — not
+ * milliseconds, which would measure the CI runner and flake accordingly. Rounds
+ * are a property of the algorithm and identical on every machine.
+ *
+ * Why this bound exists at all (plan §12.1): cost rises by roughly an order of
+ * magnitude per size above 10 — 10×10 284 ms, 11×11 2.5 s, 12×12 7.3 s. 10×10
+ * sits one step below that cliff, so a change that made the uniqueness loop
+ * modestly less effective would turn the top size from a hitch into a freeze
+ * with no other symptom, and nothing else in the suite would notice.
+ *
+ * The sampled seeds currently need 455 rounds in total. The ceiling is generous
+ * enough not to fail on an unlucky re-tune, tight enough to catch a doubling.
+ */
+const TOP_SIZE_ROUND_BUDGET = 1200;
 
 /** Orthogonal flood fill — an independent contiguity check for a region. */
 const regionIsContiguous = (regions, size, region) => {
@@ -108,11 +139,37 @@ describe('generate', () => {
     expect(() => generate({ size: MIN_SIZE, seed: 1 })).not.toThrow();
   });
 
+  /**
+   * The upper bound is the half of this that did not exist. `generate()` used to
+   * accept any size at all — asked for 12×12 it took 7 seconds, and asked for 20
+   * it simply never returned. These sizes are rejected up front, cheaply, rather
+   * than discovered by waiting.
+   */
+  it.each([MAX_SIZE + 1, 12, 20])('rejects size %i as beyond the ceiling (plan §12)', (size) => {
+    expect(() => generate({ size, seed: 1 })).toThrow(/size/i);
+  });
+
+  it(`tops the ladder out at ${MAX_SIZE}`, () => {
+    // That the top size *generates* is the whole battery below; this is only
+    // about where the ceiling sits.
+    expect(MAX_SIZE).toBe(10);
+  });
+
+  it('names the bounds in the error, so the caller knows what is allowed', () => {
+    expect(() => generate({ size: 99, seed: 1 })).toThrow(
+      new RegExp(`${MIN_SIZE}[^0-9]+${MAX_SIZE}`)
+    );
+  });
+
   describe.each(LADDER)('size %i', (size) => {
-    const puzzles = SEEDS.map((seed) => generate({ size, seed }));
+    const seeds = seedsFor(size);
+    const puzzles = seeds.map((seed) => generate({ size, seed }));
 
     it('is deterministic — same size+seed gives an identical puzzle', () => {
-      SEEDS.forEach((seed, i) => {
+      // One seed at the top size rather than all of them: re-generating is the
+      // whole cost of this test, and determinism does not vary by seed.
+      const repeat = size === MAX_SIZE ? seeds.slice(0, 1) : seeds;
+      repeat.forEach((seed, i) => {
         expect(generate({ size, seed })).toEqual(puzzles[i]);
       });
     });
@@ -182,17 +239,55 @@ describe('generate', () => {
     });
 
     it('echoes back the size and seed it was asked for', () => {
-      SEEDS.forEach((seed, i) => {
+      seeds.forEach((seed, i) => {
         expect(puzzles[i].size).toBe(size);
         expect(puzzles[i].seed).toBe(seed);
       });
     });
+
+    if (size === MAX_SIZE) {
+      it(`generates the top size within ${TOP_SIZE_ROUND_BUDGET} perturbation rounds`, () => {
+        const rounds = puzzles.reduce((total, p) => total + p.rounds, 0);
+
+        // Reported as an object so a regression says how far over it went
+        // instead of "6103 is not less than 5000" — the first thing anyone
+        // touching the uniqueness loop will want to know.
+        expect({ size, rounds, overBudget: rounds > TOP_SIZE_ROUND_BUDGET }).toEqual({
+          size,
+          rounds: expect.any(Number),
+          overBudget: false,
+        });
+      });
+    }
   });
 
   it('produces different puzzles for different seeds', () => {
     const a = generate({ size: 7, seed: 1 });
     const b = generate({ size: 7, seed: 2 });
     expect(a.regions).not.toEqual(b.regions);
+  });
+});
+
+/**
+ * SIZES is what the size chips render from. It lives here, next to the bounds it
+ * is derived from, so the sizes the UI offers and the sizes `generate()` accepts
+ * cannot drift — the previous copy was a hand-written list in the context file.
+ */
+describe('SIZES', () => {
+  it('is every size between the bounds, in order', () => {
+    expect(SIZES).toEqual([5, 6, 7, 8, 9, 10]);
+    expect(SIZES[0]).toBe(MIN_SIZE);
+    expect(SIZES[SIZES.length - 1]).toBe(MAX_SIZE);
+  });
+
+  it('offers nothing the generator would reject', () => {
+    // Bounds, not generation: every size here is run through `generate` by the
+    // battery above, and a 10×10 costs three seconds under Jest.
+    SIZES.forEach((size) => {
+      expect(Number.isInteger(size)).toBe(true);
+      expect(size).toBeGreaterThanOrEqual(MIN_SIZE);
+      expect(size).toBeLessThanOrEqual(MAX_SIZE);
+    });
   });
 });
 

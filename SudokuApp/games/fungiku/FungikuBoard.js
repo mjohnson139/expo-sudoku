@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Animated, Easing, PanResponder } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MARKS } from './engine';
-import { getRegionPalette } from '../../utils/symbolSets';
+import { getRegionColor } from '../../utils/symbolSets';
 import useBoardSize from '../../hooks/useBoardSize';
 import useBoardOrigin from '../../hooks/useBoardOrigin';
 import { cellFromPoint, cellsAlongLine } from './geometry';
 import { PAINT_MODES } from './reducer';
+import FungikuGridLines from './FungikuGridLines';
 import { useFungikuContext } from './FungikuContext';
 
 /**
@@ -53,6 +54,7 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     beginStroke,
     endStroke,
     solved,
+    generating,
   } = useFungikuContext();
 
   // Cells a hint is pointing at: a whole row/column/region for a nudge, a single
@@ -62,6 +64,39 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   const boardSize = useBoardSize();
   const cell = Math.floor(boardSize / size);
   const glyph = Math.round(cell * 0.62);
+
+  // --- legibility at the top size (plan §12.3) ------------------------------
+  //
+  // The board is a fixed 324pt on native however many cells it holds, so a cell
+  // is 64px at 5×5 and **32px at 10×10**. The conflict ring and the mistake badge
+  // were tuned against the large end and stop working at the small one, so they
+  // step down at a threshold that leaves 5×5 through 8×8 (cells 64 down to 40)
+  // exactly as they were, and changes only the two sizes this step adds.
+  //
+  // The board's *lines* are a different story: they changed at every size, because
+  // the way they were drawn was wrong at every size and only obvious at small
+  // ones. See FungikuGridLines.
+  //
+  // Note what the browser cannot tell you here: web boards are up to 450px, so a
+  // 10×10 cell is 45px there — *larger* than a 5×5 native cell. None of this is
+  // judgeable outside Expo Go.
+  const tightCells = cell < 40;
+
+  // Region-boundary stroke. Drawn once per edge by FungikuGridLines — when this
+  // was a per-cell border every interior boundary was drawn by *both* cells and
+  // came out at double this, which is why 2 looked heavy and the frame around
+  // the board looked thin by comparison.
+  const regionBorder = tightCells ? 2 : 2.5;
+
+  // The conflict ring is inset from the cell edge. A fixed 6px inset leaves only
+  // 20px of clear ring at 32px cells, which crowds the 20px mushroom glyph
+  // inside it, so tight cells give the ring more room and a thinner stroke.
+  const ringInset = tightCells ? 4 : 6;
+  const ringWidth = tightCells ? 2 : 2.5;
+
+  // The mistake badge is a corner glyph at 28% of the cell — 18px at 5×5 but
+  // 9px at 10×10, which is below the size an alert triangle still reads as one.
+  const badge = Math.max(11, Math.round(cell * 0.28));
 
   // --- drag to sweep X's (plan §2) -----------------------------------------
   //
@@ -165,9 +200,13 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   // This effect runs after the banner has been committed, so the origin is right
   // before the player can touch anything. `hint` and `solved` are the two things
   // that mount a banner above the board.
+  // `generating` is in here for the same reason `hint` and `solved` are: it
+  // changes what the row above the board renders. That row keeps its height by
+  // design, so the board should not actually move — this is the cheap insurance
+  // that says so, and the place the next thing added above the board belongs.
   useEffect(() => {
     measure();
-  }, [hint, solved, measure]);
+  }, [hint, solved, generating, measure]);
 
   // The latest marks/geometry, readable from inside gesture callbacks that were
   // created once and would otherwise close over a stale render.
@@ -308,12 +347,14 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     [beginStroke, endStroke, paintCells, measure]
   );
 
-  const palette = useMemo(() => getRegionPalette(isDark), [isDark]);
-
-  // Region outlines come from the theme's grid colors so the board reads as part
-  // of the app; they need to hold up over both light and dark region fills.
+  // Region boundaries come from the theme's grid colors so the board reads as
+  // part of the app; they need to hold up over both light and dark region fills.
+  //
+  // Grid lines *within* a region do not come from the theme — see the note in
+  // FungikuGridLines. `inkAt` gives that overlay the contrast-picked ink for a
+  // region's fill, which is the one color guaranteed legible on it.
   const outline = theme?.colors?.grid?.boxBorder || (isDark ? '#e8e8e8' : '#333333');
-  const hairline = theme?.colors?.grid?.cellBorder || (isDark ? '#ffffff44' : '#33333344');
+  const inkAt = useCallback((region) => getRegionColor(region, isDark).ink, [isDark]);
 
   // The board itself celebrates a win first (a gentle lift), before the banner
   // above it arrives — same "board celebrates first" idea the sibling color-loop
@@ -332,6 +373,9 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     <Animated.View
       ref={boardRef}
       onLayout={onLayout}
+      // While a big board generates, the board on screen is the *previous*
+      // puzzle and is about to be replaced. Marks made on it would vanish.
+      pointerEvents={generating ? 'none' : 'auto'}
       {...responder.panHandlers}
       style={[
         styles.board,
@@ -349,13 +393,13 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
           {Array.from({ length: size }, (_, col) => {
             const index = row * size + col;
             const region = regions[index];
-            const entry = palette[region % palette.length];
+            // Looked up through the engine's guarded accessor rather than a
+            // modulo into the palette. The modulo silently gave region 9 the
+            // same fill as region 0 the moment boards reached 10 regions.
+            const entry = getRegionColor(region, isDark);
             const mark = marks[index];
             const conflicting = conflicts.has(index);
             const mistaken = mistakes.has(index);
-
-            const differs = (r, c) =>
-              r < 0 || c < 0 || r >= size || c >= size || regions[r * size + c] !== region;
 
             // X is a thinking aid, so it sits quieter than a mushroom — but it
             // still has to be visible on its own fill, so it is the same
@@ -382,6 +426,9 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                 }${hintCells.has(index) ? ', hint' : ''}`}
                 accessibilityHint="Taps cycle empty, ruled out, mushroom"
                 onAccessibilityTap={() => cycleCell(index)}
+                // No borders here: every line on this board is drawn once, by
+                // the FungikuGridLines overlay below. Per-cell borders drew each
+                // interior boundary twice and mitered at every corner.
                 style={{
                   width: cell,
                   height: cell,
@@ -390,14 +437,6 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                   opacity: pressedCell === index ? 0.6 : 1,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  borderTopColor: differs(row - 1, col) ? outline : hairline,
-                  borderBottomColor: differs(row + 1, col) ? outline : hairline,
-                  borderLeftColor: differs(row, col - 1) ? outline : hairline,
-                  borderRightColor: differs(row, col + 1) ? outline : hairline,
-                  borderTopWidth: differs(row - 1, col) ? 2 : StyleSheet.hairlineWidth,
-                  borderBottomWidth: differs(row + 1, col) ? 2 : StyleSheet.hairlineWidth,
-                  borderLeftWidth: differs(row, col - 1) ? 2 : StyleSheet.hairlineWidth,
-                  borderRightWidth: differs(row, col + 1) ? 2 : StyleSheet.hairlineWidth,
                 }}
               >
                 {/* Conflict is signalled by a ring *and* a color change, so it
@@ -409,9 +448,10 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                     style={[
                       styles.conflictRing,
                       {
-                        width: cell - 6,
-                        height: cell - 6,
-                        borderRadius: (cell - 6) / 2,
+                        width: cell - ringInset,
+                        height: cell - ringInset,
+                        borderRadius: (cell - ringInset) / 2,
+                        borderWidth: ringWidth,
                         borderColor: entry.conflictInk,
                       },
                     ]}
@@ -451,7 +491,7 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                 {showMistakes && mistaken && (
                   <MaterialCommunityIcons
                     name="alert"
-                    size={Math.round(cell * 0.28)}
+                    size={badge}
                     color={entry.conflictInk}
                     style={styles.mistakeBadge}
                   />
@@ -469,6 +509,17 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
           })}
         </View>
       ))}
+
+      {/* Drawn last so the lines sit on top of the fills rather than being eaten
+          by them. Memoized on the puzzle, so a tap does not rebuild it. */}
+      <FungikuGridLines
+        size={size}
+        cell={cell}
+        regions={regions}
+        width={regionBorder}
+        color={outline}
+        inkAt={inkAt}
+      />
     </Animated.View>
   );
 };
@@ -482,7 +533,7 @@ const styles = StyleSheet.create({
   },
   conflictRing: {
     position: 'absolute',
-    borderWidth: 2.5,
+    // borderWidth is set per board size — see `ringWidth`.
   },
   hintOutline: {
     position: 'absolute',

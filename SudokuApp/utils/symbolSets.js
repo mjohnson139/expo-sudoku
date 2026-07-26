@@ -49,10 +49,24 @@ const FUNGIKU_SWATCHES = {
 };
 
 /**
+ * The tenth region color (docs/fungiku-plan.md §12.2).
+ *
+ * **Region-only, and deliberately not a swatch.** The eight swatches above are
+ * Sudoku cell *values*, and there is no tenth value — this hue exists solely so
+ * a 10×10 Fungiku board has one fill per region. Adding it to FUNGIKU_SWATCHES
+ * would invent a symbol nothing can draw.
+ *
+ * It was searched for, not chosen: see the palette note below for the objective
+ * and what it had to beat.
+ */
+const REGION_ONLY = { color: '#96C115', name: 'lime' };
+
+/**
  * Region colors for the Fungiku board (docs/fungiku-plan.md §3). Regions reuse
  * the same colorblind-safe palette as the swatches above so there is exactly one
- * source of color truth; the mushroom's own red rounds the list out to nine, one
- * per region for boards up to 9×9.
+ * source of color truth; the mushroom's own red and the region-only lime round
+ * the list out to ten — one per region for boards up to 10×10, which is the
+ * engine's MAX_SIZE.
  *
  * Each entry carries the saturated `color` (borders, labels, emphasis), a
  * `background` that fills a whole cell, an `ink` color guaranteed to be legible
@@ -72,14 +86,38 @@ const FUNGIKU_SWATCHES = {
  * The fix is to vary **lightness as well as hue**: each hue gets its own tint
  * weight, chosen by maximizing the worst pairwise CIEDE2000 distance subject to
  * every fill staying inside a lightness band (so the board is still a soft grid,
- * not nine saturated blocks). That search gives:
+ * not ten saturated blocks), and clearing the contrast floors below.
  *
- *   light theme: worst pair ΔE 17.11, **0 of 36 pairs under 15**
- *   dark theme:  worst pair ΔE 18.55, 0 of 36 pairs under 15
+ * ### The tenth color, and why ΔE was not the objective that chose it
  *
- * `utils/__tests__/symbolSets.test.js` pins a floor under those numbers, so a
- * future "let's soften the palette" tweak fails a test instead of quietly
- * reintroducing the bug. Re-tune with the same objective rather than by eye.
+ * Nine fills covered boards to 9×9. At ten regions the old lookup wrapped and
+ * drew region 9 exactly like region 0, so the ceiling moving to 10×10 (§12)
+ * needed a tenth hue. Searching hue space for the one that maximized worst-pair
+ * ΔE produced palettes that scored *better* than today for normal vision and
+ * **worse than today under dichromat simulation** — the exact failure §12.2
+ * warned about. Okabe–Ito's colorblind safety lives at full saturation, and
+ * tinting toward the theme surface spends it.
+ *
+ * So the search was reframed: normal-vision separation is a **constraint** (may
+ * not fall below what the nine achieved) and colorblind separation is the
+ * **objective** maximized underneath it, over all three dichromacies and both
+ * themes. Every tint was re-tuned around the new hue. The result adds a color
+ * and improves all eight measured axes:
+ *
+ *              worst-pair ΔE      nine colors  →  ten colors
+ *   light      normal                   17.11  →  17.21
+ *              protan / deutan / tritan  4.13 / 5.44 / 14.85 → 6.73 / 5.80 / 16.21
+ *   dark       normal                   18.55  →  18.69
+ *              protan / deutan / tritan  5.80 / 6.38 / 18.52 → 6.31 / 6.79 / 19.21
+ *
+ * with 0 of 45 pairs under ΔE 15 in both themes.
+ *
+ * `utils/__tests__/symbolSets.test.js` pins a floor under all of it — the ΔE
+ * floor, the lightness band, the contrast ratios, and now the per-dichromacy
+ * baselines — so a future "let's soften the palette" tweak fails a test instead
+ * of quietly reintroducing the bug. **Re-tune with the same objective rather
+ * than by eye**, and remember that a swatch which looks distinct on your screen
+ * is not evidence about either property.
  */
 const HUE_ORDER = [
   ...Object.keys(FUNGIKU_SWATCHES)
@@ -87,12 +125,13 @@ const HUE_ORDER = [
     .sort((a, b) => a - b)
     .map((value) => FUNGIKU_SWATCHES[value]),
   MUSHROOM,
+  REGION_ONLY,
 ];
 
 // Order matches HUE_ORDER: orange, sky blue, green, yellow, blue, red, pink,
-// gray, mushroom-red. Tuned, not picked by hand — see the note above.
-const LIGHT_TINTS = [0.1, 0.76, 0.62, 0.1, 0.46, 0.62, 0.7, 0.44, 0.54];
-const DARK_TINTS = [0.7, 0.38, 0.55, 0.55, 0.54, 0.12, 0.24, 0.18, 0.55];
+// gray, mushroom-red, lime. Tuned, not picked by hand — see the note above.
+const LIGHT_TINTS = [0, 0, 0.2, 0.75, 0.77, 0.63, 0.49, 0.38, 0.44, 0.25];
+const DARK_TINTS = [0.38, 0.37, 0.18, 0.95, 0.53, 0.65, 0.24, 0.15, 0.04, 0.58];
 
 // What the fills are blended toward. Dark themes blend toward a dark surface
 // instead of white — pastel fills on a near-black background were the untested
@@ -136,10 +175,58 @@ export function getRegionPalette(isDark = false) {
   return isDark ? REGION_PALETTES.dark : REGION_PALETTES.light;
 }
 
-/** The palette entry for a region id, wrapping around if ids exceed the palette. */
+/**
+ * A fill that is unmistakably not part of the palette, returned when a region id
+ * has no colour of its own. It exists so that failure is *loud* — see below.
+ */
+const UNKNOWN_REGION = {
+  color: '#FF00FF',
+  name: 'unknown region',
+  background: '#FF00FF',
+  ink: '#000000',
+  conflictInk: '#000000',
+};
+
+// One report per bad id, not one per cell: a 10×10 board would otherwise log a
+// hundred identical lines and bury everything else.
+const reportedRegionIds = new Set();
+
+/**
+ * The palette entry for a region id.
+ *
+ * **This used to wrap** — `palette[regionId % palette.length]` — which was fine
+ * while boards held at most 9 regions and silently wrong the moment they held
+ * 10: region 9 came out the same colour as region 0, and region colour is how a
+ * player tells one region from another. A wrapping lookup does not fail, it just
+ * draws the wrong board.
+ *
+ * So there are now two lines of defence, and neither of them is a modulo:
+ *
+ * 1. **Impossible by construction.** The palette holds one fill per region up to
+ *    the engine's `MAX_SIZE`, and `generate()` rejects anything larger, so a
+ *    region id outside the palette cannot arise from a board this app built.
+ *    `utils/__tests__/symbolSets.test.js` pins that relationship.
+ * 2. **Loud if it happens anyway** — a corrupt save, or a future size increase
+ *    that forgets the palette. A magenta cell and a console error are both
+ *    impossible to miss, and unlike throwing they do not take the screen down
+ *    mid-render for what is a cosmetic failure.
+ */
 export function getRegionColor(regionId, isDark = false) {
   const palette = getRegionPalette(isDark);
-  return palette[regionId % palette.length];
+  const entry = palette[regionId];
+
+  if (!entry) {
+    if (!reportedRegionIds.has(regionId)) {
+      reportedRegionIds.add(regionId);
+      console.error(
+        `symbolSets: no colour for region ${regionId} — the palette holds ${palette.length}. ` +
+          'Boards with more regions than that are not supported; see MAX_SIZE in games/fungiku/engine.js.'
+      );
+    }
+    return UNKNOWN_REGION;
+  }
+
+  return entry;
 }
 
 /**
