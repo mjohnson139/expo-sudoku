@@ -771,9 +771,14 @@ guessed was fine and nothing since has contradicted.
 against (a shaky tap registering as a stroke) is measured in absolute pixels of
 finger travel and does not change with cell size. What *does* change is the cost
 of being wrong, since 6px of travel now crosses a fifth of a cell rather than a
-tenth. **This is the one item on the list that cannot be settled anywhere but a
-device** — web renders a 10×10 cell at 45px, *larger* than a native 5×5 cell, so
+tenth. This was the one item on the list that could not be settled anywhere but a
+device — web renders a 10×10 cell at 45px, *larger* than a native 5×5 cell, so
 the browser is structurally incapable of showing the problem.
+
+**Settled on device (operator, 2026-07-26): 6px holds at 10×10.** The reasoning
+above was right — the threshold is about finger travel, not cell size — so it
+needs no per-size treatment. Leave it alone unless a *smaller* cell than 32px
+ever ships.
 
 ### 12.4 A finding about hints on bigger boards
 

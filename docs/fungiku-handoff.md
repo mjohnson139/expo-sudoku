@@ -296,8 +296,11 @@ to the next one — with the hub's Continue badge naming where you are.
 - **Board constants step down below 40px cells** (`tightCells` in
   `FungikuBoard`): conflict ring inset and stroke, mistake badge. That threshold
   leaves 5×5-8×8 as they were. **The 6px tap-vs-drag threshold was deliberately
-  left alone** — it is the one item in plan §12.3 that only a device can settle,
-  since web draws a 10×10 cell at 45px, larger than a native 5×5 cell.
+  left alone, and the operator confirmed on device that it holds at 10×10** — it
+  is about absolute finger travel, not cell size, so it needs no per-size
+  treatment. Note the shape of that question though: web draws a 10×10 cell at
+  45px, *larger* than a native 5×5 cell, so no browser check could have answered
+  it either way.
 - **The region-boundary stroke is deliberate, and settled.** It was removed on
   2026-07-26 (a region is a colour, so the stroke looked like the same
   information twice, and dropping it deleted 140 lines of special cases) and
@@ -338,4 +341,4 @@ to the next one — with the hub's Continue badge naming where you are.
 | 5 | Board UI — palette fix with a tested ΔE floor, themed + responsive board, animated win | merged to `epic/fungiku` (#71, `905bfa2`) |
 | 6 | Input ergonomics — drag to sweep X's, rule-out button | merged to `epic/fungiku` (#72, `e896fb6`) |
 | 7 | Feedback & hints — mistake flagging, forced-deduction nudge, reveal, placement pop | merged to `epic/fungiku` (#73, `12f72c3`) |
-| 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds, board lines redrawn as an overlay | this PR |
+| 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds, board lines redrawn as a snapped overlay | PR #75, **operator-tested on device** |
