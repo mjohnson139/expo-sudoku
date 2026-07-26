@@ -298,6 +298,13 @@ to the next one — with the hub's Continue badge naming where you are.
   leaves 5×5-8×8 as they were. **The 6px tap-vs-drag threshold was deliberately
   left alone** — it is the one item in plan §12.3 that only a device can settle,
   since web draws a 10×10 cell at 45px, larger than a native 5×5 cell.
+- **There is no region-boundary stroke any more** (operator, 2026-07-26). A line
+  is drawn only between two cells of the *same* region; where regions meet, the
+  change of fill colour is the edge. §3's "region outlines are the board's
+  structure" no longer describes the board — a Sudoku box is invisible without
+  its line, a Fungiku region is a colour. **This makes colour the only channel
+  for region identity**; the unused `corners` shape cue in `utils/symbolSets.js`
+  is the cheap way to add a second one if that ever matters (plan §12.5).
 - **Every line on the board is drawn by `FungikuGridLines`, not by cell borders**
   (plan §12.5, from an operator device report). Per-cell borders drew every
   interior region boundary **twice** — once by each neighbour, so at double the

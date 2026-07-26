@@ -832,6 +832,24 @@ than ten. Grid lines take their colour from the **fill they sit on** — the
 contrast-picked ink at low alpha, the same rule the mushroom glyph already used —
 so they are legible on every fill in the palette by construction.
 
+**And then the stroke went away entirely** (operator, 2026-07-26: *"Do we need
+extra grid lines for color shapes. Try it without"*). The answer was no.
+
+§3 called region outlines the board's structure, by analogy with Sudoku's box
+lines. The analogy does not hold: **a Sudoku box is invisible without its line,
+whereas a Fungiku region is a colour** — and ten of them are tuned to a measured
+separation floor (§12.2). The stroke was drawing information the fill already
+carried, and it was the direct cause of nearly every artifact in this section:
+the double-drawing, the mitering, the half-stroke extensions needed to close
+corners, and the ticks where those extensions ran past the frame. A line is now
+drawn only between two cells of the **same** region; where regions meet there is
+nothing, and the change of colour is the edge. The component lost 140 lines.
+
+**What that spends:** colour becomes the only channel for region identity. It is
+the reason `corners` in `utils/symbolSets.js` is still there, unused — if the
+boundary is ever wanted back for accessibility, a shape cue is a cheaper way to
+pay for it than a stroke on every edge.
+
 **A fourth defect, found after the overlay landed.** The operator's next
 screenshot still showed the grid "with misses" — some lines present, some not,
 with no pattern. Auditing the rendered geometry rather than the screenshot
