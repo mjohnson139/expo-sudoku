@@ -92,92 +92,97 @@ operator to test in Expo Go.**
 
 ---
 
-## Next step: **Step 9 — the training ladder, and scoring**
+## Next step: **Step 9 — the difficulty menu**
 
-Branch: **`feature/fungiku-ladder`** off `epic/fungiku`.
-Plan: **§13** (research already gathered for this step — do not re-derive it),
-plus §7's "Why feedback and hints come before scoring".
+Branch: **`feature/fungiku-difficulty`** off `epic/fungiku`.
+Plan: **§14** — read **all of it** before starting, not just §14.1. It records
+five operator requirements decided on 2026-07-26 that reshape Steps 9–12, and
+three of them contradict decisions earlier steps made deliberately. §14 explains
+why each reversal is sound; do not re-derive those arguments and do not "fix" the
+contradictions back.
+
+### What changed, in one paragraph
+
+**The training ladder is cancelled.** The operator asked for Fungiku to use the
+same difficulty menu the platform's other game already has — easy · medium ·
+hard · expert — on the reasoning that basic mechanics should work the same way
+across games. §13's ladder research is superseded but kept. Steps 10 and 11 are
+new (lives, then earned assists); the art swap floats out to Step 12.
 
 ### Why this step exists
 
-Fungiku is playable and now has a ceiling, but the only way to pick a board is a
-row of raw size chips. There is no sense of progression, nothing to come back
-for, and nothing that uses the two currencies the last two steps deliberately
-built: `hintsUsed` (counted and persisted per puzzle) and `selectMistakes`.
-
-The top end is settled — **10×10** — so the ladder can be denominated in sizes
-without being reworked later. That was the whole reason board sizes came first.
-
-### Read first
-
-- **§13 of the plan.** A level is a `{size, seed}` pair; the storage migration;
-  the timer question; the pointer to color-loop's ladder. All of it was
-  researched for this step and parked. Do not repeat that work.
-- `SudokuApp/games/fungiku/storage.js` — `FUNGIKU_STORAGE_VERSION` and what a
-  version mismatch does today (returns null; the board starts fresh).
-- `SudokuApp/games/fungiku/reducer.js` — `buildPuzzleState` is where a level
-  would be turned into a board, and `hintsUsed` already rides along in state.
-- `SudokuApp/games/fungiku/engine.js` — `SIZES`, `MIN_SIZE`, `MAX_SIZE`. The
-  ladder picks its rungs from this range; do not hand-write a size list again.
-- `SudokuApp/utils/gameProgress.js` → `describeFungikuProgress` — what the hub's
-  Continue badge says today.
-- The sibling repo's `games/colorloop/levels.ts` — a ladder with per-level star
-  thresholds, already built and worth copying the shape of.
+Fungiku's only way into a game is a row of raw size chips. That is a developer
+control, not a way a player picks a puzzle, and it does not match how Sudoku
+works two taps away in the same app.
 
 ### Scope — ONLY this
 
-1. **The ladder as data** — a table of `{size, seed}` rungs in its own module,
-   plus whatever per-level target the scoring lands on.
-2. **Progression + persistence.** This is the **first change that must not wipe
+1. **Difficulty as data.** Easy 5×5/6×6 · Medium 7×7 · Hard 8×8/9×9 ·
+   Expert 10×10 (§14.1). **Map into `SIZES`; do not write a second size list** —
+   `SIZES` is derived from the engine bounds so the UI cannot offer a size
+   `generate()` rejects. A difficulty spanning two sizes must pick one
+   **deterministically from the seed**, so `{difficulty, seed}` is always the
+   same board.
+2. **A difficulty picker as the primary path in**, matching Sudoku's vocabulary
+   and placement — `components/modals/GameMenuModal.js` is the shape to copy.
+   Keep the size chips as a free-play escape hatch; they are how a size gets
+   checked by hand.
+3. **The seed field moves into the menu**, developer-only, behind **one flag**
+   (the `BuildNotes` pattern) so hiding it later is a one-constant change.
+4. **The storage migration.** This is the **first change that must not wipe
    someone's progress**: bump `FUNGIKU_STORAGE_VERSION` and write a real
    migration for the existing `{size, seed, marks, showMistakes, hintsUsed}`
-   shape. A version mismatch currently discards the save silently, which is fine
-   for a board and not fine for a ladder position.
-3. **A level-select surface** as the primary path into a game, with the size
-   chips kept as a free-play escape hatch (they are how a size gets checked by
-   hand).
-4. **Scoring**, denominated in what already exists — hints used, mistakes made.
-   **Whether Fungiku gets a timer is a decision to make explicitly, not to
-   inherit from Sudoku** (§13); a family puzzle that times you plays differently.
-5. **The hub's Continue badge** naming the level rather than the board size.
-6. **Tests** — above all, **assert that every rung in the table actually
-   generates**. A typo becomes a crash for whoever reaches that level.
+   shape. A version mismatch currently discards the save silently — fine for a
+   board, not fine once difficulty and (Step 11) a wallet ride along.
+5. **The hub Continue badge** naming the difficulty rather than the board size
+   (`utils/gameProgress.js` → `describeFungikuProgress`).
+6. **Tests** — above all, **assert every difficulty generates a board at every
+   size it maps to.** A typo becomes a crash for whoever picks that difficulty.
+
+### Read first
+
+- **§14 of the plan**, all of it.
+- `SudokuApp/components/modals/GameMenuModal.js` — Sudoku's four difficulty
+  buttons: the vocabulary, placement and labels to match.
+- `SudokuApp/games/fungiku/storage.js` — `FUNGIKU_STORAGE_VERSION` and what a
+  version mismatch does today.
+- `SudokuApp/games/fungiku/reducer.js` — `buildPuzzleState` turns an identity
+  into a board; it grows a `difficulty` alongside `size`/`seed`.
+- `SudokuApp/games/fungiku/engine.js` — `SIZES`, `MIN_SIZE`, `MAX_SIZE`.
 
 ### Behaviors that are easy to get wrong
 
-- **Generation cost is now a design input.** A 10×10 rung costs ~0.4s on the
-  machine that measured it and more on a phone. Any level-select screen that
-  generates boards to preview them, or pre-generates the next rung, will be slow
-  in a way the size chips never were. The `generating` flag and the deferral in
-  `FungikuContext` exist for exactly this and should be reused, not reinvented.
-- **A test that generates every rung is the slowest test in the suite.** Step 8's
-  numbers: a 10×10 takes ~3s *under Jest* (its transform costs ~7×), which is why
-  the engine battery samples two seeds at the top size. If the ladder has several
-  10×10 rungs, budget for it — or assert cheaply on bounds and generate a sample.
-- **The size chips are wired to `SIZES`, derived from the engine bounds.** If the
-  ladder gates sizes behind progression, that derivation is the thing to extend,
-  not to bypass with a second hand-written list.
-- **Anything new above the board joins `FungikuBoard`'s re-measure deps**,
-  currently `[hint, solved, generating, measure]`, or the first tap after it
-  appears lands on the wrong cell. A level banner is exactly that shape.
-- **`hintsUsed` resets per puzzle and `showMistakes` carries across**, by design
-  (`buildPuzzleState`). Scoring has to decide which side of that line it is on.
+- **Difficulty is board size and nothing else, on purpose.** There is no board
+  rating and building one is not this step. §12.4 measured `findForcedDeduction`
+  finding **2 of 10 deductions from an empty 10×10** — rating with it today would
+  score nearly everything expert. Build the menu so **rated seeds can slot in
+  behind it later without a UI change**, and leave it there.
+- **Expert generates a 10×10, which costs ~0.4s** and more on a phone. The
+  `generating` flag and the `requestAnimationFrame` + `setTimeout` deferral in
+  `FungikuContext` exist for exactly this — reuse them, do not reinvent. Any
+  picker that generates boards to preview them will be slow in a way the chips
+  never were.
+- **A test that generates every difficulty is the slowest in the suite.** A 10×10
+  costs ~3s *under Jest* (its transform is ~7×), which is why the engine battery
+  samples two seeds at the top size. Budget accordingly.
+- **Anything new above the board joins `FungikuBoard`'s re-measure deps**
+  (`[hint, solved, generating, measure]`), or the first tap after it appears
+  lands on the wrong cell. A difficulty banner is exactly that shape.
 
 ### Out of scope for this step
 
-- **No generator re-engineering.** §12.1's four approaches are for the day the
-  ceiling rises past 10. It isn't this step.
-- **No art swap** — Step 10, gated on artwork rather than code.
-- **No hint-strength work.** §12.4 found the forced-move nudge is shallow (2 of
-  10 deductions from an empty 10×10). Real, and worth doing, but strengthening
-  the propagator with pigeonhole reasoning is its own change.
-- **No second channel for region identity.** Ten fills currently clear every
-  floor with room (§12.2), so the unused `corners` shape cue stays unused.
+- **No lives, no double-tap** — that is Step 10 (§14.2, §14.3), and it is where
+  `showMistakes` and the conflict rendering get resolved. **Do not start deleting
+  them here.**
+- **No wallet or metering** — Step 11 (§14.4).
+- **No board rating / propagator work.** §14.1 is explicit that difficulty is
+  size-only for now.
+- **No generator re-engineering** (§12.1) and **no art swap** (Step 12).
 
 ### Visible in Expo Go when this lands
 
-**A ladder you can climb**: pick a level, play it, see it recorded, and come back
-to the next one — with the hub's Continue badge naming where you are.
+**You pick a difficulty, the way you do in Sudoku** — and the hub's Continue
+badge says which one you are in the middle of.
 
 ## Open questions for the operator (carry these forward)
 
@@ -192,11 +197,9 @@ to the next one — with the hub's Continue badge naming where you are.
 3. ~~**Hub vs. resume on launch**~~ — built hub-first in Step 3: the app opens on
    the hub and the Sudoku card carries a *Continue* badge. Revisit only if the
    operator dislikes it on device.
-4. **Ladder shape** — top end decided and now **built**: sizes 5×5 through
-   10×10 are all reachable from the size chips (plan §12). 12×12 was asked for
-   first and withdrawn once measured at 7.3 s to generate. Still open, and
-   **Step 9 needs an answer**: is size a free choice, or unlocked by progression?
-   Absent a steer it will ship as a ladder plus free play.
+4. ~~**Ladder shape**~~ — **answered 2026-07-26, and not with a ladder**
+   (plan §14.1). Size is neither a free choice nor progression-gated: it is what
+   **difficulty** means. Easy 5-6, Medium 7, Hard 8-9, Expert 10, free play kept.
 5. ~~**Assist defaults**~~ — moot: the rule-out assist became a button you tap
    rather than a mode with a setting, so there is no default to choose. (§2)
 6. **How strong should hints go?** (§11) The ladder ends at *reveal a correct
@@ -204,13 +207,28 @@ to the next one — with the hub's Continue badge naming where you are.
    want capping at a nudge? Related: a reveal is currently only reachable when
    nothing is forced, so a frustrated player cannot skip to the answer — see the
    first note below.
-7. **Should "Show mistakes" default on for younger players?** (§11) It turns a
-   deduction puzzle into trial-and-error for anyone who leaves it on, which argues
-   for off — but "off" for a seven-year-old may just mean stuck. Ships **off**
-   today.
+7. ~~**Should "Show mistakes" default on for younger players?**~~ — **answered
+   by deletion, 2026-07-26** (plan §14.3). Correctness feedback stops being
+   optional: a wrong guess is flagged immediately and costs a life, so the toggle
+   goes away in Step 10. The trial-and-error worry that made it opt-in is
+   answered by making guesses expensive rather than by hiding the answer.
+8. **Should metering Rule out survive contact with a child?** (plan §14.4)
+   Decided metered, but rule-out saves tedium rather than insight. Worth
+   re-checking after a family play session.
 
 ### Noted in passing, for a later step
 
+- **Step 10 makes several existing code paths unreachable, by construction — not
+  by accident.** Once a wrong mushroom is converted to a ✕ on placement, every
+  mushroom left on the board is at a solution cell, and two solution cells can
+  never share a row, column or region or touch. So **two placed mushrooms can no
+  longer conflict**: the live conflict rendering from Steps 4–5 becomes dead UI,
+  along with `selectMistakes`, `showMistakes`/`TOGGLE_MISTAKES`, hint rung 1
+  (`HINT_KINDS.MISTAKE`) and `selectRevealCell`'s -1 branch. Plan §14.3 says
+  this is a real loss to weigh, and asks Step 10 to **decide explicitly whether
+  to remove the conflict rendering or leave it dormant, and say which in the
+  PR** — otherwise a later session finds highlighting that never fires and
+  assumes it is broken. `findConflicts` itself stays; the engine needs it.
 - **A reveal is only reachable when nothing is forced.** The hint button gives the
   weakest hint that still helps, so while any forced deduction exists you get a
   nudge and never a reveal. That is deliberate — it is the pedagogically right
@@ -341,4 +359,19 @@ to the next one — with the hub's Continue badge naming where you are.
 | 5 | Board UI — palette fix with a tested ΔE floor, themed + responsive board, animated win | merged to `epic/fungiku` (#71, `905bfa2`) |
 | 6 | Input ergonomics — drag to sweep X's, rule-out button | merged to `epic/fungiku` (#72, `e896fb6`) |
 | 7 | Feedback & hints — mistake flagging, forced-deduction nudge, reveal, placement pop | merged to `epic/fungiku` (#73, `12f72c3`) |
-| 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds, board lines redrawn as a snapped overlay | PR #75, **operator-tested on device** |
+| 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds, board lines redrawn as a snapped overlay | merged to `epic/fungiku` (#75, `d4d2018`), operator-tested on device |
+
+## Steps still to come
+
+| # | Step | Plan |
+|---|------|------|
+| 9 | **Difficulty menu** — easy/medium/hard/expert mapped to board size, seeds into the menu, storage migration | §14.1 |
+| 10 | **Lives & mistakes** — tap ✕ / double-tap 🍄, wrong guess costs a life, three lives then restart | §14.2, §14.3 |
+| 11 | **Earned assists** — a wallet; hints and rule-out metered, earned by solving | §14.4 |
+| 12 | **Art swap** — floating, gated on artwork rather than code | §7 |
+
+**Replanned 2026-07-26.** The old Step 9 was a training ladder with per-level
+star thresholds; the operator asked instead for the difficulty menu the
+platform's other game already has, so that basic mechanics work the same way
+across games. Plan §13 keeps the ladder research for the day it is wanted on top
+of difficulty.

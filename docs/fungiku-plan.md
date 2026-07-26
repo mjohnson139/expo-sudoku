@@ -84,6 +84,11 @@ makes both generation and solving small, fast, and easy to test.
 
 ## 2. Input model — mushrooms only
 
+> **Superseded in part on 2026-07-26 — see §14.2.** The tap *cycle* below is
+> replaced by **tap = ✕, double-tap = 🍄, tap-a-filled-cell = clear**. Everything
+> else in this section still holds: the three marks, X's being a player aid with
+> no bearing on the win, drag-to-sweep, and the rule-out button.
+
 A cell is in exactly one of three **marks**, and a tap cycles them:
 
 ```
@@ -369,17 +374,30 @@ the step's real acceptance test, alongside its automated checks.
 | 6 | ~~**Input ergonomics & assists**~~ ✅ (§2) — **drag to sweep X's**, rule-out button | **Swipe a finger across cells to rule them out**; a *Rule out* button |
 | 7 | ~~**Feedback & hints**~~ ✅ (§11) — correctness feedback on placements, and a hint ladder | **Optional "show mistakes" for mushrooms**, and a hint you can ask for when stuck |
 | 8 | ~~**Bigger boards, up to 10×10**~~ ✅ (§12) — `MAX_SIZE`, a 10th region colour, legibility at 32px cells, a generation-cost bound | **A playable 10×10** that generates without a visible freeze |
-| 9 | **Ladder & scoring** — training ladder, size progression, scoring | Level progression and a score |
-| 10 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
+| 9 | **Difficulty menu** (§14.1) — easy/medium/hard/expert mapped to board size, seeds moved into the menu, storage migration | **Pick a difficulty like you do in Sudoku**, instead of picking a raw board size |
+| 10 | **Lives & mistakes** (§14.2, §14.3) — tap ✕ / double-tap 🍄, wrong guess costs a life, three lives then the board restarts | **A wrong mushroom turns red and costs you a life**; run out and the board resets |
+| 11 | **Earned assists** (§14.4) — a wallet, hints and rule-out metered, earning on solve | **Hints and Rule out can run out**, and solving boards earns more |
+| 12 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
 
-**Why bigger boards come before the ladder:** the ladder has to know its own top
-end. §12.1 measured it — generation cost goes off a cliff between 10×10 and 11×11,
-which is what set the ceiling at 10 — and the ladder's whole table is denominated
-in sizes. Building it against a 5–8 range first would mean reworking it.
+> **Steps 9–12 were replanned on 2026-07-26** (§14). The old Step 9 was a training
+> ladder with per-level star thresholds; the operator asked instead for the
+> difficulty menu the platform's other game already has. §13 keeps the ladder
+> research for the day it is wanted on top of difficulty.
 
-**Why feedback and hints come before scoring:** scoring has to know what a
-mistake and a hint are *worth*, so the ladder step needs both to already exist.
-Building scoring first would mean guessing at the currency it is denominated in.
+**Why bigger boards come before difficulty:** difficulty is now *denominated* in
+board size (§14.1), so the size range had to be settled first. §12.1 measured it —
+generation cost goes off a cliff between 10×10 and 11×11, which is what set the
+ceiling at 10. Building the menu against a 5–8 range would have meant reworking it.
+
+**Why feedback and hints come before lives and assists:** both of the new
+mechanics are priced in things Step 7 built. A life is spent by
+`selectMistakes`'s notion of a wrong placement, and the wallet meters the hint
+ladder. Building either first would have meant guessing at the currency.
+
+**Why lives and the new input model are one step:** double-tap-to-place and
+"a wrong guess costs a life" are the same surface. Shipping the gesture without
+the consequence would put a mushroom-placing tap in the game with nothing
+attached to it, then immediately rework it.
 
 **Why drag-to-sweep sits at Step 6, not earlier:** it needs the real board's
 touch and geometry layer, which Step 5 builds. Writing the gesture against the
@@ -412,10 +430,12 @@ Step 5 replaced that rough grid with the themed, responsive board.
 3. ~~**Hub vs. resume on launch**~~ — **decided in Step 3: hub-first.** The app
    opens on the hub and a game with saved progress carries a *Continue* badge, so
    both games stay discoverable. Revisit only if it grates on device.
-4. **Ladder shape** — **top end decided 2026-07-25: 10×10** (§12). The operator
-   asked for 12×12 first; measuring showed it takes seven seconds to generate, and
-   10×10 (284 ms) is the last affordable size, so the ceiling moved there. Still
-   open: **is size a free choice or unlocked by progression?**
+4. ~~**Ladder shape**~~ — **answered 2026-07-26, and not with a ladder** (§14.1).
+   Top end decided 2026-07-25: **10×10** (§12) — the operator asked for 12×12
+   first; measuring showed it takes seven seconds to generate, and 10×10 (284 ms)
+   is the last affordable size. Size is then **neither** a free choice nor
+   progression-gated: it is what **difficulty** means. Easy 5–6, Medium 7,
+   Hard 8–9, Expert 10, with free play kept as an escape hatch.
 5. ~~**Assist defaults**~~ — **moot as of 2026-07-25.** The rule-out assist became
    a button you tap rather than a mode with a setting, so there is no default to
    choose. (§2)
@@ -423,9 +443,14 @@ Step 5 replaced that rough grid with the themed, responsive board.
    mushroom*, which solves a cell outright. For a family game that may be exactly
    right — or it may feel like cheating and want capping at a nudge. Needs a
    judgement call once hints are playable.
-7. **Should correctness feedback default on for younger players?** (§11) It turns
-   a deduction puzzle into trial-and-error for anyone who leaves it on, which is
-   an argument for off — but "off" for a seven-year-old may just mean stuck.
+7. ~~**Should correctness feedback default on for younger players?**~~ —
+   **answered by deletion, 2026-07-26** (§14.3). Correctness feedback is no longer
+   optional: a wrong guess is flagged immediately and costs a life, so the "Show
+   Mistakes" toggle goes away. The trial-and-error worry that made it opt-in is
+   answered by making guesses expensive rather than by hiding the answer.
+8. **Should metering Rule out survive contact with a child?** (§14.4) Decided
+   metered, but rule-out saves tedium rather than insight — worth re-checking
+   after a family play session.
 
 ## 9. Edge cases to get right
 
@@ -467,7 +492,9 @@ requirement.
 1. **Rule feedback — shipped, always on.** Any two mushrooms sharing a row,
    column or region, or touching, are ringed and recoloured. This is *local*
    consistency: it catches a move that contradicts another move.
-2. **Correctness feedback — opt-in.** Flag a mushroom that is not where the
+2. **Correctness feedback — opt-in.** *(Superseded 2026-07-26 — §14.3 makes this
+   always-on and punitive. The reasoning below is why it was opt-in, and §14.3
+   explains what removed the premise. Read both; do not re-derive this.)* Flag a mushroom that is not where the
    puzzle's single solution has it, even though it breaks no rule yet. The
    engine already knows the answer (`generate()` returns `solution`, and
    `findSolutions` recovers it from `regions`), so this is cheap to compute. It
@@ -898,11 +925,18 @@ Two constraints worth knowing if this is ever touched again:
 2.5px boundary replaces a double-drawn 2px one, so boundaries are lighter and
 even, and the grid inside a region is darker than it was.
 
-## 13. Ladder & scoring — notes parked for Step 9
+## 13. Ladder & scoring — notes parked, now superseded
+
+> **Superseded 2026-07-26 by §14.** The operator asked for a **difficulty menu**
+> matching Sudoku's rather than a training ladder, so no session is currently
+> building this. Kept because a ladder could still sit *on top of* difficulty
+> later, and three of these notes are true regardless — the storage migration
+> (Step 9 does it), the "assert every generated board really generates" rule, and
+> "thresholds are guesses until played".
 
 The ladder was briefed as Step 8 until the board-size work displaced it (§7, "Why
-bigger boards come before the ladder"). The research done for that brief is kept here so the
-Step 9 session does not repeat it.
+bigger boards come before difficulty"). The research done for that brief is kept
+here so it does not have to be repeated.
 
 - **A level is a `{size, seed}` pair.** Both are already deterministic, so the
   ladder is a data table in its own module and tuning it is editing data. Assert
@@ -932,3 +966,213 @@ Step 9 session does not repeat it.
 - **The hub's Continue badge** (`utils/gameProgress.js` → `describeFungikuProgress`)
   probably wants to name the *level* rather than the board size once a ladder
   exists.
+
+## 14. Difficulty, lives, and earned assists (operator requirements, 2026-07-26)
+
+Five requirements from the operator, refined in conversation and **decided**. They
+replace the ladder briefed for Step 9 (§13) and change three things that earlier
+steps built deliberately, so the reasoning is recorded here rather than left to be
+rediscovered as a contradiction.
+
+The framing behind all five: **the platform will host several games, and the
+basics should work the same way in each.** Sudoku already has a difficulty menu
+running easy → expert. Fungiku gets the same menu rather than a second, unlike
+progression model.
+
+### 14.1 Difficulty is a menu, not a ladder
+
+**Decided.** Fungiku's entry point becomes a difficulty picker with the same rungs
+and the same vocabulary as Sudoku's: **easy · medium · hard · expert**
+(`components/modals/GameMenuModal.js` is the shape to match).
+
+**Difficulty is denominated in board size, and only board size, for now.**
+
+That is a deliberate narrowing, because the obvious reading — "size *and* how hard
+the board is" — asks for something that does not exist. `generate({size, seed})`
+produces whatever it produces; there is no rating, and no way to ask a generated
+board how hard it is. Sudoku gets its difficulty from clue count in
+`boardFactory`; Fungiku has no equivalent knob.
+
+The honest measure for this genre is *how deep the forced-deduction chain runs
+before the solver has to case-split*, which means leaning on `findForcedDeduction`
+— and **§12.4 measured that propagator as shallow: 2 of 10 deductions from an
+empty 10×10.** Rating boards with it today would score nearly everything
+"expert". Strengthening it with pigeonhole reasoning is real work and its own
+change.
+
+So the mapping ships as sizes, and the menu is built so rated seeds can slot in
+behind it later **without a UI change**:
+
+| Difficulty | Sizes |
+|---|---|
+| Easy | 5×5, 6×6 |
+| Medium | 7×7 |
+| Hard | 8×8, 9×9 |
+| Expert | 10×10 |
+
+Two consequences to respect:
+
+- **Keep deriving sizes from the engine bounds.** `SIZES` exists so the UI cannot
+  offer a size `generate()` rejects (§12). The difficulty table maps *into* that
+  range; it does not become a second hand-written size list.
+- **A difficulty spanning two sizes has to pick one per game.** Simplest rule that
+  stays deterministic: derive it from the seed, so a given `{difficulty, seed}` is
+  always the same board.
+
+**Seeds move into the menu now** as a developer field, and get hidden once the
+game is done. They are currently visible only in the "New puzzle (seed 3)" button
+label and are not selectable. Put the field behind one flag — the same pattern
+`BuildNotes` already uses — so hiding it later is a one-constant change rather
+than a UI edit.
+
+### 14.2 Tap places X, double-tap places a mushroom
+
+**Decided.** This replaces the three-state cycle from §2
+(`empty → X → 🍄 → empty`).
+
+| Gesture | Cell state | Result |
+|---|---|---|
+| Tap | empty | ✕ |
+| Tap | ✕ or 🍄 | empty |
+| Double-tap | any | 🍄 (attempt — see §14.3) |
+
+**A tap clears any filled cell** (operator's answer), which is what keeps every
+state reachable once the cycle is gone. Drag-to-sweep is unchanged: a stroke still
+only ever paints or erases ✕, and still never disturbs a mushroom (§2).
+
+Three things that are easy to get wrong:
+
+- **Do not make single taps wait for the double-tap window.** The naive detector
+  delays every ✕ by ~250 ms, which is the most common gesture in the game. Place
+  the ✕ immediately and **upgrade** the cell if a second tap lands inside the
+  window.
+- **The upgrade must be one undo entry, not two.** Otherwise undo after a
+  double-tap strands a ✕ in the cell — the mark the player never asked for.
+- **The detector belongs inside the existing gesture, not beside it.** The board
+  claims every touch at touch-down to win the ScrollView race (§2, "The ScrollView
+  race"), and there is a 6px tap-vs-drag threshold. A second `PanResponder` or a
+  child `Touchable` will not see the second tap.
+
+**Accessibility:** a screen reader cannot express a double tap. Cells currently
+carry `onAccessibilityTap`; placing a mushroom needs an explicit alternative
+action, named in the `accessibilityLabel` (`accessibilityState` does not survive
+to the web — see the handoff notes).
+
+**This is a device question.** Double-tap timing, and whether a child can produce
+one reliably, cannot be answered in a browser (§2, "A pattern worth knowing").
+
+### 14.3 A wrong guess costs a life; three lives, then the board restarts
+
+**Decided.** Placing a mushroom on a cell that is not in the solution:
+
+1. **immediately** shows it was wrong,
+2. leaves a **red ✕** in that cell,
+3. spends one of **three lives**.
+
+At zero lives the **same board** restarts — same seed, marks cleared, lives reset.
+A fresh board would punish twice and throw away the deduction already made.
+**Three lives at every size** (operator's answer; not scaled per difficulty).
+
+**Undo does not refund a life** — *"you don't get lives with info."* The mistake
+already told the player something true about the board; taking the ✕ back cannot
+take the information back, so the life stays spent. Undo can still retract the
+mark.
+
+#### This supersedes the opt-in correctness feedback of §11.1
+
+§11.1 required correctness feedback to be **opt-in and default off**, because
+"left on, it turns a deduction puzzle into trial-and-error." That reasoning is
+sound and this requirement does not ignore it — it **removes its premise**. What
+made always-on feedback corrosive was that guessing was *free*. Once a wrong guess
+costs a life and a life is not refundable, guessing is the most expensive thing a
+player can do. So:
+
+- **The "Show Mistakes" toggle is deleted**, along with `TOGGLE_MISTAKES` and the
+  `showMistakes` field. Open question §8 #7 is answered by deletion.
+- **`selectMistakes` becomes vestigial.** It reports wrong mushrooms *sitting on
+  the board*, and after this change none can.
+
+#### The consequence that is easy to miss: conflicts become unreachable
+
+If every mushroom that survives on the board is at a solution cell, then any two
+mushrooms on the board are two distinct solution cells — and by construction
+solution cells never share a row, column or region, and never touch. **Two placed
+mushrooms can no longer conflict, ever.**
+
+That makes the live conflict highlighting built in Steps 4–5 unreachable UI. It
+is a real loss (the "these two are fighting" read) and it is the direct logical
+consequence of immediate feedback, not an oversight. Whoever builds this should
+**decide explicitly whether to remove the conflict rendering or leave it dormant**,
+and say which in the PR — a future session finding highlighting that never fires
+will otherwise assume it is broken.
+
+`findConflicts` itself stays: the engine needs it for generation, solving, and the
+reveal-safety check in `selectRevealCell`.
+
+Two more paths go dead for the same reason and should be pruned together:
+
+- **Hint cascade rung 1** (`HINT_KINDS.MISTAKE`) — "one of your mushrooms is in the
+  wrong place" cannot happen.
+- **`selectRevealCell` returning -1** — documented as "a wrongly-placed mushroom is
+  in the way", which is now impossible.
+
+**Unchanged: there is still no such thing as a wrong ✕.** X marks are a thinking
+aid with no bearing on the win (§9, §11.1). Only mushroom placements cost lives.
+
+**Open, and worth an on-device answer:** the auto-placed red ✕ is an ordinary ✕
+by default, so a later tap clears it — consistent with rule-out and hint marks
+(§2). That also lets a player erase the record of their own mistake. Ships
+clearable; revisit if it reads wrong in play.
+
+### 14.4 Assists are earned, spent, and can run out
+
+**Decided.** **Hints and Rule out both become metered consumables.** "Auto fill" is
+the existing **Rule out** button (§2) — confirmed with the operator — and it is
+metered too, not left free.
+
+This inverts what exists. `hintsUsed` today is a **per-puzzle counter for
+scoring**; this makes assists a **persistent balance that spans puzzles and
+sessions**. Different data, different lifetime, different storage key.
+
+Shape it as a **wallet** in its own module:
+
+- `grant(kind, n)` / `spend(kind)` / `balance(kind)`, persisted under its own
+  global key — the same shape as `@AppTheme`, not part of the per-puzzle save.
+- **Earning** is denominated in what already exists: boards solved, and how
+  cleanly (lives remaining, assists unspent). Draft the rates, **say in the PR
+  that they are guesses**, and flag them for on-device tuning — color-loop's star
+  thresholds were left the same way and are still on its backlog (§13).
+- **Gifts** are just `grant()` from another source. Nothing special.
+- **Purchases are also just `grant()`** — build the seam, not the store.
+
+**Why the store is not in scope, stated once.** In-app purchase needs
+`react-native-iap` or RevenueCat; **neither runs in Expo Go**, so it requires a
+dev build — which breaks the epic's "every step must be visible in Expo Go"
+rule. A kid-facing app taking payments also pulls in App Store Kids Category
+rules and a parental gate. None of that blocks the economy itself. Build the
+wallet, leave the store unbuilt behind `grant()`.
+
+**A design note the operator should weigh after playing it:** §11.2 classes rule-out
+as the rung that *reveals nothing the player could not derive mechanically* — it
+saves tedium, not thinking. Metering it therefore mostly charges younger players
+for finger work rather than for insight. Metering **hints** is the part that
+prices actual help. Shipping both metered as decided; worth re-checking once a
+child has played it.
+
+### 14.5 What this does to the delivery plan
+
+Comfortably more than one step, so §7 splits it:
+
+- **Step 9 — difficulty menu.** §14.1, seeds into the menu, plus the storage
+  migration (which §13 already established is unavoidable and must not wipe
+  progress).
+- **Step 10 — lives and mistakes.** §14.2 and §14.3 together: they are the same
+  input surface, and building the double-tap without the life cost would ship a
+  mushroom-placing gesture with no consequence attached.
+- **Step 11 — earned assists.** §14.4.
+- **Step 12 — art swap.** Unchanged, still floating on artwork rather than code.
+
+**§13's ladder research is superseded, not deleted.** A difficulty menu is not a
+level ladder, and if a ladder is ever wanted *on top of* difficulty, the
+`{size, seed}` framing, the migration warning and the color-loop reference are all
+still correct.
