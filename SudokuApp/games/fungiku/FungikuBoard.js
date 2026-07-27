@@ -34,22 +34,52 @@ const MARK_LABELS = {
 };
 
 /**
+ * Placing a mushroom needs a way in that is not a double tap, because a screen
+ * reader has no way to produce one (plan §14.2). Hoisted to module scope so the
+ * array identity is stable across every cell and every render.
+ *
+ * Known gap, carried in the handoff: react-native-web does not map custom
+ * accessibility actions, so on the web build this reaches native screen readers
+ * only. `onAccessibilityTap` — the ✕ — works everywhere.
+ */
+const ACCESSIBILITY_ACTIONS = [
+  { name: 'activate', label: 'Rule out or clear' },
+  { name: 'placeMushroom', label: 'Place mushroom' },
+];
+
+/**
  * How far the finger must travel before a touch becomes a stroke instead of a
  * tap. Small enough that the cell you started on is still under your finger, big
  * enough that a slightly shaky tap does not paint.
  */
 const DRAG_THRESHOLD = 6;
 
+/**
+ * How long after a tap a second tap on the same cell still counts as a
+ * double-tap, and therefore places a mushroom (plan §14.2).
+ *
+ * Longer than the ~250 ms a platform double-tap usually allows, on purpose: the
+ * player this game is for is a child, and a child's second tap is slower than an
+ * adult's. The cost of being generous here is small — the only thing a late
+ * second tap does instead is clear the X the first tap placed, which is one more
+ * tap to put back — while the cost of being strict is a mushroom that "won't go
+ * in".
+ *
+ * **A number to check on device, not in a browser** (plan §2). A mouse click and
+ * a small finger on glass are not the same gesture.
+ */
+const DOUBLE_TAP_MS = 320;
+
 const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   const {
     size,
     regions,
     marks,
-    conflicts,
-    mistakes,
-    showMistakes,
+    mistakeCells,
+    lives,
     hint,
-    cycleCell,
+    tapCell,
+    placeMushroom,
     paintCells,
     beginStroke,
     endStroke,
@@ -68,10 +98,10 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   // --- legibility at the top size (plan §12.3) ------------------------------
   //
   // The board is a fixed 324pt on native however many cells it holds, so a cell
-  // is 64px at 5×5 and **32px at 10×10**. The conflict ring and the mistake badge
-  // were tuned against the large end and stop working at the small one, so they
-  // step down at a threshold that leaves 5×5 through 8×8 (cells 64 down to 40)
-  // exactly as they were, and changes only the two sizes this step adds.
+  // is 64px at 5×5 and **32px at 10×10**. Anything drawn inside a cell was tuned
+  // against the large end and stops working at the small one, so it steps down at
+  // a threshold that leaves 5×5 through 8×8 (cells 64 down to 40) exactly as they
+  // were.
   //
   // The board's *lines* are a different story: they changed at every size, because
   // the way they were drawn was wrong at every size and only obvious at small
@@ -87,16 +117,6 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   // came out at double this, which is why 2 looked heavy and the frame around
   // the board looked thin by comparison.
   const regionBorder = tightCells ? 2 : 2.5;
-
-  // The conflict ring is inset from the cell edge. A fixed 6px inset leaves only
-  // 20px of clear ring at 32px cells, which crowds the 20px mushroom glyph
-  // inside it, so tight cells give the ring more room and a thinner stroke.
-  const ringInset = tightCells ? 4 : 6;
-  const ringWidth = tightCells ? 2 : 2.5;
-
-  // The mistake badge is a corner glyph at 28% of the cell — 18px at 5×5 but
-  // 9px at 10×10, which is below the size an alert triangle still reads as one.
-  const badge = Math.max(11, Math.round(cell * 0.28));
 
   // --- drag to sweep X's (plan §2) -----------------------------------------
   //
@@ -124,6 +144,10 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   const lastCell = useRef(-1);
   const paintMode = useRef(PAINT_MODES.X);
   const isStroke = useRef(false);
+
+  // The previous tap, for the double-tap detector. A ref because it is written
+  // on every touch and must never cause a render of its own.
+  const previousTap = useRef({ cell: -1, at: 0 });
 
   // Tap feedback, which the per-cell Touchables used to give for free.
   const [pressedCell, setPressedCell] = useState(-1);
@@ -200,13 +224,15 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   // This effect runs after the banner has been committed, so the origin is right
   // before the player can touch anything. `hint` and `solved` are the two things
   // that mount a banner above the board.
-  // `generating` is in here for the same reason `hint` and `solved` are: it
-  // changes what the row above the board renders. That row keeps its height by
-  // design, so the board should not actually move — this is the cheap insurance
-  // that says so, and the place the next thing added above the board belongs.
+  // `generating` and `lives.left` are in here for the same reason, one step
+  // weaker: they change what the row above the board *renders* rather than
+  // whether it exists. That row keeps its height by design — the hearts live
+  // inside it precisely so losing one cannot move the board — so this is the
+  // cheap insurance that says so, and the place the next thing added above the
+  // board belongs.
   useEffect(() => {
     measure();
-  }, [hint, solved, generating, measure]);
+  }, [hint, solved, generating, lives.left, measure]);
 
   // The latest marks/geometry, readable from inside gesture callbacks that were
   // created once and would otherwise close over a stale render.
@@ -319,15 +345,39 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
 
         onPanResponderRelease: () => {
           if (isStroke.current) {
+            // A stroke is not a tap, and must not become half of a double one:
+            // tap, drag, tap should be two separate taps.
+            previousTap.current = { cell: -1, at: 0 };
             endStroke();
           } else {
-            // Never travelled: it was a tap, so run the full mark cycle. Taps
-            // land here now rather than on a per-cell Touchable, because the
-            // board owns the touch from the moment it starts.
+            // Never travelled: it was a tap. Taps land here rather than on a
+            // per-cell Touchable, because the board owns the touch from the
+            // moment it starts — which is also why the double-tap detector has
+            // to live *inside* this responder (plan §14.2). A second
+            // PanResponder or a child Touchable would never see the second tap.
             const tapped = startPoint.current
               ? cellAt(startPoint.current.x, startPoint.current.y)
               : -1;
-            if (tapped >= 0) cycleCell(tapped);
+
+            if (tapped >= 0) {
+              const now = Date.now();
+              const previous = previousTap.current;
+              const isSecond = previous.cell === tapped && now - previous.at <= DOUBLE_TAP_MS;
+
+              if (isSecond) {
+                // Consume it, so a third tap starts over rather than reading as
+                // a second double-tap.
+                previousTap.current = { cell: -1, at: 0 };
+                placeMushroom(tapped);
+              } else {
+                // **Not deferred.** The X goes in now and the second tap
+                // upgrades the cell if it arrives. Waiting out the window here
+                // would put a ~300 ms delay on the most common gesture in the
+                // game.
+                previousTap.current = { cell: tapped, at: now };
+                tapCell(tapped);
+              }
+            }
           }
           finish();
         },
@@ -344,7 +394,7 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
         onShouldBlockNativeResponder: () => true,
       }),
     // Built once: every value it touches is read through a ref.
-    [beginStroke, endStroke, paintCells, measure]
+    [beginStroke, endStroke, paintCells, tapCell, placeMushroom, measure]
   );
 
   // Region boundaries come from the theme's grid colors so the board reads as
@@ -398,8 +448,11 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
             // same fill as region 0 the moment boards reached 10 regions.
             const entry = getRegionColor(region, isDark);
             const mark = marks[index];
-            const conflicting = conflicts.has(index);
-            const mistaken = mistakes.has(index);
+            // A red X: this cell held a mushroom that turned out to be wrong
+            // (plan §14.3). It is an *ordinary* X in every other respect — a tap
+            // clears it, a stroke erases it — the colour is only the record of
+            // what it cost.
+            const mistaken = mark === MARKS.X && mistakeCells.has(index);
 
             // X is a thinking aid, so it sits quieter than a mushroom — but it
             // still has to be visible on its own fill, so it is the same
@@ -421,11 +474,20 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                 // also the seam the browser tests address cells through.
                 accessibilityLabel={`Row ${row + 1}, column ${col + 1}, ${entry.name} region, ${
                   MARK_LABELS[mark] || 'empty'
-                }${conflicting ? ', conflict' : ''}${
-                  showMistakes && mistaken ? ', mistake' : ''
-                }${hintCells.has(index) ? ', hint' : ''}`}
-                accessibilityHint="Taps cycle empty, ruled out, mushroom"
-                onAccessibilityTap={() => cycleCell(index)}
+                }${mistaken ? ', wrong guess' : ''}${hintCells.has(index) ? ', hint' : ''}`}
+                // **A screen reader cannot express a double tap** (plan §14.2),
+                // so activating a cell does the tap and placing a mushroom is a
+                // named alternative action rather than a repeat. The hint is
+                // where it is announced: it is per-cell text that reaches both
+                // VoiceOver and TalkBack, and unlike accessibilityState it is not
+                // dropped on the way to the web.
+                accessibilityHint="Activates to rule out or clear. Use the place mushroom action to commit one."
+                accessibilityActions={ACCESSIBILITY_ACTIONS}
+                onAccessibilityTap={() => tapCell(index)}
+                onAccessibilityAction={({ nativeEvent }) => {
+                  if (nativeEvent.actionName === 'placeMushroom') placeMushroom(index);
+                  else tapCell(index);
+                }}
                 // No borders here: every line on this board is drawn once, by
                 // the FungikuGridLines overlay below. Per-cell borders drew each
                 // interior boundary twice and mitered at every corner.
@@ -439,27 +501,8 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                   justifyContent: 'center',
                 }}
               >
-                {/* Conflict is signalled by a ring *and* a color change, so it
-                    survives a colorblind reader and a dark theme alike. The ring
-                    color is contrast-checked against every fill in the palette
-                    (see symbolSets.js). */}
-                {conflicting && (
-                  <View
-                    style={[
-                      styles.conflictRing,
-                      {
-                        width: cell - ringInset,
-                        height: cell - ringInset,
-                        borderRadius: (cell - ringInset) / 2,
-                        borderWidth: ringWidth,
-                        borderColor: entry.conflictInk,
-                      },
-                    ]}
-                  />
-                )}
-
-                {/* A hint points with a dashed inset outline — a third channel,
-                    so it can sit on a cell that is also conflicting or mistaken
+                {/* A hint points with a dashed inset outline — a separate channel
+                    from the glyph, so it can sit on a cell that is also flagged
                     without either signal being lost. */}
                 {hintCells.has(index) && (
                   <View
@@ -477,31 +520,19 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                     // mushroom can be affected.
                     style={{ transform: [{ scale: popValues[index] }] }}
                   >
-                    <MaterialCommunityIcons
-                      name="mushroom"
-                      size={glyph}
-                      color={conflicting ? entry.conflictInk : entry.ink}
-                    />
+                    <MaterialCommunityIcons name="mushroom" size={glyph} color={entry.ink} />
                   </Animated.View>
-                )}
-
-                {/* Mistake badge: legal so far, but not where the solution has it
-                    (plan §11.1). A corner glyph rather than a ring, so it reads
-                    as a different kind of wrong from a conflict. */}
-                {showMistakes && mistaken && (
-                  <MaterialCommunityIcons
-                    name="alert"
-                    size={badge}
-                    color={entry.conflictInk}
-                    style={styles.mistakeBadge}
-                  />
                 )}
 
                 {mark === MARKS.X && (
                   <MaterialCommunityIcons
                     name="close"
                     size={Math.round(glyph * 0.8)}
-                    color={inkFaded}
+                    // `conflictInk` is the palette's contrast-checked "this is
+                    // wrong" ink, checked against every fill (symbolSets.js). The
+                    // conflict ring it was built for is gone; flagging a wrong
+                    // guess is the job it does now.
+                    color={mistaken ? entry.conflictInk : inkFaded}
                   />
                 )}
               </View>
@@ -531,21 +562,12 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
   },
-  conflictRing: {
-    position: 'absolute',
-    // borderWidth is set per board size — see `ringWidth`.
-  },
   hintOutline: {
     position: 'absolute',
     borderWidth: 2,
     borderStyle: 'dashed',
     borderRadius: 3,
     opacity: 0.9,
-  },
-  mistakeBadge: {
-    position: 'absolute',
-    top: 1,
-    right: 1,
   },
 });
 

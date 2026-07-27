@@ -20,17 +20,15 @@
 
 // Marks a cell can hold. X is a player aid only and never affects win
 // detection (plan §2, §9).
+//
+// There is deliberately **no tap cycle here any more.** Steps 4-9 had one
+// (`nextMark`: empty -> X -> mushroom -> empty); plan §14.2 replaced it with
+// tap = X, double-tap = mushroom, and a mushroom is no longer a mark the player
+// can simply set — placing one is an *attempt* that the reducer judges against
+// the solution and may cost a life (§14.3). A cycle function would be a second,
+// silent way to place one that skips that judgement, so it is gone rather than
+// left unused.
 export const MARKS = { EMPTY: 'empty', X: 'x', MUSHROOM: 'mushroom' };
-
-// Tap order: empty -> X -> mushroom -> empty (plan §2).
-const MARK_CYCLE = [MARKS.EMPTY, MARKS.X, MARKS.MUSHROOM];
-
-/** The next mark in the tap cycle. */
-export function nextMark(mark) {
-  const i = MARK_CYCLE.indexOf(mark);
-  // Unknown/absent mark is treated as empty, so the first tap yields X.
-  return MARK_CYCLE[((i < 0 ? 0 : i) + 1) % MARK_CYCLE.length];
-}
 
 /**
  * Smallest solvable board. N=4 is impossible: one mushroom per column with a

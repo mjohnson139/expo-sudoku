@@ -21,6 +21,11 @@ import { FungikuProvider, useFungikuContext } from './FungikuContext';
 // so winning looks like Fungiku rather than a generic green success box.
 const FUNGIKU_ACCENT = '#a0522d';
 
+// Lives are drawn in their own colour rather than the theme's title ink, so
+// "you have three of these and they run out" reads at a glance and does not look
+// like more chrome. Spent hearts fall back to the theme, hollow.
+const FUNGIKU_LIFE = '#d1495b';
+
 /**
  * Fungiku's screen — a peer of the Sudoku screen, reached from the hub
  * (docs/fungiku-plan.md §6), and as of Step 4 an actually playable game.
@@ -42,7 +47,6 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     seed,
     mushroomCount,
     solved,
-    conflicts,
     hasMarks,
     canUndo,
     canRedo,
@@ -55,9 +59,8 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     nextPuzzle,
     ruleOut,
     ruleOutCount,
-    showMistakes,
-    toggleMistakes,
-    mistakes,
+    lives,
+    outOfLives,
     hint,
     hintsUsed,
     requestHint,
@@ -107,15 +110,26 @@ const FungikuScreenContent = ({ onExitToHub }) => {
   };
 
   // The status line follows the state of play instead of always explaining the
-  // tap cycle. (Named `statusText`, not `hint` — `hint` is the hint object from
+  // input model. (Named `statusText`, not `hint` — `hint` is the hint object from
   // context, and shadowing it here silently broke the build once.)
+  //
+  // It no longer counts conflicts. Since plan §14.3 a wrong mushroom never
+  // survives placement, so every mushroom on the board sits at a solution cell —
+  // and two solution cells cannot share a row, column or region, or touch. There
+  // is no such thing as two mushrooms breaking a rule any more, so a line
+  // reporting it would be a promise the game can never keep.
+  //
+  // Running out of lives takes the top slot below "Generating…": the board just
+  // emptied itself, and that needs saying before anything else. It lives here
+  // rather than in a banner of its own because a banner mounting above the board
+  // moves the board — see FungikuBoard's re-measure effect.
   const statusText = generating
     ? 'Generating…'
-    : solved
-      ? 'One per row, column and color — none touching'
-      : conflicts.size > 0
-        ? `${conflicts.size} mushroom${conflicts.size === 1 ? '' : 's'} breaking a rule`
-        : 'Tap to cycle · drag to sweep ✕';
+    : outOfLives
+      ? 'Out of lives — same board, fresh start'
+      : solved
+        ? 'One per row, column and color — none touching'
+        : 'Tap to rule out · double-tap to place · drag to sweep ✕';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -184,11 +198,36 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             {mushroomCount}/{size}
           </Text>
 
+          {/* Lives (plan §14.3). Deliberately *inside* this row rather than in
+              a strip of its own: a view that mounts above the board moves the
+              board, which invalidates the origin every touch is resolved
+              against. Hearts that fill and empty in an always-mounted row of
+              fixed height cannot move anything. */}
+          <View
+            style={styles.lives}
+            accessible
+            accessibilityLabel={`${lives.left} of ${lives.of} lives left`}
+            // A lost life is worth announcing — it is the one thing on this
+            // screen that happens *to* the player rather than because of a tap
+            // they meant to make.
+            accessibilityLiveRegion="polite"
+          >
+            {Array.from({ length: lives.of }, (_, i) => (
+              <MaterialCommunityIcons
+                key={i}
+                name={i < lives.left ? 'heart' : 'heart-outline'}
+                size={15}
+                color={i < lives.left ? FUNGIKU_LIFE : titleColor}
+                style={styles.life}
+              />
+            ))}
+          </View>
+
           <Text
             style={[styles.counterHint, { color: titleColor }]}
             // Announced, because a player who cannot see the spinner still needs
             // to know why the board stopped responding.
-            accessibilityLiveRegion={generating ? 'polite' : 'none'}
+            accessibilityLiveRegion={generating || outOfLives ? 'polite' : 'none'}
           >
             {statusText}
           </Text>
@@ -297,9 +336,11 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Hint (plan §11.2) and the correctness-feedback switch (§11.1). Both
-            are opt-in by nature: a hint is asked for, and mistakes are only shown
-            to a player who wants them shown. */}
+        {/* Hint (plan §11.2). The "Show mistakes" switch that used to sit beside
+            it is **gone, not hidden** (plan §14.3): correctness feedback stopped
+            being a preference the moment a wrong guess started costing a life.
+            What made always-on feedback corrosive was that guessing was free, and
+            it no longer is. */}
         <View style={styles.controlRow}>
           <TouchableOpacity
             onPress={requestHint}
@@ -317,30 +358,6 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             <MaterialCommunityIcons name="lightbulb-on-outline" size={18} color={titleColor} />
             <Text style={[styles.buttonText, { color: titleColor }]}>
               {hintsUsed > 0 ? `Hint (${hintsUsed})` : 'Hint'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={toggleMistakes}
-            style={[
-              styles.wideButton,
-              { borderColor: border },
-              showMistakes && { backgroundColor: titleColor, borderColor: titleColor },
-            ]}
-            accessibilityRole="switch"
-            accessibilityState={{ checked: showMistakes }}
-            // The state is named in the label because accessibilityState.checked
-            // does not reach aria-checked on web.
-            accessibilityLabel={`Show mistakes, ${showMistakes ? 'on' : 'off'}`}
-            accessibilityHint="Flags mushrooms that break no rule but are in the wrong cell"
-          >
-            <MaterialCommunityIcons
-              name={showMistakes ? 'checkbox-marked' : 'checkbox-blank-outline'}
-              size={18}
-              color={showMistakes ? surface : titleColor}
-            />
-            <Text style={[styles.buttonText, { color: showMistakes ? surface : titleColor }]}>
-              Mistakes{showMistakes && mistakes.size > 0 ? ` (${mistakes.size})` : ''}
             </Text>
           </TouchableOpacity>
         </View>
@@ -478,6 +495,14 @@ const styles = StyleSheet.create({
     fontSize: 11,
     opacity: 0.7,
     flexShrink: 1,
+  },
+  lives: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  life: {
+    marginLeft: 1,
   },
   controlRow: {
     flexDirection: 'row',

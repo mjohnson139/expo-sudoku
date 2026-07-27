@@ -10,9 +10,9 @@ import {
   fungikuReducer,
   selectCanRedo,
   selectCanUndo,
-  selectConflicts,
   selectIsSolved,
-  selectMistakes,
+  selectLives,
+  selectMistakeCells,
   selectMushroomCount,
   selectRevealCell,
   selectRuleOutCells,
@@ -24,9 +24,11 @@ import {
  * GameContext. The two games share no state, no storage key and no reducer;
  * they only share the persistence hook and the theme.
  *
- * Derived values (conflicts, the mushroom count, the win flag) are memoized
- * from `marks` here rather than kept in the reducer, so undo can never leave a
- * stale highlight behind.
+ * Derived values (the mushroom count, the win flag) are memoized from `marks`
+ * here rather than kept in the reducer, so undo can never leave a stale
+ * highlight behind. `lives` and `mistakeCells` are the exceptions and are real
+ * state: what a board has cost you is not a function of what is on it now
+ * (plan §14.3 — undo retracts the mark but never refunds the life).
  */
 const FungikuContext = createContext();
 
@@ -71,7 +73,6 @@ export const FungikuProvider = ({ children }) => {
     FUNGIKU_PERSISTENCE
   );
 
-  const conflicts = useMemo(() => selectConflicts(state), [state.marks, state.regions, state.size]);
   const mushroomCount = useMemo(() => selectMushroomCount(state), [state.marks]);
   const solved = useMemo(() => selectIsSolved(state), [state.marks, state.regions, state.size]);
 
@@ -89,20 +90,31 @@ export const FungikuProvider = ({ children }) => {
     [state.marks, state.regions, state.size]
   );
 
-  // Correctness feedback (plan §11.1). Computed whether or not the switch is on:
-  // the hint cascade needs to know about mistakes even when the player has not
-  // asked to see them. Only the *rendering* is gated on `showMistakes`.
-  const mistakes = useMemo(
-    () => selectMistakes(state),
-    [state.marks, state.solution, state.size]
-  );
+  // The red X marks: cells where a mushroom was placed and turned out to be
+  // wrong (plan §14.3). A stored record rather than a derived one — see the note
+  // above the reducer's selectors.
+  const mistakeCells = useMemo(() => selectMistakeCells(state), [state.mistakeCells]);
+
+  // Lives left on this board, and the full complement the heart row draws.
+  const lives = useMemo(() => selectLives(state), [state.lives]);
   const canReveal = useMemo(
     () => selectRevealCell(state) >= 0,
     [state.marks, state.regions, state.solution, state.size]
   );
 
-  const cycleCell = useCallback(
-    (cell) => dispatch({ type: FUNGIKU_ACTIONS.CYCLE_CELL, payload: { cell } }),
+  // --- the input model (plan §14.2) ----------------------------------------
+  // A tap rules a cell out, or clears a filled one. It is dispatched the moment
+  // the finger lifts — it never waits to see whether a second tap is coming, so
+  // the most common mark in the game is never delayed by the double-tap window.
+  const tapCell = useCallback(
+    (cell) => dispatch({ type: FUNGIKU_ACTIONS.TAP_CELL, payload: { cell } }),
+    [dispatch]
+  );
+
+  // The second tap: commit a mushroom. An attempt, not a mark — the reducer
+  // judges it against the solution and a wrong one costs a life (plan §14.3).
+  const placeMushroom = useCallback(
+    (cell) => dispatch({ type: FUNGIKU_ACTIONS.PLACE_MUSHROOM, payload: { cell } }),
     [dispatch]
   );
 
@@ -122,11 +134,7 @@ export const FungikuProvider = ({ children }) => {
   /** One tap: mark everything the placed mushrooms forbid (plan §2). */
   const ruleOut = useCallback(() => dispatch({ type: FUNGIKU_ACTIONS.RULE_OUT }), [dispatch]);
 
-  // --- feedback and hints (plan §11) ---------------------------------------
-  const toggleMistakes = useCallback(
-    () => dispatch({ type: FUNGIKU_ACTIONS.TOGGLE_MISTAKES }),
-    [dispatch]
-  );
+  // --- hints (plan §11.2) --------------------------------------------------
   const requestHint = useCallback(
     () => dispatch({ type: FUNGIKU_ACTIONS.REQUEST_HINT }),
     [dispatch]
@@ -178,11 +186,12 @@ export const FungikuProvider = ({ children }) => {
             type: FUNGIKU_ACTIONS.NEW_PUZZLE,
             // The feedback switch is a preference and carries over; the hint
             // count is per-puzzle and resets.
+            // Nothing carries over from the board being left behind: a new
+            // board is a full three lives, no red marks and no hints spent.
             payload: buildPuzzleState({
               difficulty: identity.difficulty,
               size: identity.size,
               seed,
-              showMistakes: state.showMistakes,
             }),
           });
         } catch (error) {
@@ -216,7 +225,7 @@ export const FungikuProvider = ({ children }) => {
         }, 0);
       });
     },
-    [dispatch, state.difficulty, state.seed, state.showMistakes]
+    [dispatch, state.difficulty, state.seed]
   );
 
   /**
@@ -259,7 +268,6 @@ export const FungikuProvider = ({ children }) => {
   const value = useMemo(
     () => ({
       ...state,
-      conflicts,
       mushroomCount,
       solved,
       hasMarks,
@@ -268,15 +276,16 @@ export const FungikuProvider = ({ children }) => {
       minSize: MIN_SIZE,
       maxSize: MAX_SIZE,
       generating,
-      cycleCell,
+      tapCell,
+      placeMushroom,
       beginStroke,
       paintCells,
       endStroke,
       ruleOut,
       ruleOutCount,
-      mistakes,
+      mistakeCells,
+      lives,
       canReveal,
-      toggleMistakes,
       requestHint,
       revealMushroom,
       dismissHint,
@@ -291,20 +300,20 @@ export const FungikuProvider = ({ children }) => {
     }),
     [
       state,
-      conflicts,
       mushroomCount,
       solved,
       hasMarks,
       generating,
-      cycleCell,
+      tapCell,
+      placeMushroom,
       beginStroke,
       paintCells,
       endStroke,
       ruleOut,
       ruleOutCount,
-      mistakes,
+      mistakeCells,
+      lives,
       canReveal,
-      toggleMistakes,
       requestHint,
       revealMushroom,
       dismissHint,
