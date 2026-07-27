@@ -48,11 +48,27 @@ const ACCESSIBILITY_ACTIONS = [
 ];
 
 /**
- * How far the finger must travel before a touch becomes a stroke instead of a
- * tap. Small enough that the cell you started on is still under your finger, big
- * enough that a slightly shaky tap does not paint.
+ * When a touch stops being a tap and becomes a stroke.
+ *
+ * **The test is "did the finger reach another cell", not "did it move N pixels".**
+ * It used to be a flat 6px, and that was survivable while a tap only ever cycled
+ * a mark: a shaky tap that tipped over the threshold became a one-cell stroke
+ * and painted the very same ✕ the tap would have, so nobody could tell.
+ *
+ * The double-tap (plan §14.2) ended that. A wobble past 6px on *either* half of
+ * the pair turns that half into a stroke, which resets the double-tap and leaves
+ * the player with a ✕ they have to tap again — or, if it was the second half
+ * starting on a ✕, an *erase* stroke that wipes the cell. The mushroom simply
+ * does not go in, and it fails differently depending on which tap wobbled. That
+ * is the "tapping is very unpredictable" the operator hit on device, and 6px of
+ * travel is well within what a finger does on glass while holding still.
+ *
+ * Leaving the starting cell is the honest test, because it is exactly what a
+ * sweep does and what a tap does not. `MAX_TAP_TRAVEL` is only the backstop for
+ * a finger that leaves the board altogether, where there is no new cell to
+ * compare against.
  */
-const DRAG_THRESHOLD = 6;
+const MAX_TAP_TRAVEL = 28;
 
 /**
  * How long after a tap a second tap on the same cell still counts as a
@@ -306,15 +322,21 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
 
         onPanResponderMove: (event, gesture) => {
           if (!isStroke.current) {
-            // Still ambiguous: a tap is a touch that never travels this far.
-            if (Math.hypot(gesture.dx, gesture.dy) <= DRAG_THRESHOLD) return;
-
-            isStroke.current = true;
-            setPressedCell(-1);
-
             const first = startPoint.current
               ? cellAt(startPoint.current.x, startPoint.current.y)
               : -1;
+            const under = cellAt(event.nativeEvent.pageX, event.nativeEvent.pageY);
+
+            // Still a tap while the finger is over the cell it started on. Only
+            // reaching a *different* cell makes this a sweep — the backstop
+            // catches a finger that has left the board, where `under` is -1 and
+            // there is no cell to compare with.
+            const reachedAnother = under >= 0 && under !== first;
+            const leftTheBoard = under < 0 && Math.hypot(gesture.dx, gesture.dy) > MAX_TAP_TRAVEL;
+            if (!reachedAnother && !leftTheBoard) return;
+
+            isStroke.current = true;
+            setPressedCell(-1);
 
             // The first cell decides the whole stroke: starting on an X erases,
             // starting anywhere else paints. Fixing the mode up front means

@@ -11,6 +11,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
+import useBoardSize from '../../hooks/useBoardSize';
 import FungikuBoard from './FungikuBoard';
 import FungikuMenuModal from './FungikuMenuModal';
 import FungikuWinBanner from './FungikuWinBanner';
@@ -36,6 +37,15 @@ const FUNGIKU_LIFE = '#d1495b';
  */
 const FungikuScreenContent = ({ onExitToHub }) => {
   const { theme, isDark } = useAppTheme();
+
+  // The counter row is width-matched to the board rather than left to size
+  // itself from its contents. **This is load-bearing, not cosmetic.** The row
+  // sits in a ScrollView whose content container centres its children, so a row
+  // wider than the screen widens the content container — and every centred
+  // sibling, the board included, gets pushed right and clipped. Adding the
+  // hearts was enough to do exactly that on a phone: the last column ended up
+  // off-screen and untappable.
+  const boardWidth = useBoardSize();
 
   // True while a finger is down on the board, which freezes scrolling so a
   // vertical sweep paints instead of scrolling the page.
@@ -129,7 +139,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
       ? 'Out of lives — same board, fresh start'
       : solved
         ? 'One per row, column and color — none touching'
-        : 'Tap to rule out · double-tap to place · drag to sweep ✕';
+        : 'Tap to rule out · double-tap to place';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -185,46 +195,62 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             against — the bug behind the hint banner's re-measure effect. This row
             is always mounted and keeps its height, so the board never moves and
             there is no origin to invalidate. */}
-        <View style={[styles.counterRow, { backgroundColor: surface, borderColor: border }]}>
-          {generating ? (
-            <ActivityIndicator size="small" color={titleColor} />
-          ) : (
-            <MaterialCommunityIcons name="mushroom" size={20} color={titleColor} />
-          )}
-          <Text
-            style={[styles.counterText, { color: titleColor }]}
-            accessibilityLabel={`${mushroomCount} of ${size} mushrooms placed`}
-          >
-            {mushroomCount}/{size}
-          </Text>
+        <View
+          style={[
+            styles.counterRow,
+            { backgroundColor: surface, borderColor: border, width: boardWidth },
+          ]}
+        >
+          {/* Two lines, both always present, so the box height is constant and
+              the board below it never moves. The status line is the part that
+              grows with what the game has to say, and it gets its own line
+              rather than competing with the counter for horizontal room. */}
+          <View style={styles.counterTop}>
+            <View style={styles.counterCount}>
+              {generating ? (
+                <ActivityIndicator size="small" color={titleColor} />
+              ) : (
+                <MaterialCommunityIcons name="mushroom" size={20} color={titleColor} />
+              )}
+              <Text
+                style={[styles.counterText, { color: titleColor }]}
+                accessibilityLabel={`${mushroomCount} of ${size} mushrooms placed`}
+              >
+                {mushroomCount}/{size}
+              </Text>
+            </View>
 
-          {/* Lives (plan §14.3). Deliberately *inside* this row rather than in
-              a strip of its own: a view that mounts above the board moves the
-              board, which invalidates the origin every touch is resolved
-              against. Hearts that fill and empty in an always-mounted row of
-              fixed height cannot move anything. */}
-          <View
-            style={styles.lives}
-            accessible
-            accessibilityLabel={`${lives.left} of ${lives.of} lives left`}
-            // A lost life is worth announcing — it is the one thing on this
-            // screen that happens *to* the player rather than because of a tap
-            // they meant to make.
-            accessibilityLiveRegion="polite"
-          >
-            {Array.from({ length: lives.of }, (_, i) => (
-              <MaterialCommunityIcons
-                key={i}
-                name={i < lives.left ? 'heart' : 'heart-outline'}
-                size={15}
-                color={i < lives.left ? FUNGIKU_LIFE : titleColor}
-                style={styles.life}
-              />
-            ))}
+            {/* Lives (plan §14.3). Deliberately *inside* this box rather than in
+                a strip of its own: a view that mounts above the board moves the
+                board, which invalidates the origin every touch is resolved
+                against. Hearts that fill and empty in an always-mounted box of
+                fixed height cannot move anything. */}
+            <View
+              style={styles.lives}
+              accessible
+              accessibilityLabel={`${lives.left} of ${lives.of} lives left`}
+              // A lost life is worth announcing — it is the one thing on this
+              // screen that happens *to* the player rather than because of a tap
+              // they meant to make.
+              accessibilityLiveRegion="polite"
+            >
+              {Array.from({ length: lives.of }, (_, i) => (
+                <MaterialCommunityIcons
+                  key={i}
+                  name={i < lives.left ? 'heart' : 'heart-outline'}
+                  size={15}
+                  color={i < lives.left ? FUNGIKU_LIFE : titleColor}
+                  style={styles.life}
+                />
+              ))}
+            </View>
           </View>
 
           <Text
             style={[styles.counterHint, { color: titleColor }]}
+            // One line, clipped rather than wrapped: a second line would change
+            // the box height and move the board.
+            numberOfLines={1}
             // Announced, because a player who cannot see the spinner still needs
             // to know why the board stopped responding.
             accessibilityLiveRegion={generating || outOfLives ? 'polite' : 'none'}
@@ -448,19 +474,25 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   counterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
     borderWidth: 1,
     borderRadius: 10,
     paddingVertical: 6,
     paddingHorizontal: 12,
     marginBottom: 12,
   },
+  counterTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  counterCount: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   counterText: {
     fontSize: 18,
     fontWeight: '700',
     marginLeft: 6,
-    marginRight: 10,
   },
   hintBanner: {
     flexDirection: 'row',
@@ -494,12 +526,11 @@ const styles = StyleSheet.create({
   counterHint: {
     fontSize: 11,
     opacity: 0.7,
-    flexShrink: 1,
+    marginTop: 2,
   },
   lives: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginRight: 10,
   },
   life: {
     marginLeft: 1,
