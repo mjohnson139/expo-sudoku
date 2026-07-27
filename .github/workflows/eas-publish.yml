@@ -196,6 +196,15 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
+      # Required, and the reason this job silently did nothing for five PRs:
+      # `eas branch:delete` reads the app config, and resolving app.json's
+      # `expo-font` plugin needs node_modules. Without this step the command
+      # exits 1 on "Failed to resolve plugin for module expo-font" before it ever
+      # reaches the API -- and `continue-on-error` below hid that as a green job.
+      - name: Install dependencies
+        run: npm install
+        working-directory: ${{ env.APP_DIR }}
+
       - name: Set up EAS CLI (with token auth)
         uses: expo/expo-github-action@v8
         with:
@@ -203,9 +212,11 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Delete the preview branch
-        # Never fail the run over cleanup: the branch may not exist (a PR closed
-        # before any preview published), and a missing branch is the desired
-        # end state anyway.
+        # Still never fail the run over cleanup, but now for the case it was
+        # written for rather than by accident: `branch:delete` exits 1 when the
+        # branch does not exist ("Could not find branch pr-N"), which happens for
+        # a PR closed before any preview published -- and a missing branch is the
+        # desired end state anyway.
         continue-on-error: true
         run: eas branch:delete "pr-${{ github.event.number }}" --non-interactive
         working-directory: ${{ env.APP_DIR }}
