@@ -92,6 +92,7 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     regions,
     marks,
     mistakeCells,
+    lastMistake,
     lives,
     hint,
     tapCell,
@@ -184,6 +185,39 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     () => Array.from({ length: size * size }, () => new Animated.Value(1)),
     [size]
   );
+  // A wrong guess shakes its cell (plan §14.3). **One value per cell**, for the
+  // same reason the pop has one: a single shared value re-pointed at "the cell
+  // that just went wrong" is re-pointed by a state update but reset immediately,
+  // so for a frame it is still attached to the previous cell. Per-cell values
+  // remove the class of bug rather than patching the ordering.
+  const shakeValues = useMemo(
+    () => Array.from({ length: size * size }, () => new Animated.Value(0)),
+    [size]
+  );
+
+  useEffect(() => {
+    if (!lastMistake) return;
+    const value = shakeValues[lastMistake.cell];
+    if (!value) return;
+
+    // Stop anything still running before restarting, and drive with the JS
+    // driver because this value is `setValue`d — mixing setValue with the native
+    // driver is what stranded the win animation's scales (plan §2).
+    value.stopAnimation();
+    value.setValue(0);
+    Animated.sequence([
+      Animated.timing(value, { toValue: 1, duration: 50, useNativeDriver: false }),
+      Animated.timing(value, { toValue: -1, duration: 70, useNativeDriver: false }),
+      Animated.timing(value, { toValue: 0.6, duration: 60, useNativeDriver: false }),
+      Animated.timing(value, { toValue: 0, duration: 60, useNativeDriver: false }),
+    ]).start(() => {
+      // Whatever interrupts it, the cell must not be left off-centre.
+      value.setValue(0);
+    });
+    // `seq` is in the deps on purpose: two wrong guesses in the *same* cell are
+    // two events, and without it the second would not re-fire.
+  }, [lastMistake, shakeValues]);
+
   const previousMarks = useRef(marks);
 
   useEffect(() => {
@@ -547,15 +581,33 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                 )}
 
                 {mark === MARKS.X && (
-                  <MaterialCommunityIcons
-                    name="close"
-                    size={Math.round(glyph * 0.8)}
-                    // `conflictInk` is the palette's contrast-checked "this is
-                    // wrong" ink, checked against every fill (symbolSets.js). The
-                    // conflict ring it was built for is gone; flagging a wrong
-                    // guess is the job it does now.
-                    color={mistaken ? entry.conflictInk : inkFaded}
-                  />
+                  <Animated.View
+                    // The shake is the moment-of-impact half of "that was
+                    // wrong"; the red is the half that stays. Only the cell that
+                    // just went wrong is ever away from 0.
+                    style={{
+                      transform: [
+                        {
+                          translateX: shakeValues[index].interpolate({
+                            inputRange: [-1, 0, 1],
+                            outputRange: [-5, 0, 5],
+                          }),
+                        },
+                      ],
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name={mistaken ? 'close-thick' : 'close'}
+                      size={Math.round(glyph * 0.8)}
+                      // `conflictInk` is the palette's contrast-checked "this is
+                      // wrong" ink, checked against every fill (symbolSets.js).
+                      // The conflict ring it was built for is gone; flagging a
+                      // wrong guess is the job it does now. A wrong guess also
+                      // gets the *heavier* glyph, so the flag survives a
+                      // colourblind reader rather than resting on red alone.
+                      color={mistaken ? entry.conflictInk : inkFaded}
+                    />
+                  </Animated.View>
                 )}
               </View>
             );

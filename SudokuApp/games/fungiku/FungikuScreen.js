@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   View,
   Text,
   StyleSheet,
@@ -14,6 +15,7 @@ import useAppTheme from '../../hooks/useAppTheme';
 import useBoardSize from '../../hooks/useBoardSize';
 import FungikuBoard from './FungikuBoard';
 import FungikuMenuModal from './FungikuMenuModal';
+import FungikuOutOfLivesModal from './FungikuOutOfLivesModal';
 import FungikuWinBanner from './FungikuWinBanner';
 import { difficultyLabel } from './difficulty';
 import { FungikuProvider, useFungikuContext } from './FungikuContext';
@@ -70,7 +72,8 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     ruleOut,
     ruleOutCount,
     lives,
-    outOfLives,
+    lastMistake,
+    restartBoard,
     hint,
     hintsUsed,
     requestHint,
@@ -103,6 +106,35 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     if (!hasMarks) setMenuVisible(true);
   }, [hasMarks]);
 
+  // The heart that just emptied gets a beat of its own. Losing a life is the one
+  // thing on this screen that happens *to* the player, and before this it was a
+  // silent swap of one icon for another — easy to miss entirely, which is what
+  // the operator reported.
+  //
+  // One value per heart, never one shared value pointed at "the heart that just
+  // went" — the same rule the board's pop and shake follow (plan §2).
+  const heartBeats = useRef(
+    Array.from({ length: lives.of }, () => new Animated.Value(1))
+  ).current;
+  const previousLives = useRef(lives.left);
+
+  useEffect(() => {
+    const before = previousLives.current;
+    previousLives.current = lives.left;
+    // Only a life *lost*. Gaining them back is the restart, which has a modal.
+    if (lives.left >= before) return;
+
+    const value = heartBeats[lives.left];
+    if (!value) return;
+
+    value.stopAnimation();
+    value.setValue(1);
+    Animated.sequence([
+      Animated.timing(value, { toValue: 1.6, duration: 120, useNativeDriver: false }),
+      Animated.timing(value, { toValue: 1, duration: 220, useNativeDriver: false }),
+    ]).start(() => value.setValue(1));
+  }, [lives.left, heartBeats]);
+
   const closeMenu = () => setMenuVisible(false);
 
   // Every path out of the menu starts a board, so every one of them closes it.
@@ -129,14 +161,20 @@ const FungikuScreenContent = ({ onExitToHub }) => {
   // is no such thing as two mushrooms breaking a rule any more, so a line
   // reporting it would be a promise the game can never keep.
   //
-  // Running out of lives takes the top slot below "Generating…": the board just
-  // emptied itself, and that needs saying before anything else. It lives here
-  // rather than in a banner of its own because a banner mounting above the board
-  // moves the board — see FungikuBoard's re-measure effect.
+  // A wrong guess takes the top slot below "Generating…". It is the one thing
+  // that happens *to* the player, and it needs saying in words as well as in the
+  // shake and the heart — three channels, because the operator's report was that
+  // it was not obvious a life had gone at all. It lives here rather than in a
+  // banner of its own because a banner mounting above the board moves the board
+  // (see FungikuBoard's re-measure effect); this row is always mounted and its
+  // height is fixed.
+  //
+  // Running out of lives is *not* here: it gets the modal, because a board about
+  // to be wiped deserves more than a line of small print.
   const statusText = generating
     ? 'Generating…'
-    : outOfLives
-      ? 'Out of lives — same board, fresh start'
+    : lastMistake
+      ? 'Wrong — no mushroom there. That cost you a life.'
       : solved
         ? 'One per row, column and color — none touching'
         : 'Tap to rule out · double-tap to place';
@@ -168,6 +206,17 @@ const FungikuScreenContent = ({ onExitToHub }) => {
         onPickSize={pickSize}
         onPickSeed={pickSeed}
         onClose={closeMenu}
+      />
+
+      {/* Driven by `lives === 0`, which the reducer treats as "a restart is
+          pending" rather than as a state the board is left sitting in. Because
+          `lives` is persisted, quitting to the hub with the dialog up and coming
+          back lands on it again instead of stranding a board with no lives. */}
+      <FungikuOutOfLivesModal
+        visible={lives.left === 0}
+        theme={theme}
+        lives={lives.of}
+        onRestart={restartBoard}
       />
 
       {/* Two halves of one fix for "a vertical drag scrolls instead of painting"
@@ -235,13 +284,14 @@ const FungikuScreenContent = ({ onExitToHub }) => {
               accessibilityLiveRegion="polite"
             >
               {Array.from({ length: lives.of }, (_, i) => (
-                <MaterialCommunityIcons
-                  key={i}
-                  name={i < lives.left ? 'heart' : 'heart-outline'}
-                  size={15}
-                  color={i < lives.left ? FUNGIKU_LIFE : titleColor}
-                  style={styles.life}
-                />
+                <Animated.View key={i} style={{ transform: [{ scale: heartBeats[i] }] }}>
+                  <MaterialCommunityIcons
+                    name={i < lives.left ? 'heart' : 'heart-outline'}
+                    size={15}
+                    color={i < lives.left ? FUNGIKU_LIFE : titleColor}
+                    style={styles.life}
+                  />
+                </Animated.View>
               ))}
             </View>
           </View>
@@ -253,7 +303,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             numberOfLines={1}
             // Announced, because a player who cannot see the spinner still needs
             // to know why the board stopped responding.
-            accessibilityLiveRegion={generating || outOfLives ? 'polite' : 'none'}
+            accessibilityLiveRegion={generating || lastMistake ? 'polite' : 'none'}
           >
             {statusText}
           </Text>

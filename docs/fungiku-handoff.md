@@ -220,7 +220,11 @@ pass**.
    Decided metered, but rule-out saves tedium rather than insight. Worth
    re-checking after a family play session — **and it lands in Step 11**, so this
    is the moment it stops being hypothetical.
-11. **Is a 320 ms double-tap window right for a child?** — **new, and a device
+11. **Is a 320 ms double-tap window right for a child?** — the first device pass
+    said tapping was unpredictable; that turned out to be the 6px tap-vs-drag
+    threshold rather than the window, and the second pass with it fixed was
+    "working fine". The window itself is still untuned.
+    Original note: — **new, and a device
     question.** `DOUBLE_TAP_MS` in `games/fungiku/FungikuBoard.js`. Set longer
     than a platform double-tap (~250 ms) on purpose: a small finger is slower, and
     the cost of being generous is one extra tap while the cost of being strict is
@@ -263,11 +267,42 @@ pass**.
   palette's contrast-checked "this is wrong" ink, verified against every fill
   (`utils/symbolSets.js`, and there is a test pinning the contrast floor). It now
   draws the red ✕. Do not delete it as dead code because its name says conflict.
+- **Losing is a dialog, not a wipe.** The reducer does **not** clear the board on
+  the third mistake: it leaves it at `lives === 0` still holding the mark that
+  killed it, and `RESTART_BOARD` — which the player presses in
+  `FungikuOutOfLivesModal` — does the clearing. The first version wiped in the
+  same breath and the operator's report was that the board just emptied with no
+  idea why. **`lives === 0` therefore means "a restart is pending"**, which is
+  what the modal is driven by; because lives are persisted, quitting to the hub
+  mid-dialog and coming back lands on it again rather than stranding a board with
+  no lives and no way to start it over.
+- **A wrong guess is announced on three channels**, because one was not enough on
+  device: the cell shakes and its ✕ goes red *and* heavier (`close-thick`, so the
+  flag does not rest on colour alone), the heart that just emptied beats, and the
+  counter row says it in words. `lastMistake` carries the event and `mistakeSeq`
+  is a **monotonic** counter that survives the transient being cleared — without
+  it, two wrong guesses in the same cell would hand out the same `seq` and the
+  animation would not re-fire.
 - **Lives are not part of the undo history, and that is deliberate.** The stacks
   hold mark snapshots and nothing else, so undo retracts a mistake's mark and
   leaves the life spent — *"you don't get lives with info"* (§14.3). If you ever
   put another cost in state, decide the same question explicitly rather than
   letting `pushHistory` answer it for you.
+- **Tap-vs-drag is "did the finger reach another cell", not a pixel distance.**
+  It was a flat 6px, which was survivable while a tap only cycled a mark — a
+  shaky tap became a one-cell stroke and painted the same ✕, so it never showed.
+  The double-tap ended that: a wobble past 6px on either half turns that half into
+  a stroke and breaks the pairing, or (when the second half starts on a ✕) into an
+  *erase* stroke that wipes the cell. **That was the operator's "tapping is very
+  unpredictable" on device.** `MAX_TAP_TRAVEL` survives only as a backstop for a
+  finger that has left the board.
+- **Nothing in the counter row may size itself from its contents.** It is
+  width-matched to the board (`useBoardSize`) for a load-bearing reason: it sits
+  in a ScrollView whose content container centres its children, so a row wider
+  than the screen widens the container and pushes every centred sibling — the
+  board included — right, off the edge. Adding the hearts did exactly that and
+  left the last column untappable. The row is two fixed lines; keep it that way,
+  or the board moves.
 - **The double-tap detector lives inside the board's one `PanResponder`, and the
   ✕ is never deferred.** The board claims every touch at touch-down to win the
   ScrollView race, so a second `PanResponder` or a child `Touchable` would never
@@ -452,7 +487,7 @@ pass**.
 | 7 | Feedback & hints — mistake flagging, forced-deduction nudge, reveal, placement pop | merged to `epic/fungiku` (#73, `12f72c3`) |
 | 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds, board lines redrawn as a snapped overlay | merged to `epic/fungiku` (#75, `d4d2018`), operator-tested on device |
 | 9 | Difficulty menu — rungs mapped into `SIZES` by *share*, size-from-seed, menu modal built to Sudoku's, free play + seed behind one constant, real v1→v2 save migration, difficulty in the header rather than a banner, hub badge names the rung | merged to `epic/fungiku` (#77, `02fcdf1`), operator-tested on device |
-| 10 | Lives & mistakes — tap ✕ / double-tap 🍄 replacing the cycle, wrong mushroom flagged immediately as a red ✕ costing one of three lives, zero lives restarts the same board, undo never refunds, "Show mistakes" deleted, v2→v3 migration, conflict rendering **removed** | **this step** — awaiting operator device test |
+| 10 | Lives & mistakes — tap ✕ / double-tap 🍄 replacing the cycle, wrong mushroom flagged immediately as a red ✕ costing one of three lives, zero lives restarts the same board *behind a dialog*, undo never refunds, "Show mistakes" deleted, v2→v3 migration, conflict rendering **removed** | **this step** (#79) — device-tested twice, two rounds of fixes |
 
 ## Steps still to come
 

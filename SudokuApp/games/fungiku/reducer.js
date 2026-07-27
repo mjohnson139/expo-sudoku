@@ -54,6 +54,10 @@ export const FUNGIKU_ACTIONS = {
   PLACE_MUSHROOM: 'FUNGIKU_PLACE_MUSHROOM',
 
   CLEAR_MARKS: 'FUNGIKU_CLEAR_MARKS',
+
+  // Acknowledging the out-of-lives modal. The restart is deliberately *not*
+  // automatic — see the note on PLACE_MUSHROOM.
+  RESTART_BOARD: 'FUNGIKU_RESTART_BOARD',
   UNDO: 'FUNGIKU_UNDO',
   REDO: 'FUNGIKU_REDO',
   RESTORE_SAVED_GAME: 'FUNGIKU_RESTORE_SAVED_GAME',
@@ -257,10 +261,16 @@ export const buildPuzzleState = ({
     // Transient advice, never persisted: it goes stale the moment the board
     // changes, so every board-changing action clears it.
     hint: null,
-    // Transient: set to true by the restart that follows the last life being
-    // spent, so the status line can say what just happened. Cleared by the next
-    // thing the player does.
-    outOfLives: false,
+    // Transient: the wrong guess the player just made, so the board can shake
+    // the cell and the counter row can say what it cost. Cleared by the next
+    // thing the player does; never persisted.
+    lastMistake: null,
+    // Monotonic within a session, and deliberately **not** cleared alongside
+    // `lastMistake`: it is what makes two wrong guesses in the same cell two
+    // distinct events. A counter that reset with the transient would hand out
+    // seq 1 twice, and an animation keyed on it would not re-fire the second
+    // time. Never persisted — it means nothing across a reload.
+    mistakeSeq: 0,
     // Transient: true between BEGIN_STROKE and the stroke's first effective
     // paint, which is the paint that records the single undo entry. Never
     // persisted (see ./storage.js).
@@ -295,7 +305,7 @@ const pushHistory = (state, marks, extra) => ({
   // Advice about a board you have since changed is worse than no advice.
   hint: null,
   // Both transients belong to one gesture and do not survive the next action.
-  outOfLives: false,
+  lastMistake: null,
   upgradableCell: -1,
   ...extra,
 });
@@ -320,7 +330,7 @@ const amendHistory = (state, marks, extra) => {
     undoStack: unchanged ? state.undoStack.slice(0, -1) : state.undoStack,
     mistakeCells: pruneMistakeCells(state.mistakeCells, marks),
     hint: null,
-    outOfLives: false,
+    lastMistake: null,
     upgradableCell: -1,
     ...extra,
   };
@@ -381,6 +391,10 @@ export function fungikuReducer(state, action) {
         return state;
       }
 
+      // Out of lives already: the board is waiting to be restarted and the
+      // modal is over it. Nothing on the board should respond until it is.
+      if (state.lives === 0) return state;
+
       const correct = isSolutionCell(cell, state.solution, state.size);
       const marks = state.marks.slice();
       marks[cell] = correct ? MARKS.MUSHROOM : MARKS.X;
@@ -396,25 +410,27 @@ export function fungikuReducer(state, action) {
       // be remembered as a mistake, so a later tap clears it like any other
       // (plan §14.3 ships it clearable and flags it for an on-device answer).
       const lives = Math.max(0, state.lives - 1);
+      const seq = (state.mistakeSeq || 0) + 1;
+      const spent = record(state, marks, {
+        lives,
+        mistakeSeq: seq,
+        lastMistake: { cell, seq },
+      });
 
-      // Out of lives: the **same** board starts over — same seed, same regions,
-      // marks cleared, lives back. A fresh board would punish twice, taking away
-      // the deduction the player has already done along with the lives.
-      if (lives === 0) {
-        return {
-          ...state,
-          marks: createEmptyMarks(state.size),
-          mistakeCells: [],
-          lives: MAX_LIVES,
-          undoStack: [],
-          redoStack: [],
-          hint: null,
-          outOfLives: true,
-          upgradableCell: -1,
-        };
-      }
-
-      const spent = record(state, marks, { lives });
+      // **The board is not wiped here, even on the last life.** It ends up at
+      // `lives === 0` holding the mark that killed it, and RESTART_BOARD does the
+      // clearing once the player has acknowledged the modal.
+      //
+      // Wiping in the same breath as the third mistake was the first version,
+      // and the operator's report on it was that the board simply emptied with
+      // no idea what had happened. Losing is worth a beat: the fatal red ✕ stays
+      // on screen, the hearts are visibly empty, and the restart is something
+      // the player presses.
+      //
+      // `lives === 0` is therefore exactly "a restart is pending", which is what
+      // the modal is driven by — and because `lives` is persisted, quitting to
+      // the hub mid-modal and coming back lands back on it rather than stranding
+      // a board with no lives and no way to start it over.
       return {
         ...spent,
         mistakeCells: spent.mistakeCells.includes(cell)
@@ -422,6 +438,24 @@ export function fungikuReducer(state, action) {
           : [...spent.mistakeCells, cell],
       };
     }
+
+    /**
+     * Start the **same** board over: same seed, same regions, marks cleared,
+     * lives back (plan §14.3). A fresh board would punish twice, taking away the
+     * deduction the player has already done along with the lives.
+     */
+    case FUNGIKU_ACTIONS.RESTART_BOARD:
+      return {
+        ...state,
+        marks: createEmptyMarks(state.size),
+        mistakeCells: [],
+        lives: MAX_LIVES,
+        undoStack: [],
+        redoStack: [],
+        hint: null,
+        lastMistake: null,
+        upgradableCell: -1,
+      };
 
     case FUNGIKU_ACTIONS.RULE_OUT: {
       const ruled = selectRuleOutCells(state);
@@ -568,7 +602,7 @@ export function fungikuReducer(state, action) {
         redoStack: [...state.redoStack, state.marks],
         mistakeCells: pruneMistakeCells(state.mistakeCells, marks),
         hint: null,
-        outOfLives: false,
+        lastMistake: null,
         upgradableCell: -1,
       };
     }
@@ -583,7 +617,7 @@ export function fungikuReducer(state, action) {
         redoStack: state.redoStack.slice(0, -1),
         mistakeCells: pruneMistakeCells(state.mistakeCells, marks),
         hint: null,
-        outOfLives: false,
+        lastMistake: null,
         upgradableCell: -1,
       };
     }

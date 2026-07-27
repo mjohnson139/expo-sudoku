@@ -302,6 +302,24 @@ describe('a wrong mushroom', () => {
     expect(doubleTap(once, wrong).lives).toBe(MAX_LIVES - 2);
   });
 
+  it('reports itself, so the cell can shake and the counter can say what it cost', () => {
+    const state = doubleTap(initial, wrong);
+    expect(state.lastMistake).toEqual({ cell: wrong, seq: 1 });
+  });
+
+  it('reports a *new* event when the same cell goes wrong twice', () => {
+    // Without the sequence number the second mistake would be an unchanged
+    // object, and the shake would not re-fire.
+    const twice = doubleTap(doubleTap(initial, wrong), wrong);
+    expect(twice.lastMistake.seq).toBe(2);
+  });
+
+  it('stops being reported as soon as the player does something else', () => {
+    const state = doubleTap(initial, wrong);
+    expect(tap(state, 12).lastMistake).toBeNull();
+    expect(undo(state).lastMistake).toBeNull();
+  });
+
   it('does not charge for a correct placement', () => {
     expect(doubleTap(initial, solutionCellOf(initial, 0)).lives).toBe(MAX_LIVES);
   });
@@ -333,6 +351,7 @@ describe('a wrong mushroom', () => {
 
 describe('running out of lives', () => {
   const initial = buildPuzzleState({ size: 5, seed: 1 });
+  const restart = (state) => fungikuReducer(state, { type: FUNGIKU_ACTIONS.RESTART_BOARD });
 
   /** Spend `n` lives on wrong guesses in distinct rows. */
   const spend = (state, n) =>
@@ -341,9 +360,37 @@ describe('running out of lives', () => {
       state
     );
 
+  /**
+   * The board is **not** wiped by the third mistake. It waits at zero lives,
+   * still showing the mark that killed it, until the player acknowledges the
+   * modal. Wiping in the same breath was the first version, and on device it
+   * read as the board emptying for no visible reason.
+   */
+  it('leaves the losing board on screen at zero lives', () => {
+    const lost = spend(initial, MAX_LIVES);
+
+    expect(lost.lives).toBe(0);
+    expect(lost.marks.some((mark) => mark !== MARKS.EMPTY)).toBe(true);
+    expect(selectMistakeCells(lost).size).toBeGreaterThan(0);
+  });
+
+  it('freezes the board while the restart is pending', () => {
+    const lost = spend(initial, MAX_LIVES);
+
+    // The modal is over the board, but the reducer does not rely on that.
+    expect(place(lost, solutionCellOf(initial, 0))).toBe(lost);
+    expect(doubleTap(lost, solutionCellOf(initial, 0)).marks).toEqual(
+      tap(lost, solutionCellOf(initial, 0)).marks
+    );
+  });
+
+  it('reports the mistake that ended it, so the shake and the message have something to fire on', () => {
+    const lost = spend(initial, MAX_LIVES);
+    expect(lost.lastMistake).toMatchObject({ cell: expect.any(Number) });
+  });
+
   it('restarts the same board — same seed, same regions, same solution', () => {
-    const played = doubleTap(spend(initial, MAX_LIVES - 1), solutionCellOf(initial, 4));
-    const restarted = spend(played, 1);
+    const restarted = restart(spend(initial, MAX_LIVES));
 
     expect(restarted.seed).toBe(initial.seed);
     expect(restarted.size).toBe(initial.size);
@@ -352,31 +399,40 @@ describe('running out of lives', () => {
   });
 
   it('clears the marks and hands the lives back', () => {
-    const restarted = spend(initial, MAX_LIVES);
+    const restarted = restart(spend(initial, MAX_LIVES));
 
     expect(restarted.marks.every((mark) => mark === MARKS.EMPTY)).toBe(true);
     expect(restarted.lives).toBe(MAX_LIVES);
     expect(restarted.mistakeCells).toEqual([]);
-  });
-
-  it('says so, once, until the player does something next', () => {
-    const restarted = spend(initial, MAX_LIVES);
-    expect(restarted.outOfLives).toBe(true);
-
-    expect(tap(restarted, 0).outOfLives).toBe(false);
+    expect(restarted.lastMistake).toBeNull();
   });
 
   it('leaves nothing to undo back into — the restart is not a move', () => {
-    const restarted = spend(initial, MAX_LIVES);
+    const restarted = restart(spend(initial, MAX_LIVES));
 
     expect(selectCanUndo(restarted)).toBe(false);
     expect(selectCanRedo(restarted)).toBe(false);
     expect(undo(restarted)).toBe(restarted);
   });
 
-  it('never leaves the board sitting at zero lives', () => {
-    // Zero lives is the trigger, not a state the player is left in.
-    expect(spend(initial, MAX_LIVES).lives).toBeGreaterThan(0);
+  /**
+   * `lives === 0` *is* "a restart is pending" — that is what the modal is driven
+   * by. Because lives are persisted, a player who quits to the hub mid-dialog and
+   * comes back must land back on it rather than on a board with no lives and no
+   * way to start it over.
+   */
+  it('survives a round trip through storage as a pending restart', () => {
+    const lost = spend(initial, MAX_LIVES);
+    const reopened = buildPuzzleState({
+      size: lost.size,
+      seed: lost.seed,
+      marks: lost.marks,
+      lives: lost.lives,
+      mistakeCells: lost.mistakeCells,
+    });
+
+    expect(reopened.lives).toBe(0);
+    expect(restart(reopened).lives).toBe(MAX_LIVES);
   });
 });
 
@@ -912,7 +968,8 @@ describe('hints', () => {
       mistakeCells: [],
       hintsUsed: 0,
       hint: null,
-      outOfLives: false,
+      lastMistake: null,
+      mistakeSeq: 0,
       strokeOpen: false,
       upgradableCell: -1,
     };

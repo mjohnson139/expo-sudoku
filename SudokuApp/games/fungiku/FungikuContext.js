@@ -262,6 +262,17 @@ export const FungikuProvider = ({ children }) => {
   );
 
   const clearMarks = useCallback(() => dispatch({ type: FUNGIKU_ACTIONS.CLEAR_MARKS }), [dispatch]);
+
+  /**
+   * Start the same board over after the last life is spent (plan §14.3).
+   *
+   * Driven by the player pressing "Try again", not by the reducer wiping the
+   * board the moment the third mistake lands — see the note on PLACE_MUSHROOM.
+   */
+  const restartBoard = useCallback(
+    () => dispatch({ type: FUNGIKU_ACTIONS.RESTART_BOARD }),
+    [dispatch]
+  );
   const undo = useCallback(() => dispatch({ type: FUNGIKU_ACTIONS.UNDO }), [dispatch]);
   const redo = useCallback(() => dispatch({ type: FUNGIKU_ACTIONS.REDO }), [dispatch]);
 
@@ -295,6 +306,7 @@ export const FungikuProvider = ({ children }) => {
       changeSize,
       changeSeed,
       clearMarks,
+      restartBoard,
       undo,
       redo,
     }),
@@ -323,6 +335,7 @@ export const FungikuProvider = ({ children }) => {
       changeSize,
       changeSeed,
       clearMarks,
+      restartBoard,
       undo,
       redo,
     ]
