@@ -92,129 +92,98 @@ operator to test in Expo Go.**
 
 ---
 
-## Next step: **Step 10 — lives and mistakes**
+## Next step: **Step 11 — earned assists (the wallet)**
 
-Branch: **`feature/fungiku-lives`** off `epic/fungiku`.
-Plan: **§14.2 and §14.3** — read **both, in full**, plus §14's preamble and
-§11.1 (which §14.3 supersedes). This step deletes things earlier steps built
-deliberately. §14.3 explains why each removal is sound; do not re-derive those
-arguments and do not put the deleted behaviors back.
-
-### Why these two are one step
-
-§14.2 is a new input gesture (tap = ✕, double-tap = 🍄) and §14.3 is what a
-mushroom placement now costs. They are the same input surface, and building the
-double-tap without the life cost would ship a mushroom-placing gesture with no
-consequence attached. **Do not split them.**
+Branch: **`feature/fungiku-wallet`** off `epic/fungiku`.
+Plan: **§14.4** — read it in full, plus §11.2 (the hint ladder being priced) and
+§2's "Rule out" (the other thing being metered). This step **inverts** what
+`hintsUsed` is; §14.4 explains why, and the inversion is the whole point rather
+than a refactor to be minimized.
 
 ### Scope — ONLY this
 
-1. **Tap places ✕, double-tap places 🍄** (§14.2), replacing the three-state
-   cycle. Tap on a filled cell (either mark) clears it — that is what keeps every
-   state reachable once the cycle is gone. Drag-to-sweep is unchanged: a stroke
-   still only paints or erases ✕ and still never disturbs a mushroom.
-2. **A wrong mushroom is flagged immediately, leaves a red ✕, and costs a life**
-   (§14.3). **Three lives at every size** — not scaled per difficulty (the
-   operator's answer). At zero lives the **same board** restarts: same seed,
-   marks cleared, lives reset. A fresh board would punish twice and throw away
-   deduction already done.
-3. **Undo does not refund a life** — *"you don't get lives with info."* Undo still
-   retracts the mark.
-4. **Delete the "Show mistakes" toggle**, `TOGGLE_MISTAKES` and the
-   `showMistakes` field (§14.3 answers open question §8 #7 by deletion). This
-   needs a **storage migration to v3** — the plumbing is now in
-   `games/fungiku/saveMigration.js`, so it is one `MIGRATIONS[2]` entry.
-5. **Decide the conflict rendering explicitly, and say which in the PR** — see
-   below. This is a required output of this step, not an optional note.
-6. **Lives visible on screen**, and it should not move the board (see the deps
-   note below).
+1. **A wallet in its own module** — `games/fungiku/wallet.js` (pure) plus its
+   storage. `grant(kind, n)` / `spend(kind)` / `balance(kind)`, persisted under
+   **its own global key**, the same shape as `@AppTheme`. **Not part of the
+   per-puzzle save** — that is the point of the step: a balance that spans
+   puzzles and sessions, where `hintsUsed` is per-puzzle history.
+2. **Hints and Rule out both become metered consumables.** Both buttons: disabled
+   at zero balance, and each shows what it has left. "Auto fill" in §14.4 *is* the
+   existing Rule out button — confirmed with the operator — and it is metered
+   too, not left free.
+3. **Earning, denominated in what already exists**: boards solved, and how
+   cleanly — **lives remaining is now a real number you can read** (`state.lives`,
+   Step 10) and assists unspent. **Draft the rates and say in the PR that they are
+   guesses**, flagged for on-device tuning. color-loop's star thresholds were left
+   the same way and are still on its backlog (§13).
+4. **Gifts and purchases are both just `grant()`.** Build the seam, not the store.
 
 ### Read first
 
-- **§14.2, §14.3** of the plan, and §11.1 for what is being superseded.
-- `SudokuApp/games/fungiku/reducer.js` — `CYCLE_CELL` is the action that becomes
-  two, and `nextMark`/`MARK_CYCLE` in `engine.js` is the cycle being retired.
-- `SudokuApp/games/fungiku/FungikuBoard.js` — the `PanResponder`, the 6px
-  tap-vs-drag threshold, and where a second tap has to be detected.
-- `SudokuApp/games/fungiku/saveMigration.js` — how to add the v2 → v3 step. The
-  file's header states the rule: **add an entry, never edit an existing one.**
-- `SudokuApp/games/fungiku/difficulty.js` — three lives at every size means this
-  file should need **no change at all**; if you are editing it, re-read §14.3.
+- **§14.4** of the plan, and §11.2 for what each hint rung is worth.
+- `SudokuApp/games/fungiku/reducer.js` — `hintsUsed` is incremented in
+  `REQUEST_HINT` and `REVEAL_MUSHROOM`, and **not** by the STUCK branch, which
+  deliberately gives nothing away and charges nothing. That asymmetry is the model
+  for what a spend is.
+- `SudokuApp/games/fungiku/storage.js` and `saveMigration.js` — read them to see
+  what the wallet must **not** become part of. `FUNGIKU_STORAGE_VERSION` is now
+  **3**; a wallet under its own key needs no bump at all, and if you find yourself
+  writing `MIGRATIONS[3]` you have put the wallet in the wrong place.
+- `SudokuApp/utils/appTheme.js` — the existing example of a small global
+  preference with its own key. That is the shape to copy.
+- `SudokuApp/games/fungiku/FungikuScreen.js` — the two buttons that get meters.
 
 ### Behaviors that are easy to get wrong
 
-- **Do not make single taps wait for the double-tap window.** The naive detector
-  delays every ✕ by ~250 ms, and the ✕ is the most common gesture in the game.
-  Place the ✕ **immediately** and *upgrade* the cell if a second tap lands inside
-  the window.
-- **The upgrade must be one undo entry, not two.** Otherwise undo after a
-  double-tap strands a ✕ the player never asked for. `BEGIN_STROKE`/`PAINT_CELLS`
-  already solve exactly this shape for drags — the same trick applies.
-- **The detector belongs inside the existing gesture, not beside it.** The board
-  claims every touch at touch-down to win the ScrollView race (§2). A second
-  `PanResponder` or a child `Touchable` will never see the second tap.
-- **A screen reader cannot express a double tap.** Cells carry
-  `onAccessibilityTap`; placing a mushroom needs an explicit alternative action
-  named in the `accessibilityLabel` (`accessibilityState` does not survive to the
-  web).
-- **This is a device question.** Double-tap timing — and whether a child can
-  produce one reliably — cannot be answered in a browser (§2, "A pattern worth
-  knowing"). Both native bugs the operator has found were invisible on web.
+- **The wallet is not per-puzzle, and `hintsUsed` still is.** Keep both. Deleting
+  `hintsUsed` and reading the wallet instead would lose "how much help did *this
+  board* need", which is exactly what earning has to be computed from.
+- **Spend on the action, not on the tap.** `REQUEST_HINT`'s "nothing is forced"
+  answer is not a hint and must not cost anything — it already declines to count
+  itself. A reveal is a second, deliberate tap and is its own spend.
+- **A balance of zero has to look different from a disabled button.** Rule out is
+  *already* disabled when there is nothing to mark, and Hint when the board is
+  solved. Three reasons a button is dead, and the player needs to be able to tell
+  "you cannot use this here" from "you have run out".
+- **The wallet outlives the board, so granting has to be idempotent per win.**
+  `solved` is derived from marks — undo and redo can cross the win line as many
+  times as the player likes, and each crossing must not pay out again.
+- **Do not make the game unwinnable.** A player at zero assists on a hard board
+  with no way to earn is stuck with no way out. Decide what the floor is — a
+  trickle, a daily grant, a minimum balance — and say which in the PR.
 - **Anything new above the board joins `FungikuBoard`'s re-measure deps**
-  (`[hint, solved, generating, measure]`), or the first tap after it appears
-  lands on the wrong cell. A lives counter is exactly that shape. **Two places
-  now dodge this properly and are the patterns to copy:** the always-mounted
-  counter row (which is where "Generating…" lives) and the header's subtitle,
-  which Step 9 used for the difficulty because its height never changes.
-
-### The decision this step owes the next one
-
-Once a wrong mushroom is converted to a ✕ on placement, every mushroom left on
-the board sits at a solution cell — and two solution cells can never share a row,
-column or region, or touch. **So two placed mushrooms can no longer conflict,
-ever.** That makes several existing paths unreachable by construction:
-
-- the live conflict rendering from Steps 4–5,
-- `selectMistakes`, `showMistakes` / `TOGGLE_MISTAKES`,
-- hint rung 1 (`HINT_KINDS.MISTAKE`),
-- `selectRevealCell`'s -1 branch.
-
-§14.3 calls the loss of the "these two are fighting" read real, and asks you to
-**decide explicitly whether to remove the conflict rendering or leave it dormant,
-and say which in the PR.** Otherwise a later session finds highlighting that
-never fires and assumes it is broken. `findConflicts` itself **stays** — the
-engine needs it for generation, solving and the reveal-safety check.
-
-Note the screen's status line currently reports conflicts
-(`${conflicts.size} mushrooms breaking a rule` in `FungikuScreen`); whichever way
-you decide, that string is part of the decision.
+  (now `[hint, solved, generating, lives.left, measure]`), or the first tap after
+  it appears lands on the wrong cell. If a balance is drawn in the counter row —
+  which is where the hearts and "Generating…" already live, and is the pattern to
+  copy — it must keep that row's height fixed.
 
 ### Out of scope for this step
 
-- **No wallet or metering** — Step 11 (§14.4). `hintsUsed` stays the per-puzzle
-  counter it is.
+- **No store, and no `react-native-iap` / RevenueCat.** Neither runs in Expo Go,
+  so either would break the epic's "visible in Expo Go" rule (§14.4 states this
+  once, with the Kids Category and parental-gate reasons too). Purchases are
+  `grant()` and nothing more.
 - **No art swap** — Step 12.
 - **No board rating / propagator work** (§14.1, §12.1); difficulty stays
   size-only.
-- **No new difficulty work.** The menu landed in Step 9 and lives are not
-  per-difficulty.
+- **No changes to lives.** Three per board at every size, settled in Step 10.
 
 ### Visible in Expo Go when this lands
 
-**A wrong guess costs you something.** You tap to rule a cell out, double-tap to
-commit a mushroom, and a wrong commitment turns red and takes one of your three
-lives — three mistakes and the board you were working on starts over.
+**Help is something you have, not something that is always there.** The Hint and
+Rule out buttons carry a balance, spending one takes it down, and finishing a
+board cleanly earns more.
 
 ### How to verify
 
 `npm test` · `npx expo-doctor` (18/18) · `npx expo export --platform all`, then
 drive the web build (serve `dist/`, Chromium at
-`/opt/pw-browsers/chromium-1194/chrome-linux/chrome` —
-**note the versioned path**, `/opt/pw-browsers/chromium` is a file, not the
-binary; do not run `playwright install`). Prove the migration on a **real** save:
-write a v2 blob into `localStorage['@FungikuGame']`, reload, and confirm the
-board and its marks come back. Then **ask the operator for a device pass** — the
-double-tap is the part a browser cannot answer.
+`/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — **note the versioned
+path**, `/opt/pw-browsers/chromium` is a file, not the binary; do not run
+`playwright install`). Prove the wallet **survives a reload and a puzzle change**,
+which is the whole claim of the step, and prove a win pays out exactly once
+across an undo/redo of the winning move. Then **ask the operator for a device
+pass**.
 
 ## Open questions for the operator (carry these forward)
 
@@ -238,15 +207,19 @@ double-tap is the part a browser cannot answer.
    mushroom*, which solves a cell outright. Right for a family game, or does it
    want capping at a nudge? Related: a reveal is currently only reachable when
    nothing is forced, so a frustrated player cannot skip to the answer — see the
-   first note below.
+   first note below. Step 11 prices it, which is a partial answer: a reveal that
+   costs something is a different question from a reveal that is free.
 7. ~~**Should "Show mistakes" default on for younger players?**~~ — **answered
    by deletion, 2026-07-26** (plan §14.3). Correctness feedback stops being
    optional: a wrong guess is flagged immediately and costs a life, so the toggle
-   goes away in Step 10. The trial-and-error worry that made it opt-in is
-   answered by making guesses expensive rather than by hiding the answer.
+   goes away in Step 10 — **shipped**: the toggle, `TOGGLE_MISTAKES` and
+   `showMistakes` are deleted and the v2→v3 migration drops the saved field. The
+   trial-and-error worry that made it opt-in is answered by making guesses
+   expensive rather than by hiding the answer.
 8. **Should metering Rule out survive contact with a child?** (plan §14.4)
    Decided metered, but rule-out saves tedium rather than insight. Worth
-   re-checking after a family play session.
+   re-checking after a family play session — **and it lands in Step 11**, so this
+   is the moment it stops being hypothetical.
 9. ~~**Does a rung that spans two sizes read as inconsistent?**~~ — **approved on
    device, 2026-07-26.** Easy hands out 5×5 or 6×6 and Hard 8×8 or 9×9, picked
    from the seed, so two Easy games in a row can be different sizes. The operator
@@ -256,9 +229,97 @@ double-tap is the part a browser cannot answer.
 10. ~~**Should the difficulty menu open on arrival?**~~ — **approved on device,
     2026-07-26.** It opens when there is nothing to continue (matching Sudoku) and
     never interrupts a restored or in-progress board. Revisit only if it annoys.
+11. ~~**Does the double-tap work on a device?**~~ — **approved on device,
+    2026-07-28, after two rounds.** The first pass reported tapping as
+    "very unpredictable"; the cause was **not** the double-tap window but the 6px
+    tap-vs-drag threshold, which turned any wobbly tap into a stroke and broke the
+    pairing (see the note above). With that fixed the operator's verdict was
+    "working fine". **`DOUBLE_TAP_MS` (320 ms) is still untuned** — it is set
+    longer than a platform double-tap on purpose, because a small finger is
+    slower. Watch for a mushroom that "won't go in"; no browser can answer it.
+12. **Should the red ✕ left by a wrong guess be erasable?** It ships as an ordinary
+    ✕ (plan §14.3 says so explicitly), consistent with rule-out and hint marks, so
+    a later tap clears it — which also lets a player erase the record of their own
+    mistake. Revisit if it reads wrong in play.
+13. **Is a full wipe the right price for running out of lives?** — **asked and
+    answered once, 2026-07-28: keep it as §14.3 specifies.** Every mark goes, the
+    ✕ deductions included, and the operator chose that over keeping them. The
+    dialog is what makes it survivable — it says the puzzle is the same one before
+    the board clears. Worth re-asking after a child has hit it.
 
 ### Noted in passing, for a later step
 
+- **The invariant everything since Step 10 rests on: every mushroom on the board
+  is at a solution cell.** A wrong one is converted to a red ✕ the instant it is
+  placed, and marks arriving from an older save go through the same rule in
+  `buildPuzzleState` (`enforcePlacedMushroomsAreCorrect`). **If you ever add a
+  path that puts a mushroom on the board, it must go through that judgement** —
+  a great deal was deleted on the strength of this holding, and the deletions do
+  not announce themselves when it breaks.
+- **The conflict rendering was removed, not left dormant** (the decision Step 10
+  owed, plan §14.3). Two mushrooms on the board are two distinct solution cells,
+  and solution cells never share a row, column or region and never touch — so two
+  placed mushrooms *cannot* conflict. Gone with it: the ring, the status line's
+  conflict count, `selectConflicts`, `selectMistakes`, hint rung 1
+  (`HINT_KINDS.MISTAKE`), and `selectRevealCell`'s "a wrong mushroom is in the
+  way" case. **`findConflicts` stays in the engine** — generation, `isSolved` and
+  the reveal-safety check all still need it. The loss is real: the "these two are
+  fighting" read is gone. It was the direct consequence of immediate feedback, not
+  an oversight.
+- **`conflictInk` outlived the conflict ring it was named for.** It is the
+  palette's contrast-checked "this is wrong" ink, verified against every fill
+  (`utils/symbolSets.js`, and there is a test pinning the contrast floor). It now
+  draws the red ✕. Do not delete it as dead code because its name says conflict.
+- **Losing is a dialog, not a wipe.** The reducer does **not** clear the board on
+  the third mistake: it leaves it at `lives === 0` still holding the mark that
+  killed it, and `RESTART_BOARD` — which the player presses in
+  `FungikuOutOfLivesModal` — does the clearing. The first version wiped in the
+  same breath and the operator's report was that the board just emptied with no
+  idea why. **`lives === 0` therefore means "a restart is pending"**, which is
+  what the modal is driven by; because lives are persisted, quitting to the hub
+  mid-dialog and coming back lands on it again rather than stranding a board with
+  no lives and no way to start it over.
+- **A wrong guess is announced on three channels**, because one was not enough on
+  device: the cell shakes and its ✕ goes red *and* heavier (`close-thick`, so the
+  flag does not rest on colour alone), the heart that just emptied beats, and the
+  counter row says it in words. `lastMistake` carries the event and `mistakeSeq`
+  is a **monotonic** counter that survives the transient being cleared — without
+  it, two wrong guesses in the same cell would hand out the same `seq` and the
+  animation would not re-fire.
+- **Lives are not part of the undo history, and that is deliberate.** The stacks
+  hold mark snapshots and nothing else, so undo retracts a mistake's mark and
+  leaves the life spent — *"you don't get lives with info"* (§14.3). If you ever
+  put another cost in state, decide the same question explicitly rather than
+  letting `pushHistory` answer it for you.
+- **Tap-vs-drag is "did the finger reach another cell", not a pixel distance.**
+  It was a flat 6px, which was survivable while a tap only cycled a mark — a
+  shaky tap became a one-cell stroke and painted the same ✕, so it never showed.
+  The double-tap ended that: a wobble past 6px on either half turns that half into
+  a stroke and breaks the pairing, or (when the second half starts on a ✕) into an
+  *erase* stroke that wipes the cell. **That was the operator's "tapping is very
+  unpredictable" on device.** `MAX_TAP_TRAVEL` survives only as a backstop for a
+  finger that has left the board.
+- **Nothing in the counter row may size itself from its contents.** It is
+  width-matched to the board (`useBoardSize`) for a load-bearing reason: it sits
+  in a ScrollView whose content container centres its children, so a row wider
+  than the screen widens the container and pushes every centred sibling — the
+  board included — right, off the edge. Adding the hearts did exactly that and
+  left the last column untappable. The row is two fixed lines; keep it that way,
+  or the board moves.
+- **The double-tap detector lives inside the board's one `PanResponder`, and the
+  ✕ is never deferred.** The board claims every touch at touch-down to win the
+  ScrollView race, so a second `PanResponder` or a child `Touchable` would never
+  see the second tap. The first tap dispatches `TAP_CELL` immediately and the
+  second *upgrades* the cell via `PLACE_MUSHROOM`; the upgrade amends the first
+  tap's undo entry (`upgradableCell`) instead of pushing a second, so undo after a
+  double-tap never strands a ✕ the player did not ask for.
+- **Custom accessibility actions do not reach the web.** Placing a mushroom is
+  exposed as a named `placeMushroom` action alongside `onAccessibilityTap`,
+  because a screen reader cannot express a double tap — but react-native-web does
+  not map custom actions, so on web a screen-reader user can rule out and clear
+  but cannot commit a mushroom. Native VoiceOver/TalkBack are fine. Worth fixing
+  if web accessibility ever matters; it needs a real alternative affordance, not
+  another prop.
 - **A save is migrated now, not discarded — and the plumbing has one rule.**
   `games/fungiku/saveMigration.js` holds `FUNGIKU_STORAGE_VERSION` and a
   `MIGRATIONS` map keyed by the version each function upgrades *from*. **Add an
@@ -315,9 +376,11 @@ double-tap is the part a browser cannot answer.
 - **A banner mounting above the board invalidates the board's measured origin.**
   `onLayout` does not save you: on web it is backed by a ResizeObserver, which
   watches size and not position, so a board that merely *moves* never fires it.
-  `FungikuBoard` re-measures in an effect keyed on `[hint, solved]` — the two
-  things that mount a banner. **Anything new added above the board must be added
-  to those deps**, or the first tap after it appears lands on the wrong cell.
+  `FungikuBoard` re-measures in an effect keyed on
+  `[hint, solved, generating, lives.left]` — the first two mount a banner, the
+  rest only change what the always-mounted counter row draws and are cheap
+  insurance. **Anything new added above the board must be added to those deps**,
+  or the first tap after it appears lands on the wrong cell.
 
 - **Dragging on the board never scrolls the page.** The board claims every touch
   at touch-down — that is the fix for the operator's device report that a vertical
@@ -329,14 +392,17 @@ double-tap is the part a browser cannot answer.
   and a child Touchable would never see a press. Labels and `onAccessibilityTap`
   are intact; keyboard tabbing to a cell is not. Revisit if web keyboard play
   ever matters.
-- **Rule-out marks are ordinary X marks once placed.** Removing the mushroom that
-  implied them leaves them behind; undo takes the whole fill back instead.
+- **Rule-out marks are ordinary X marks once placed** — and so is the red ✕ a
+  wrong guess leaves (plan §14.3, shipped clearable; §8 #12). Removing the
+  mushroom that implied them leaves them behind; undo takes the whole fill back
+  instead.
   Retracting them per-mushroom would need per-mark provenance, which is ambiguous
   as soon as two mushrooms rule out the same cell.
 - **`accessibilityState.checked` does not reach `aria-checked` on web.** Any
   toggle has to name its state in its `accessibilityLabel` — that is the only
-  place a screen reader or a test can read it reliably. Step 7 adds a
-  "Show Mistakes" switch; it will need the same treatment.
+  place a screen reader or a test can read it reliably. (The "Show Mistakes"
+  switch this was written for is gone as of Step 10; the rule outlives it, and the
+  cell labels are still the seam the browser checks address the board through.)
 
 - **Fungiku's undo history is not persisted** — only `size` + `seed` + `marks`
   are. Leaving for the hub and returning gives you your board back with an empty
@@ -424,12 +490,12 @@ double-tap is the part a browser cannot answer.
 | 7 | Feedback & hints — mistake flagging, forced-deduction nudge, reveal, placement pop | merged to `epic/fungiku` (#73, `12f72c3`) |
 | 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds, board lines redrawn as a snapped overlay | merged to `epic/fungiku` (#75, `d4d2018`), operator-tested on device |
 | 9 | Difficulty menu — rungs mapped into `SIZES` by *share*, size-from-seed, menu modal built to Sudoku's, free play + seed behind one constant, real v1→v2 save migration, difficulty in the header rather than a banner, hub badge names the rung | merged to `epic/fungiku` (#77, `02fcdf1`), operator-tested on device |
+| 10 | Lives & mistakes — tap ✕ / double-tap 🍄 replacing the cycle, wrong mushroom flagged immediately as a red ✕ costing one of three lives and announced on three channels, zero lives leaves the losing board up behind a dialog until the player restarts it, undo never refunds, "Show mistakes" deleted, v2→v3 migration, conflict rendering **removed** | merged to `epic/fungiku` (#79), operator-tested on device |
 
 ## Steps still to come
 
 | # | Step | Plan |
 |---|------|------|
-| 10 | **Lives & mistakes** — tap ✕ / double-tap 🍄, wrong guess costs a life, three lives then restart | §14.2, §14.3 |
 | 11 | **Earned assists** — a wallet; hints and rule-out metered, earned by solving | §14.4 |
 | 12 | **Art swap** — floating, gated on artwork rather than code | §7 |
 

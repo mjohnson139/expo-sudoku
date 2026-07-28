@@ -43,7 +43,8 @@ export const loadFungikuState = async () => {
       size: saved.size,
       seed: saved.seed,
       marks: saved.marks,
-      showMistakes: saved.showMistakes,
+      lives: saved.lives,
+      mistakeCells: saved.mistakeCells,
       hintsUsed: saved.hintsUsed,
     });
   } catch (error) {
@@ -66,12 +67,21 @@ export const saveFungikuState = debounce(async (state) => {
         size: state.size,
         seed: state.seed,
         marks: state.marks,
-        // The feedback switch is a preference and the hint count is per-puzzle
-        // history, so both persist. `strokeOpen` and `hint` deliberately do not:
-        // one is gesture bookkeeping, the other is advice that goes stale the
-        // moment the board changes. Nor does anything about the rule-out assist —
-        // it is an action the player taps, not a mode with a remembered setting.
-        showMistakes: !!state.showMistakes,
+        // What the board has cost so far (plan §14.3). Persisted for one reason:
+        // otherwise leaving for the hub and coming back would refund every
+        // mistake, and lives that a round trip through the menu can restore are
+        // not a cost at all.
+        lives: state.lives,
+        // Which X marks are red. Not derivable from the board — an ordinary X on
+        // a solution cell is a perfectly legal thing for a player to have marked,
+        // and colouring those red would give the answer away.
+        mistakeCells: state.mistakeCells,
+        // The hint count is per-puzzle history, so it persists. `strokeOpen`,
+        // `upgradableCell`, `outOfLives` and `hint` deliberately do not: the
+        // first three are one gesture's bookkeeping, the last is advice that goes
+        // stale the moment the board changes. Nor does anything about the
+        // rule-out assist — it is an action the player taps, not a mode with a
+        // remembered setting.
         hintsUsed: state.hintsUsed || 0,
       })
     );
