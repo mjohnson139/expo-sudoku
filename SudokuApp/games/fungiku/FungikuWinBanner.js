@@ -19,7 +19,30 @@ import { readableOn } from '../../utils/color';
  */
 const ENTER_DELAY = 220;
 
-const FungikuWinBanner = ({ solved, size, seed, accent, onNextPuzzle }) => {
+/**
+ * What the win paid, in the banner's own voice (plan §14.4).
+ *
+ * Null when this board has already been paid — a redo across the win line, or a
+ * relaunch onto a board that was finished last session, re-shows the banner but
+ * pays nothing, and claiming otherwise would be a lie about the balance.
+ */
+const rewardLine = (reward) => {
+  if (!reward) return null;
+
+  const parts = [];
+  if (reward.hint > 0) parts.push(`+${reward.hint} hint${reward.hint === 1 ? '' : 's'}`);
+  if (reward.ruleOut > 0) parts.push(`+${reward.ruleOut} rule-out${reward.ruleOut === 1 ? '' : 's'}`);
+  if (parts.length === 0) return null;
+
+  // Why it was that much, not just that it was. The bonuses are the whole point
+  // of "how cleanly" — a player who never sees them named has no reason to play
+  // for them.
+  const earned = [reward.flawless && 'no mistakes', reward.unaided && 'no hints'].filter(Boolean);
+
+  return `${parts.join(' · ')}${earned.length ? ` — ${earned.join(', ')}` : ''}`;
+};
+
+const FungikuWinBanner = ({ solved, size, seed, accent, reward, onNextPuzzle }) => {
   const progress = useRef(new Animated.Value(0)).current;
   const shimmer = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(solved);
@@ -74,6 +97,7 @@ const FungikuWinBanner = ({ solved, size, seed, accent, onNextPuzzle }) => {
   if (!mounted) return null;
 
   const ink = readableOn(accent);
+  const earnings = rewardLine(reward);
 
   return (
     <Animated.View
@@ -107,8 +131,12 @@ const FungikuWinBanner = ({ solved, size, seed, accent, onNextPuzzle }) => {
 
       <View style={styles.textBlock}>
         <Text style={[styles.title, { color: ink }]}>Solved!</Text>
-        <Text style={[styles.detail, { color: ink }]}>
-          {size}×{size} · seed {seed}
+        {/* The payout displaces the board's identity rather than sitting under
+            it: what you earned is the news, and the banner's height has to stay
+            the same either way — it sits above the board, and a banner that
+            grows moves the board (see FungikuBoard's re-measure effect). */}
+        <Text style={[styles.detail, { color: ink }]} numberOfLines={1}>
+          {earnings || `${size}×${size} · seed ${seed}`}
         </Text>
       </View>
 

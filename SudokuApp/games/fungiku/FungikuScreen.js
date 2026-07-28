@@ -18,7 +18,12 @@ import FungikuMenuModal from './FungikuMenuModal';
 import FungikuOutOfLivesModal from './FungikuOutOfLivesModal';
 import FungikuWinBanner from './FungikuWinBanner';
 import { difficultyLabel } from './difficulty';
-import { FungikuProvider, useFungikuContext } from './FungikuContext';
+import {
+  ASSIST_COSTS,
+  ASSIST_KINDS,
+  FungikuProvider,
+  useFungikuContext,
+} from './FungikuContext';
 
 // The accent Fungiku is identified by on the hub card; reused for the win banner
 // so winning looks like Fungiku rather than a generic green success box.
@@ -28,6 +33,11 @@ const FUNGIKU_ACCENT = '#a0522d';
 // "you have three of these and they run out" reads at a glance and does not look
 // like more chrome. Spent hearts fall back to the theme, hollow.
 const FUNGIKU_LIFE = '#d1495b';
+
+// An empty assist balance borrows the hearts' colour on purpose (plan §14.4).
+// The app now has two things that run out, and one of them was already taught to
+// the player in red; a second colour for the same idea would be a second idea.
+const FUNGIKU_EMPTY = FUNGIKU_LIFE;
 
 /**
  * Fungiku's screen — a peer of the Sudoku screen, reached from the hub
@@ -81,6 +91,15 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     dismissHint,
     canReveal,
     generating,
+    // The wallet (plan §14.4). `assists` is what is left across every board ever
+    // played; `hintsUsed` above is still what *this* board has cost. Both, on
+    // purpose — earning is computed from the second.
+    assists,
+    canAffordHint,
+    canAffordReveal,
+    canAffordRuleOut,
+    lastReward,
+    grantAssists,
   } = useFungikuContext();
 
   const titleColor = theme.colors.title;
@@ -151,6 +170,14 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     changeSeed(next);
   };
 
+  // The gift/purchase seam (plan §14.4), behind the menu's developer constant.
+  // Deliberately does *not* close the menu: the balance it changes is drawn a
+  // line above the button, so the point of pressing it is seeing it move.
+  const giftAssists = () => {
+    grantAssists(ASSIST_KINDS.HINT, 5);
+    grantAssists(ASSIST_KINDS.RULE_OUT, 5);
+  };
+
   // The status line follows the state of play instead of always explaining the
   // input model. (Named `statusText`, not `hint` — `hint` is the hint object from
   // context, and shadowing it here silently broke the build once.)
@@ -202,9 +229,11 @@ const FungikuScreenContent = ({ onExitToHub }) => {
         size={size}
         seed={seed}
         generating={generating}
+        assists={assists}
         onPickDifficulty={pickDifficulty}
         onPickSize={pickSize}
         onPickSeed={pickSeed}
+        onGiftAssists={giftAssists}
         onClose={closeMenu}
       />
 
@@ -322,14 +351,40 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             />
             <Text style={[styles.hintText, { color: titleColor }]}>{hint.message}</Text>
 
+            {/* The top rung, and the dearest (plan §11.2, §14.4). It draws on the
+                same hint balance as the nudge, at a higher price — so a player
+                who can afford a nudge cannot necessarily afford the answer. The
+                price is on the button rather than in the small print, because
+                finding out what something cost after paying is not a choice. */}
             {hint.offerReveal && canReveal && (
               <TouchableOpacity
                 onPress={revealMushroom}
-                style={[styles.hintAction, { borderColor: titleColor }]}
+                disabled={!canAffordReveal}
+                style={[
+                  styles.hintAction,
+                  { borderColor: canAffordReveal ? titleColor : FUNGIKU_EMPTY },
+                  !canAffordReveal && styles.toolButtonDisabled,
+                ]}
                 accessibilityRole="button"
-                accessibilityLabel="Reveal a mushroom"
+                accessibilityState={{ disabled: !canAffordReveal }}
+                accessibilityLabel={
+                  canAffordReveal
+                    ? `Reveal a mushroom, costs ${ASSIST_COSTS.REVEAL} hints, ${
+                        assists[ASSIST_KINDS.HINT]
+                      } left`
+                    : `Reveal a mushroom, costs ${ASSIST_COSTS.REVEAL} hints and you have ${
+                        assists[ASSIST_KINDS.HINT]
+                      }`
+                }
               >
-                <Text style={[styles.hintActionText, { color: titleColor }]}>Reveal</Text>
+                <Text
+                  style={[
+                    styles.hintActionText,
+                    { color: canAffordReveal ? titleColor : FUNGIKU_EMPTY },
+                  ]}
+                >
+                  Reveal ({ASSIST_COSTS.REVEAL})
+                </Text>
               </TouchableOpacity>
             )}
 
@@ -344,11 +399,17 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           </View>
         )}
 
+        {/* The payout rides in the banner that is already there rather than in a
+            view of its own (plan §14.4). A new view above the board would move
+            the board and invalidate the tap origin; `solved` is *already* one of
+            FungikuBoard's re-measure deps, so the banner is the one place above
+            the board that can change without adding a dependency. */}
         <FungikuWinBanner
           solved={solved}
           size={size}
           seed={seed}
           accent={FUNGIKU_ACCENT}
+          reward={lastReward}
           onNextPuzzle={nextPuzzle}
         />
 
@@ -383,59 +444,65 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           />
         </View>
 
-        {/* Rule out (plan §2). An action the player asks for, not a mode that
-            acts behind them: one tap marks everything the mushrooms already on
-            the board forbid. Disabled when there is nothing left to mark, so it
-            never offers to do nothing. */}
+        {/* Rule out (plan §2), now a consumable (plan §14.4). An action the
+            player asks for, not a mode that acts behind them: one tap marks
+            everything the mushrooms already on the board forbid, and one coin.
+
+            **Two reasons it can be dead, drawn differently.** "Nothing to mark"
+            is the board telling you this would do nothing; "none left" is the
+            wallet telling you that you cannot afford it. Collapsing both into a
+            greyed-out button would leave the player with no way to tell whether
+            waiting or earning is what fixes it. */}
         <View style={styles.controlRow}>
-          <TouchableOpacity
+          <AssistButton
+            icon="auto-fix"
+            label={ruleOutCount === 0 ? 'Rule out' : `Rule out ${ruleOutCount}`}
             onPress={ruleOut}
-            disabled={ruleOutCount === 0}
-            style={[
-              styles.wideButton,
-              { borderColor: border },
-              ruleOutCount === 0 && styles.toolButtonDisabled,
-            ]}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: ruleOutCount === 0 }}
+            // Nothing to mark: the board's answer, not the wallet's.
+            idle={ruleOutCount === 0}
+            balance={assists[ASSIST_KINDS.RULE_OUT]}
+            affordable={canAffordRuleOut}
+            theme={theme}
             accessibilityLabel={
-              ruleOutCount === 0
-                ? 'Rule out, nothing to mark'
-                : `Rule out ${ruleOutCount} cell${ruleOutCount === 1 ? '' : 's'}`
+              !canAffordRuleOut
+                ? 'Rule out, none left. Finish a board to earn more.'
+                : ruleOutCount === 0
+                  ? 'Rule out, nothing to mark'
+                  : `Rule out ${ruleOutCount} cell${ruleOutCount === 1 ? '' : 's'}, ${
+                      assists[ASSIST_KINDS.RULE_OUT]
+                    } left`
             }
-            accessibilityHint="Marks every cell the mushrooms you have placed forbid"
-          >
-            <MaterialCommunityIcons name="auto-fix" size={18} color={titleColor} />
-            <Text style={[styles.buttonText, { color: titleColor }]}>
-              {ruleOutCount === 0 ? 'Rule out' : `Rule out ${ruleOutCount}`}
-            </Text>
-          </TouchableOpacity>
+            accessibilityHint="Marks every cell the mushrooms you have placed forbid. Costs one rule-out."
+          />
         </View>
 
-        {/* Hint (plan §11.2). The "Show mistakes" switch that used to sit beside
-            it is **gone, not hidden** (plan §14.3): correctness feedback stopped
-            being a preference the moment a wrong guess started costing a life.
-            What made always-on feedback corrosive was that guessing was free, and
-            it no longer is. */}
+        {/* Hint (plan §11.2), priced (plan §14.4). The "Show mistakes" switch
+            that used to sit beside it is **gone, not hidden** (plan §14.3):
+            correctness feedback stopped being a preference the moment a wrong
+            guess started costing a life. What made always-on feedback corrosive
+            was that guessing was free, and it no longer is.
+
+            The balance shown is the *hint* balance, which the reveal in the
+            banner draws on too — one currency, two prices (§11.2's ladder says
+            each rung costs more than the last). */}
         <View style={styles.controlRow}>
-          <TouchableOpacity
+          <AssistButton
+            icon="lightbulb-on-outline"
+            label={hintsUsed > 0 ? `Hint (${hintsUsed})` : 'Hint'}
             onPress={requestHint}
-            disabled={solved}
-            style={[
-              styles.wideButton,
-              { borderColor: border },
-              solved && styles.toolButtonDisabled,
-            ]}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: solved }}
-            accessibilityLabel={hintsUsed > 0 ? `Hint, ${hintsUsed} used` : 'Hint'}
-            accessibilityHint="Gives the weakest hint that still helps"
-          >
-            <MaterialCommunityIcons name="lightbulb-on-outline" size={18} color={titleColor} />
-            <Text style={[styles.buttonText, { color: titleColor }]}>
-              {hintsUsed > 0 ? `Hint (${hintsUsed})` : 'Hint'}
-            </Text>
-          </TouchableOpacity>
+            idle={solved}
+            balance={assists[ASSIST_KINDS.HINT]}
+            affordable={canAffordHint}
+            theme={theme}
+            accessibilityLabel={
+              !canAffordHint
+                ? 'Hint, none left. Finish a board to earn more.'
+                : `Hint, ${assists[ASSIST_KINDS.HINT]} left${
+                    hintsUsed > 0 ? `, ${hintsUsed} used on this board` : ''
+                  }`
+            }
+            accessibilityHint="Gives the weakest hint that still helps. Costs one hint; saying nothing is forced is free."
+          />
         </View>
 
         {/* Another board at this difficulty, and the way to the menu.
@@ -477,6 +544,76 @@ const FungikuScreenContent = ({ onExitToHub }) => {
         </View>
       </ScrollView>
     </View>
+  );
+};
+
+/**
+ * A metered assist: the action on the left, what is left of it on the right
+ * (plan §14.4).
+ *
+ * **Three reasons this button can be dead, and it has to say which.**
+ *   - `idle` — the board has nothing for it to do (nothing to rule out, or the
+ *     puzzle is finished). Dimmed, balance still shown in the normal ink.
+ *   - `!affordable` — you have run out. **Not dimmed**: the balance goes red and
+ *     the label says so, because a greyed-out button reads as "not now" and this
+ *     one means "not until you earn more", which is a different instruction.
+ *   - neither — live.
+ *
+ * The balance sits inside the button rather than in the counter row above the
+ * board, and that is deliberate: anything that mounts or changes height above the
+ * board invalidates the origin every tap is resolved against (see FungikuBoard's
+ * re-measure effect). Everything here is below the board and can never move it.
+ */
+const AssistButton = ({
+  icon,
+  label,
+  onPress,
+  idle,
+  balance,
+  affordable,
+  theme,
+  accessibilityLabel,
+  accessibilityHint,
+}) => {
+  const titleColor = theme.colors.title;
+  const disabled = idle || !affordable;
+  const meterColor = affordable ? titleColor : FUNGIKU_EMPTY;
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={disabled}
+      style={[
+        styles.wideButton,
+        styles.assistButton,
+        { borderColor: affordable ? theme.colors.numberPad.border : FUNGIKU_EMPTY },
+        // Only the board's "nothing to do here" dims. Running out is a state the
+        // player has to be able to read, not one that fades into the background.
+        idle && styles.toolButtonDisabled,
+      ]}
+      accessibilityRole="button"
+      accessibilityState={{ disabled }}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
+    >
+      <View style={styles.assistAction}>
+        <MaterialCommunityIcons name={icon} size={18} color={titleColor} />
+        <Text style={[styles.buttonText, { color: titleColor }]}>{label}</Text>
+      </View>
+
+      {/* What is left. In words when it is nothing, because "0" is a number a
+          player can read past and "none left" is not. */}
+      <View style={styles.assistMeter}>
+        <MaterialCommunityIcons
+          name={affordable ? 'circle-multiple-outline' : 'circle-off-outline'}
+          size={13}
+          color={meterColor}
+        />
+        <Text style={[styles.assistMeterText, { color: meterColor }]}>
+          {affordable ? balance : 'none left'}
+        </Text>
+      </View>
+    </TouchableOpacity>
   );
 };
 
@@ -623,6 +760,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     marginLeft: 6,
+  },
+  assistButton: {
+    // Fixed, so a balance falling from 10 to 9 — or to "none left" — does not
+    // resize the button under the finger that is about to press it again.
+    minWidth: 240,
+    justifyContent: 'space-between',
+  },
+  assistAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  assistMeter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  assistMeterText: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginLeft: 4,
   },
 });
 

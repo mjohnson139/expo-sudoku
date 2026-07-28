@@ -375,8 +375,8 @@ the step's real acceptance test, alongside its automated checks.
 | 7 | ~~**Feedback & hints**~~ ✅ (§11) — correctness feedback on placements, and a hint ladder | **Optional "show mistakes" for mushrooms**, and a hint you can ask for when stuck |
 | 8 | ~~**Bigger boards, up to 10×10**~~ ✅ (§12) — `MAX_SIZE`, a 10th region colour, legibility at 32px cells, a generation-cost bound | **A playable 10×10** that generates without a visible freeze |
 | 9 | ~~**Difficulty menu**~~ ✅ (§14.1) — rungs mapped *into* `SIZES`, size picked from the seed, menu modal matching Sudoku's, free play + seed field behind one flag, a real v1→v2 save migration, hub badge names the rung | **Pick a difficulty like you do in Sudoku**, instead of picking a raw board size |
-| 10 | **Lives & mistakes** (§14.2, §14.3) — tap ✕ / double-tap 🍄, wrong guess costs a life, three lives then the board restarts | **A wrong mushroom turns red and costs you a life**; run out and the board resets |
-| 11 | **Earned assists** (§14.4) — a wallet, hints and rule-out metered, earning on solve | **Hints and Rule out can run out**, and solving boards earns more |
+| 10 | ~~**Lives & mistakes**~~ ✅ (§14.2, §14.3) — tap ✕ / double-tap 🍄, wrong guess costs a life, three lives then the board restarts | **A wrong mushroom turns red and costs you a life**; run out and the board resets |
+| 11 | ~~**Earned assists**~~ ✅ (§14.4) — a wallet under its own key, hints and rule-out metered, a reveal dearer than a nudge, earning on solve, a daily floor | **Hints and Rule out can run out**, and solving boards earns more |
 | 12 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
 
 > **Steps 9–12 were replanned on 2026-07-26** (§14). The old Step 9 was a training
@@ -1146,7 +1146,35 @@ by default, so a later tap clears it — consistent with rule-out and hint marks
 (§2). That also lets a player erase the record of their own mistake. Ships
 clearable; revisit if it reads wrong in play.
 
-### 14.4 Assists are earned, spent, and can run out
+### 14.4 Assists are earned, spent, and can run out — **shipped, Step 11**
+
+**What landed.** `games/fungiku/wallet.js` (pure: `grant` / `spend` / `balance`,
+the rates, `rewardForWin`, `payOutWin`, `applyDailyFloor`) plus
+`walletStorage.js` under **`@FungikuWallet`**, its own global key — the board save
+gained no field and `FUNGIKU_STORAGE_VERSION` is still **3**. Hints and Rule out
+are both metered; a reveal costs more than a nudge (2 against 1) out of the same
+hint balance, so §11.2's "each rung costs more than the last" is real. Earning is
+a base by difficulty plus bonuses for finishing with every life and without a
+hint. **Every rate is a guess** and is flagged for on-device tuning, gathered at
+the top of `wallet.js` for exactly that reason.
+
+Four things it settled that the text below does not say:
+
+- **A hint that gives nothing away costs nothing.** The reducer already declined
+  to count the "nothing is forced from here" answer in `hintsUsed`; the wallet
+  charges on the same side of that line, via `selectHintIsChargeable`, asked
+  *before* the action is dispatched. Spending is on the action, not the tap.
+- **The win payout is idempotent per board.** `solved` is derived from `marks`, so
+  it is a condition and not an event — undo/redo cross it freely and a restored
+  save arrives already solved. `payOutWin` records *which* board it paid
+  (`size:seed`) rather than setting a flag someone would have to clear.
+- **The floor is a daily top-up**, raising each balance *to* two if it is below
+  (never adding), so idling is not an income and a player stranded at zero on a
+  hard board always has a way forward. That is the answer to "can this game become
+  unwinnable": no.
+- **A balance of zero looks different from a disabled button.** Running out draws
+  red and says "none left"; "nothing to rule out" and "the board is finished" dim
+  as before. Three reasons a button is dead, three readings.
 
 **Decided.** **Hints and Rule out both become metered consumables.** "Auto fill" is
 the existing **Rule out** button (§2) — confirmed with the operator — and it is

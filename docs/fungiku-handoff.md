@@ -92,87 +92,93 @@ operator to test in Expo Go.**
 
 ---
 
-## Next step: **Step 11 — earned assists (the wallet)**
+## Next step: **Step 12 — the art swap**
 
-Branch: **`feature/fungiku-wallet`** off `epic/fungiku`.
-Plan: **§14.4** — read it in full, plus §11.2 (the hint ladder being priced) and
-§2's "Rule out" (the other thing being metered). This step **inverts** what
-`hintsUsed` is; §14.4 explains why, and the inversion is the whole point rather
-than a refactor to be minimized.
+Branch: **`feature/fungiku-art`** off `epic/fungiku`.
+Plan: **§7** (the step table's last row) and **§5**, "What is reused vs. new".
+Also read `SudokuApp/utils/symbolSets.js` and `SudokuApp/components/Symbol.js`
+end to end — **Step 1 built the seam this step is here to use**, and the whole
+point is that swapping the art should not need any other file to change.
+
+**This is the last step of the epic.** When it lands, `epic/fungiku` merges to
+`main` — so the step's definition of done includes checking the whole game over
+once, not just the thing it changed.
+
+### The one thing to settle before writing any code
+
+**§7 has always called this step "floating, gated on artwork rather than code."**
+There is no artwork in the repo. So the first act of this step is to ask the
+operator which of these they want, and *say in the PR which was chosen*:
+
+1. **Ship the seam only** — confirm a drawn/vector mushroom can be dropped in,
+   land whatever placeholder improves on the icon glyph, and close the epic. The
+   art arrives later as an asset-only change.
+2. **Draw it in code** — an SVG/vector mushroom built here, no external asset.
+   `react-native-svg` is already a dependency (check `package.json` before
+   promising it).
+3. **Wait for a supplied asset** — in which case this step is a no-op and the
+   epic merges without it.
+
+Do not guess. A step that invents artwork the operator did not ask for is worse
+than a step that ships the seam and says so.
 
 ### Scope — ONLY this
 
-1. **A wallet in its own module** — `games/fungiku/wallet.js` (pure) plus its
-   storage. `grant(kind, n)` / `spend(kind)` / `balance(kind)`, persisted under
-   **its own global key**, the same shape as `@AppTheme`. **Not part of the
-   per-puzzle save** — that is the point of the step: a balance that spans
-   puzzles and sessions, where `hintsUsed` is per-puzzle history.
-2. **Hints and Rule out both become metered consumables.** Both buttons: disabled
-   at zero balance, and each shows what it has left. "Auto fill" in §14.4 *is* the
-   existing Rule out button — confirmed with the operator — and it is metered
-   too, not left free.
-3. **Earning, denominated in what already exists**: boards solved, and how
-   cleanly — **lives remaining is now a real number you can read** (`state.lives`,
-   Step 10) and assists unspent. **Draft the rates and say in the PR that they are
-   guesses**, flagged for on-device tuning. color-loop's star thresholds were left
-   the same way and are still on its backlog (§13).
-4. **Gifts and purchases are both just `grant()`.** Build the seam, not the store.
+1. **The mushroom, the X, and the region fills all come from `symbolSets.js`
+   already.** Whatever lands must go through `Symbol.js` — no component may reach
+   past it for a glyph.
+2. **Contrast survives the swap.** `utils/symbolSets.js` has a **tested contrast
+   floor** against every one of the ten region fills, and `conflictInk` is
+   contrast-checked the same way. Art that is a fixed-colour image cannot satisfy
+   a per-fill contrast rule, so either it stays tintable or the test has to be
+   confronted honestly rather than relaxed.
+3. **Legibility at 32-pixel cells** (§12.3) — a 10×10 board on a phone draws cells
+   that small. Whatever replaces the glyph has to read there, not just at 60px.
 
 ### Read first
 
-- **§14.4** of the plan, and §11.2 for what each hint rung is worth.
-- `SudokuApp/games/fungiku/reducer.js` — `hintsUsed` is incremented in
-  `REQUEST_HINT` and `REVEAL_MUSHROOM`, and **not** by the STUCK branch, which
-  deliberately gives nothing away and charges nothing. That asymmetry is the model
-  for what a spend is.
-- `SudokuApp/games/fungiku/storage.js` and `saveMigration.js` — read them to see
-  what the wallet must **not** become part of. `FUNGIKU_STORAGE_VERSION` is now
-  **3**; a wallet under its own key needs no bump at all, and if you find yourself
-  writing `MIGRATIONS[3]` you have put the wallet in the wrong place.
-- `SudokuApp/utils/appTheme.js` — the existing example of a small global
-  preference with its own key. That is the shape to copy.
-- `SudokuApp/games/fungiku/FungikuScreen.js` — the two buttons that get meters.
+- `SudokuApp/components/Symbol.js` and `SudokuApp/utils/symbolSets.js` — the seam
+  and the palette. §12.2 explains **why the palette's objective is colourblind
+  separation and not ΔE**; do not touch the tuning while changing the art.
+- `SudokuApp/utils/__tests__/symbolSets.test.js` — the contrast floor that any new
+  ink has to clear.
+- `SudokuApp/games/fungiku/FungikuBoard.js` — where a cell is drawn, including
+  `tightCells` (constants that step down below 40px) and the placement pop, which
+  is one `Animated.Value` **per cell** for a reason.
+- Plan §12.3 for the legibility work already done at 32px.
 
 ### Behaviors that are easy to get wrong
 
-- **The wallet is not per-puzzle, and `hintsUsed` still is.** Keep both. Deleting
-  `hintsUsed` and reading the wallet instead would lose "how much help did *this
-  board* need", which is exactly what earning has to be computed from.
-- **Spend on the action, not on the tap.** `REQUEST_HINT`'s "nothing is forced"
-  answer is not a hint and must not cost anything — it already declines to count
-  itself. A reveal is a second, deliberate tap and is its own spend.
-- **A balance of zero has to look different from a disabled button.** Rule out is
-  *already* disabled when there is nothing to mark, and Hint when the board is
-  solved. Three reasons a button is dead, and the player needs to be able to tell
-  "you cannot use this here" from "you have run out".
-- **The wallet outlives the board, so granting has to be idempotent per win.**
-  `solved` is derived from marks — undo and redo can cross the win line as many
-  times as the player likes, and each crossing must not pay out again.
-- **Do not make the game unwinnable.** A player at zero assists on a hard board
-  with no way to earn is stuck with no way out. Decide what the floor is — a
-  trickle, a daily grant, a minimum balance — and say which in the PR.
+- **Never mix `setValue()` with `useNativeDriver: true`** — plan §2 has the rule
+  and two device bugs that came from breaking it. The placement pop is JS-driven
+  on purpose.
 - **Anything new above the board joins `FungikuBoard`'s re-measure deps**
-  (now `[hint, solved, generating, lives.left, measure]`), or the first tap after
-  it appears lands on the wrong cell. If a balance is drawn in the counter row —
-  which is where the hearts and "Generating…" already live, and is the pattern to
-  copy — it must keep that row's height fixed.
+  (`[hint, solved, generating, lives.left, measure]`), or the first tap after it
+  appears lands on the wrong cell. The art swap should not add anything above the
+  board at all — if it does, that is the dependency to update.
+- **The region-boundary stroke stays.** It was removed once and put straight back
+  at the operator's call, for colourblind players (§12.5). Do not remove it as a
+  simplification; that experiment has been run.
+- **Native rendering bugs do not reproduce on web.** Both device bugs the operator
+  has found were invisible in the browser (plan §2). A passing browser check
+  proves nothing broke; it cannot prove the art looks right on a phone.
 
 ### Out of scope for this step
 
-- **No store, and no `react-native-iap` / RevenueCat.** Neither runs in Expo Go,
-  so either would break the epic's "visible in Expo Go" rule (§14.4 states this
-  once, with the Kids Category and parental-gate reasons too). Purchases are
-  `grant()` and nothing more.
-- **No art swap** — Step 12.
+- **No store, no IAP.** Settled in Step 11 and unchanged: purchases are
+  `grant()` and neither `react-native-iap` nor RevenueCat runs in Expo Go.
+- **No economy tuning here.** The Step 11 rates are guesses awaiting a play
+  session (§14.4); retuning them is its own change, driven by the operator's
+  numbers rather than by a step that happens to be open.
 - **No board rating / propagator work** (§14.1, §12.1); difficulty stays
   size-only.
-- **No changes to lives.** Three per board at every size, settled in Step 10.
+- **No palette re-tuning** (§12.2). Changing the glyph is not a reason to move the
+  fills.
 
 ### Visible in Expo Go when this lands
 
-**Help is something you have, not something that is always there.** The Hint and
-Rule out buttons carry a balance, spending one takes it down, and finishing a
-board cleanly earns more.
+**The board stops looking like an icon font.** Whatever is agreed above is on the
+board at every size, and the app is ready for `epic/fungiku` to merge to `main`.
 
 ### How to verify
 
@@ -180,10 +186,10 @@ board cleanly earns more.
 drive the web build (serve `dist/`, Chromium at
 `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — **note the versioned
 path**, `/opt/pw-browsers/chromium` is a file, not the binary; do not run
-`playwright install`). Prove the wallet **survives a reload and a puzzle change**,
-which is the whole claim of the step, and prove a win pays out exactly once
-across an undo/redo of the winning move. Then **ask the operator for a device
-pass**.
+`playwright install`; `npm install` first, the container starts with no
+`node_modules`). Screenshot **5×5 and 10×10 in both themes** — the small board is
+where legibility is decided. Then **ask the operator for a device pass**, and ask
+explicitly whether the epic is ready to merge to `main`.
 
 ## Open questions for the operator (carry these forward)
 
@@ -207,8 +213,10 @@ pass**.
    mushroom*, which solves a cell outright. Right for a family game, or does it
    want capping at a nudge? Related: a reveal is currently only reachable when
    nothing is forced, so a frustrated player cannot skip to the answer — see the
-   first note below. Step 11 prices it, which is a partial answer: a reveal that
-   costs something is a different question from a reveal that is free.
+   note below. **Step 11 priced it rather than capping it**: a reveal costs 2
+   against a nudge's 1, out of the same balance, so the strongest rung is now the
+   one you can least afford. Whether that is enough, or whether it wants capping
+   outright, is still open and is a play-session question.
 7. ~~**Should "Show mistakes" default on for younger players?**~~ — **answered
    by deletion, 2026-07-26** (plan §14.3). Correctness feedback stops being
    optional: a wrong guess is flagged immediately and costs a life, so the toggle
@@ -217,9 +225,11 @@ pass**.
    trial-and-error worry that made it opt-in is answered by making guesses
    expensive rather than by hiding the answer.
 8. **Should metering Rule out survive contact with a child?** (plan §14.4)
-   Decided metered, but rule-out saves tedium rather than insight. Worth
-   re-checking after a family play session — **and it lands in Step 11**, so this
-   is the moment it stops being hypothetical.
+   **Shipped metered in Step 11** — and still open, because it is a play question
+   and no browser can answer it. Rule-out saves tedium rather than insight, so
+   metering it charges a younger player for finger work. If it grates, making it
+   free is deleting one `spendAssist` call in `FungikuContext.js`; the economy
+   survives it because hints are what actually price help.
 9. ~~**Does a rung that spans two sizes read as inconsistent?**~~ — **approved on
    device, 2026-07-26.** Easy hands out 5×5 or 6×6 and Hard 8×8 or 9×9, picked
    from the seed, so two Easy games in a row can be different sizes. The operator
@@ -246,8 +256,71 @@ pass**.
     ✕ deductions included, and the operator chose that over keeping them. The
     dialog is what makes it survivable — it says the puzzle is the same one before
     the board clears. Worth re-asking after a child has hit it.
+14. **Are the assist rates right?** (plan §14.4) **Every number in
+    `games/fungiku/wallet.js` is a guess**, drafted to be playable rather than
+    balanced, and they are gathered at the top of that file so tuning is editing
+    one block. Start 3+3; a nudge 1, a reveal 2, a rule-out 1; a win pays a base
+    by rung (Easy 1+1 up to Expert 3+3) plus +1/+1 for keeping every life and
+    +1 hint for asking for none; a daily floor raises each balance *to* 2 if it
+    has fallen below. The questions a session answers: does an Easy board pay
+    enough to keep playing, does Expert pay enough to be worth it, and does the
+    floor ever feel like the only thing keeping you going? color-loop's star
+    thresholds were left the same way and are still on its backlog (§13).
+
+15. **Is the daily floor the right shape for a floor?** It is what stops the game
+    becoming unwinnable — a player at zero on a hard board always has two of each
+    tomorrow. But a child who plays twice in an evening never sees it, and a
+    child who plays once a week is topped up to the same two either way. The
+    alternatives rejected were a per-win minimum (no help to a player who cannot
+    finish the board they are on) and a permanent minimum balance (assists are
+    free, with extra steps). Worth re-asking once someone has actually run out.
 
 ### Noted in passing, for a later step
+
+- **The wallet is not in the board's save, and that is the design.**
+  `@FungikuWallet` is its own AsyncStorage key with no `_v` and no entry in
+  `saveMigration.js`; `FUNGIKU_STORAGE_VERSION` is still **3** because Step 11
+  added no field to the board save. `state.hintsUsed` is still per-puzzle and
+  still persisted with the board — **both exist on purpose**, because earning is
+  computed from the per-puzzle one. If a change here ever seems to want
+  `MIGRATIONS[3]`, it has been put in the wrong module.
+- **A spend is a check and a decrement that must not be separated.**
+  `useFungikuWallet` keeps a `walletRef` as the authority and `setWallet` only to
+  reach the screen: the provider asks "can this be paid?" and dispatches the
+  action it paid for in the same synchronous turn, so reading the balance out of
+  React state would read the value from the render already on screen and let two
+  taps in one frame both spend the last coin.
+- **`solved` is a condition, not an event, and the payout depends on knowing the
+  difference.** It is derived from `marks`, so it is newly true after the winning
+  tap, after a redo across the win line, and again on the next launch when a
+  finished board is restored. `payOutWin` records *which* board it paid
+  (`size:seed`) instead of setting a flag someone would have to remember to
+  clear — there is nothing to reset, and no transition that can miss it. The
+  browser check proves all three paths pay once.
+- **The payout effect is gated on both hydrations.** Paying before the wallet has
+  loaded would grant out of a default wallet with an empty paid record, and the
+  load that followed would overwrite it — a payout the player watched arrive and
+  never received.
+- **Rule-outs are not counted per puzzle, deliberately.** The "finished it
+  unaided" bonus is measured with `hintsUsed` alone. Counting rule-outs would mean
+  adding a field to the per-puzzle save (and a migration), to police something
+  that is already priced at the moment it is used — being paid a bonus for not
+  spending a coin you had to buy would be charging twice. If a later step wants
+  it, that is the trade to reopen.
+- **The assist meters are below the board, and that is not an accident.** Anything
+  that mounts or changes height *above* the board invalidates the origin every tap
+  is resolved against (see the re-measure note below). The one thing Step 11 put
+  above the board is the payout line, and it went inside the win banner — whose
+  `solved` is already one of `FungikuBoard`'s re-measure deps — replacing the
+  "6×6 · seed 2" line rather than adding to it, so the banner's height is
+  unchanged.
+- **"None left" is drawn differently from "nothing to do here".** Running out goes
+  red and says so in words; the board's own reasons for a dead button still dim.
+  A greyed-out button reads as "not now", and running out means "not until you
+  earn more" — a different instruction, so it cannot be the same pixel.
+- **`SHOW_DEVELOPER_CONTROLS` now also hides the gift button.** It is the
+  purchase seam with the till left out (§14.4) and the only way to top the wallet
+  up without solving boards, which is what makes the economy testable by hand.
 
 - **The invariant everything since Step 10 rests on: every mushroom on the board
   is at a solution cell.** A wrong one is converted to a red ✕ the instant it is
@@ -491,13 +564,13 @@ pass**.
 | 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds, board lines redrawn as a snapped overlay | merged to `epic/fungiku` (#75, `d4d2018`), operator-tested on device |
 | 9 | Difficulty menu — rungs mapped into `SIZES` by *share*, size-from-seed, menu modal built to Sudoku's, free play + seed behind one constant, real v1→v2 save migration, difficulty in the header rather than a banner, hub badge names the rung | merged to `epic/fungiku` (#77, `02fcdf1`), operator-tested on device |
 | 10 | Lives & mistakes — tap ✕ / double-tap 🍄 replacing the cycle, wrong mushroom flagged immediately as a red ✕ costing one of three lives and announced on three channels, zero lives leaves the losing board up behind a dialog until the player restarts it, undo never refunds, "Show mistakes" deleted, v2→v3 migration, conflict rendering **removed** | merged to `epic/fungiku` (#79), operator-tested on device |
+| 11 | Earned assists — a wallet under **its own key** (`@FungikuWallet`, no save-version bump), hints and rule-out both metered with a reveal dearer than a nudge, the "nothing is forced" answer left free, a win paying **exactly once per board** across undo/redo/reload, a daily floor so the game cannot become unwinnable, zero drawn differently from disabled, gift/purchase seam behind `SHOW_DEVELOPER_CONTROLS` | **awaiting operator device pass** |
 
 ## Steps still to come
 
 | # | Step | Plan |
 |---|------|------|
-| 11 | **Earned assists** — a wallet; hints and rule-out metered, earned by solving | §14.4 |
-| 12 | **Art swap** — floating, gated on artwork rather than code | §7 |
+| 12 | **Art swap** — floating, gated on artwork rather than code. **The last step: the epic merges to `main` when it lands.** | §7 |
 
 **Replanned 2026-07-26.** The old Step 9 was a training ladder with per-level
 star thresholds; the operator asked instead for the difficulty menu the

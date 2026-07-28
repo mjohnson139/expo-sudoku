@@ -2,6 +2,8 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import usePersistentReducer from '../../hooks/usePersistentReducer';
 import { MARKS, MAX_SIZE, MIN_SIZE } from './engine';
 import { loadFungikuState, saveFungikuState } from './storage';
+import useFungikuWallet from './useFungikuWallet';
+import { ASSIST_COSTS, ASSIST_KINDS, balance, canAfford, puzzleKey } from './wallet';
 import {
   DEFAULT_SEED,
   FUNGIKU_ACTIONS,
@@ -10,6 +12,7 @@ import {
   fungikuReducer,
   selectCanRedo,
   selectCanUndo,
+  selectHintIsChargeable,
   selectIsSolved,
   selectLives,
   selectMistakeCells,
@@ -41,6 +44,7 @@ const FungikuContext = createContext();
  */
 export { SIZES } from './engine';
 export { DIFFICULTIES } from './difficulty';
+export { ASSIST_COSTS, ASSIST_KINDS } from './wallet';
 
 // Stable object identity, so the persistence hook never sees a "new" adapter.
 const FUNGIKU_PERSISTENCE = { load: loadFungikuState, save: saveFungikuState };
@@ -73,6 +77,12 @@ export const FungikuProvider = ({ children }) => {
     FUNGIKU_PERSISTENCE
   );
 
+  // The assist wallet (plan §14.4) — its own key, its own lifetime, deliberately
+  // *not* threaded through the reducer above. `state.hintsUsed` is still what
+  // this board has cost; the wallet is what the player has left, across every
+  // board they have ever played.
+  const { wallet, walletHydrated, spendAssist, grantAssists, payWin } = useFungikuWallet();
+
   const mushroomCount = useMemo(() => selectMushroomCount(state), [state.marks]);
   const solved = useMemo(() => selectIsSolved(state), [state.marks, state.regions, state.size]);
 
@@ -101,6 +111,88 @@ export const FungikuProvider = ({ children }) => {
     () => selectRevealCell(state) >= 0,
     [state.marks, state.regions, state.solution, state.size]
   );
+
+  // --- what help costs, and what is left of it (plan §14.4) -----------------
+  //
+  // Balances are read out of the wallet rather than kept as a second copy: the
+  // authority for a spend is the ref inside `useFungikuWallet`, and a mirror of
+  // it here would be one render behind on exactly the taps that matter.
+  const assists = useMemo(
+    () => ({
+      [ASSIST_KINDS.HINT]: balance(wallet, ASSIST_KINDS.HINT),
+      [ASSIST_KINDS.RULE_OUT]: balance(wallet, ASSIST_KINDS.RULE_OUT),
+    }),
+    [wallet]
+  );
+
+  // Would the next press of Hint hand anything over? The reducer's own rule for
+  // `hintsUsed`, asked one step earlier so the wallet can charge on the same
+  // side of it — a nudge costs, "nothing is forced from here" does not.
+  const hintIsChargeable = useMemo(
+    () => selectHintIsChargeable(state),
+    [state.marks, state.regions, state.size]
+  );
+
+  // Three separate reasons a button can be dead, and the player has to be able
+  // to tell them apart: nothing to do here, the board is finished, or you have
+  // run out. The screen draws each differently, so each gets its own flag rather
+  // than one `disabled`.
+  const canAffordHint = canAfford(wallet, ASSIST_KINDS.HINT, ASSIST_COSTS.NUDGE);
+  const canAffordReveal = canAfford(wallet, ASSIST_KINDS.HINT, ASSIST_COSTS.REVEAL);
+  const canAffordRuleOut = canAfford(wallet, ASSIST_KINDS.RULE_OUT, ASSIST_COSTS.RULE_OUT);
+
+  // --- earning (plan §14.4) -------------------------------------------------
+  //
+  // What the board that is on screen just paid, kept with the board it was paid
+  // for. The win banner reads it; a different board means there is nothing to
+  // show, which is cheaper and more honest than clearing it on every transition
+  // that could start a new puzzle.
+  const [lastReward, setLastReward] = useState(null);
+
+  /**
+   * Pay a finished board.
+   *
+   * **`solved` is a condition, not an event**, and that is the whole difficulty
+   * here. It is derived from `marks`, so it is newly true on every render where
+   * the board happens to be complete: after the winning tap, after a redo across
+   * the win line, and again on the next launch when the save restores a board
+   * that was already finished. Paying on it directly would pay on all of them.
+   *
+   * `payWin` is idempotent per board — it records which puzzle it paid — so this
+   * effect can fire as often as React likes and the second call returns null.
+   *
+   * Gated on **both** hydrations. Running before the wallet has loaded would pay
+   * out of a default wallet whose "already paid" record is empty, and the load
+   * that followed would overwrite the grant with the saved balance — a payout the
+   * player watched arrive and never received.
+   */
+  useEffect(() => {
+    if (!solved || !hydrated || !walletHydrated) return;
+
+    const reward = payWin({
+      size: state.size,
+      seed: state.seed,
+      difficulty: state.difficulty,
+      lives: state.lives,
+      hintsUsed: state.hintsUsed,
+    });
+    if (reward) setLastReward({ ...reward, puzzle: puzzleKey(state) });
+  }, [
+    solved,
+    hydrated,
+    walletHydrated,
+    payWin,
+    state.size,
+    state.seed,
+    state.difficulty,
+    state.lives,
+    state.hintsUsed,
+  ]);
+
+  // Only for the board it was paid for. A new puzzle at the same instant the
+  // banner is animating out must not inherit the last one's payout.
+  const rewardForThisBoard =
+    lastReward && lastReward.puzzle === puzzleKey(state) ? lastReward : null;
 
   // --- the input model (plan §14.2) ----------------------------------------
   // A tap rules a cell out, or clears a filled one. It is dispatched the moment
@@ -131,18 +223,42 @@ export const FungikuProvider = ({ children }) => {
   );
   const endStroke = useCallback(() => dispatch({ type: FUNGIKU_ACTIONS.END_STROKE }), [dispatch]);
 
-  /** One tap: mark everything the placed mushrooms forbid (plan §2). */
-  const ruleOut = useCallback(() => dispatch({ type: FUNGIKU_ACTIONS.RULE_OUT }), [dispatch]);
+  /**
+   * One tap: mark everything the placed mushrooms forbid (plan §2) — and as of
+   * §14.4, one coin.
+   *
+   * Charged here rather than in the reducer because the reducer is pure and the
+   * wallet is not part of its state. The order matters: the sweep is only
+   * dispatched if the coin actually came out, so a wallet that could not pay can
+   * never leave the board changed for free.
+   */
+  const ruleOut = useCallback(() => {
+    // Nothing to mark is not a purchase. The reducer would return the same state
+    // anyway; refusing here means it also costs nothing.
+    if (ruleOutCount === 0) return;
+    if (!spendAssist(ASSIST_KINDS.RULE_OUT, ASSIST_COSTS.RULE_OUT)) return;
+    dispatch({ type: FUNGIKU_ACTIONS.RULE_OUT });
+  }, [dispatch, ruleOutCount, spendAssist]);
 
-  // --- hints (plan §11.2) --------------------------------------------------
-  const requestHint = useCallback(
-    () => dispatch({ type: FUNGIKU_ACTIONS.REQUEST_HINT }),
-    [dispatch]
-  );
-  const revealMushroom = useCallback(
-    () => dispatch({ type: FUNGIKU_ACTIONS.REVEAL_MUSHROOM }),
-    [dispatch]
-  );
+  // --- hints (plan §11.2), now priced (plan §14.4) --------------------------
+  //
+  // **Spend on the action, not on the tap.** A hint request that can only answer
+  // "no single forced step from here" hands nothing over, so it is free — the
+  // same asymmetry the reducer already applies to `hintsUsed`. The button is
+  // still disabled at an empty balance, so this is not a way to farm free
+  // answers; it is a way to not be charged for one.
+  const requestHint = useCallback(() => {
+    if (hintIsChargeable && !spendAssist(ASSIST_KINDS.HINT, ASSIST_COSTS.NUDGE)) return;
+    dispatch({ type: FUNGIKU_ACTIONS.REQUEST_HINT });
+  }, [dispatch, hintIsChargeable, spendAssist]);
+
+  /** The top rung, and the dearest: a cell solved outright (plan §11.2). */
+  const revealMushroom = useCallback(() => {
+    if (!canReveal) return;
+    if (!spendAssist(ASSIST_KINDS.HINT, ASSIST_COSTS.REVEAL)) return;
+    dispatch({ type: FUNGIKU_ACTIONS.REVEAL_MUSHROOM });
+  }, [canReveal, dispatch, spendAssist]);
+
   const dismissHint = useCallback(
     () => dispatch({ type: FUNGIKU_ACTIONS.DISMISS_HINT }),
     [dispatch]
@@ -297,6 +413,15 @@ export const FungikuProvider = ({ children }) => {
       mistakeCells,
       lives,
       canReveal,
+      // The wallet, as the buttons need it: what is left, what the next press
+      // costs, and whether it can be paid for.
+      assists,
+      hintIsChargeable,
+      canAffordHint,
+      canAffordReveal,
+      canAffordRuleOut,
+      lastReward: rewardForThisBoard,
+      grantAssists,
       requestHint,
       revealMushroom,
       dismissHint,
@@ -326,6 +451,13 @@ export const FungikuProvider = ({ children }) => {
       mistakeCells,
       lives,
       canReveal,
+      assists,
+      hintIsChargeable,
+      canAffordHint,
+      canAffordReveal,
+      canAffordRuleOut,
+      rewardForThisBoard,
+      grantAssists,
       requestHint,
       revealMushroom,
       dismissHint,
