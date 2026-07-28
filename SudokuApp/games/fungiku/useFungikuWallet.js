@@ -12,7 +12,7 @@ import {
 import { loadFungikuWallet, saveFungikuWallet } from './walletStorage';
 
 /**
- * React's half of the assist wallet (docs/fungiku-plan.md §14.4). The rules and
+ * React's half of the coin wallet (docs/fungiku-plan.md §14.4). The rules and
  * the rates are in ./wallet.js; this holds the current one, writes it, and gives
  * the provider three verbs.
  *
@@ -95,25 +95,22 @@ const useFungikuWallet = () => {
    * The buttons are already disabled when the balance is short — this is the
    * second lock on the same door, not the error path.
    */
-  const spendAssist = useCallback(
-    (kind, cost) => {
+  const spendCoins = useCallback(
+    (cost) => {
       const current = walletRef.current;
-      if (!canAfford(current, kind, cost)) return false;
-      return commit(spend(current, kind, cost));
+      if (!canAfford(current, cost)) return false;
+      return commit(spend(current, cost));
     },
     [commit]
   );
 
   /**
-   * Add assists from anywhere: a win, a gift, or — when there is ever a store —
-   * a purchase. §14.4 is explicit that all three are this one call and that the
+   * Add coins from anywhere: a win, a gift, or — when there is ever a store — a
+   * purchase. §14.4 is explicit that all three are this one call and that the
    * store is not in scope, because neither `react-native-iap` nor RevenueCat
    * runs in Expo Go.
    */
-  const grantAssists = useCallback(
-    (kind, n = 1) => commit(grant(walletRef.current, kind, n)),
-    [commit]
-  );
+  const grantCoins = useCallback((n = 1) => commit(grant(walletRef.current, n)), [commit]);
 
   /**
    * Pay a finished board, at most once. Returns the reward when this board had
@@ -130,7 +127,7 @@ const useFungikuWallet = () => {
     [commit]
   );
 
-  return { wallet, walletHydrated: hydrated, spendAssist, grantAssists, payWin };
+  return { wallet, walletHydrated: hydrated, spendCoins, grantCoins, payWin };
 };
 
 export default useFungikuWallet;

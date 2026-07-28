@@ -213,9 +213,9 @@ explicitly whether the epic is ready to merge to `main`.
    mushroom*, which solves a cell outright. Right for a family game, or does it
    want capping at a nudge? Related: a reveal is currently only reachable when
    nothing is forced, so a frustrated player cannot skip to the answer — see the
-   note below. **Step 11 priced it rather than capping it**: a reveal costs 2
-   against a nudge's 1, out of the same balance, so the strongest rung is now the
-   one you can least afford. Whether that is enough, or whether it wants capping
+   note below. **Step 11 priced it rather than capping it**: a reveal costs 4
+   coins against a nudge's 2 and a rule-out's 1, so the strongest rung is the one
+   you can least afford. Whether that is enough, or whether it wants capping
    outright, is still open and is a play-session question.
 7. ~~**Should "Show mistakes" default on for younger players?**~~ — **answered
    by deletion, 2026-07-26** (plan §14.3). Correctness feedback stops being
@@ -227,9 +227,10 @@ explicitly whether the epic is ready to merge to `main`.
 8. **Should metering Rule out survive contact with a child?** (plan §14.4)
    **Shipped metered in Step 11** — and still open, because it is a play question
    and no browser can answer it. Rule-out saves tedium rather than insight, so
-   metering it charges a younger player for finger work. If it grates, making it
-   free is deleting one `spendAssist` call in `FungikuContext.js`; the economy
-   survives it because hints are what actually price help.
+   metering it charges a younger player for finger work. It is priced cheapest
+   (1 coin against a hint's 2) for exactly that reason; if it still grates, making
+   it free is deleting one `spendCoins` call in `FungikuContext.js`, and the
+   economy survives it because hints are what actually price help.
 9. ~~**Does a rung that spans two sizes read as inconsistent?**~~ — **approved on
    device, 2026-07-26.** Easy hands out 5×5 or 6×6 and Hard 8×8 or 9×9, picked
    from the seed, so two Easy games in a row can be different sizes. The operator
@@ -256,19 +257,19 @@ explicitly whether the epic is ready to merge to `main`.
     ✕ deductions included, and the operator chose that over keeping them. The
     dialog is what makes it survivable — it says the puzzle is the same one before
     the board clears. Worth re-asking after a child has hit it.
-14. **Are the assist rates right?** (plan §14.4) **Every number in
+14. **Are the coin rates right?** (plan §14.4) **Every number in
     `games/fungiku/wallet.js` is a guess**, drafted to be playable rather than
     balanced, and they are gathered at the top of that file so tuning is editing
-    one block. Start 3+3; a nudge 1, a reveal 2, a rule-out 1; a win pays a base
-    by rung (Easy 1+1 up to Expert 3+3) plus +1/+1 for keeping every life and
-    +1 hint for asking for none; a daily floor raises each balance *to* 2 if it
-    has fallen below. The questions a session answers: does an Easy board pay
-    enough to keep playing, does Expert pay enough to be worth it, and does the
-    floor ever feel like the only thing keeping you going? color-loop's star
-    thresholds were left the same way and are still on its backlog (§13).
+    one block. Start 10 coins; rule-out 1, hint 2, reveal 4; a win pays a base by
+    rung (Easy 3 → Expert 8) plus 1 per life still standing and 2 for asking for
+    no hints; a daily floor raises the balance *to* 4 if it has fallen below. The
+    questions a session answers: does an Easy board pay enough to keep playing,
+    does Expert pay enough to be worth it, and does the floor ever feel like the
+    only thing keeping you going? color-loop's star thresholds were left the same
+    way and are still on its backlog (§13).
 
 15. **Is the daily floor the right shape for a floor?** It is what stops the game
-    becoming unwinnable — a player at zero on a hard board always has two of each
+    becoming unwinnable — a player at zero on a hard board always has four coins
     tomorrow. But a child who plays twice in an evening never sees it, and a
     child who plays once a week is topped up to the same two either way. The
     alternatives rejected were a per-win minimum (no help to a player who cannot
@@ -277,6 +278,21 @@ explicitly whether the epic is ready to merge to `main`.
 
 ### Noted in passing, for a later step
 
+- **One currency, and the reason is a sentence that could not be written.** The
+  first cut of Step 11 had two token kinds, and the win banner read
+  **"+2 hints · +1 rule-out — no hints"** — *you earned two hints because you used
+  no hints.* That is not a wording bug: **a currency named for what it buys
+  collides with every message about spending it.** Coins are named for what they
+  are. Prices are rule-out 1, hint 2, reveal 4 — §11.2's ladder, which two
+  currencies could never express. `normalizeWallet` converts an old two-balance
+  wallet at the price list. **Do not reintroduce a second kind** to make some
+  future assist "feel different"; price it in coins.
+- **The payout is watched, not reported.** `rewardForWin` returns a `total` *and
+  the steps that make it up*, and `useCoinAward` walks them: the balance counts up
+  one reason at a time while the banner names each. `useCoinAward` owns only
+  `pending` — how much of the win is still hidden — and the screen draws
+  `coins - pending`, so a coin spent mid-celebration moves the number correctly
+  and there is no display copy to fall out of step with the wallet.
 - **The wallet is not in the board's save, and that is the design.**
   `@FungikuWallet` is its own AsyncStorage key with no `_v` and no entry in
   `saveMigration.js`; `FUNGIKU_STORAGE_VERSION` is still **3** because Step 11
@@ -307,17 +323,26 @@ explicitly whether the epic is ready to merge to `main`.
   that is already priced at the moment it is used — being paid a bonus for not
   spending a coin you had to buy would be charging twice. If a later step wants
   it, that is the trade to reopen.
-- **The assist meters are below the board, and that is not an accident.** Anything
-  that mounts or changes height *above* the board invalidates the origin every tap
-  is resolved against (see the re-measure note below). The one thing Step 11 put
-  above the board is the payout line, and it went inside the win banner — whose
-  `solved` is already one of `FungikuBoard`'s re-measure deps — replacing the
-  "6×6 · seed 2" line rather than adding to it, so the banner's height is
-  unchanged.
-- **"None left" is drawn differently from "nothing to do here".** Running out goes
-  red and says so in words; the board's own reasons for a dead button still dim.
-  A greyed-out button reads as "not now", and running out means "not until you
-  earn more" — a different instruction, so it cannot be the same pixel.
+- **Two things sit above the board and neither may change size.** The coin balance
+  went into the **counter row**, which is always mounted and two fixed lines — the
+  same slot the hearts and "Generating…" already use. The payout's reasons go into
+  the **win banner**, whose `solved` is already one of `FungikuBoard`'s re-measure
+  deps, and each reason *replaces* the "6×6 · seed 2" line rather than stacking
+  below it. A banner that grew as reasons arrived would move the board mid-
+  animation, and `solved` would not fire again to re-measure it. Checked at 320px
+  with a 5×5 board: no horizontal overflow, board still centred.
+- **A price you cannot pay is drawn differently from "nothing to do here".** The
+  price and the border go red; the board's own reasons for a dead button still
+  dim. A greyed-out button reads as "not now", and not affording it means "not
+  until you earn more" — a different instruction, so it cannot be the same pixel.
+  The **balance is not repeated on the buttons**: it is one number in the counter
+  row, and the buttons say what they cost.
+- **A solved board plus a wallet with no paid record will pay again — correctly.**
+  This looked like a conversion bug in the browser checks (an old wallet
+  converting to 16 instead of 8) and was the fixture: the test set
+  `paidPuzzle: null` while the app was sitting on a finished board, so entering it
+  paid that win a second time. `paidPuzzle` is the *only* thing standing between a
+  solved board and an unlimited payout. Do not clear it to "reset" anything.
 - **`SHOW_DEVELOPER_CONTROLS` now also hides the gift button.** It is the
   purchase seam with the till left out (§14.4) and the only way to top the wallet
   up without solving boards, which is what makes the economy testable by hand.
@@ -564,7 +589,7 @@ explicitly whether the epic is ready to merge to `main`.
 | 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds, board lines redrawn as a snapped overlay | merged to `epic/fungiku` (#75, `d4d2018`), operator-tested on device |
 | 9 | Difficulty menu — rungs mapped into `SIZES` by *share*, size-from-seed, menu modal built to Sudoku's, free play + seed behind one constant, real v1→v2 save migration, difficulty in the header rather than a banner, hub badge names the rung | merged to `epic/fungiku` (#77, `02fcdf1`), operator-tested on device |
 | 10 | Lives & mistakes — tap ✕ / double-tap 🍄 replacing the cycle, wrong mushroom flagged immediately as a red ✕ costing one of three lives and announced on three channels, zero lives leaves the losing board up behind a dialog until the player restarts it, undo never refunds, "Show mistakes" deleted, v2→v3 migration, conflict rendering **removed** | merged to `epic/fungiku` (#79), operator-tested on device |
-| 11 | Earned assists — a wallet under **its own key** (`@FungikuWallet`, no save-version bump), hints and rule-out both metered with a reveal dearer than a nudge, the "nothing is forced" answer left free, a win paying **exactly once per board** across undo/redo/reload, a daily floor so the game cannot become unwinnable, zero drawn differently from disabled, gift/purchase seam behind `SHOW_DEVELOPER_CONTROLS` | **awaiting operator device pass** |
+| 11 | Earned assists — **coins**, one currency, in a wallet under **its own key** (`@FungikuWallet`, no save-version bump); hints and rule-out priced off it (1 / 2 / 4, §11.2's ladder); the "nothing is forced" answer left free; a win **narrated** — the balance counts up one reason at a time — and paid **exactly once per board** across undo/redo/reload; a daily floor so the game cannot become unwinnable; an unaffordable price drawn differently from a disabled button; gift/purchase seam behind `SHOW_DEVELOPER_CONTROLS` | **awaiting operator device pass** |
 
 ## Steps still to come
 

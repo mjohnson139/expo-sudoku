@@ -20,29 +20,33 @@ import { readableOn } from '../../utils/color';
 const ENTER_DELAY = 220;
 
 /**
- * What the win paid, in the banner's own voice (plan §14.4).
+ * What the banner's second line says right now (plan §14.4).
  *
- * Null when this board has already been paid — a redo across the win line, or a
- * relaunch onto a board that was finished last session, re-shows the banner but
- * pays nothing, and claiming otherwise would be a lie about the balance.
+ * The payout is **narrated, not reported**: the coin balance in the counter row
+ * counts up one reason at a time, and this line names the reason that is landing.
+ * A single "+8 coins" would be the same information with none of the feeling, and
+ * a player who never sees "No hints used +2" named has no reason to play for it.
+ *
+ * Four states, in order:
+ *   - no reward at all — this board has already been paid (a redo across the win
+ *     line, or a relaunch onto a board finished last session). It shows the board
+ *     identity, because claiming a payout that did not happen would be a lie
+ *     about the balance;
+ *   - the reward has landed but the first reason has not shown yet — identity
+ *     again, so the line is never blank while the banner springs in;
+ *   - a reason, with what it paid;
+ *   - the total, which then stays.
  */
-const rewardLine = (reward) => {
-  if (!reward) return null;
+const detailLine = ({ reward, award, size, seed }) => {
+  const identity = { text: `${size}×${size} · seed ${seed}`, coins: null };
+  if (!reward || award.stepIndex < 0) return identity;
 
-  const parts = [];
-  if (reward.hint > 0) parts.push(`+${reward.hint} hint${reward.hint === 1 ? '' : 's'}`);
-  if (reward.ruleOut > 0) parts.push(`+${reward.ruleOut} rule-out${reward.ruleOut === 1 ? '' : 's'}`);
-  if (parts.length === 0) return null;
+  if (award.step) return { text: award.step.label, coins: award.step.coins };
 
-  // Why it was that much, not just that it was. The bonuses are the whole point
-  // of "how cleanly" — a player who never sees them named has no reason to play
-  // for them.
-  const earned = [reward.flawless && 'no mistakes', reward.unaided && 'no hints'].filter(Boolean);
-
-  return `${parts.join(' · ')}${earned.length ? ` — ${earned.join(', ')}` : ''}`;
+  return { text: 'Coins earned', coins: reward.total };
 };
 
-const FungikuWinBanner = ({ solved, size, seed, accent, reward, onNextPuzzle }) => {
+const FungikuWinBanner = ({ solved, size, seed, accent, reward, award, onNextPuzzle }) => {
   const progress = useRef(new Animated.Value(0)).current;
   const shimmer = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(solved);
@@ -97,7 +101,7 @@ const FungikuWinBanner = ({ solved, size, seed, accent, reward, onNextPuzzle }) 
   if (!mounted) return null;
 
   const ink = readableOn(accent);
-  const earnings = rewardLine(reward);
+  const detail = detailLine({ reward, award, size, seed });
 
   return (
     <Animated.View
@@ -131,13 +135,37 @@ const FungikuWinBanner = ({ solved, size, seed, accent, reward, onNextPuzzle }) 
 
       <View style={styles.textBlock}>
         <Text style={[styles.title, { color: ink }]}>Solved!</Text>
-        {/* The payout displaces the board's identity rather than sitting under
-            it: what you earned is the news, and the banner's height has to stay
-            the same either way — it sits above the board, and a banner that
-            grows moves the board (see FungikuBoard's re-measure effect). */}
-        <Text style={[styles.detail, { color: ink }]} numberOfLines={1}>
-          {earnings || `${size}×${size} · seed ${seed}`}
-        </Text>
+
+        {/* **One line, always, whatever it is saying.** Each reason *replaces*
+            the last rather than stacking below it: the banner sits above the
+            board, and a banner that grows moves the board — which invalidates
+            the origin every tap is resolved against (see FungikuBoard's
+            re-measure effect, which keys on `solved` and therefore covers the
+            banner mounting but not the banner changing size).
+
+            The `key` is what makes each reason its own element, so the fade-in
+            below restarts instead of the text swapping silently. */}
+        <View style={styles.detailRow}>
+          <Text
+            key={detail.text}
+            style={[styles.detail, styles.detailFade, { color: ink }]}
+            numberOfLines={1}
+            // The reasons arrive on their own, so a screen reader has to be told
+            // rather than left to notice.
+            accessibilityLiveRegion={detail.coins === null ? 'none' : 'polite'}
+          >
+            {detail.text}
+          </Text>
+
+          {detail.coins !== null && (
+            <View key={`${detail.text}-coins`} style={styles.detailCoins}>
+              <MaterialCommunityIcons name="circle-multiple" size={11} color={ink} />
+              <Text style={[styles.detail, styles.detailCoinsText, { color: ink }]}>
+                +{detail.coins}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       <TouchableOpacity
@@ -172,6 +200,23 @@ const styles = StyleSheet.create({
   detail: {
     fontSize: 11,
     opacity: 0.85,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailFade: {
+    flexShrink: 1,
+  },
+  detailCoins: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 6,
+  },
+  detailCoinsText: {
+    fontWeight: '800',
+    opacity: 1,
+    marginLeft: 2,
   },
   button: {
     borderWidth: 1,

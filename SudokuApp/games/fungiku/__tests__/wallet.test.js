@@ -1,9 +1,8 @@
 import {
-  ASSIST_COSTS,
-  ASSIST_KINDS,
-  DAILY_FLOOR,
-  MAX_BALANCE,
-  STARTING_BALANCE,
+  COIN_COSTS,
+  DAILY_FLOOR_COINS,
+  MAX_COINS,
+  STARTING_COINS,
   applyDailyFloor,
   balance,
   canAfford,
@@ -17,24 +16,17 @@ import {
   today,
 } from '../wallet';
 import { MAX_LIVES } from '../reducer';
-import { DIFFICULTY_IDS } from '../difficulty';
+import { DIFFICULTY_IDS, difficultyLabel } from '../difficulty';
 
-const { HINT, RULE_OUT } = ASSIST_KINDS;
-
-/** A wallet holding exactly these balances, and nothing else interesting. */
-const walletWith = (hint, ruleOut) => ({
-  ...createWallet(),
-  balances: { [HINT]: hint, [RULE_OUT]: ruleOut },
-});
+/** A wallet holding exactly this many coins, and nothing else interesting. */
+const walletWith = (coins) => ({ ...createWallet(), coins });
 
 describe('createWallet', () => {
   it('starts with something to spend, so metering is a feature and not a wall', () => {
     const wallet = createWallet();
 
-    expect(balance(wallet, HINT)).toBe(STARTING_BALANCE[HINT]);
-    expect(balance(wallet, RULE_OUT)).toBe(STARTING_BALANCE[RULE_OUT]);
-    expect(balance(wallet, HINT)).toBeGreaterThan(0);
-    expect(balance(wallet, RULE_OUT)).toBeGreaterThan(0);
+    expect(balance(wallet)).toBe(STARTING_COINS);
+    expect(canAfford(wallet, COIN_COSTS.REVEAL)).toBe(true);
   });
 
   it('has paid for nothing yet', () => {
@@ -44,85 +36,115 @@ describe('createWallet', () => {
 
 describe('normalizeWallet', () => {
   it('hands back a fresh wallet for anything unreadable', () => {
-    [null, undefined, 'nonsense', 42, []].forEach((raw) => {
-      expect(normalizeWallet(raw).balances).toEqual(createWallet().balances);
+    [null, undefined, 'nonsense', 42].forEach((raw) => {
+      expect(balance(normalizeWallet(raw))).toBe(STARTING_COINS);
     });
   });
 
-  it('replaces a non-numeric balance rather than letting NaN reach a button', () => {
-    const wallet = normalizeWallet({ balances: { [HINT]: 'lots', [RULE_OUT]: 4 } });
-
-    expect(wallet.balances[HINT]).toBe(STARTING_BALANCE[HINT]);
-    expect(wallet.balances[RULE_OUT]).toBe(4);
+  it('replaces a non-numeric balance rather than letting NaN reach the screen', () => {
+    expect(balance(normalizeWallet({ coins: 'lots' }))).toBe(STARTING_COINS);
+    expect(balance(normalizeWallet({ coins: 7 }))).toBe(7);
   });
 
   it('clamps a hand-edited balance into range', () => {
-    const wallet = normalizeWallet({ balances: { [HINT]: -5, [RULE_OUT]: 10 ** 6 } });
+    expect(balance(normalizeWallet({ coins: -5 }))).toBe(0);
+    expect(balance(normalizeWallet({ coins: 10 ** 6 }))).toBe(MAX_COINS);
+  });
 
-    expect(wallet.balances[HINT]).toBe(0);
-    expect(wallet.balances[RULE_OUT]).toBe(MAX_BALANCE);
+  /**
+   * The two-currency wallet that briefly shipped on this branch. Its tokens are
+   * worth what they could have bought, so they convert at the price list rather
+   * than being summed as if a hint token and a rule-out token were the same thing.
+   */
+  it('converts an old two-balance wallet at the price list', () => {
+    const wallet = normalizeWallet({ balances: { hint: 3, ruleOut: 2 } });
+
+    expect(balance(wallet)).toBe(3 * COIN_COSTS.HINT + 2 * COIN_COSTS.RULE_OUT);
+  });
+
+  it('survives an old wallet with a missing or junk balance', () => {
+    expect(balance(normalizeWallet({ balances: {} }))).toBe(0);
+    expect(balance(normalizeWallet({ balances: { hint: 'x', ruleOut: 2 } }))).toBe(
+      2 * COIN_COSTS.RULE_OUT
+    );
   });
 
   it('keeps the paid-puzzle record, which is what stops a win paying twice', () => {
-    expect(normalizeWallet({ paidPuzzle: '6:3' }).paidPuzzle).toBe('6:3');
-    expect(normalizeWallet({ paidPuzzle: 17 }).paidPuzzle).toBeNull();
+    expect(normalizeWallet({ coins: 1, paidPuzzle: '6:3' }).paidPuzzle).toBe('6:3');
+    expect(normalizeWallet({ coins: 1, paidPuzzle: 17 }).paidPuzzle).toBeNull();
+  });
+});
+
+describe('the price list', () => {
+  /**
+   * §11.2: each rung of the hint ladder should cost more than the last. Rule-out
+   * is the cheap one because it reveals nothing a player could not derive
+   * mechanically; a reveal solves a cell outright.
+   */
+  it('climbs with the strength of the help', () => {
+    expect(COIN_COSTS.RULE_OUT).toBeLessThan(COIN_COSTS.HINT);
+    expect(COIN_COSTS.HINT).toBeLessThan(COIN_COSTS.REVEAL);
+  });
+
+  it('means a balance that buys a hint does not necessarily buy the answer', () => {
+    const wallet = walletWith(COIN_COSTS.HINT);
+
+    expect(canAfford(wallet, COIN_COSTS.HINT)).toBe(true);
+    expect(canAfford(wallet, COIN_COSTS.REVEAL)).toBe(false);
   });
 });
 
 describe('spend and grant', () => {
   it('takes the cost off, and never below zero', () => {
-    const wallet = spend(walletWith(3, 3), HINT, ASSIST_COSTS.NUDGE);
-    expect(balance(wallet, HINT)).toBe(3 - ASSIST_COSTS.NUDGE);
-    expect(balance(wallet, RULE_OUT)).toBe(3);
+    expect(balance(spend(walletWith(5), COIN_COSTS.HINT))).toBe(5 - COIN_COSTS.HINT);
   });
 
   it('refuses a spend it cannot cover, and leaves the wallet untouched', () => {
-    const broke = walletWith(1, 0);
+    const broke = walletWith(1);
 
-    expect(canAfford(broke, HINT, ASSIST_COSTS.REVEAL)).toBe(false);
-    expect(spend(broke, HINT, ASSIST_COSTS.REVEAL)).toBe(broke);
-    expect(spend(broke, RULE_OUT, ASSIST_COSTS.RULE_OUT)).toBe(broke);
-  });
-
-  it('prices the reveal above the nudge — §11.2 wants each rung to cost more', () => {
-    expect(ASSIST_COSTS.REVEAL).toBeGreaterThan(ASSIST_COSTS.NUDGE);
-
-    // The consequence the UI has to draw: a balance that buys a nudge does not
-    // necessarily buy the answer.
-    const wallet = walletWith(1, 1);
-    expect(canAfford(wallet, HINT, ASSIST_COSTS.NUDGE)).toBe(true);
-    expect(canAfford(wallet, HINT, ASSIST_COSTS.REVEAL)).toBe(false);
+    expect(canAfford(broke, COIN_COSTS.REVEAL)).toBe(false);
+    expect(spend(broke, COIN_COSTS.REVEAL)).toBe(broke);
+    expect(spend(walletWith(0), COIN_COSTS.RULE_OUT)).toEqual(walletWith(0));
   });
 
   it('grants, capped, and ignores nonsense', () => {
-    expect(balance(grant(walletWith(1, 1), HINT, 4), HINT)).toBe(5);
-    expect(balance(grant(walletWith(MAX_BALANCE, 1), HINT, 10), HINT)).toBe(MAX_BALANCE);
+    expect(balance(grant(walletWith(1), 4))).toBe(5);
+    expect(balance(grant(walletWith(MAX_COINS), 10))).toBe(MAX_COINS);
 
-    const wallet = walletWith(1, 1);
-    expect(grant(wallet, HINT, 0)).toBe(wallet);
-    expect(grant(wallet, HINT, -3)).toBe(wallet);
-    expect(grant(wallet, 'coins', 3)).toBe(wallet);
-  });
-
-  it('reads an unknown kind as zero rather than undefined', () => {
-    expect(balance(createWallet(), 'coins')).toBe(0);
-    expect(canAfford(createWallet(), 'coins')).toBe(false);
+    const wallet = walletWith(1);
+    expect(grant(wallet, 0)).toBe(wallet);
+    expect(grant(wallet, -3)).toBe(wallet);
+    expect(grant(wallet, 'five')).toBe(wallet);
   });
 });
 
 describe('rewardForWin', () => {
-  it('pays something for every rung', () => {
+  it('returns a breakdown, because the payout is narrated rather than reported', () => {
+    const reward = rewardForWin({ difficulty: 'easy', lives: MAX_LIVES, hintsUsed: 0 });
+
+    expect(reward.steps.length).toBeGreaterThan(1);
+    expect(reward.steps.every((step) => step.label && step.coins > 0)).toBe(true);
+    // The total is the steps — the animation counts up to it one reason at a
+    // time, so a total that did not match would leave coins unaccounted for.
+    expect(reward.total).toBe(reward.steps.reduce((sum, step) => sum + step.coins, 0));
+  });
+
+  it('names the board it is paying for', () => {
     DIFFICULTY_IDS.forEach((difficulty) => {
       const reward = rewardForWin({ difficulty, lives: 1, hintsUsed: 4 });
-      expect(reward[HINT] + reward[RULE_OUT]).toBeGreaterThan(0);
+      expect(reward.steps[0].label).toBe(`${difficultyLabel(difficulty)} board`);
+    });
+  });
+
+  it('pays something for every rung', () => {
+    DIFFICULTY_IDS.forEach((difficulty) => {
+      expect(rewardForWin({ difficulty, lives: 1, hintsUsed: 4 }).total).toBeGreaterThan(0);
     });
   });
 
   it('pays a harder board more, so Easy is not the efficient farm', () => {
-    const worth = (difficulty) => {
-      const reward = rewardForWin({ difficulty, lives: MAX_LIVES, hintsUsed: 0 });
-      return reward[HINT] + reward[RULE_OUT];
-    };
+    const worth = (difficulty) =>
+      rewardForWin({ difficulty, lives: MAX_LIVES, hintsUsed: 0 }).total;
 
     DIFFICULTY_IDS.slice(1).forEach((difficulty, index) => {
       expect(worth(difficulty)).toBeGreaterThanOrEqual(worth(DIFFICULTY_IDS[index]));
@@ -130,22 +152,33 @@ describe('rewardForWin', () => {
     expect(worth('expert')).toBeGreaterThan(worth('easy'));
   });
 
-  it('pays more for a board finished cleanly — lives kept and no hints asked', () => {
-    const messy = rewardForWin({ difficulty: 'easy', lives: 1, hintsUsed: 3 });
-    const flawless = rewardForWin({ difficulty: 'easy', lives: MAX_LIVES, hintsUsed: 3 });
-    const perfect = rewardForWin({ difficulty: 'easy', lives: MAX_LIVES, hintsUsed: 0 });
+  it('pays a coin per life still standing, and names how many', () => {
+    const two = rewardForWin({ difficulty: 'easy', lives: 2, hintsUsed: 1 });
+    const three = rewardForWin({ difficulty: 'easy', lives: 3, hintsUsed: 1 });
 
-    expect(flawless[HINT]).toBeGreaterThan(messy[HINT]);
-    expect(perfect[HINT]).toBeGreaterThan(flawless[HINT]);
+    expect(three.total).toBe(two.total + 1);
+    expect(two.steps.map((s) => s.label)).toContain('2 lives left');
+    expect(three.steps.map((s) => s.label)).toContain('3 lives left');
+  });
 
-    expect(messy.flawless).toBe(false);
-    expect(perfect.flawless).toBe(true);
-    expect(perfect.unaided).toBe(true);
+  it('says "1 life left", not "1 lives left"', () => {
+    const one = rewardForWin({ difficulty: 'easy', lives: 1, hintsUsed: 1 });
+    expect(one.steps.map((s) => s.label)).toContain('1 life left');
+  });
+
+  it('pays a bonus for finishing without a hint, and says so', () => {
+    const helped = rewardForWin({ difficulty: 'easy', lives: 2, hintsUsed: 3 });
+    const unaided = rewardForWin({ difficulty: 'easy', lives: 2, hintsUsed: 0 });
+
+    expect(unaided.total).toBeGreaterThan(helped.total);
+    expect(unaided.steps.map((s) => s.label)).toContain('No hints used');
+    expect(helped.steps.map((s) => s.label)).not.toContain('No hints used');
   });
 
   it('falls back to the default rung rather than paying nothing for a bad one', () => {
-    const reward = rewardForWin({ difficulty: 'impossible', lives: 1, hintsUsed: 1 });
-    expect(reward[HINT] + reward[RULE_OUT]).toBeGreaterThan(0);
+    expect(rewardForWin({ difficulty: 'impossible', lives: 1, hintsUsed: 1 }).total).toBeGreaterThan(
+      0
+    );
   });
 });
 
@@ -153,37 +186,36 @@ describe('payOutWin', () => {
   const board = { size: 6, seed: 3, difficulty: 'easy', lives: MAX_LIVES, hintsUsed: 0 };
 
   it('pays the first time and adds the reward to the balance', () => {
-    const before = walletWith(0, 0);
-    const { wallet, reward } = payOutWin(before, board);
+    const { wallet, reward } = payOutWin(walletWith(0), board);
 
     expect(reward).not.toBeNull();
-    expect(balance(wallet, HINT)).toBe(reward[HINT]);
-    expect(balance(wallet, RULE_OUT)).toBe(reward[RULE_OUT]);
+    expect(balance(wallet)).toBe(reward.total);
     expect(wallet.paidPuzzle).toBe(puzzleKey(board));
   });
 
   /**
    * The guard the whole step turns on. `solved` is derived from `marks`, so undo
    * and redo cross the win line as often as the player likes and each crossing
-   * is a fresh "the board is solved".
+   * is a fresh "the board is solved" — which, with the payout animated, would
+   * also replay the celebration every time.
    */
   it('pays a board exactly once, however many times the win line is crossed', () => {
-    const first = payOutWin(walletWith(0, 0), board);
+    const first = payOutWin(walletWith(0), board);
     const second = payOutWin(first.wallet, board);
     const third = payOutWin(second.wallet, board);
 
     expect(second.reward).toBeNull();
     expect(third.reward).toBeNull();
     expect(second.wallet).toBe(first.wallet);
-    expect(balance(third.wallet, HINT)).toBe(first.reward[HINT]);
+    expect(balance(third.wallet)).toBe(first.reward.total);
   });
 
   it('pays the next board, because it is a different board', () => {
-    const first = payOutWin(walletWith(0, 0), board);
+    const first = payOutWin(walletWith(0), board);
     const next = payOutWin(first.wallet, { ...board, seed: board.seed + 1 });
 
     expect(next.reward).not.toBeNull();
-    expect(balance(next.wallet, HINT)).toBe(first.reward[HINT] + next.reward[HINT]);
+    expect(balance(next.wallet)).toBe(first.reward.total + next.reward.total);
   });
 
   it('tells two same-seed boards of different sizes apart', () => {
@@ -193,43 +225,39 @@ describe('payOutWin', () => {
 
 describe('applyDailyFloor', () => {
   it('raises an empty wallet to the floor, so no board is ever a dead end', () => {
-    const wallet = applyDailyFloor(walletWith(0, 0), '2026-07-28');
-
-    expect(balance(wallet, HINT)).toBe(DAILY_FLOOR[HINT]);
-    expect(balance(wallet, RULE_OUT)).toBe(DAILY_FLOOR[RULE_OUT]);
+    expect(balance(applyDailyFloor(walletWith(0), '2026-07-28'))).toBe(DAILY_FLOOR_COINS);
   });
 
   it('raises *to* the floor and never above it, so idling is not an income', () => {
-    const rich = walletWith(20, 20);
-    const wallet = applyDailyFloor(rich, '2026-07-28');
-
-    expect(balance(wallet, HINT)).toBe(20);
-    expect(balance(wallet, RULE_OUT)).toBe(20);
+    expect(balance(applyDailyFloor(walletWith(40), '2026-07-28'))).toBe(40);
   });
 
   it('runs once a day, not once a launch', () => {
-    const first = applyDailyFloor(walletWith(0, 0), '2026-07-28');
-    const spent = spend(first, HINT, ASSIST_COSTS.NUDGE);
+    const first = applyDailyFloor(walletWith(0), '2026-07-28');
+    const spent = spend(first, COIN_COSTS.RULE_OUT);
     const again = applyDailyFloor(spent, '2026-07-28');
 
     // Same object back: nothing to write, and no top-up between two launches on
     // the same day.
     expect(again).toBe(spent);
-    expect(balance(again, HINT)).toBe(DAILY_FLOOR[HINT] - ASSIST_COSTS.NUDGE);
+    expect(balance(again)).toBe(DAILY_FLOOR_COINS - COIN_COSTS.RULE_OUT);
 
-    const tomorrow = applyDailyFloor(again, '2026-07-29');
-    expect(balance(tomorrow, HINT)).toBe(DAILY_FLOOR[HINT]);
+    expect(balance(applyDailyFloor(again, '2026-07-29'))).toBe(DAILY_FLOOR_COINS);
   });
 
   it('does nothing without a day to record it against', () => {
-    const wallet = walletWith(0, 0);
+    const wallet = walletWith(0);
     expect(applyDailyFloor(wallet, null)).toBe(wallet);
     expect(applyDailyFloor(wallet, '')).toBe(wallet);
   });
 
   it('leaves the paid-puzzle record alone', () => {
-    const paid = { ...walletWith(0, 0), paidPuzzle: '6:3' };
+    const paid = { ...walletWith(0), paidPuzzle: '6:3' };
     expect(applyDailyFloor(paid, '2026-07-28').paidPuzzle).toBe('6:3');
+  });
+
+  it('always leaves enough for the cheapest assist', () => {
+    expect(DAILY_FLOOR_COINS).toBeGreaterThanOrEqual(COIN_COSTS.RULE_OUT);
   });
 });
 

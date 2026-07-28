@@ -3,7 +3,7 @@ import usePersistentReducer from '../../hooks/usePersistentReducer';
 import { MARKS, MAX_SIZE, MIN_SIZE } from './engine';
 import { loadFungikuState, saveFungikuState } from './storage';
 import useFungikuWallet from './useFungikuWallet';
-import { ASSIST_COSTS, ASSIST_KINDS, balance, canAfford, puzzleKey } from './wallet';
+import { COIN_COSTS, balance, canAfford, puzzleKey } from './wallet';
 import {
   DEFAULT_SEED,
   FUNGIKU_ACTIONS,
@@ -44,7 +44,7 @@ const FungikuContext = createContext();
  */
 export { SIZES } from './engine';
 export { DIFFICULTIES } from './difficulty';
-export { ASSIST_COSTS, ASSIST_KINDS } from './wallet';
+export { COIN_COSTS } from './wallet';
 
 // Stable object identity, so the persistence hook never sees a "new" adapter.
 const FUNGIKU_PERSISTENCE = { load: loadFungikuState, save: saveFungikuState };
@@ -81,7 +81,7 @@ export const FungikuProvider = ({ children }) => {
   // *not* threaded through the reducer above. `state.hintsUsed` is still what
   // this board has cost; the wallet is what the player has left, across every
   // board they have ever played.
-  const { wallet, walletHydrated, spendAssist, grantAssists, payWin } = useFungikuWallet();
+  const { wallet, walletHydrated, spendCoins, grantCoins, payWin } = useFungikuWallet();
 
   const mushroomCount = useMemo(() => selectMushroomCount(state), [state.marks]);
   const solved = useMemo(() => selectIsSolved(state), [state.marks, state.regions, state.size]);
@@ -114,16 +114,10 @@ export const FungikuProvider = ({ children }) => {
 
   // --- what help costs, and what is left of it (plan §14.4) -----------------
   //
-  // Balances are read out of the wallet rather than kept as a second copy: the
+  // One balance, read out of the wallet rather than kept as a second copy: the
   // authority for a spend is the ref inside `useFungikuWallet`, and a mirror of
   // it here would be one render behind on exactly the taps that matter.
-  const assists = useMemo(
-    () => ({
-      [ASSIST_KINDS.HINT]: balance(wallet, ASSIST_KINDS.HINT),
-      [ASSIST_KINDS.RULE_OUT]: balance(wallet, ASSIST_KINDS.RULE_OUT),
-    }),
-    [wallet]
-  );
+  const coins = balance(wallet);
 
   // Would the next press of Hint hand anything over? The reducer's own rule for
   // `hintsUsed`, asked one step earlier so the wallet can charge on the same
@@ -134,12 +128,12 @@ export const FungikuProvider = ({ children }) => {
   );
 
   // Three separate reasons a button can be dead, and the player has to be able
-  // to tell them apart: nothing to do here, the board is finished, or you have
-  // run out. The screen draws each differently, so each gets its own flag rather
-  // than one `disabled`.
-  const canAffordHint = canAfford(wallet, ASSIST_KINDS.HINT, ASSIST_COSTS.NUDGE);
-  const canAffordReveal = canAfford(wallet, ASSIST_KINDS.HINT, ASSIST_COSTS.REVEAL);
-  const canAffordRuleOut = canAfford(wallet, ASSIST_KINDS.RULE_OUT, ASSIST_COSTS.RULE_OUT);
+  // to tell them apart: nothing to do here, the board is finished, or you cannot
+  // afford it. The screen draws each differently, so each gets its own flag
+  // rather than one `disabled`.
+  const canAffordHint = canAfford(wallet, COIN_COSTS.HINT);
+  const canAffordReveal = canAfford(wallet, COIN_COSTS.REVEAL);
+  const canAffordRuleOut = canAfford(wallet, COIN_COSTS.RULE_OUT);
 
   // --- earning (plan §14.4) -------------------------------------------------
   //
@@ -236,9 +230,9 @@ export const FungikuProvider = ({ children }) => {
     // Nothing to mark is not a purchase. The reducer would return the same state
     // anyway; refusing here means it also costs nothing.
     if (ruleOutCount === 0) return;
-    if (!spendAssist(ASSIST_KINDS.RULE_OUT, ASSIST_COSTS.RULE_OUT)) return;
+    if (!spendCoins(COIN_COSTS.RULE_OUT)) return;
     dispatch({ type: FUNGIKU_ACTIONS.RULE_OUT });
-  }, [dispatch, ruleOutCount, spendAssist]);
+  }, [dispatch, ruleOutCount, spendCoins]);
 
   // --- hints (plan §11.2), now priced (plan §14.4) --------------------------
   //
@@ -248,16 +242,16 @@ export const FungikuProvider = ({ children }) => {
   // still disabled at an empty balance, so this is not a way to farm free
   // answers; it is a way to not be charged for one.
   const requestHint = useCallback(() => {
-    if (hintIsChargeable && !spendAssist(ASSIST_KINDS.HINT, ASSIST_COSTS.NUDGE)) return;
+    if (hintIsChargeable && !spendCoins(COIN_COSTS.HINT)) return;
     dispatch({ type: FUNGIKU_ACTIONS.REQUEST_HINT });
-  }, [dispatch, hintIsChargeable, spendAssist]);
+  }, [dispatch, hintIsChargeable, spendCoins]);
 
   /** The top rung, and the dearest: a cell solved outright (plan §11.2). */
   const revealMushroom = useCallback(() => {
     if (!canReveal) return;
-    if (!spendAssist(ASSIST_KINDS.HINT, ASSIST_COSTS.REVEAL)) return;
+    if (!spendCoins(COIN_COSTS.REVEAL)) return;
     dispatch({ type: FUNGIKU_ACTIONS.REVEAL_MUSHROOM });
-  }, [canReveal, dispatch, spendAssist]);
+  }, [canReveal, dispatch, spendCoins]);
 
   const dismissHint = useCallback(
     () => dispatch({ type: FUNGIKU_ACTIONS.DISMISS_HINT }),
@@ -413,15 +407,15 @@ export const FungikuProvider = ({ children }) => {
       mistakeCells,
       lives,
       canReveal,
-      // The wallet, as the buttons need it: what is left, what the next press
-      // costs, and whether it can be paid for.
-      assists,
+      // The wallet, as the screen needs it: one balance, and whether each
+      // button's price can be paid.
+      coins,
       hintIsChargeable,
       canAffordHint,
       canAffordReveal,
       canAffordRuleOut,
       lastReward: rewardForThisBoard,
-      grantAssists,
+      grantCoins,
       requestHint,
       revealMushroom,
       dismissHint,
@@ -451,13 +445,13 @@ export const FungikuProvider = ({ children }) => {
       mistakeCells,
       lives,
       canReveal,
-      assists,
+      coins,
       hintIsChargeable,
       canAffordHint,
       canAffordReveal,
       canAffordRuleOut,
       rewardForThisBoard,
-      grantAssists,
+      grantCoins,
       requestHint,
       revealMushroom,
       dismissHint,

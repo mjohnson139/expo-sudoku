@@ -1152,29 +1152,58 @@ clearable; revisit if it reads wrong in play.
 the rates, `rewardForWin`, `payOutWin`, `applyDailyFloor`) plus
 `walletStorage.js` under **`@FungikuWallet`**, its own global key — the board save
 gained no field and `FUNGIKU_STORAGE_VERSION` is still **3**. Hints and Rule out
-are both metered; a reveal costs more than a nudge (2 against 1) out of the same
-hint balance, so §11.2's "each rung costs more than the last" is real. Earning is
-a base by difficulty plus bonuses for finishing with every life and without a
-hint. **Every rate is a guess** and is flagged for on-device tuning, gathered at
-the top of `wallet.js` for exactly that reason.
+are both metered. Earning is a base by difficulty plus a coin per life still
+standing and a bonus for finishing without a hint. **Every rate is a guess** and
+is flagged for on-device tuning, gathered at the top of `wallet.js` for exactly
+that reason.
 
-Four things it settled that the text below does not say:
+**One currency: coins.** The first cut of this shipped **two** token kinds — hint
+tokens and rule-out tokens — and it failed on the device for a reason worth
+recording, because it is not obvious from the design and is obvious the moment you
+read the screen. The win banner said:
+
+> **+2 hints · +1 rule-out — no hints**
+
+*You earned two hints because you used no hints.* There is no reading of that
+sentence that is not a contradiction, and it is not a wording problem: **a
+currency named for what it buys collides with every message about spending it.**
+Coins are named for what they *are*, so "you earned 8 coins, 2 of them for using
+no hints" is sayable. It also gives the player one number to watch instead of two,
+and prices anything added later in units that already exist rather than minting a
+third kind. `normalizeWallet` converts an old two-balance wallet at the price
+list, so the tokens are worth what they could have bought.
+
+The prices are §11.2's ladder made real, which two currencies could never express:
+**rule-out 1, hint 2, reveal 4.** Rule-out is cheapest because it reveals nothing
+a player could not derive mechanically.
+
+Five things it settled that the text below does not say:
 
 - **A hint that gives nothing away costs nothing.** The reducer already declined
   to count the "nothing is forced from here" answer in `hintsUsed`; the wallet
   charges on the same side of that line, via `selectHintIsChargeable`, asked
   *before* the action is dispatched. Spending is on the action, not the tap.
+- **The payout is watched, not reported.** `rewardForWin` returns a `total` **and
+  the steps that make it up**, and the balance in the counter row counts up one
+  reason at a time while the banner names each — *"Easy board +3", "3 lives left
+  +3", "No hints used +2"*. A player who never sees a bonus named has no reason to
+  play for it. The bonus for lives is **per life** rather than all-or-nothing so
+  that a nearly-clean board has something true to say.
 - **The win payout is idempotent per board.** `solved` is derived from `marks`, so
   it is a condition and not an event — undo/redo cross it freely and a restored
   save arrives already solved. `payOutWin` records *which* board it paid
-  (`size:seed`) rather than setting a flag someone would have to clear.
-- **The floor is a daily top-up**, raising each balance *to* two if it is below
+  (`size:seed`) rather than setting a flag someone would have to clear. With the
+  payout animated this stopped being only an accounting question: without it the
+  celebration replays every time the line is re-crossed.
+- **The floor is a daily top-up**, raising the balance *to* four if it is below
   (never adding), so idling is not an income and a player stranded at zero on a
   hard board always has a way forward. That is the answer to "can this game become
   unwinnable": no.
-- **A balance of zero looks different from a disabled button.** Running out draws
-  red and says "none left"; "nothing to rule out" and "the board is finished" dim
-  as before. Three reasons a button is dead, three readings.
+- **A price you cannot pay looks different from a disabled button.** The price and
+  the border go red; "nothing to rule out" and "the board is finished" dim as
+  before. Three reasons a button is dead, three readings. The **balance** is not
+  repeated on the buttons — it is one number in the counter row, where the payout
+  animation can count it up.
 
 **Decided.** **Hints and Rule out both become metered consumables.** "Auto fill" is
 the existing **Rule out** button (§2) — confirmed with the operator — and it is

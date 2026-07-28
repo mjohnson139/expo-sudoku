@@ -18,12 +18,8 @@ import FungikuMenuModal from './FungikuMenuModal';
 import FungikuOutOfLivesModal from './FungikuOutOfLivesModal';
 import FungikuWinBanner from './FungikuWinBanner';
 import { difficultyLabel } from './difficulty';
-import {
-  ASSIST_COSTS,
-  ASSIST_KINDS,
-  FungikuProvider,
-  useFungikuContext,
-} from './FungikuContext';
+import useCoinAward from './useCoinAward';
+import { COIN_COSTS, FungikuProvider, useFungikuContext } from './FungikuContext';
 
 // The accent Fungiku is identified by on the hub card; reused for the win banner
 // so winning looks like Fungiku rather than a generic green success box.
@@ -34,10 +30,17 @@ const FUNGIKU_ACCENT = '#a0522d';
 // like more chrome. Spent hearts fall back to the theme, hollow.
 const FUNGIKU_LIFE = '#d1495b';
 
-// An empty assist balance borrows the hearts' colour on purpose (plan §14.4).
-// The app now has two things that run out, and one of them was already taught to
-// the player in red; a second colour for the same idea would be a second idea.
+// A price you cannot pay borrows the hearts' colour on purpose (plan §14.4).
+// The app has two things that run out, and one of them was already taught to the
+// player in red; a second colour for the same idea would be a second idea.
 const FUNGIKU_EMPTY = FUNGIKU_LIFE;
+
+// Coins get their own gold rather than the theme's ink, for the same reason the
+// hearts do: a currency you can run out of should not look like more chrome.
+const FUNGIKU_COIN = '#c8952b';
+
+/** "1 coin" / "2 coins". Only ever read aloud, and only ever wrong at one. */
+const coinWord = (n) => `${n} coin${n === 1 ? '' : 's'}`;
 
 /**
  * Fungiku's screen — a peer of the Sudoku screen, reached from the hub
@@ -91,16 +94,22 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     dismissHint,
     canReveal,
     generating,
-    // The wallet (plan §14.4). `assists` is what is left across every board ever
+    // The wallet (plan §14.4). `coins` is what is left across every board ever
     // played; `hintsUsed` above is still what *this* board has cost. Both, on
     // purpose — earning is computed from the second.
-    assists,
+    coins,
     canAffordHint,
     canAffordReveal,
     canAffordRuleOut,
     lastReward,
-    grantAssists,
+    grantCoins,
   } = useFungikuContext();
+
+  // The payout animation (plan §14.4). It owns only how much of the win is still
+  // hidden; the number on screen is the real balance minus that, so a coin spent
+  // at any moment — including mid-animation — moves it without special cases.
+  const award = useCoinAward(lastReward);
+  const shownCoins = Math.max(0, coins - award.pending);
 
   const titleColor = theme.colors.title;
   const surface = theme.colors.numberPad.background;
@@ -173,10 +182,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
   // The gift/purchase seam (plan §14.4), behind the menu's developer constant.
   // Deliberately does *not* close the menu: the balance it changes is drawn a
   // line above the button, so the point of pressing it is seeing it move.
-  const giftAssists = () => {
-    grantAssists(ASSIST_KINDS.HINT, 5);
-    grantAssists(ASSIST_KINDS.RULE_OUT, 5);
-  };
+  const giftCoins = () => grantCoins(10);
 
   // The status line follows the state of play instead of always explaining the
   // input model. (Named `statusText`, not `hint` — `hint` is the hint object from
@@ -229,11 +235,11 @@ const FungikuScreenContent = ({ onExitToHub }) => {
         size={size}
         seed={seed}
         generating={generating}
-        assists={assists}
+        coins={coins}
         onPickDifficulty={pickDifficulty}
         onPickSize={pickSize}
         onPickSeed={pickSeed}
-        onGiftAssists={giftAssists}
+        onGiftCoins={giftCoins}
         onClose={closeMenu}
       />
 
@@ -297,6 +303,28 @@ const FungikuScreenContent = ({ onExitToHub }) => {
                 {mushroomCount}/{size}
               </Text>
             </View>
+
+            {/* The coin balance (plan §14.4). It lives here, in the row that is
+                always mounted and never changes height, for the same reason the
+                hearts and "Generating…" do: anything that mounts *above* the
+                board moves the board and invalidates the origin every tap is
+                resolved against.
+
+                This is the number the payout animation counts up. It is derived
+                — the real balance minus whatever the animation is still holding
+                back — so spending a coin moves it correctly even mid-celebration,
+                and there is no display copy to fall out of step. */}
+            <Animated.View
+              style={[styles.coins, { transform: [{ scale: award.pop }] }]}
+              accessible
+              accessibilityLabel={coinWord(shownCoins)}
+              // The payout is worth announcing: it is the one number on this
+              // screen that changes without the player touching anything.
+              accessibilityLiveRegion={award.done ? 'none' : 'polite'}
+            >
+              <MaterialCommunityIcons name="circle-multiple" size={16} color={FUNGIKU_COIN} />
+              <Text style={[styles.coinsText, { color: titleColor }]}>{shownCoins}</Text>
+            </Animated.View>
 
             {/* Lives (plan §14.3). Deliberately *inside* this box rather than in
                 a strip of its own: a view that mounts above the board moves the
@@ -369,12 +397,8 @@ const FungikuScreenContent = ({ onExitToHub }) => {
                 accessibilityState={{ disabled: !canAffordReveal }}
                 accessibilityLabel={
                   canAffordReveal
-                    ? `Reveal a mushroom, costs ${ASSIST_COSTS.REVEAL} hints, ${
-                        assists[ASSIST_KINDS.HINT]
-                      } left`
-                    : `Reveal a mushroom, costs ${ASSIST_COSTS.REVEAL} hints and you have ${
-                        assists[ASSIST_KINDS.HINT]
-                      }`
+                    ? `Reveal a mushroom, costs ${coinWord(COIN_COSTS.REVEAL)}, you have ${coins}`
+                    : `Reveal a mushroom, costs ${coinWord(COIN_COSTS.REVEAL)} and you have ${coins}`
                 }
               >
                 <Text
@@ -383,7 +407,22 @@ const FungikuScreenContent = ({ onExitToHub }) => {
                     { color: canAffordReveal ? titleColor : FUNGIKU_EMPTY },
                   ]}
                 >
-                  Reveal ({ASSIST_COSTS.REVEAL})
+                  Reveal
+                </Text>
+                <MaterialCommunityIcons
+                  name="circle-multiple-outline"
+                  size={11}
+                  color={canAffordReveal ? FUNGIKU_COIN : FUNGIKU_EMPTY}
+                  style={styles.hintActionCoin}
+                />
+                <Text
+                  style={[
+                    styles.hintActionText,
+                    styles.hintActionPrice,
+                    { color: canAffordReveal ? titleColor : FUNGIKU_EMPTY },
+                  ]}
+                >
+                  {COIN_COSTS.REVEAL}
                 </Text>
               </TouchableOpacity>
             )}
@@ -410,6 +449,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           seed={seed}
           accent={FUNGIKU_ACCENT}
           reward={lastReward}
+          award={award}
           onNextPuzzle={nextPuzzle}
         />
 
@@ -460,19 +500,21 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             onPress={ruleOut}
             // Nothing to mark: the board's answer, not the wallet's.
             idle={ruleOutCount === 0}
-            balance={assists[ASSIST_KINDS.RULE_OUT]}
+            cost={COIN_COSTS.RULE_OUT}
             affordable={canAffordRuleOut}
             theme={theme}
             accessibilityLabel={
               !canAffordRuleOut
-                ? 'Rule out, none left. Finish a board to earn more.'
+                ? `Rule out, costs ${coinWord(
+                    COIN_COSTS.RULE_OUT
+                  )} and you have ${coins}. Finish a board to earn more.`
                 : ruleOutCount === 0
                   ? 'Rule out, nothing to mark'
-                  : `Rule out ${ruleOutCount} cell${ruleOutCount === 1 ? '' : 's'}, ${
-                      assists[ASSIST_KINDS.RULE_OUT]
-                    } left`
+                  : `Rule out ${ruleOutCount} cell${ruleOutCount === 1 ? '' : 's'}, costs ${coinWord(
+                      COIN_COSTS.RULE_OUT
+                    )}`
             }
-            accessibilityHint="Marks every cell the mushrooms you have placed forbid. Costs one rule-out."
+            accessibilityHint="Marks every cell the mushrooms you have placed forbid"
           />
         </View>
 
@@ -491,17 +533,19 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             label={hintsUsed > 0 ? `Hint (${hintsUsed})` : 'Hint'}
             onPress={requestHint}
             idle={solved}
-            balance={assists[ASSIST_KINDS.HINT]}
+            cost={COIN_COSTS.HINT}
             affordable={canAffordHint}
             theme={theme}
             accessibilityLabel={
               !canAffordHint
-                ? 'Hint, none left. Finish a board to earn more.'
-                : `Hint, ${assists[ASSIST_KINDS.HINT]} left${
+                ? `Hint, costs ${coinWord(
+                    COIN_COSTS.HINT
+                  )} and you have ${coins}. Finish a board to earn more.`
+                : `Hint, costs ${coinWord(COIN_COSTS.HINT)}${
                     hintsUsed > 0 ? `, ${hintsUsed} used on this board` : ''
                   }`
             }
-            accessibilityHint="Gives the weakest hint that still helps. Costs one hint; saying nothing is forced is free."
+            accessibilityHint="Gives the weakest hint that still helps. Saying nothing is forced is free."
           />
         </View>
 
@@ -548,28 +592,28 @@ const FungikuScreenContent = ({ onExitToHub }) => {
 };
 
 /**
- * A metered assist: the action on the left, what is left of it on the right
+ * A priced assist: the action on the left, **what it costs** on the right
  * (plan §14.4).
+ *
+ * The button shows a *price*, not a balance — the balance is one number in the
+ * counter row above the board, where it is always visible and where the payout
+ * animation counts it up. Repeating it on every button would be three copies of
+ * one fact, and would leave nowhere to say the thing only the button knows.
  *
  * **Three reasons this button can be dead, and it has to say which.**
  *   - `idle` — the board has nothing for it to do (nothing to rule out, or the
- *     puzzle is finished). Dimmed, balance still shown in the normal ink.
- *   - `!affordable` — you have run out. **Not dimmed**: the balance goes red and
- *     the label says so, because a greyed-out button reads as "not now" and this
- *     one means "not until you earn more", which is a different instruction.
+ *     puzzle is finished). Dimmed, price in the normal ink.
+ *   - `!affordable` — you cannot pay. **Not dimmed**: the price and the border go
+ *     red, because a greyed-out button reads as "not now" and this one means
+ *     "not until you earn more", which is a different instruction.
  *   - neither — live.
- *
- * The balance sits inside the button rather than in the counter row above the
- * board, and that is deliberate: anything that mounts or changes height above the
- * board invalidates the origin every tap is resolved against (see FungikuBoard's
- * re-measure effect). Everything here is below the board and can never move it.
  */
 const AssistButton = ({
   icon,
   label,
   onPress,
   idle,
-  balance,
+  cost,
   affordable,
   theme,
   accessibilityLabel,
@@ -577,7 +621,7 @@ const AssistButton = ({
 }) => {
   const titleColor = theme.colors.title;
   const disabled = idle || !affordable;
-  const meterColor = affordable ? titleColor : FUNGIKU_EMPTY;
+  const priceColor = affordable ? titleColor : FUNGIKU_EMPTY;
 
   return (
     <TouchableOpacity
@@ -587,8 +631,9 @@ const AssistButton = ({
         styles.wideButton,
         styles.assistButton,
         { borderColor: affordable ? theme.colors.numberPad.border : FUNGIKU_EMPTY },
-        // Only the board's "nothing to do here" dims. Running out is a state the
-        // player has to be able to read, not one that fades into the background.
+        // Only the board's "nothing to do here" dims. Not being able to afford it
+        // is a state the player has to read, not one that fades into the
+        // background.
         idle && styles.toolButtonDisabled,
       ]}
       accessibilityRole="button"
@@ -601,17 +646,13 @@ const AssistButton = ({
         <Text style={[styles.buttonText, { color: titleColor }]}>{label}</Text>
       </View>
 
-      {/* What is left. In words when it is nothing, because "0" is a number a
-          player can read past and "none left" is not. */}
-      <View style={styles.assistMeter}>
+      <View style={styles.assistPrice}>
         <MaterialCommunityIcons
-          name={affordable ? 'circle-multiple-outline' : 'circle-off-outline'}
+          name="circle-multiple-outline"
           size={13}
-          color={meterColor}
+          color={affordable ? FUNGIKU_COIN : FUNGIKU_EMPTY}
         />
-        <Text style={[styles.assistMeterText, { color: meterColor }]}>
-          {affordable ? balance : 'none left'}
-        </Text>
+        <Text style={[styles.assistPriceText, { color: priceColor }]}>{cost}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -771,15 +812,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  assistMeter: {
+  assistPrice: {
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 10,
   },
-  assistMeterText: {
+  assistPriceText: {
     fontSize: 12,
     fontWeight: '700',
     marginLeft: 4,
+  },
+  coins: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  coinsText: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginLeft: 4,
+  },
+  hintActionCoin: {
+    marginLeft: 5,
+  },
+  hintActionPrice: {
+    marginLeft: 2,
   },
 });
 

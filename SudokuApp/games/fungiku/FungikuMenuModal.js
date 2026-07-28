@@ -47,11 +47,11 @@ const FungikuMenuModal = ({
   size,
   seed,
   generating,
-  assists,
+  coins,
   onPickDifficulty,
   onPickSize,
   onPickSeed,
-  onGiftAssists,
+  onGiftCoins,
   onClose,
 }) => {
   const [menuAnim] = useState(new Animated.Value(0));
@@ -218,17 +218,17 @@ const FungikuMenuModal = ({
                     boards first, which is why it sits with the other developer
                     controls rather than anywhere a player would find it. */}
                 <Text style={[styles.sectionLabel, { color: titleColor }]}>
-                  Assists ({assists.hint} hints · {assists.ruleOut} rule-outs)
+                  Coins ({coins})
                 </Text>
                 <TouchableOpacity
-                  onPress={onGiftAssists}
+                  onPress={onGiftCoins}
                   style={[styles.seedButton, styles.giftButton, { borderColor: border }]}
                   accessibilityRole="button"
-                  accessibilityLabel="Gift five of each assist"
+                  accessibilityLabel="Gift ten coins"
                   accessibilityHint="Stands in for a purchase; both are the same grant"
                 >
                   <MaterialCommunityIcons name="gift-outline" size={16} color={titleColor} />
-                  <Text style={[styles.seedButtonText, { color: titleColor }]}>Gift 5 of each</Text>
+                  <Text style={[styles.seedButtonText, { color: titleColor }]}>Gift 10 coins</Text>
                 </TouchableOpacity>
               </View>
             )}
