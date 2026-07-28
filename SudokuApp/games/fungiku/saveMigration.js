@@ -16,12 +16,14 @@
  * one — it describes a shape already on real devices.
  */
 import { difficultyForSize, isDifficulty } from './difficulty';
+import { MAX_LIVES } from './reducer';
 
 /**
  * v1 — `{size, seed, marks, showMistakes, hintsUsed}` (Steps 4-8).
  * v2 — v1 plus `difficulty`, the rung the player picked (Step 9).
+ * v3 — `showMistakes` dropped; `lives` and `mistakeCells` added (Step 10).
  */
-export const FUNGIKU_STORAGE_VERSION = 2;
+export const FUNGIKU_STORAGE_VERSION = 3;
 
 /**
  * v1 → v2: name the rung the saved board belongs to.
@@ -37,9 +39,34 @@ const v1ToV2 = (saved) => ({
   difficulty: difficultyForSize(saved.size),
 });
 
+/**
+ * v2 → v3: the correctness-feedback switch is gone, and a board now costs
+ * something to get wrong (plan §14.3).
+ *
+ * `showMistakes` is dropped rather than translated: there is nothing on the far
+ * side to translate it *to*. Correctness feedback stopped being a preference and
+ * became a rule of the game — always on, and priced.
+ *
+ * The board arrives with **a full complement of lives**. It is the only defensible
+ * choice: the marks in this save were made when guessing was free, so there is no
+ * record of what they would have cost, and inventing a debt for a player who
+ * simply updated the app would be worse than starting them level.
+ *
+ * `mistakeCells` starts empty for the same reason — the save carries no record of
+ * which marks were mistakes. Any *mushroom* in it that turns out to be wrong is
+ * still converted to a red X on load, but that happens in `buildPuzzleState`,
+ * which knows the solution; this module is pure and deliberately does not.
+ */
+const v2ToV3 = ({ showMistakes, ...rest }) => ({
+  ...rest,
+  lives: MAX_LIVES,
+  mistakeCells: [],
+});
+
 /** Keyed by the version each function upgrades *from*. */
 const MIGRATIONS = {
   1: v1ToV2,
+  2: v2ToV3,
 };
 
 /**
@@ -69,14 +96,20 @@ export const migrateFungikuSave = (saved) => {
     version += 1;
   }
 
-  // Belt and braces: a hand-edited or corrupt `difficulty` should not reach the
-  // menu as a rung that does not exist.
+  // Belt and braces: a hand-edited or corrupt field should not reach the game as
+  // a rung that does not exist, or as a life count the heart row cannot draw.
   return {
     ...current,
     _v: FUNGIKU_STORAGE_VERSION,
     difficulty: isDifficulty(current.difficulty)
       ? current.difficulty
       : difficultyForSize(current.size),
+    lives: Number.isFinite(current.lives)
+      ? Math.max(0, Math.min(MAX_LIVES, current.lives))
+      : MAX_LIVES,
+    mistakeCells: Array.isArray(current.mistakeCells)
+      ? current.mistakeCells.filter(Number.isInteger)
+      : [],
   };
 };
 

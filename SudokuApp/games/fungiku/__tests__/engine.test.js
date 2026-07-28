@@ -3,7 +3,6 @@ import {
   MAX_SIZE,
   MIN_SIZE,
   SIZES,
-  nextMark,
   createRng,
   generate,
   findSolutions,
@@ -85,18 +84,6 @@ const marksFromSolution = (puzzle) => {
   });
   return marks;
 };
-
-describe('nextMark', () => {
-  it('cycles empty -> X -> mushroom -> empty (plan §2)', () => {
-    expect(nextMark(MARKS.EMPTY)).toBe(MARKS.X);
-    expect(nextMark(MARKS.X)).toBe(MARKS.MUSHROOM);
-    expect(nextMark(MARKS.MUSHROOM)).toBe(MARKS.EMPTY);
-  });
-
-  it('treats an unknown mark as empty so the first tap gives X', () => {
-    expect(nextMark(undefined)).toBe(MARKS.X);
-  });
-});
 
 describe('createRng', () => {
   it('is deterministic for a given seed', () => {
