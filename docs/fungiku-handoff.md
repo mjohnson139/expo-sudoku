@@ -220,20 +220,6 @@ pass**.
    Decided metered, but rule-out saves tedium rather than insight. Worth
    re-checking after a family play session — **and it lands in Step 11**, so this
    is the moment it stops being hypothetical.
-11. **Is a 320 ms double-tap window right for a child?** — the first device pass
-    said tapping was unpredictable; that turned out to be the 6px tap-vs-drag
-    threshold rather than the window, and the second pass with it fixed was
-    "working fine". The window itself is still untuned.
-    Original note: — **new, and a device
-    question.** `DOUBLE_TAP_MS` in `games/fungiku/FungikuBoard.js`. Set longer
-    than a platform double-tap (~250 ms) on purpose: a small finger is slower, and
-    the cost of being generous is one extra tap while the cost of being strict is
-    a mushroom that "won't go in". No browser can answer it — a mouse click and a
-    finger on glass are not the same gesture.
-12. **Should the red ✕ left by a wrong guess be erasable?** — **new.** It ships as
-    an ordinary ✕ (plan §14.3 says so explicitly), consistent with rule-out and
-    hint marks, so a later tap clears it — which also lets a player erase the
-    record of their own mistake. Revisit if it reads wrong in play.
 9. ~~**Does a rung that spans two sizes read as inconsistent?**~~ — **approved on
    device, 2026-07-26.** Easy hands out 5×5 or 6×6 and Hard 8×8 or 9×9, picked
    from the seed, so two Easy games in a row can be different sizes. The operator
@@ -243,6 +229,23 @@ pass**.
 10. ~~**Should the difficulty menu open on arrival?**~~ — **approved on device,
     2026-07-26.** It opens when there is nothing to continue (matching Sudoku) and
     never interrupts a restored or in-progress board. Revisit only if it annoys.
+11. ~~**Does the double-tap work on a device?**~~ — **approved on device,
+    2026-07-28, after two rounds.** The first pass reported tapping as
+    "very unpredictable"; the cause was **not** the double-tap window but the 6px
+    tap-vs-drag threshold, which turned any wobbly tap into a stroke and broke the
+    pairing (see the note above). With that fixed the operator's verdict was
+    "working fine". **`DOUBLE_TAP_MS` (320 ms) is still untuned** — it is set
+    longer than a platform double-tap on purpose, because a small finger is
+    slower. Watch for a mushroom that "won't go in"; no browser can answer it.
+12. **Should the red ✕ left by a wrong guess be erasable?** It ships as an ordinary
+    ✕ (plan §14.3 says so explicitly), consistent with rule-out and hint marks, so
+    a later tap clears it — which also lets a player erase the record of their own
+    mistake. Revisit if it reads wrong in play.
+13. **Is a full wipe the right price for running out of lives?** — **asked and
+    answered once, 2026-07-28: keep it as §14.3 specifies.** Every mark goes, the
+    ✕ deductions included, and the operator chose that over keeping them. The
+    dialog is what makes it survivable — it says the puzzle is the same one before
+    the board clears. Worth re-asking after a child has hit it.
 
 ### Noted in passing, for a later step
 
@@ -487,7 +490,7 @@ pass**.
 | 7 | Feedback & hints — mistake flagging, forced-deduction nudge, reveal, placement pop | merged to `epic/fungiku` (#73, `12f72c3`) |
 | 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds, board lines redrawn as a snapped overlay | merged to `epic/fungiku` (#75, `d4d2018`), operator-tested on device |
 | 9 | Difficulty menu — rungs mapped into `SIZES` by *share*, size-from-seed, menu modal built to Sudoku's, free play + seed behind one constant, real v1→v2 save migration, difficulty in the header rather than a banner, hub badge names the rung | merged to `epic/fungiku` (#77, `02fcdf1`), operator-tested on device |
-| 10 | Lives & mistakes — tap ✕ / double-tap 🍄 replacing the cycle, wrong mushroom flagged immediately as a red ✕ costing one of three lives, zero lives restarts the same board *behind a dialog*, undo never refunds, "Show mistakes" deleted, v2→v3 migration, conflict rendering **removed** | **this step** (#79) — device-tested twice, two rounds of fixes |
+| 10 | Lives & mistakes — tap ✕ / double-tap 🍄 replacing the cycle, wrong mushroom flagged immediately as a red ✕ costing one of three lives and announced on three channels, zero lives leaves the losing board up behind a dialog until the player restarts it, undo never refunds, "Show mistakes" deleted, v2→v3 migration, conflict rendering **removed** | merged to `epic/fungiku` (#79), operator-tested on device |
 
 ## Steps still to come
 
