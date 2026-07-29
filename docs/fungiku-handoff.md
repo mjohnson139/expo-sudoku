@@ -313,13 +313,20 @@ explicitly whether the epic is ready to merge to `main`.
   saying where a region ends. This was the operator's design call, not a
   simplification — but §8 #16 carries the question, and `corners` in
   `utils/symbolSets.js` is still available as a third channel.
-- **The board is almost never the width it was offered.** A cell is a whole
-  number of pixels, so 324 at 7×7 is a 322pt board. The counter row is
-  width-matched to the board — matching it to the *allowance* left it two pixels
-  proud on each side, which on device read as *"the border is cut off on the
-  sides"*. **`boardExtent(available, size)` in `geometry.js` is the one place that
-  remainder is worked out**, and anything claiming to be board-width must take it
-  from there. Plan §12.6.
+- **The board is almost never the width it was offered, and the card is not the
+  board.** Two separate remainders both read on device as *"the border is cut off
+  on the sides"*: a cell is a whole number of pixels, so 324 at 7×7 is a 322pt
+  board (and the counter row was matched to 324); and the only thing outside an
+  edge tile was its own half-gap, about a pixel at 10×10, so the outer columns
+  looked shaved. **`boardExtent(available, size)` in `geometry.js` works out both**
+  and returns `pad` / `cell` / `board` / `outer`. `board` and `outer` are
+  different numbers — the board is the tiles' bounding box and the touch geometry,
+  the card is what the player reads as the edge, and **the counter row lines up
+  with the card**. Plan §12.6.
+- **The card is a parent, never padding on the board.** The board's box is the
+  touch geometry and may not carry padding or a border; a parent that does is fine
+  because `measureInWindow` reads the board's own position and already accounts
+  for it. If you ever need to inset the board, inset its parent.
 
 - **One currency, and the reason is a sentence that could not be written.** The
   first cut of Step 11 had two token kinds, and the win banner read

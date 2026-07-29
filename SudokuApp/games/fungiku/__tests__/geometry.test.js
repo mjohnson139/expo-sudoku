@@ -141,21 +141,29 @@ describe('cellsAlongLine', () => {
 describe('boardExtent', () => {
   it('gives whole-pixel cells and a board that is exactly their sum', () => {
     for (let size = 5; size <= 10; size++) {
-      const { cell, board } = boardExtent(324, size);
+      const { pad, cell, board, outer } = boardExtent(324, size);
 
       expect(Number.isInteger(cell)).toBe(true);
       expect(board).toBe(cell * size);
-      expect(board).toBeLessThanOrEqual(324);
+      expect(outer).toBe(board + 2 * pad);
+      // The whole card has to fit in what it was given.
+      expect(outer).toBeLessThanOrEqual(324);
     }
   });
 
-  it('is narrower than the allowance whenever the division is not exact', () => {
-    // 324/7 = 46.28…, so the board is 322 and anything matched to 324 sits two
-    // pixels proud on each side.
-    expect(boardExtent(324, 7)).toEqual({ cell: 46, board: 322 });
-    expect(boardExtent(324, 5)).toEqual({ cell: 64, board: 320 });
-    // And exact when it divides.
-    expect(boardExtent(320, 5)).toEqual({ cell: 64, board: 320 });
+  it('keeps the card the same width across board sizes', () => {
+    // The card comes off the available width, so switching 5x5 -> 10x10 does not
+    // resize the frame around the board.
+    const widths = [5, 6, 7, 8, 9, 10].map((size) => boardExtent(324, size).pad);
+    expect(new Set(widths).size).toBe(1);
+  });
+
+  it('always leaves a band of gutter around the outside', () => {
+    // The bug this fixes: without it, the only thing outside an edge tile was
+    // its own half-gap, which at 10x10 is about a pixel.
+    for (let size = 5; size <= 10; size++) {
+      expect(boardExtent(324, size).pad).toBeGreaterThanOrEqual(3);
+    }
   });
 
   it('refuses nonsense rather than returning a NaN width', () => {
@@ -166,7 +174,7 @@ describe('boardExtent', () => {
       [NaN, 5],
       [324, NaN],
     ].forEach(([available, size]) => {
-      expect(boardExtent(available, size)).toEqual({ cell: 0, board: 0 });
+      expect(boardExtent(available, size)).toEqual({ pad: 0, cell: 0, board: 0, outer: 0 });
     });
   });
 });

@@ -108,7 +108,7 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   const hintCells = useMemo(() => new Set(hint?.cells || []), [hint]);
 
   const available = useBoardSize();
-  const { cell } = boardExtent(available, size);
+  const { pad, cell } = boardExtent(available, size);
   const glyph = Math.round(cell * 0.62);
 
   // --- separated tiles (operator request, 2026-07-29) -----------------------
@@ -133,10 +133,18 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   const inset = PixelRatio.roundToNearestPixel(gap / 2);
   const radius = Math.max(3, Math.round(cell * 0.16));
 
-  // What shows *through* the gaps. It is the board's own background rather than
-  // a wrapper, because the board's box is the touch geometry — `cellFromPoint`
-  // resolves every tap against this origin, so nothing may add padding or a
-  // border here. A background colour and a corner radius change no layout at all.
+  // What shows *through* the gaps, and the band around the outside of them.
+  //
+  // It is a **card the board sits inside**, not a background on the board
+  // itself. The board's box is the touch geometry — `cellFromPoint` resolves
+  // every tap against its origin — so it may never carry padding. A parent that
+  // does is fine: `measureInWindow` reads the board's own position, which
+  // already accounts for the card's padding, so the touch path is untouched.
+  //
+  // The card exists because the board's own background was not enough: the only
+  // thing outside the edge tiles was their half-gap, which at 10×10 is about a
+  // pixel, so the outer columns looked shaved while the interior ones did not.
+  // `pad` is a band of gutter wide enough to read as a frame at every size.
   //
   // **It cannot just be the page**, which is what the first version left showing:
   // the dark palette's palest fill is a dark tint, and against a dark page those
@@ -495,27 +503,33 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   }, [solved, winLift]);
 
   return (
+    // The card. It carries the gutter, the rounded frame, the padding that keeps
+    // the edge tiles off the edge, and the win lift — everything *except* the
+    // touch box, which is its child.
     <Animated.View
-      ref={boardRef}
-      onLayout={onLayout}
       // While a big board generates, the board on screen is the *previous*
       // puzzle and is about to be replaced. Marks made on it would vanish.
       pointerEvents={generating ? 'none' : 'auto'}
-      {...responder.panHandlers}
       style={[
-        styles.board,
+        styles.card,
         {
-          width: cell * size,
-          height: cell * size,
+          padding: pad,
           backgroundColor: gutter,
-          // Rounds the board's outer corners to match the tiles inside it. Like
-          // the background, this is paint and not layout.
-          borderRadius: radius + inset,
+          borderRadius: radius + pad,
           transform: [
             { scale: winLift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] }) },
           ],
         },
       ]}
+    >
+    {/* The touch box: exactly the tiles' bounding box, no padding, no border.
+        This is what `measureInWindow` reads and what every tap is resolved
+        against, and it must stay exactly `cell × size`. */}
+    <View
+      ref={boardRef}
+      onLayout={onLayout}
+      {...responder.panHandlers}
+      style={{ width: cell * size, height: cell * size }}
     >
       {Array.from({ length: size }, (_, row) => (
         <View key={row} style={styles.row}>
@@ -649,12 +663,13 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
           })}
         </View>
       ))}
+    </View>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  board: {
+  card: {
     alignSelf: 'center',
   },
   row: {

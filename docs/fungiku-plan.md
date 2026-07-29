@@ -959,10 +959,24 @@ fix), but it was matched to the **allowance**: 324. Two pixels proud on each sid
 at every size where the division is not exact, which is most of them. On device
 that reads as the board's frame being clipped by the box above it.
 
-`boardExtent(available, size)` in `games/fungiku/geometry.js` is now the one place
-that remainder is worked out, and both the board and the counter row take their
-width from it. It is pure and tested, in both directions: whole-pixel cells whose
-sum *is* the board, and the specific 324/7 = 322 case that was wrong.
+**And there was a second one, in the tiles.** The only thing outside an edge tile
+was its own half-gap — half the space between two interior tiles. At 10×10 that is
+about a pixel, so the outer columns looked shaved while the interior ones did not,
+which is what the second device report was about. The board now sits inside a
+**card**: a band of gutter, `pad`, wide enough to read as a frame at every size.
+
+`boardExtent(available, size)` in `games/fungiku/geometry.js` is the one place
+both are worked out. It returns `pad`, `cell`, `board` and `outer` — and `board`
+and `outer` are **not the same number**: the board is the tiles' bounding box and
+the touch geometry, the card is what the player reads as the board's edge, and the
+counter row lines up with the *card*. `pad` comes off the available width rather
+than the cell, which would be circular and would also resize the frame every time
+the board size changed.
+
+**The card is a parent, never padding on the board.** The board's box is the touch
+geometry and may not carry padding or a border — but a parent that does is fine,
+because `measureInWindow` reads the board's own position and that already accounts
+for it. Verified by tapping cell centres at 5×5 and 10×10, corner included.
 
 **Anything else that ever claims to be board-width must come from there too.**
 

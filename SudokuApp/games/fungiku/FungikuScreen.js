@@ -118,8 +118,10 @@ const FungikuScreenContent = ({ onExitToHub }) => {
   const award = useCoinAward(lastReward);
   const shownCoins = Math.max(0, coins - award.pending);
 
-  // The board's true width — see the note on `available` above.
-  const { board: boardWidth } = boardExtent(available, size);
+  // The card's outer width — see the note on `available` above. Not the board's:
+  // the card is the board plus its gutter band, and the card is what the player
+  // sees as the board's edge, so that is what the row must line up with.
+  const { outer: boardWidth } = boardExtent(available, size);
 
   const titleColor = theme.colors.title;
   const surface = theme.colors.numberPad.background;

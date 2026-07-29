@@ -10,26 +10,42 @@
  */
 
 /**
- * How big a board really is, given the room available.
+ * How the room available for a board is divided up.
  *
- * A cell is a **whole number of pixels** — `Math.floor` — so a 324pt allowance at
- * 7×7 gives 46pt cells and a board 322pt wide, not 324. That two-pixel remainder
- * is why this exists: the counter row above the board is width-matched to it, and
- * matching it to the *allowance* rather than to the board left the row a couple of
- * pixels wider on each side. On device that reads as the board's frame being cut
- * off at the edges — the row's border sits outside the board's.
+ * Two things come out of one calculation, because they constrain each other:
  *
- * Both the board and anything claiming to be board-width must take their width
- * from here, or they disagree by a remainder that changes with every size.
+ * - **`pad`** — the card's margin, the band of gutter around the outside of the
+ *   tiles. Derived from the *available width* rather than from the cell, which
+ *   would be circular (the cell size depends on how much the padding leaves).
+ *   Taking it from the available width also means the card is the same width at
+ *   every board size, so switching 5×5 → 10×10 does not resize the frame.
+ * - **`cell`** — a **whole number of pixels** (`Math.floor`) out of what is left.
  *
- * @param {number} available - px the layout is willing to give the board
+ * Both remainders have shown up on device as *"the border is cut off on the
+ * sides"*:
+ *
+ * 1. A cell of `Math.floor(324 / 7)` = 46 makes a **322pt board**, not 324. The
+ *    counter row above is width-matched to the board, and matching it to the
+ *    *allowance* left it two pixels proud on each side.
+ * 2. Without `pad`, the only thing outside the edge tiles was their own half-gap
+ *    — half the space between two interior tiles. At 10×10 that is about a pixel,
+ *    so the outer columns looked shaved while the interior ones did not.
+ *
+ * **Anything that claims to be board-width takes `outer` from here**, and the
+ * board itself is `board` — they are not the same number.
+ *
+ * @param {number} available - px the layout is willing to give the whole card
  * @param {number} size - board size N
- * @returns {{cell: number, board: number}} px per cell, and the true board width
+ * @returns {{pad: number, cell: number, board: number, outer: number}}
  */
 export const boardExtent = (available, size) => {
-  if (!(available > 0) || !(size > 0)) return { cell: 0, board: 0 };
-  const cell = Math.floor(available / size);
-  return { cell, board: cell * size };
+  if (!(available > 0) || !(size > 0)) return { pad: 0, cell: 0, board: 0, outer: 0 };
+
+  const pad = Math.max(3, Math.min(8, Math.round(available * 0.015)));
+  const cell = Math.max(0, Math.floor((available - 2 * pad) / size));
+  const board = cell * size;
+
+  return { pad, cell, board, outer: board + 2 * pad };
 };
 
 /**
