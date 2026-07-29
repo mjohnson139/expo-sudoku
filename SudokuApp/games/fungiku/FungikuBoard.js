@@ -328,6 +328,80 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     });
   }, [marks, popValues]);
 
+  // --- the hint converges on its cell (plan §12.9) --------------------------
+  //
+  // A hint used to be a dashed outline that simply *appeared*. On a 10×10 board
+  // that is a 2px change on one of a hundred tiles, and the operator's report was
+  // that the hint was not helpful — partly because it pointed at a whole region,
+  // and partly because there was nothing to make the eye go there at all. Their
+  // words: *"it should animate to the cell and show the hint."*
+  //
+  // So a ring starts well outside the cell and **closes onto it**, twice. Motion
+  // toward a point is what the eye follows; a thing that fades in where you are
+  // not looking is not. The dashed outline stays as the marker that persists
+  // after the motion is over — the ring says *look here*, the outline says
+  // *this one*.
+  //
+  // One value for however many cells a hint names (today: one). Every cell reads
+  // the same progress at once and none of them re-points it, which is the same
+  // shape as the win wave and not the per-cell rule this file's other animations
+  // follow.
+  const hintPulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!hint || !hint.cells || hint.cells.length === 0) return undefined;
+
+    // Stop anything still running before restarting: asking for a second hint
+    // while the first is mid-flight would otherwise leave two animations on one
+    // value.
+    hintPulse.stopAnimation();
+
+    // **Written out, rather than `Animated.loop({iterations: 2})` — and the
+    // reason is a trap worth keeping.** `loop`'s `resetBeforeIteration` resets by
+    // calling `resetAnimation()`, which snaps the value back to the one it was
+    // **constructed** with, not to the start of the animation being looped. This
+    // value is constructed at 1 because 1 is its *resting* pose (converged,
+    // fully transparent) — so `loop` reset it to 1 and then animated it from 1
+    // to 1. Both iterations ran, ~75 frames of nothing, no error and no warning:
+    // the ring simply never appeared. A zero-duration timing is the honest way
+    // to say "start wide again", and unlike `setValue` it stops with the
+    // sequence.
+    const converge = () =>
+      Animated.sequence([
+        Animated.timing(hintPulse, { toValue: 0, duration: 0, useNativeDriver: false }),
+        Animated.timing(hintPulse, {
+          toValue: 1,
+          duration: 620,
+          // **Not `out`.** An ease-out spends almost all of its progress in the
+          // first frames, which put the ring at the cell within 150 ms — the
+          // motion was over before the eye could follow it, which is the whole
+          // job. `inOut` holds it wide for a beat, travels visibly, and settles.
+          easing: Easing.inOut(Easing.quad),
+          // JS driver, because this value is `setValue`d on the way out — plan
+          // §2's rule is that the two must never be mixed on one value.
+          useNativeDriver: false,
+        }),
+      ]);
+
+    // Twice, not forever. A hint that pulses until dismissed becomes something
+    // to ignore, and it would keep a JS-driven animation running for as long as
+    // the player is thinking.
+    const animation = Animated.sequence([converge(), converge()]);
+
+    animation.start(() => {
+      // An explicit rest. Whatever interrupts it, a ring frozen part-way across
+      // the board is a permanent visual defect rather than a glitch.
+      hintPulse.setValue(1);
+    });
+
+    return () => {
+      animation.stop();
+      hintPulse.setValue(1);
+    };
+    // `hint` is a fresh object per request, so asking twice for the same cell
+    // re-fires rather than doing nothing.
+  }, [hint, hintPulse]);
+
   // Re-measure whenever something *above* the board appears or disappears.
   //
   // `onLayout` is not enough: on web it is backed by a ResizeObserver, which
@@ -774,17 +848,50 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                     corner radius, or it would read as a square badge sitting on
                     a rounded tile. */}
                 {hintCells.has(index) && (
-                  <View
-                    style={[
-                      styles.hintOutline,
-                      {
-                        width: cell - gap - 3,
-                        height: cell - gap - 3,
-                        borderRadius: Math.max(2, radius - 2),
-                        borderColor: entry.ink,
-                      },
-                    ]}
-                  />
+                  <>
+                    {/* The ring that closes onto the cell (plan §12.9). It starts
+                        nearly three cells wide and shrinks onto this one, twice,
+                        then leaves. Drawn *under* nothing and over nothing that
+                        matters — it is `pointerEvents="none"` by virtue of being
+                        a plain View inside a cell the board's own responder owns,
+                        so it cannot intercept a tap on the cell it is pointing
+                        at. */}
+                    <Animated.View
+                      style={[
+                        styles.hintPulse,
+                        {
+                          width: cell - gap,
+                          height: cell - gap,
+                          borderRadius: Math.max(2, radius),
+                          borderColor: entry.ink,
+                          opacity: hintPulse.interpolate({
+                            inputRange: [0, 0.12, 0.55, 0.78, 1],
+                            outputRange: [0, 0.95, 0.9, 0.45, 0],
+                          }),
+                          transform: [
+                            {
+                              scale: hintPulse.interpolate({
+                                inputRange: [0, 0.55, 1],
+                                outputRange: [2.8, 1, 1],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    />
+
+                    <View
+                      style={[
+                        styles.hintOutline,
+                        {
+                          width: cell - gap - 3,
+                          height: cell - gap - 3,
+                          borderRadius: Math.max(2, radius - 2),
+                          borderColor: entry.ink,
+                        },
+                      ]}
+                    />
+                  </>
                 )}
 
                 {mark === MARKS.MUSHROOM && (
@@ -880,6 +987,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderStyle: 'dashed',
     opacity: 0.9,
+  },
+  hintPulse: {
+    position: 'absolute',
+    borderWidth: 2,
   },
 });
 

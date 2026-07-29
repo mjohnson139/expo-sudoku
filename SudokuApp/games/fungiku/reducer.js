@@ -480,10 +480,27 @@ export function fungikuReducer(state, action) {
     /**
      * One hint, as weak as will still help (plan §11.2). The cascade matters:
      *
-     * 1. Nudge: name the row, column or region where something is forced,
-     *    *without* saying which cell. That is the hint that teaches.
+     * 1. Nudge: point at **the cell** where something is forced, and say the
+     *    reason it is forced.
      * 2. Nothing forced from here — **say so** rather than quietly revealing.
      *    The reveal is a second, deliberate tap.
+     *
+     * ### The nudge used to highlight the whole group, and it was unhelpful
+     *
+     * It named the row/column/region and outlined *every* cell in it, on the
+     * theory that making the player find the cell themselves is the version that
+     * teaches. On device that produced a message reading **"One color region has
+     * only one cell left that can hold a mushroom"** next to **seven outlined
+     * cells** — the words say *one* and the board says *seven*, so the hint
+     * contradicted itself and the player still had to do the search the hint was
+     * bought to shortcut. The operator's verdict: *"this hint isn't helpful, it
+     * should highlight the specific cell."* (plan §12.9)
+     *
+     * **The teaching survives in the message, not in the search.** The hint still
+     * says *why* — which row, column or region forces it — so the player learns
+     * the deduction; what it no longer does is make them re-derive the answer it
+     * already knows. And it is still not a reveal: the mushroom is not placed,
+     * and committing it is a deliberate double-tap the player makes themselves.
      *
      * There used to be a rung above both of these — "one of your mushrooms is in
      * the wrong place" — and it is gone rather than dormant. Since §14.3 a wrong
@@ -498,9 +515,11 @@ export function fungikuReducer(state, action) {
           hintsUsed: state.hintsUsed + 1,
           hint: {
             kind: HINT_KINDS.NUDGE,
-            // The whole row/column/region, deliberately — not `forced.cell`.
-            cells: [...cellsOfGroup(forced, state.regions, state.size)],
-            message: `${describeGroup(forced)} has only one cell left that can hold a mushroom.`,
+            // **The cell, not the group.** `findForcedDeduction` has always
+            // known it — the old code threw it away and highlighted
+            // `cellsOfGroup` instead.
+            cells: [forced.cell],
+            message: `${describeGroup(forced)} has only one cell left that can hold a mushroom — this one.`,
           },
         };
       }
@@ -724,24 +743,20 @@ export const selectRevealCell = (state) => {
   return -1;
 };
 
-/** Every cell of the row/column/region a nudge points at. */
-const cellsOfGroup = ({ kind, index }, regions, size) => {
-  if (kind === 'row') return Array.from({ length: size }, (_, col) => index * size + col);
-  if (kind === 'column') return Array.from({ length: size }, (_, row) => row * size + index);
-
-  const cells = [];
-  regions.forEach((region, cell) => {
-    if (region === index) cells.push(cell);
-  });
-  return cells;
-};
-
-/** How a nudge names the group it is pointing at, in the player's terms. */
+/**
+ * How a nudge names the *reason* it is pointing where it is.
+ *
+ * This is the whole of what survived the change from highlighting a group to
+ * highlighting a cell (plan §12.9): the board says **where**, and this says
+ * **why**. A hint that only pointed would be a cheap reveal; a hint that only
+ * explained was the one the operator called unhelpful.
+ */
 const describeGroup = ({ kind, index }) => {
   if (kind === 'row') return `Row ${index + 1}`;
   if (kind === 'column') return `Column ${index + 1}`;
-  // Regions have no number the player can see — the highlight does the pointing.
-  return 'One color region';
+  // Regions have no number the player can see — the colour is the name, and the
+  // highlighted cell is in it.
+  return 'This colour region';
 };
 
 export default fungikuReducer;

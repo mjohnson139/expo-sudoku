@@ -372,10 +372,14 @@ explicitly whether the epic is ready to merge to `main`.
     ✕ deductions included, and the operator chose that over keeping them. The
     dialog is what makes it survivable — it says the puzzle is the same one before
     the board clears. Worth re-asking after a child has hit it.
-14. **Are the coin rates right?** (plan §14.4) **Every number in
-    `games/fungiku/wallet.js` is a guess**, drafted to be playable rather than
-    balanced, and they are gathered at the top of that file so tuning is editing
-    one block. Start 10 coins; rule-out 1, hint 2, reveal 4; a win pays a base by
+14. **Are the coin rates right?** (plan §14.4, §12.9) **The prices are now the
+    operator's** — rule-out 1, **hint 5, reveal 20** (2026-07-29) — but **the
+    earning side is still the original guess**, and the two have not been played
+    against each other. A win pays 3–8 plus bonuses, so a reveal is two or three
+    whole boards' work and a brand-new wallet (10 coins) cannot buy one at all.
+    That may be exactly the intent; it is a play question. `DAILY_FLOOR_COINS`
+    now derives from the hint price so the floor still buys *something that
+    helps*. Start 10 coins; rule-out 1, hint 5, reveal 20; a win pays a base by
     rung (Easy 3 → Expert 8) plus 1 per life still standing and 2 for asking for
     no hints; a daily floor raises the balance *to* 4 if it has fallen below. The
     questions a session answers: does an Easy board pay enough to keep playing,
@@ -402,6 +406,38 @@ explicitly whether the epic is ready to merge to `main`.
     if it does not.
 
 ### Noted in passing, for a later step
+
+- **`Animated.loop({iterations: n})` resets to the value's *construction* value,
+  not to the animation's start.** `resetBeforeIteration` calls `resetAnimation()`,
+  which snaps back to `_startingValue`. If your value is constructed at its
+  **resting** pose — which every animation in this codebase does, so nothing is
+  ever stranded — then `loop` resets it to the rest and animates from rest to
+  rest. **No error, no warning, ~75 frames of nothing.** The hint ring hit this
+  and simply never appeared. Write repeats out as an `Animated.sequence` with a
+  zero-duration timing for the reset (it stops with the sequence; `setValue` does
+  not). Plan §12.9.
+- **`Easing.out` on a short attention animation is too fast to watch.** An
+  ease-out spends nearly all its progress in the first frames: the hint ring
+  reached its cell inside 150 ms, so the motion was over before an eye could
+  follow it — which was the entire point of the motion. `inOut` is what makes
+  travel legible. Measure the frame count above the threshold you care about;
+  a screenshot cannot tell you this.
+- **A hint's teaching lives in its *message*, not in making the player search.**
+  The nudge used to outline the whole row/column/region and say "only one cell
+  can hold a mushroom" — words saying *one*, board showing *seven*. It now names
+  the cell and still says why. **It is one line of reducer away from being a
+  reveal at a quarter of the price**, so there is a test asserting a nudge does
+  not place a mushroom. Do not delete it.
+- **`DAILY_FLOOR_COINS` is `COIN_COSTS.HINT`, deliberately derived.** The floor's
+  whole claim is that the game cannot become unwinnable, and a floor that clears
+  the rule-out price but not the hint price does not keep it — a stranded player
+  needs to be told something, not to have tedium saved. **Any reprice of hints
+  moves the floor with it.** A conscious decision to decouple them is fine; a
+  stale constant is not.
+- **The earn rates are now the loudest open question.** Prices went to 1 / 5 / 20
+  (operator, plan §12.9) and `WIN_BASE` was left at 3–8, so a reveal is two or
+  three boards' work and a new wallet cannot afford one. That may be the point.
+  It is a play question — §8 #14.
 
 - **Nothing sits between the counter row and the board any more, and the rule
   that produced so many workarounds is gone with it** (plan §12.8). The hint
@@ -835,7 +871,7 @@ explicitly whether the epic is ready to merge to `main`.
 | 9 | Difficulty menu — rungs mapped into `SIZES` by *share*, size-from-seed, menu modal built to Sudoku's, free play + seed behind one constant, real v1→v2 save migration, difficulty in the header rather than a banner, hub badge names the rung | merged to `epic/fungiku` (#77, `02fcdf1`), operator-tested on device |
 | 10 | Lives & mistakes — tap ✕ / double-tap 🍄 replacing the cycle, wrong mushroom flagged immediately as a red ✕ costing one of three lives and announced on three channels, zero lives leaves the losing board up behind a dialog until the player restarts it, undo never refunds, "Show mistakes" deleted, v2→v3 migration, conflict rendering **removed** | merged to `epic/fungiku` (#79), operator-tested on device |
 | 11 | Earned assists — **coins**, one currency, in a wallet under **its own key** (`@FungikuWallet`, no save-version bump); hints and rule-out priced off it (1 / 2 / 4, §11.2's ladder); the "nothing is forced" answer left free; a win **narrated** — the balance counts up one reason at a time — and paid **exactly once per board** across undo/redo/reload; a daily floor so the game cannot become unwinnable; an unaffordable price drawn differently from a disabled button; gift/purchase seam behind `SHOW_DEVELOPER_CONTROLS`; the board redrawn as separated tiles | merged to `epic/fungiku` (#80, `5836b87`) — **device pass not recorded; fold it into Step 13's play-through** |
-| 12 | Art swap — **answered with motion, not artwork** (§12.7). The operator kept the glyph, so the step made the seam true (the board asks `Symbol` for `MUSHROOM_VALUE` instead of naming an icon), grew the placement pop into a **sprout** — the mushroom rises into the cell tilted and squashed and stretches upright, four interpolations of the one spring — and added a **win wave**: every mushroom hops in an anti-diagonal ripple, one shared native-driven value, windows in a pure `celebration.js`. **Device pass passed the animations and rejected the banners** (§12.8): both used to push the board down, so the win became a **dialog** and the hint a **floating overlay**, and nothing sits above the board any more | **awaiting a second device pass on the overlays** |
+| 12 | Art swap — **answered with motion, not artwork** (§12.7). The operator kept the glyph, so the step made the seam true (the board asks `Symbol` for `MUSHROOM_VALUE` instead of naming an icon), grew the placement pop into a **sprout** — the mushroom rises into the cell tilted and squashed and stretches upright, four interpolations of the one spring — and added a **win wave**: every mushroom hops in an anti-diagonal ripple, one shared native-driven value, windows in a pure `celebration.js`. **Device pass passed the animations and rejected the banners** (§12.8): both used to push the board down, so the win became a **dialog** and the hint a **floating overlay**, and nothing sits above the board any more. **Third round** (§12.9): the nudge points at **the one forced cell** instead of outlining its whole group, a ring **converges onto that cell** so the eye is taken there, and the operator's prices land — rule-out 1, **hint 5, reveal 20**, with `DAILY_FLOOR_COINS` derived from the hint price so the floor still buys help | **awaiting a device pass on the overlays, the hint ring and the new prices** |
 
 ## Steps still to come
 

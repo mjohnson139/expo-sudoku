@@ -21,12 +21,39 @@ import { DIFFICULTY_IDS, difficultyLabel } from '../difficulty';
 /** A wallet holding exactly this many coins, and nothing else interesting. */
 const walletWith = (coins) => ({ ...createWallet(), coins });
 
+describe('the price list', () => {
+  // The operator set these on 2026-07-29: "hints should cost 20 coins if we are
+  // revealing a mushroom and 5 if it's a simple thing" (plan §12.9). Pinned as
+  // numbers rather than only as relationships, because they are a *decision*
+  // and a future tuning pass should have to change this line on purpose.
+  it('is the operator’s: rule-out 1, hint 5, reveal 20', () => {
+    expect(COIN_COSTS.RULE_OUT).toBe(1);
+    expect(COIN_COSTS.HINT).toBe(5);
+    expect(COIN_COSTS.REVEAL).toBe(20);
+  });
+
+  it('is still a ladder — each rung costs more than the last (§11.2)', () => {
+    expect(COIN_COSTS.RULE_OUT).toBeLessThan(COIN_COSTS.HINT);
+    expect(COIN_COSTS.HINT).toBeLessThan(COIN_COSTS.REVEAL);
+  });
+});
+
 describe('createWallet', () => {
   it('starts with something to spend, so metering is a feature and not a wall', () => {
     const wallet = createWallet();
 
     expect(balance(wallet)).toBe(STARTING_COINS);
-    expect(canAfford(wallet, COIN_COSTS.REVEAL)).toBe(true);
+    expect(canAfford(wallet, COIN_COSTS.RULE_OUT)).toBe(true);
+    expect(canAfford(wallet, COIN_COSTS.HINT)).toBe(true);
+  });
+
+  it('cannot afford a reveal on day one — the dearest rung is saved for', () => {
+    // This flipped with the operator's repricing (reveal 4 → 20, plan §12.9).
+    // It is the *point* of the new price rather than a regression: a reveal
+    // solves a cell outright, and one that a brand-new wallet can buy twice is
+    // not a rung, it is the default. Pinned so that a future rate change makes
+    // this choice consciously.
+    expect(canAfford(createWallet(), COIN_COSTS.REVEAL)).toBe(false);
   });
 
   it('has paid for nothing yet', () => {
@@ -226,6 +253,19 @@ describe('payOutWin', () => {
 describe('applyDailyFloor', () => {
   it('raises an empty wallet to the floor, so no board is ever a dead end', () => {
     expect(balance(applyDailyFloor(walletWith(0), '2026-07-28'))).toBe(DAILY_FLOOR_COINS);
+  });
+
+  // **The floor's whole claim is "this game cannot become unwinnable."** A
+  // stranded player does not need tedium saved, they need to be told something —
+  // so a floor that clears the rule-out price but not the hint price has quietly
+  // stopped keeping its promise. It was a flat 4 while a hint cost 2; the
+  // operator's repricing (hint 2 → 5, plan §12.9) would have left it buying
+  // nothing but rule-outs. Deriving it from the price is what stops the next
+  // reprice doing the same thing silently.
+  it('always clears the price of a hint, whatever a hint costs', () => {
+    const topped = applyDailyFloor(walletWith(0), '2026-07-28');
+    expect(canAfford(topped, COIN_COSTS.HINT)).toBe(true);
+    expect(DAILY_FLOOR_COINS).toBeGreaterThanOrEqual(COIN_COSTS.HINT);
   });
 
   it('raises *to* the floor and never above it, so idling is not an income', () => {

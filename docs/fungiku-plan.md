@@ -1214,6 +1214,96 @@ shift, because the lift is a 1.03 scale on the card. That is the celebration
 working, not a layout move — the lift rests at exactly 1 (§12.7). The check
 samples the window after it settles.
 
+### 12.9 The hint points at the cell, and costs what it is worth (operator, 2026-07-29)
+
+Second device report on the overlays:
+
+> As of a hint. I think that it should animate to the cell and show the hint. And
+> hints should cost 20 coins if we are revealing a mushroom and 5 if it's a simple
+> thing. And this hint isn't helpful. It should highlight the specific cell.
+
+Three changes, and they are the same change.
+
+#### The nudge contradicted itself
+
+§11.2 designed the nudge to name the row/column/region and outline **every cell
+in it**, on the theory that making the player find the cell is the version that
+teaches. On device that produced a message reading **"One color region has only
+one cell left that can hold a mushroom"** beside **seven outlined cells**. The
+words said *one*; the board said *seven*. And the player still had to do the
+search they had just paid to skip.
+
+`findForcedDeduction` has always returned `{kind, index, cell}` — the deduction
+*and* the cell it forces. The old code threw the cell away and called
+`cellsOfGroup`. It now highlights `[forced.cell]`, and `cellsOfGroup` is deleted
+rather than left for someone to reintroduce.
+
+**The teaching survives in the message, not in the search.** The hint still says
+*why* — "Row 10 has only one cell left that can hold a mushroom — this one" — so
+the deduction is still explained; what it no longer does is make the player
+re-derive an answer it already knows. And it is still not a reveal: the mushroom
+is not placed, and committing it is a double-tap the player makes themselves.
+There is a test pinning exactly that, because the difference between the two
+rungs is now one line of reducer.
+
+#### A hint that appears where you are not looking has not pointed at anything
+
+The other half of "isn't helpful" is that a dashed 2px outline arriving on one of
+a hundred 32pt tiles is not a signal — it is a change you find by looking for it.
+So a ring now **starts nearly three cells wide and closes onto the target**,
+twice, before leaving the outline behind as the marker that persists. Motion
+toward a point is what an eye follows.
+
+Two things that had to be got right, both found by measuring rather than looking:
+
+- **`Animated.loop({iterations: 2})` silently did nothing.** `resetBeforeIteration`
+  resets by calling `resetAnimation()`, which snaps the value back to the one it
+  was **constructed with** — not to the start of the animation being looped. The
+  ring's value is constructed at 1 because 1 is its *resting* pose (converged,
+  transparent), so `loop` reset it to 1 and animated it from 1 to 1. Both
+  iterations ran, ~75 frames of nothing, **no error and no warning**. It is
+  written out as an explicit sequence with a zero-duration timing for the reset,
+  which stops with the sequence in a way `setValue` would not.
+- **`Easing.out` was too fast to watch.** An ease-out spends nearly all its
+  progress in the first frames: the ring reached the cell inside 150 ms, which is
+  the motion being over before the eye can follow it — the whole job. `inOut`
+  holds it wide for a beat, travels visibly, and settles.
+
+#### The prices, and the one consequence that had to move with them
+
+`COIN_COSTS` is now **rule-out 1, hint 5, reveal 20**, as asked. Still a ladder
+(§11.2), with the gap between the rungs widened sharply — and that goes with the
+nudge getting *stronger*: a hint that hands you the answer's location should not
+cost what a riddle cost.
+
+**`DAILY_FLOOR_COINS` had to follow, and this is the one thing here that was not
+literally requested.** It was a flat 4 while a hint cost 2. At a hint price of 5
+it would have topped a stranded player up to **four coins — enough for nothing
+but rule-outs**, which quietly repeals the floor's entire stated purpose: a
+player stuck on a hard board does not need tedium saved, they need to be *told*
+something. It is now defined as `COIN_COSTS.HINT`. That is not economy tuning by
+the back door — it is the smallest number that keeps the promise the constant
+already makes, and deriving it means the next reprice cannot break it silently
+either. A test pins it. **A deliberate choice to make it something else is fine;
+a stale constant that clears no price is not.**
+
+**The earn rates were deliberately not touched**, and they are now the thing to
+watch. `WIN_BASE` still pays 3–8, so a reveal is two or three whole boards' work
+and a brand-new wallet (10 coins) cannot buy one at all. That may be exactly
+right — help you have to save for is help you think about — but it is a real
+change in the economy's shape, and it is a play question, not an arithmetic one
+(§8 #14).
+
+#### Verified
+
+At 5×5 and 10×10, both themes, driven to a genuinely forced position first —
+on an empty 10×10 nothing is forced and the hint correctly answers *"no single
+forced step"* for free, which is a different branch. Exactly **one** cell is
+hinted and it is the cell the engine's own solution names; the ring peaks at
+2.80× and holds above 1.5× for **34 frames** (watchable, not a flash), makes
+**two** converge passes, and settles at scale 1 / opacity 0 with nothing left on
+the board; a hint costs **5**. The board's origin is unmoved throughout.
+
 ## 13. Ladder & scoring — notes parked, now superseded
 
 > **Superseded 2026-07-26 by §14.** The operator asked for a **difficulty menu**

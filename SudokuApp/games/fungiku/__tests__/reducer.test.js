@@ -938,18 +938,39 @@ describe('hints', () => {
     expect(hintFor(guessed).hint.kind).not.toBe('mistake');
   });
 
-  it('nudges at a group without naming the cell', () => {
+  it('nudges at the one forced cell, and says why it is forced', () => {
     // Four of five rows solved leaves the fifth forced.
     let state = base;
     for (let row = 0; row < 4; row++) state = doubleTap(state, solutionCellOf(state, row));
 
     const hinted = hintFor(state);
     expect(hinted.hint.kind).toBe(HINT_KINDS.NUDGE);
-    // The highlight is the whole group, not the single forced cell — that is
-    // what makes it a nudge rather than a reveal.
-    expect(hinted.hint.cells.length).toBeGreaterThan(1);
-    expect(hinted.hint.cells).toContain(solutionCellOf(base, 4));
+
+    // **Exactly one cell** (plan §12.9). It used to highlight the whole
+    // row/column/region on the theory that finding the cell is what teaches —
+    // which on device produced a message saying "only one cell" beside seven
+    // outlined ones. The words and the board contradicted each other, and the
+    // player still had to do the search the hint was bought to shortcut.
+    expect(hinted.hint.cells).toEqual([solutionCellOf(base, 4)]);
+
+    // The teaching survives in the *reason*: the message still names the group
+    // that forces it, so a hint is an explanation and not just a pointer.
     expect(hinted.hint.message).toMatch(/only one cell/i);
+    expect(hinted.hint.message).toMatch(/^(Row|Column|This colour region)/);
+  });
+
+  it('a nudge is still not a reveal — it points, it does not place', () => {
+    let state = base;
+    for (let row = 0; row < 4; row++) state = doubleTap(state, solutionCellOf(state, row));
+
+    const before = state.marks.slice();
+    const hinted = hintFor(state);
+
+    // Naming the cell is the whole change; committing the mushroom is still a
+    // deliberate double-tap the player makes themselves. If this ever fails, a
+    // nudge has quietly become the dearest rung at the cheapest price.
+    expect(hinted.marks).toEqual(before);
+    expect(hinted.marks[hinted.hint.cells[0]]).not.toBe(MARKS.MUSHROOM);
   });
 
   it('says so honestly when nothing is forced, instead of quietly revealing', () => {
