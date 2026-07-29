@@ -337,15 +337,16 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   // was a real bug: the first tap after a hint appeared landed on the wrong cell,
   // or missed the board entirely.
   //
-  // This effect runs after the banner has been committed, so the origin is right
-  // before the player can touch anything. `hint` and `solved` are the two things
-  // that mount a banner above the board.
-  // `generating` and `lives.left` are in here for the same reason, one step
-  // weaker: they change what the row above the board *renders* rather than
-  // whether it exists. That row keeps its height by design — the hearts live
-  // inside it precisely so losing one cannot move the board — so this is the
-  // cheap insurance that says so, and the place the next thing added above the
-  // board belongs.
+  // **`hint` and `solved` no longer move the board** (plan §12.8). The hint
+  // banner became a floating overlay and the win banner became a dialog, so
+  // neither takes layout space and nothing between the counter row and the board
+  // can push it down any more. `generating` and `lives.left` never did — they
+  // change what the always-mounted counter row *renders*, not whether it exists.
+  //
+  // So all four deps are now **insurance rather than the fix**, and they stay for
+  // three reasons: the effect is cheap, `measure()` is idempotent, and this is
+  // still the right place for the next thing anyone mounts above the board. The
+  // bug this was written for is a layout mistake away from returning.
   useEffect(() => {
     measure();
   }, [hint, solved, generating, lives.left, measure]);

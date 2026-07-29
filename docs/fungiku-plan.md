@@ -1113,6 +1113,107 @@ None of that is evidence about how it *feels*, and — because web ignores the
 native driver entirely — none of it exercises the one thing the two-view nesting
 exists to satisfy. That needs a device.
 
+### 12.8 Nothing above the board any more (operator device report, 2026-07-29)
+
+The Step 12 device pass passed the animations — *"I like the animations!!"* — and
+found something else:
+
+> One thing that I would like to change is the board solved banner. I don't like
+> where it appears… where it is right now moves the board and I don't like that.
+> Same for the hints — it kind of appears right above the board and it pushes it
+> down and then it messes up the position of things. I think it should be an
+> overlay or possibly a dialogue in front of the board.
+
+Both banners sat **in the column**, between the counter row and the board. So
+winning moved the board down, and asking for a hint moved it down, and dismissing
+the hint moved it back up.
+
+#### This was never only cosmetic
+
+It is the same fact this document has been working around since Step 7. **A view
+that mounts above the board invalidates the origin every tap is resolved
+against** — `onLayout` does not save you, because on web it is backed by a
+ResizeObserver that watches size and not position, so a board that merely *moves*
+never fires it. That is why `FungikuBoard` carries a re-measure effect keyed on
+`[hint, solved, …]`, and it is why the constraint spread outward:
+
+- the counter row may not size itself from its contents (§14.3's device bug);
+- the win banner's **height** could never change, so the payout had to *replace*
+  a line rather than add one — three reasons could never be on screen together
+  (§14.4);
+- the difficulty went into the header's subtitle rather than a banner (§14.1).
+
+**Taking both out of the layout deletes the class, not the instance.** An overlay
+takes no layout space, so there is no origin to invalidate and no height rule to
+keep. The re-measure effect stays as insurance — it is cheap, `measure()` is
+idempotent, and it is still the right home for the next thing anyone mounts above
+the board — but nothing depends on it any more.
+
+#### One is a dialog, the other is not, and the difference is the point
+
+The operator offered both words — *"an overlay or possibly a dialogue"* — and the
+two banners want different ones:
+
+- **The win is a dialog** (`FungikuWinModal`). The puzzle is over; there is
+  nothing left to do to the board, so a modal may take the screen. This is the
+  Sudoku inspiration the operator asked for: Sudoku's win has always been a
+  `Modal`, not an inline banner.
+- **The hint is an overlay** (`FungikuHintOverlay`), and it *may not* be a
+  dialog. Its whole job is to point at cells — the board draws a dashed outline
+  on the ones it names — and the player has to look at those cells and tap them
+  **while it is showing**. A modal would black out the thing it is talking about.
+  So it is an absolutely-positioned view with **`pointerEvents="box-none"`**: it
+  draws over the screen, takes no layout space, and every touch that misses the
+  card falls through to the board.
+
+Both sit **low, over the controls**, matching `FungikuOutOfLivesModal`. Sudoku's
+`WinModal` centres itself, and where the two conventions disagree Fungiku's own
+precedent wins — the complaint that produced this change was about covering and
+moving the board, so a centred dialog would answer half of it and reintroduce the
+other half.
+
+#### The dialog waits, and the timing chain is derived
+
+The win is now a **sequence**: the board lifts (300 ms), the mushrooms ripple
+(§12.7), the dialog springs in, and only then do the coins count. A dialog that
+arrived on the winning tap would cover the celebration it is part of.
+
+Three timings therefore have to stay in order, and none of them is typed twice:
+`WIN_DIALOG_DELAY_MS` is computed from the wave's own duration, `AWARD_START_MS`
+from the dialog's, and `useCoinAward` imports the last one rather than keeping a
+start delay of its own. **The failure this prevents is silent** — a dialog that
+opens 200 ms early just covers a ripple nobody notices is missing.
+
+#### What the dialog can do that the banner could not
+
+The payout **stacks**. Each reason lands as its own row and stays, so the finished
+dialog shows the whole account — *Easy board +3 · 3 lives left +3 · **Coins
+earned +6*** — where the banner could only ever show the reason that was landing
+right now. The total is **summed from the rows on screen** (`shownAwardTotal`),
+not read from `reward.total`, so the dialog cannot contradict itself mid-count.
+
+The scrim is light (0.35) on purpose: the balance in the counter row is still
+counting up behind it, and the payout is meant to be watched.
+
+`winPresentation.js` holds the timing and the row arithmetic and is **pure**, for
+the same reason `celebration.js` is — Jest here is plain node, so the only way
+this gets tested is if it lives outside the component.
+
+#### Verified
+
+The check is the one the change is *for*, and it is exact rather than visual:
+**cell (0,0)'s screen position, sampled across every transition.** It is
+byte-identical before and after a hint appears, after it is dismissed, on
+solving, when the dialog opens, as the payout grows from one row to four, and
+after Close — at 5×5 and 10×10, light and dark. A tap made while the hint overlay
+is up still lands in the cell it aimed at, which is the bug the re-measure effect
+was written for.
+
+One sampling subtlety worth keeping: measuring *during* the win lift reads a 1px
+shift, because the lift is a 1.03 scale on the card. That is the celebration
+working, not a layout move — the lift rests at exactly 1 (§12.7). The check
+samples the window after it settles.
+
 ## 13. Ladder & scoring — notes parked, now superseded
 
 > **Superseded 2026-07-26 by §14.** The operator asked for a **difficulty menu**

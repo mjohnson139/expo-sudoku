@@ -403,6 +403,30 @@ explicitly whether the epic is ready to merge to `main`.
 
 ### Noted in passing, for a later step
 
+- **Nothing sits between the counter row and the board any more, and the rule
+  that produced so many workarounds is gone with it** (plan §12.8). The hint
+  banner is a floating overlay and the win banner is a dialog; neither takes
+  layout space, so **`hint` and `solved` no longer move the board.**
+  `FungikuBoard`'s re-measure effect stays as *insurance* rather than as the fix.
+  The constraints it spawned are dead too: **the win dialog may change height**,
+  which is why the payout now stacks its reasons instead of replacing them. The
+  counter row's width rule (§14.3) is unaffected and still load-bearing — that
+  one is about the ScrollView centring its children, not about height.
+- **The hint is an overlay and the win is a dialog, and swapping either is a
+  mistake.** A hint points at cells the player must *see and tap while it is
+  showing*, so it uses `pointerEvents="box-none"` and lets every touch that
+  misses the card fall through to the board. A modal there would black out the
+  thing the hint is talking about. The win may take the screen because the puzzle
+  is over.
+- **Three win timings are chained by derivation, not by agreement.**
+  `WIN_DIALOG_DELAY_MS` comes from the wave's duration, `AWARD_START_MS` from the
+  dialog's, and `useCoinAward` imports the last rather than keeping its own start
+  delay. Retuning the wave moves all three. **The failure mode is silent** — a
+  dialog that opens early just covers a ripple nobody notices is missing.
+- **Measuring the board's position during the win lift reads a ~1px shift, and it
+  is not a bug.** The lift is a 1.03 scale on the card that rests at exactly 1.
+  Any future check of "did the board move" has to sample outside the 720 ms the
+  lift owns, or it will chase the celebration.
 - **`Symbol` is keyed on a cell *value*, and Fungiku's cells hold marks.** That
   mismatch is why the board had drifted into naming the `mushroom` icon itself,
   and it is why the ✕ is still drawn by `FungikuBoard` rather than through the
@@ -811,7 +835,7 @@ explicitly whether the epic is ready to merge to `main`.
 | 9 | Difficulty menu — rungs mapped into `SIZES` by *share*, size-from-seed, menu modal built to Sudoku's, free play + seed behind one constant, real v1→v2 save migration, difficulty in the header rather than a banner, hub badge names the rung | merged to `epic/fungiku` (#77, `02fcdf1`), operator-tested on device |
 | 10 | Lives & mistakes — tap ✕ / double-tap 🍄 replacing the cycle, wrong mushroom flagged immediately as a red ✕ costing one of three lives and announced on three channels, zero lives leaves the losing board up behind a dialog until the player restarts it, undo never refunds, "Show mistakes" deleted, v2→v3 migration, conflict rendering **removed** | merged to `epic/fungiku` (#79), operator-tested on device |
 | 11 | Earned assists — **coins**, one currency, in a wallet under **its own key** (`@FungikuWallet`, no save-version bump); hints and rule-out priced off it (1 / 2 / 4, §11.2's ladder); the "nothing is forced" answer left free; a win **narrated** — the balance counts up one reason at a time — and paid **exactly once per board** across undo/redo/reload; a daily floor so the game cannot become unwinnable; an unaffordable price drawn differently from a disabled button; gift/purchase seam behind `SHOW_DEVELOPER_CONTROLS`; the board redrawn as separated tiles | merged to `epic/fungiku` (#80, `5836b87`) — **device pass not recorded; fold it into Step 13's play-through** |
-| 12 | Art swap — **answered with motion, not artwork** (§12.7). The operator kept the glyph, so the step made the seam true (the board asks `Symbol` for `MUSHROOM_VALUE` instead of naming an icon), grew the placement pop into a **sprout** — the mushroom rises into the cell tilted and squashed and stretches upright, four interpolations of the one spring — and added a **win wave**: every mushroom hops in an anti-diagonal ripple, one shared native-driven value, windows in a pure `celebration.js` | **awaiting operator device pass** |
+| 12 | Art swap — **answered with motion, not artwork** (§12.7). The operator kept the glyph, so the step made the seam true (the board asks `Symbol` for `MUSHROOM_VALUE` instead of naming an icon), grew the placement pop into a **sprout** — the mushroom rises into the cell tilted and squashed and stretches upright, four interpolations of the one spring — and added a **win wave**: every mushroom hops in an anti-diagonal ripple, one shared native-driven value, windows in a pure `celebration.js`. **Device pass passed the animations and rejected the banners** (§12.8): both used to push the board down, so the win became a **dialog** and the hint a **floating overlay**, and nothing sits above the board any more | **awaiting a second device pass on the overlays** |
 
 ## Steps still to come
 

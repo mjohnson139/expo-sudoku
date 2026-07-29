@@ -1,8 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { Animated } from 'react-native';
+import { AWARD_START_MS } from './winPresentation';
 
-/** How long the win banner takes to spring in before the counting starts. */
-const START_DELAY = 700;
+/**
+ * When the counting may start: once the win dialog is actually on screen.
+ *
+ * **Imported rather than typed here**, and that matters more than it used to.
+ * The reasons are narrated *inside* the dialog now (plan §12.8), so counting
+ * before the dialog exists would spend them on an empty screen — and the dialog
+ * itself waits for the mushrooms' ripple, whose timing lives in
+ * `celebration.js`. Three things have to stay in order; one derived constant is
+ * how they do it, rather than three numbers that agree today.
+ */
+const START_DELAY = AWARD_START_MS;
 
 /** One reason per beat. Slow enough to read, short enough not to be a cutscene. */
 export const STEP_MS = 850;
