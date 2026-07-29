@@ -2,10 +2,17 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, StyleSheet, Animated, Easing, PanResponder, PixelRatio } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MARKS } from './engine';
-import { getRegionColor } from '../../utils/symbolSets';
+import { getRegionColor, MUSHROOM_VALUE, SYMBOL_SET_IDS } from '../../utils/symbolSets';
+import Symbol from '../../components/Symbol';
 import useBoardSize from '../../hooks/useBoardSize';
 import useBoardOrigin from '../../hooks/useBoardOrigin';
 import { boardExtent, cellFromPoint, cellsAlongLine } from './geometry';
+import {
+  waveKeyframes,
+  waveOutputRange,
+  WAVE_DELAY_MS,
+  WAVE_DURATION_MS,
+} from './celebration';
 import { PAINT_MODES } from './reducer';
 import { useFungikuContext } from './FungikuContext';
 
@@ -226,6 +233,13 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   // frames the value sat at 0 while still attached to the *previous* mushroom,
   // and the earlier mushroom visibly shrank and snapped back. Per-cell values
   // remove the class of bug rather than patching the ordering.
+  //
+  // **The value is a 0→1 progress, and every part of the sprout is interpolated
+  // from it** (plan §12.7). It used to *be* the scale, which is why the sprout
+  // costs no extra values, no extra animations and no extra state: a rise, a
+  // tilt and a squash-and-stretch are four interpolations of the one spring. It
+  // still rests at exactly 1, where every interpolation is the identity pose, so
+  // a mushroom nobody has just placed is drawn exactly as it was before.
   const popValues = useMemo(
     () => Array.from({ length: size * size }, () => new Animated.Value(1)),
     [size]
@@ -286,9 +300,16 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     // Placing, removing and replacing a mushroom quickly would otherwise leave
     // two springs driving one value.
     value.stopAnimation();
-    value.setValue(0.45);
+    value.setValue(0);
     Animated.spring(value, {
       toValue: 1,
+      // Loose enough to overshoot, which is what makes the sprout land with a
+      // wobble instead of easing politely into place. The overshoot is not
+      // clamped anywhere: the interpolations below extrapolate past 1, so the
+      // scale swells a little, the tilt swings through upright to the other side,
+      // and the rise carries the mushroom a few pixels above its resting spot
+      // before settling. That is the whole of the "fun" — one spring, read four
+      // ways.
       friction: 5,
       tension: 140,
       // **Deliberately NOT the native driver.** This value has to *rest* at
@@ -545,6 +566,111 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     return () => animation.stop();
   }, [solved, winLift]);
 
+  // --- the win wave (plan §12.7) -------------------------------------------
+  //
+  // Every mushroom on a solved board hops, one diagonal at a time, from the
+  // top-left corner to the bottom-right. It is the payoff for the whole puzzle,
+  // and it is the one moment where the mushrooms are the subject rather than the
+  // notation.
+  //
+  // **One value for the entire board, and it is not the per-cell rule breaking.**
+  // The rule the handoff carries — never one shared value pointed at "the current
+  // cell" — is about a value that gets *re-pointed*, because re-pointing is a
+  // render and resetting is immediate, so for a frame the value is still attached
+  // to the last cell. Nothing is re-pointed here: every mushroom reads this same
+  // progress at once and each one interpolates it through its own fixed window,
+  // so the stagger is geometry (celebration.js) rather than scheduling.
+  //
+  // That is also what lets it run on the **native driver** — one animation, no
+  // `setValue`, a hundred cells — while the placement pop above stays JS-driven
+  // because it *is* `setValue`d. Plan §2's rule is that the two must never be
+  // mixed **on one value**; keeping them on separate values, in separate
+  // Animated.Views, is how both get the driver they need.
+  const winWave = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    // Both ends of the progress are the resting pose (celebration.js), so
+    // cancelling is a jump to the nearest end rather than an unwind — an undo
+    // across the win line must never leave a mushroom stranded mid-hop.
+    const animation = solved
+      ? Animated.sequence([
+          Animated.timing(winWave, {
+            toValue: 1,
+            duration: WAVE_DURATION_MS,
+            delay: WAVE_DELAY_MS,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          // Home again for the next win. A 1 ms trip rather than `setValue`,
+          // which may not be mixed with the native driver — and invisible,
+          // because both ends draw the identical pose.
+          Animated.timing(winWave, { toValue: 0, duration: 1, useNativeDriver: true }),
+        ])
+      : Animated.timing(winWave, { toValue: 0, duration: 1, useNativeDriver: true });
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [solved, winWave]);
+
+  // How far a mushroom hops, and how big it swells at the top of the hop. Both
+  // scale with the cell, so a 10×10 board (32pt cells on a phone) reads the same
+  // as a 5×5 one rather than barely moving. The hop leaves the tile — that is
+  // the point of it — but it never touches layout, so the board's drawn box
+  // stays equal to its measured box and taps keep resolving correctly even
+  // mid-celebration.
+  const waveLift = Math.round(cell * 0.22);
+
+  // Both sets of transforms are built **once per board**, not per render.
+  //
+  // Interpolating inline in the JSX would mint a fresh AnimatedInterpolation for
+  // every mushroom on every render — and this board re-renders on every touch
+  // down, every touch up and every mark — which means tearing down and rebuilding
+  // up to a hundred native animation nodes mid-gesture. The values themselves are
+  // already stable per board (`popValues`) or per component (`winWave`), so the
+  // nodes reading them can be too.
+  const waveTransforms = useMemo(
+    () =>
+      Array.from({ length: size * size }, (_, index) => {
+        const inputRange = waveKeyframes(index, size);
+        return [
+          {
+            translateY: winWave.interpolate({
+              inputRange,
+              outputRange: waveOutputRange(0, -waveLift),
+            }),
+          },
+          {
+            scale: winWave.interpolate({ inputRange, outputRange: waveOutputRange(1, 1.18) }),
+          },
+        ];
+      }),
+    [size, waveLift, winWave]
+  );
+
+  // A mushroom does not appear, it *grows*: it rises into the cell from below,
+  // squashed flat and tilted, and stretches upright as it arrives. Every one of
+  // these is the same spring read through a different interpolation — which is
+  // why the sprout costs no extra values and no extra animations — and every
+  // output range **ends on the identity pose**, so a mushroom at rest is drawn
+  // exactly as the plain scale drew it.
+  const sproutTransforms = useMemo(
+    () =>
+      popValues.map((value) => [
+        {
+          translateY: value.interpolate({
+            inputRange: [0, 1],
+            outputRange: [Math.round(glyph * 0.4), 0],
+          }),
+        },
+        { rotate: value.interpolate({ inputRange: [0, 1], outputRange: ['-16deg', '0deg'] }) },
+        { scaleX: value.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) },
+        // Flatter than it is wide at the start, so the sprout squashes and
+        // stretches rather than merely getting bigger.
+        { scaleY: value.interpolate({ inputRange: [0, 1], outputRange: [0.28, 1] }) },
+      ]),
+    [popValues, glyph]
+  );
+
   return (
     // The card. It carries the gutter, the rounded frame, the padding that keeps
     // the edge tiles off the edge, and the win lift — everything *except* the
@@ -661,13 +787,43 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                 )}
 
                 {mark === MARKS.MUSHROOM && (
+                  // **Two nested Animated.Views, and the nesting is load-bearing.**
+                  // The wave is native-driven and the sprout is JS-driven (see
+                  // both effects above), and a single view cannot carry both:
+                  // once any value in a style has been moved to the native
+                  // driver, a JS-driven animation on that same props node
+                  // throws. Separate views are separate props nodes, so each
+                  // half gets the driver it needs and the transforms still
+                  // compose.
                   <Animated.View
-                    // This cell's own pop value, which rests at 1. Only the cell
-                    // that was just placed is ever away from 1, so no other
-                    // mushroom can be affected.
-                    style={{ transform: [{ scale: popValues[index] }] }}
+                    // Outer: the win wave. Rests at the identity pose whenever
+                    // the board is unsolved, and at *both* ends of the ripple.
+                    style={{ transform: waveTransforms[index] }}
                   >
-                    <MaterialCommunityIcons name="mushroom" size={glyph} color={entry.ink} />
+                    <Animated.View
+                      // Inner: this cell's own sprout, which rests at 1. Only the
+                      // cell that was just placed is ever away from 1, so no
+                      // other mushroom can be affected.
+                      style={{ transform: sproutTransforms[index] }}
+                    >
+                      {/* **Through the seam, not around it** (plan §5, Step 1).
+                          The board used to name the `mushroom` icon itself,
+                          which meant the one file an art swap was supposed to
+                          touch was not the only file it would have had to
+                          touch. Fungiku's cells hold marks rather than values,
+                          so the mushroom's value is imported rather than
+                          implied — and dropping in real art is now an edit to
+                          `symbolSets.js` and `Symbol.js` alone. */}
+                      <Symbol
+                        symbolSet={SYMBOL_SET_IDS.FUNGIKU}
+                        value={MUSHROOM_VALUE}
+                        size={glyph}
+                        // The contrast-picked ink for *this* fill, not the
+                        // symbol set's own red — a saturated mushroom on a
+                        // warm fill is nearly invisible (symbolSets.js).
+                        color={entry.ink}
+                      />
+                    </Animated.View>
                   </Animated.View>
                 )}
 

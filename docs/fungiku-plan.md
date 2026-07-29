@@ -377,7 +377,7 @@ the step's real acceptance test, alongside its automated checks.
 | 9 | ~~**Difficulty menu**~~ ✅ (§14.1) — rungs mapped *into* `SIZES`, size picked from the seed, menu modal matching Sudoku's, free play + seed field behind one flag, a real v1→v2 save migration, hub badge names the rung | **Pick a difficulty like you do in Sudoku**, instead of picking a raw board size |
 | 10 | ~~**Lives & mistakes**~~ ✅ (§14.2, §14.3) — tap ✕ / double-tap 🍄, wrong guess costs a life, three lives then the board restarts | **A wrong mushroom turns red and costs you a life**; run out and the board resets |
 | 11 | ~~**Earned assists**~~ ✅ (§14.4) — a wallet under its own key, hints and rule-out metered, a reveal dearer than a nudge, earning on solve, a daily floor | **Hints and Rule out can run out**, and solving boards earns more |
-| 12 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
+| 12 | ~~**Art swap**~~ ✅ (§12.7) — **the operator kept the glyph and asked for motion instead.** The seam made true (the board goes through `Symbol` rather than naming an icon), the placement pop grown into a sprout, and a staggered win wave across the whole board | **Mushrooms sprout into their cells**, and the whole board ripples when you solve it |
 
 > **Steps 9–12 were replanned on 2026-07-26** (§14). The old Step 9 was a training
 > ladder with per-level star thresholds; the operator asked instead for the
@@ -1000,6 +1000,118 @@ widens the content container and pushes every sibling sideways (§14.3's device
 bug).
 
 **Anything else that ever claims to be board-width must come from there too.**
+
+### 12.7 The art swap, answered with motion (operator call, 2026-07-29)
+
+§7 always called Step 12 *"floating, gated on artwork rather than code"*, and the
+step's first act was to ask the operator which of three routes to take. **The
+answer was route 1 with a rider:** *"We don't have any art work at this point so
+we will stick with what we have but anyway to add some fun animations for when
+they appear?"*
+
+So the mushroom stays the MaterialCommunityIcons glyph, and the step spends
+itself on two things instead: **making the seam true**, and **making a mushroom
+arrive like something worth arriving.**
+
+#### The seam was one file short of real
+
+`Symbol.js` and `symbolSets.js` (Step 1) exist so that swapping the art touches
+one file. `FungikuBoard` was not going through them. It rendered
+`<MaterialCommunityIcons name="mushroom" …>` directly, so the icon's identity was
+written in **two** places and an asset-only change would not have been asset-only.
+
+The reason it drifted is worth recording, because it will be true of anything
+else Fungiku draws: **`Symbol` is keyed on a cell *value*, and Fungiku's cells
+hold marks, not values.** There was no `value` to hand it, so the board named the
+glyph itself. The fix is to export `MUSHROOM_VALUE` — the constant that already
+decided which digit is the mushroom — and let the board ask for *that* symbol.
+The board now says "draw the fungiku set's mushroom", not "draw this icon".
+
+The ✕ is deliberately **not** routed the same way. It is a mark, not a value: no
+symbol set has an entry for it, and inventing one to satisfy the rule would put a
+non-symbol in the value table. If real art ever includes an ✕, that is the moment
+to add a mark table beside the value table — not before.
+
+#### A mushroom grows; it does not appear
+
+The placement pop was a scale spring, 0.45 → 1. It is now the same single spring
+read four ways: the mushroom **rises into the cell from below, tilted and
+squashed flat, and stretches upright as it lands**, overshooting slightly because
+the spring is loose enough to. No extra `Animated.Value`, no extra animation, no
+extra state — four interpolations of the value that was already there, and every
+output range ends on the identity pose, so a mushroom at rest is pixel-identical
+to the one the plain scale drew.
+
+That last property is not decoration. It is what lets the sprout be free: a
+resting pose that is exactly the identity means nothing downstream — the win
+lift, the measured box, the tap geometry — can tell the difference.
+
+#### The win wave, and the exception to the per-cell rule
+
+When the board is solved, **every mushroom hops, one diagonal at a time, from the
+top-left corner to the bottom-right**. It lands between the board's own lift
+(300 ms) and the banner's spring-in (220 ms delay), so the win reads as
+board → mushrooms → banner rather than as three things moving at once.
+
+The standing rule from §2 is *one `Animated.Value` per cell, never one shared
+value pointed at "the current cell"* — and the wave is a **single value read by
+every cell at once**, which is not the same shape and is not the rule breaking.
+The rule is about a value that gets **re-pointed**: re-pointing is a React state
+update while resetting is immediate, so for a frame the value is still attached
+to the previous cell (that is the bug that made an earlier mushroom visibly
+shrink). Nothing is re-pointed here. Each cell interpolates the same 0→1 progress
+through **its own fixed window**, so the stagger is geometry rather than
+scheduling, and no cell ever hands the value to another.
+
+Which is also what buys the wave the **native driver**: one animation, no
+`setValue`, a hundred cells. The sprout stays JS-driven because it *is*
+`setValue`d, and §2's rule is that the two must never be mixed **on one value**.
+They are on separate values — and, necessarily, on **separate `Animated.View`s**,
+because once any value in a style has been moved to native, a JS-driven animation
+on that same props node throws. The mushroom is therefore two nested views: wave
+outside, sprout inside. That nesting is load-bearing, not tidiness.
+
+`games/fungiku/celebration.js` owns the window math and is **pure**, so the part
+that is easy to get wrong is the part that is tested — the Jest environment is
+plain node with no React Native in it, which is exactly why the geometry lives
+outside the component.
+
+Two constraints the windows have to satisfy, both pinned by tests:
+
+- **Every keyframe lands strictly inside the progress**, because
+  `Animated.interpolate` needs a monotonically increasing input range and a window
+  touching either end would collide with the resting keyframe there.
+- **Both ends of the progress are the resting pose.** `solved` is a *condition*,
+  not an event (§14.4) — it goes false on an undo across the win line and true
+  again on a redo or a relaunch — so the wave has to be cancellable by jumping to
+  the nearer end. A mushroom stranded mid-hop is a permanent visual defect, not a
+  glitch, and this game has shipped that bug twice already.
+
+#### A trap worth naming: `easing` does not survive the native driver
+
+The hop's arc is spelled out as extra keyframes rather than expressed as an
+easing curve, and that is not a style preference. `Animated.interpolate` accepts
+an `easing`, but **`__getNativeConfig` does not send it** — it forwards only the
+ranges and the extrapolation. A natively-driven eased interpolation animates as a
+straight line, so the hop would have been a mechanical zigzag on device while
+looking correct in a browser (react-native-web ignores `useNativeDriver` and
+animates everything in JS, easing included). RN warns about it in a dev build and
+says nothing in a release one. **Same family as §2's other native-only bugs: the
+browser cannot see it.**
+
+#### What the browser could and could not settle
+
+Verified in Chromium against the exported web build, by tracing every mushroom
+wrapper's inline transform frame by frame rather than by looking at screenshots:
+the sprout starts at `translateY(18.8px) rotate(-15.8deg) scaleX(0.51)
+scaleY(0.29)` and lands on the identity; the wave's peaks arrive in strict
+anti-diagonal order, ~70–85 ms apart, and every mushroom is back at rest when it
+ends. Undo mid-wave, redo back across the win line, and a reload onto a finished
+board all leave nothing stranded.
+
+None of that is evidence about how it *feels*, and — because web ignores the
+native driver entirely — none of it exercises the one thing the two-view nesting
+exists to satisfy. That needs a device.
 
 ## 13. Ladder & scoring — notes parked, now superseded
 
