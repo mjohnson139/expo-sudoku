@@ -375,8 +375,8 @@ the step's real acceptance test, alongside its automated checks.
 | 7 | ~~**Feedback & hints**~~ ✅ (§11) — correctness feedback on placements, and a hint ladder | **Optional "show mistakes" for mushrooms**, and a hint you can ask for when stuck |
 | 8 | ~~**Bigger boards, up to 10×10**~~ ✅ (§12) — `MAX_SIZE`, a 10th region colour, legibility at 32px cells, a generation-cost bound | **A playable 10×10** that generates without a visible freeze |
 | 9 | ~~**Difficulty menu**~~ ✅ (§14.1) — rungs mapped *into* `SIZES`, size picked from the seed, menu modal matching Sudoku's, free play + seed field behind one flag, a real v1→v2 save migration, hub badge names the rung | **Pick a difficulty like you do in Sudoku**, instead of picking a raw board size |
-| 10 | **Lives & mistakes** (§14.2, §14.3) — tap ✕ / double-tap 🍄, wrong guess costs a life, three lives then the board restarts | **A wrong mushroom turns red and costs you a life**; run out and the board resets |
-| 11 | **Earned assists** (§14.4) — a wallet, hints and rule-out metered, earning on solve | **Hints and Rule out can run out**, and solving boards earns more |
+| 10 | ~~**Lives & mistakes**~~ ✅ (§14.2, §14.3) — tap ✕ / double-tap 🍄, wrong guess costs a life, three lives then the board restarts | **A wrong mushroom turns red and costs you a life**; run out and the board resets |
+| 11 | ~~**Earned assists**~~ ✅ (§14.4) — a wallet under its own key, hints and rule-out metered, a reveal dearer than a nudge, earning on solve, a daily floor | **Hints and Rule out can run out**, and solving boards earns more |
 | 12 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
 
 > **Steps 9–12 were replanned on 2026-07-26** (§14). The old Step 9 was a training
@@ -830,6 +830,29 @@ rung carries more of the load on large boards (§8 #6).
 
 ### 12.5 The board's lines (operator device report, 2026-07-26)
 
+> ### ⚠️ Superseded 2026-07-29 — **the board has no lines at all any more.**
+>
+> The operator asked for the look Meowdoku uses: **rounded tiles with a gap
+> between them, no grid, no region strokes, no frame.** `FungikuGridLines.js` is
+> **deleted** (recoverable at `389eb46`), and with it the whole apparatus below —
+> the run merging, the half-stroke extension, the pixel snapping, the two widths.
+>
+> **What survives is the reasoning, and one hard rule:** the gap lives *inside*
+> the cell box. The cell pitch and the board's box are unchanged, so
+> `cellFromPoint` needs to know nothing about it and a finger landing in a gap
+> still belongs to the nearest cell. Anything that changes the pitch has to change
+> the touch geometry with it.
+>
+> **What was lost, and it is a real loss:** the region-boundary stroke was the
+> second channel for colourblind players — see the section below, which is the
+> record of that decision being made *and reversed once already*. Colour is now
+> the only thing that says where a region ends. `corners` in `utils/symbolSets.js`
+> is still there as a third channel if it turns out to be needed; §8 #16 carries
+> the question.
+>
+> **What was gained beyond the look:** the frame is gone, and with it the bug that
+> prompted this — see §12.6.
+
 > *"The grid lines could use some darker lines and a clean up of how lines come
 > together."* — operator, on a 9×9 in the Pastel theme
 
@@ -924,6 +947,59 @@ Two constraints worth knowing if this is ever touched again:
 **This changed how every size looks, not just the new ones.** A single-drawn
 2.5px boundary replaces a double-drawn 2px one, so boundaries are lighter and
 even, and the grid inside a region is darker than it was.
+
+### 12.6 The board was never quite the width it was given (device report, 2026-07-29)
+
+*"The border is cut off on the sides."*
+
+A cell is a whole number of pixels — `Math.floor(available / size)` — so a 324pt
+allowance at 7×7 makes 46pt cells and a **322pt board**. The counter row above the
+board is width-matched to it, deliberately and load-bearingly (§14.3's device
+fix), but it was matched to the **allowance**: 324. Two pixels proud on each side,
+at every size where the division is not exact, which is most of them. On device
+that reads as the board's frame being clipped by the box above it.
+
+**And there was a second one, in the tiles.** The only thing outside an edge tile
+was its own half-gap — half the space between two interior tiles. At 10×10 that is
+about a pixel, so the outer columns looked shaved while the interior ones did not,
+which is what the second device report was about. The board now sits inside a
+**card**: a band of gutter, `pad`, wide enough to read as a frame at every size.
+
+`boardExtent(available, size)` in `games/fungiku/geometry.js` is the one place
+both are worked out. It returns `pad`, `cell`, `board` and `outer` — and `board`
+and `outer` are **not the same number**: the board is the tiles' bounding box and
+the touch geometry, the card is what the player reads as the board's edge, and the
+counter row lines up with the *card*. `pad` comes off the available width rather
+than the cell, which would be circular and would also resize the frame every time
+the board size changed.
+
+**The card is a parent, never padding on the board.** The board's box is the touch
+geometry and may not carry padding or a border — but a parent that does is fine,
+because `measureInWindow` reads the board's own position and that already accounts
+for it. Verified by tapping cell centres at 5×5 and 10×10, corner included.
+
+**And a third one, which was the biggest: the board was never asking for the
+width in the first place.** `useBoardSize` returned a **fixed 324pt** on native —
+Sudoku's number, inherited when the hook was extracted — while a modern phone is
+393pt wide and the header's buttons ran nearly edge to edge. About 35pt of dead
+margin on each side, on every board. It reads as *compressed*, and it gets worse
+the bigger the board: at 10×10 it is the difference between a **31pt cell and a
+38pt one**, which is squarely in the range §12.3 spent a step making legible.
+
+`useBoardSize({ fill: true })` takes the width the screen actually offers,
+capped so a tablet does not produce a board nobody can reach across.
+**Fungiku asks for it; Sudoku does not** — Sudoku's screen is laid out around 324
+(the number pad, the notes toggle, the timer) and widening its grid underneath is
+not this change's call to make. The same rule runs on web and native so a browser
+check and a device see the same layout.
+
+Everything in Fungiku's column is now that width — counter row, hint banner, win
+banner, the priced buttons, the puzzle/difficulty row. **Nothing may exceed it**:
+the column sits in a ScrollView that centres its children, so anything wider
+widens the content container and pushes every sibling sideways (§14.3's device
+bug).
+
+**Anything else that ever claims to be board-width must come from there too.**
 
 ## 13. Ladder & scoring — notes parked, now superseded
 
@@ -1146,7 +1222,64 @@ by default, so a later tap clears it — consistent with rule-out and hint marks
 (§2). That also lets a player erase the record of their own mistake. Ships
 clearable; revisit if it reads wrong in play.
 
-### 14.4 Assists are earned, spent, and can run out
+### 14.4 Assists are earned, spent, and can run out — **shipped, Step 11**
+
+**What landed.** `games/fungiku/wallet.js` (pure: `grant` / `spend` / `balance`,
+the rates, `rewardForWin`, `payOutWin`, `applyDailyFloor`) plus
+`walletStorage.js` under **`@FungikuWallet`**, its own global key — the board save
+gained no field and `FUNGIKU_STORAGE_VERSION` is still **3**. Hints and Rule out
+are both metered. Earning is a base by difficulty plus a coin per life still
+standing and a bonus for finishing without a hint. **Every rate is a guess** and
+is flagged for on-device tuning, gathered at the top of `wallet.js` for exactly
+that reason.
+
+**One currency: coins.** The first cut of this shipped **two** token kinds — hint
+tokens and rule-out tokens — and it failed on the device for a reason worth
+recording, because it is not obvious from the design and is obvious the moment you
+read the screen. The win banner said:
+
+> **+2 hints · +1 rule-out — no hints**
+
+*You earned two hints because you used no hints.* There is no reading of that
+sentence that is not a contradiction, and it is not a wording problem: **a
+currency named for what it buys collides with every message about spending it.**
+Coins are named for what they *are*, so "you earned 8 coins, 2 of them for using
+no hints" is sayable. It also gives the player one number to watch instead of two,
+and prices anything added later in units that already exist rather than minting a
+third kind. `normalizeWallet` converts an old two-balance wallet at the price
+list, so the tokens are worth what they could have bought.
+
+The prices are §11.2's ladder made real, which two currencies could never express:
+**rule-out 1, hint 2, reveal 4.** Rule-out is cheapest because it reveals nothing
+a player could not derive mechanically.
+
+Five things it settled that the text below does not say:
+
+- **A hint that gives nothing away costs nothing.** The reducer already declined
+  to count the "nothing is forced from here" answer in `hintsUsed`; the wallet
+  charges on the same side of that line, via `selectHintIsChargeable`, asked
+  *before* the action is dispatched. Spending is on the action, not the tap.
+- **The payout is watched, not reported.** `rewardForWin` returns a `total` **and
+  the steps that make it up**, and the balance in the counter row counts up one
+  reason at a time while the banner names each — *"Easy board +3", "3 lives left
+  +3", "No hints used +2"*. A player who never sees a bonus named has no reason to
+  play for it. The bonus for lives is **per life** rather than all-or-nothing so
+  that a nearly-clean board has something true to say.
+- **The win payout is idempotent per board.** `solved` is derived from `marks`, so
+  it is a condition and not an event — undo/redo cross it freely and a restored
+  save arrives already solved. `payOutWin` records *which* board it paid
+  (`size:seed`) rather than setting a flag someone would have to clear. With the
+  payout animated this stopped being only an accounting question: without it the
+  celebration replays every time the line is re-crossed.
+- **The floor is a daily top-up**, raising the balance *to* four if it is below
+  (never adding), so idling is not an income and a player stranded at zero on a
+  hard board always has a way forward. That is the answer to "can this game become
+  unwinnable": no.
+- **A price you cannot pay looks different from a disabled button.** The price and
+  the border go red; "nothing to rule out" and "the board is finished" dim as
+  before. Three reasons a button is dead, three readings. The **balance** is not
+  repeated on the buttons — it is one number in the counter row, where the payout
+  animation can count it up.
 
 **Decided.** **Hints and Rule out both become metered consumables.** "Auto fill" is
 the existing **Rule out** button (§2) — confirmed with the operator — and it is

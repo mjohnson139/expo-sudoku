@@ -19,7 +19,34 @@ import { readableOn } from '../../utils/color';
  */
 const ENTER_DELAY = 220;
 
-const FungikuWinBanner = ({ solved, size, seed, accent, onNextPuzzle }) => {
+/**
+ * What the banner's second line says right now (plan §14.4).
+ *
+ * The payout is **narrated, not reported**: the coin balance in the counter row
+ * counts up one reason at a time, and this line names the reason that is landing.
+ * A single "+8 coins" would be the same information with none of the feeling, and
+ * a player who never sees "No hints used +2" named has no reason to play for it.
+ *
+ * Four states, in order:
+ *   - no reward at all — this board has already been paid (a redo across the win
+ *     line, or a relaunch onto a board finished last session). It shows the board
+ *     identity, because claiming a payout that did not happen would be a lie
+ *     about the balance;
+ *   - the reward has landed but the first reason has not shown yet — identity
+ *     again, so the line is never blank while the banner springs in;
+ *   - a reason, with what it paid;
+ *   - the total, which then stays.
+ */
+const detailLine = ({ reward, award, size, seed }) => {
+  const identity = { text: `${size}×${size} · seed ${seed}`, coins: null };
+  if (!reward || award.stepIndex < 0) return identity;
+
+  if (award.step) return { text: award.step.label, coins: award.step.coins };
+
+  return { text: 'Coins earned', coins: reward.total };
+};
+
+const FungikuWinBanner = ({ solved, size, seed, accent, width, reward, award, onNextPuzzle }) => {
   const progress = useRef(new Animated.Value(0)).current;
   const shimmer = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(solved);
@@ -74,6 +101,7 @@ const FungikuWinBanner = ({ solved, size, seed, accent, onNextPuzzle }) => {
   if (!mounted) return null;
 
   const ink = readableOn(accent);
+  const detail = detailLine({ reward, award, size, seed });
 
   return (
     <Animated.View
@@ -81,6 +109,13 @@ const FungikuWinBanner = ({ solved, size, seed, accent, onNextPuzzle }) => {
       style={[
         styles.banner,
         {
+          // Board-width, like the counter row above it and the buttons below.
+          // It used to size itself from its contents, which read as deliberate
+          // while the board was a fixed 324 and read as a stray narrow box once
+          // the column filled the screen. Its **height** still may not change —
+          // it sits above the board, and `solved` is the only thing that
+          // re-measures the board's origin.
+          width,
           backgroundColor: accent,
           opacity: progress,
           transform: [
@@ -107,9 +142,37 @@ const FungikuWinBanner = ({ solved, size, seed, accent, onNextPuzzle }) => {
 
       <View style={styles.textBlock}>
         <Text style={[styles.title, { color: ink }]}>Solved!</Text>
-        <Text style={[styles.detail, { color: ink }]}>
-          {size}×{size} · seed {seed}
-        </Text>
+
+        {/* **One line, always, whatever it is saying.** Each reason *replaces*
+            the last rather than stacking below it: the banner sits above the
+            board, and a banner that grows moves the board — which invalidates
+            the origin every tap is resolved against (see FungikuBoard's
+            re-measure effect, which keys on `solved` and therefore covers the
+            banner mounting but not the banner changing size).
+
+            The `key` is what makes each reason its own element, so the fade-in
+            below restarts instead of the text swapping silently. */}
+        <View style={styles.detailRow}>
+          <Text
+            key={detail.text}
+            style={[styles.detail, styles.detailFade, { color: ink }]}
+            numberOfLines={1}
+            // The reasons arrive on their own, so a screen reader has to be told
+            // rather than left to notice.
+            accessibilityLiveRegion={detail.coins === null ? 'none' : 'polite'}
+          >
+            {detail.text}
+          </Text>
+
+          {detail.coins !== null && (
+            <View key={`${detail.text}-coins`} style={styles.detailCoins}>
+              <MaterialCommunityIcons name="circle-multiple" size={11} color={ink} />
+              <Text style={[styles.detail, styles.detailCoinsText, { color: ink }]}>
+                +{detail.coins}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       <TouchableOpacity
@@ -136,6 +199,9 @@ const styles = StyleSheet.create({
   textBlock: {
     marginLeft: 10,
     marginRight: 12,
+    // Takes the slack, so the action stays pinned to the banner's right edge
+    // instead of floating in the middle of a now-wider box.
+    flex: 1,
   },
   title: {
     fontSize: 15,
@@ -144,6 +210,23 @@ const styles = StyleSheet.create({
   detail: {
     fontSize: 11,
     opacity: 0.85,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  detailFade: {
+    flexShrink: 1,
+  },
+  detailCoins: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 6,
+  },
+  detailCoinsText: {
+    fontWeight: '800',
+    opacity: 1,
+    marginLeft: 2,
   },
   button: {
     borderWidth: 1,

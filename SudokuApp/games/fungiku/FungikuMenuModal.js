@@ -47,9 +47,11 @@ const FungikuMenuModal = ({
   size,
   seed,
   generating,
+  coins,
   onPickDifficulty,
   onPickSize,
   onPickSeed,
+  onGiftCoins,
   onClose,
 }) => {
   const [menuAnim] = useState(new Animated.Value(0));
@@ -203,6 +205,31 @@ const FungikuMenuModal = ({
                     <Text style={[styles.seedButtonText, { color: titleColor }]}>Go</Text>
                   </TouchableOpacity>
                 </View>
+
+                {/* **The purchase seam, standing in for a store that is not in
+                    scope** (plan §14.4). A gift, a reward and a purchase are all
+                    one call — `grant()` — and this button is the third of them
+                    with the till left out. In-app purchase needs
+                    `react-native-iap` or RevenueCat, neither of which runs in
+                    Expo Go, so building it would break the epic's rule that
+                    every step is visible on a device.
+
+                    It is also how the wallet gets exercised without solving four
+                    boards first, which is why it sits with the other developer
+                    controls rather than anywhere a player would find it. */}
+                <Text style={[styles.sectionLabel, { color: titleColor }]}>
+                  Coins ({coins})
+                </Text>
+                <TouchableOpacity
+                  onPress={onGiftCoins}
+                  style={[styles.seedButton, styles.giftButton, { borderColor: border }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Gift ten coins"
+                  accessibilityHint="Stands in for a purchase; both are the same grant"
+                >
+                  <MaterialCommunityIcons name="gift-outline" size={16} color={titleColor} />
+                  <Text style={[styles.seedButtonText, { color: titleColor }]}>Gift 10 coins</Text>
+                </TouchableOpacity>
               </View>
             )}
           </ScrollView>
@@ -351,6 +378,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginLeft: 4,
+  },
+  giftButton: {
+    alignSelf: 'center',
   },
 });
 
