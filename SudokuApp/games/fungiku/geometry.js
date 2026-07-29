@@ -10,6 +10,29 @@
  */
 
 /**
+ * How big a board really is, given the room available.
+ *
+ * A cell is a **whole number of pixels** — `Math.floor` — so a 324pt allowance at
+ * 7×7 gives 46pt cells and a board 322pt wide, not 324. That two-pixel remainder
+ * is why this exists: the counter row above the board is width-matched to it, and
+ * matching it to the *allowance* rather than to the board left the row a couple of
+ * pixels wider on each side. On device that reads as the board's frame being cut
+ * off at the edges — the row's border sits outside the board's.
+ *
+ * Both the board and anything claiming to be board-width must take their width
+ * from here, or they disagree by a remainder that changes with every size.
+ *
+ * @param {number} available - px the layout is willing to give the board
+ * @param {number} size - board size N
+ * @returns {{cell: number, board: number}} px per cell, and the true board width
+ */
+export const boardExtent = (available, size) => {
+  if (!(available > 0) || !(size > 0)) return { cell: 0, board: 0 };
+  const cell = Math.floor(available / size);
+  return { cell, board: cell * size };
+};
+
+/**
  * Which cell contains a point expressed **relative to the board's top-left**?
  *
  * @param {object} opts
@@ -82,4 +105,4 @@ export const cellsAlongLine = (from, to, size) => {
   return cells;
 };
 
-export default { cellFromPoint, cellsAlongLine };
+export default { boardExtent, cellFromPoint, cellsAlongLine };

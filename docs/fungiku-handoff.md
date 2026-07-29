@@ -271,12 +271,55 @@ explicitly whether the epic is ready to merge to `main`.
 15. **Is the daily floor the right shape for a floor?** It is what stops the game
     becoming unwinnable — a player at zero on a hard board always has four coins
     tomorrow. But a child who plays twice in an evening never sees it, and a
-    child who plays once a week is topped up to the same two either way. The
+    child who plays once a week is topped up to the same four either way. The
     alternatives rejected were a per-win minimum (no help to a player who cannot
     finish the board they are on) and a permanent minimum balance (assists are
     free, with extra steps). Worth re-asking once someone has actually run out.
 
+16. **Does the board still work for a colourblind player?** The tile redesign
+    (2026-07-29, plan §12.5) removed the region-boundary stroke, which was the
+    **second channel** — the thing that said *the region ends here* when two
+    adjacent fills were hard to tell apart. It had been removed once before and
+    put back for exactly this reason. Colour is now the only region signal. The
+    palette is still tuned for dichromat separation (§12.2) so it may well hold,
+    but it has not been checked under simulation *since the strokes went*, and
+    `corners` in `utils/symbolSets.js` is still sitting there as a third channel
+    if it does not.
+
 ### Noted in passing, for a later step
+
+- **The board is tiles now, not a grid — and `FungikuGridLines.js` is deleted.**
+  The operator asked for Meowdoku's look (2026-07-29): rounded tiles with a gap
+  between them, no grid lines, no region strokes, no frame. The file is
+  recoverable at `389eb46` if the look is ever reversed; plan §12.5 keeps the
+  reasoning that produced it. **The one rule that carried over: the gap lives
+  *inside* the cell box.** The cell pitch and the board's box are unchanged, so
+  `cellFromPoint` knows nothing about it and a finger landing in a gap still
+  belongs to the nearest cell. Anything that changes the pitch has to change the
+  touch geometry with it — that is the most expensive part of this board to get
+  right, and it was left alone on purpose.
+- **The gutter is lighter than everything, by construction.** The gaps show the
+  *board's own background*, not the page. Letting the page show through was the
+  first version and it failed in dark themes: the dark palette's palest fill is a
+  dark tint, so those tiles had no edge and floated. A gutter that is always
+  lighter gives every tile an edge whatever the theme or fill — the same
+  reasoning as the contrast-picked glyph ink, applied between tiles instead of
+  inside one. It is a background colour and a corner radius on the board View,
+  which change **no layout**; a wrapper or padding would have moved the touch
+  origin.
+- **The region-boundary stroke is gone, and that is a real loss.** It was the
+  second channel for colourblind players and it had already been removed once and
+  put back at the operator's call (plan §12.5). Colour is now the only thing
+  saying where a region ends. This was the operator's design call, not a
+  simplification — but §8 #16 carries the question, and `corners` in
+  `utils/symbolSets.js` is still available as a third channel.
+- **The board is almost never the width it was offered.** A cell is a whole
+  number of pixels, so 324 at 7×7 is a 322pt board. The counter row is
+  width-matched to the board — matching it to the *allowance* left it two pixels
+  proud on each side, which on device read as *"the border is cut off on the
+  sides"*. **`boardExtent(available, size)` in `geometry.js` is the one place that
+  remainder is worked out**, and anything claiming to be board-width must take it
+  from there. Plan §12.6.
 
 - **One currency, and the reason is a sentence that could not be written.** The
   first cut of Step 11 had two token kinds, and the win banner read

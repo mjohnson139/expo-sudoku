@@ -17,6 +17,7 @@ import FungikuBoard from './FungikuBoard';
 import FungikuMenuModal from './FungikuMenuModal';
 import FungikuOutOfLivesModal from './FungikuOutOfLivesModal';
 import FungikuWinBanner from './FungikuWinBanner';
+import { boardExtent } from './geometry';
 import { difficultyLabel } from './difficulty';
 import useCoinAward from './useCoinAward';
 import { COIN_COSTS, FungikuProvider, useFungikuContext } from './FungikuContext';
@@ -60,7 +61,13 @@ const FungikuScreenContent = ({ onExitToHub }) => {
   // sibling, the board included, gets pushed right and clipped. Adding the
   // hearts was enough to do exactly that on a phone: the last column ended up
   // off-screen and untappable.
-  const boardWidth = useBoardSize();
+  //
+  // Matched to the board's **real** width, not to the allowance. A cell is a
+  // whole number of pixels, so 324 at 7×7 is a 322pt board — and matching the row
+  // to 324 left it two pixels proud on each side, which on device reads as the
+  // board's edge being clipped by the box above it. `boardExtent` is the one
+  // place that remainder is worked out.
+  const available = useBoardSize();
 
   // True while a finger is down on the board, which freezes scrolling so a
   // vertical sweep paints instead of scrolling the page.
@@ -110,6 +117,9 @@ const FungikuScreenContent = ({ onExitToHub }) => {
   // at any moment — including mid-animation — moves it without special cases.
   const award = useCoinAward(lastReward);
   const shownCoins = Math.max(0, coins - award.pending);
+
+  // The board's true width — see the note on `available` above.
+  const { board: boardWidth } = boardExtent(available, size);
 
   const titleColor = theme.colors.title;
   const surface = theme.colors.numberPad.background;

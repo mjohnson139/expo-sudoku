@@ -830,6 +830,29 @@ rung carries more of the load on large boards (§8 #6).
 
 ### 12.5 The board's lines (operator device report, 2026-07-26)
 
+> ### ⚠️ Superseded 2026-07-29 — **the board has no lines at all any more.**
+>
+> The operator asked for the look Meowdoku uses: **rounded tiles with a gap
+> between them, no grid, no region strokes, no frame.** `FungikuGridLines.js` is
+> **deleted** (recoverable at `389eb46`), and with it the whole apparatus below —
+> the run merging, the half-stroke extension, the pixel snapping, the two widths.
+>
+> **What survives is the reasoning, and one hard rule:** the gap lives *inside*
+> the cell box. The cell pitch and the board's box are unchanged, so
+> `cellFromPoint` needs to know nothing about it and a finger landing in a gap
+> still belongs to the nearest cell. Anything that changes the pitch has to change
+> the touch geometry with it.
+>
+> **What was lost, and it is a real loss:** the region-boundary stroke was the
+> second channel for colourblind players — see the section below, which is the
+> record of that decision being made *and reversed once already*. Colour is now
+> the only thing that says where a region ends. `corners` in `utils/symbolSets.js`
+> is still there as a third channel if it turns out to be needed; §8 #16 carries
+> the question.
+>
+> **What was gained beyond the look:** the frame is gone, and with it the bug that
+> prompted this — see §12.6.
+
 > *"The grid lines could use some darker lines and a clean up of how lines come
 > together."* — operator, on a 9×9 in the Pastel theme
 
@@ -924,6 +947,24 @@ Two constraints worth knowing if this is ever touched again:
 **This changed how every size looks, not just the new ones.** A single-drawn
 2.5px boundary replaces a double-drawn 2px one, so boundaries are lighter and
 even, and the grid inside a region is darker than it was.
+
+### 12.6 The board was never quite the width it was given (device report, 2026-07-29)
+
+*"The border is cut off on the sides."*
+
+A cell is a whole number of pixels — `Math.floor(available / size)` — so a 324pt
+allowance at 7×7 makes 46pt cells and a **322pt board**. The counter row above the
+board is width-matched to it, deliberately and load-bearingly (§14.3's device
+fix), but it was matched to the **allowance**: 324. Two pixels proud on each side,
+at every size where the division is not exact, which is most of them. On device
+that reads as the board's frame being clipped by the box above it.
+
+`boardExtent(available, size)` in `games/fungiku/geometry.js` is now the one place
+that remainder is worked out, and both the board and the counter row take their
+width from it. It is pure and tested, in both directions: whole-pixel cells whose
+sum *is* the board, and the specific 324/7 = 322 case that was wrong.
+
+**Anything else that ever claims to be board-width must come from there too.**
 
 ## 13. Ladder & scoring — notes parked, now superseded
 

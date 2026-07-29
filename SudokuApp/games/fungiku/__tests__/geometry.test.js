@@ -1,4 +1,4 @@
-import { cellFromPoint, cellsAlongLine } from '../geometry';
+import { boardExtent, cellFromPoint, cellsAlongLine } from '../geometry';
 
 describe('cellFromPoint', () => {
   const grid = { cellSize: 40, size: 5 };
@@ -129,5 +129,44 @@ describe('cellsAlongLine', () => {
     expect(cellsAlongLine(3, 25, size)).toEqual([]);
     expect(cellsAlongLine(1.5, 3, size)).toEqual([]);
     expect(cellsAlongLine(0, 3, 0)).toEqual([]);
+  });
+});
+
+/**
+ * The remainder that made the board look clipped (operator device report,
+ * 2026-07-29). A cell is a whole number of pixels, so the board is almost never
+ * exactly the width it was offered — and the counter row above it was matched to
+ * the offer.
+ */
+describe('boardExtent', () => {
+  it('gives whole-pixel cells and a board that is exactly their sum', () => {
+    for (let size = 5; size <= 10; size++) {
+      const { cell, board } = boardExtent(324, size);
+
+      expect(Number.isInteger(cell)).toBe(true);
+      expect(board).toBe(cell * size);
+      expect(board).toBeLessThanOrEqual(324);
+    }
+  });
+
+  it('is narrower than the allowance whenever the division is not exact', () => {
+    // 324/7 = 46.28…, so the board is 322 and anything matched to 324 sits two
+    // pixels proud on each side.
+    expect(boardExtent(324, 7)).toEqual({ cell: 46, board: 322 });
+    expect(boardExtent(324, 5)).toEqual({ cell: 64, board: 320 });
+    // And exact when it divides.
+    expect(boardExtent(320, 5)).toEqual({ cell: 64, board: 320 });
+  });
+
+  it('refuses nonsense rather than returning a NaN width', () => {
+    [
+      [0, 5],
+      [-10, 5],
+      [324, 0],
+      [NaN, 5],
+      [324, NaN],
+    ].forEach(([available, size]) => {
+      expect(boardExtent(available, size)).toEqual({ cell: 0, board: 0 });
+    });
   });
 });
