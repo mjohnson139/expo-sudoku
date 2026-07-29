@@ -323,6 +323,20 @@ explicitly whether the epic is ready to merge to `main`.
   different numbers — the board is the tiles' bounding box and the touch geometry,
   the card is what the player reads as the edge, and **the counter row lines up
   with the card**. Plan §12.6.
+- **Fungiku's board fills the width; Sudoku's does not.**
+  `useBoardSize({ fill: true })` takes what the screen offers (capped);
+  `useBoardSize()` still returns Sudoku's fixed 324. The fixed number was leaving
+  ~35pt of dead margin on each side of a 393pt phone — the board looked
+  compressed next to a header that ran edge to edge, and at 10×10 it cost 7pt of
+  cell. **Sudoku is deliberately left on the old rule**: its screen is laid out
+  around 324. `FILL_WIDTH` is exported from `FungikuBoard` as a stable object so
+  the board and the screen ask the identical question — they line up with each
+  other, and they cannot line up with different answers.
+- **Everything in Fungiku's column is board-width, and nothing may exceed it.**
+  Counter row, hint banner, win banner, the priced buttons, the puzzle/difficulty
+  row. The column sits in a ScrollView that centres its children, so anything
+  wider widens the content container and pushes every sibling sideways — that is
+  the Step 10 bug that left the last column untappable.
 - **The card is a parent, never padding on the board.** The board's box is the
   touch geometry and may not carry padding or a border; a parent that does is fine
   because `measureInWindow` reads the board's own position and already accounts

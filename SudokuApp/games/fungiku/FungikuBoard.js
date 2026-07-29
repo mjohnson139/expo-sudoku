@@ -10,6 +10,14 @@ import { PAINT_MODES } from './reducer';
 import { useFungikuContext } from './FungikuContext';
 
 /**
+ * Stable object identity, so the sizing hook's memo is not invalidated on every
+ * render by a fresh options literal. Exported because the screen has to ask the
+ * same question — the counter row and the banners line up with the board, and
+ * they cannot line up with a different answer.
+ */
+export const FILL_WIDTH = { fill: true };
+
+/**
  * The Fungiku board.
  *
  * Region outlines *are* the board's structure (docs/fungiku-plan.md §3) — they
@@ -107,7 +115,9 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   // cell for a mistake or a reveal.
   const hintCells = useMemo(() => new Set(hint?.cells || []), [hint]);
 
-  const available = useBoardSize();
+  // `fill` — Fungiku's board takes the width the screen offers rather than
+  // Sudoku's fixed 324. See useBoardSize.
+  const available = useBoardSize(FILL_WIDTH);
   const { pad, cell } = boardExtent(available, size);
   const glyph = Math.round(cell * 0.62);
 

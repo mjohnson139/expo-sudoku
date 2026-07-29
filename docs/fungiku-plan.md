@@ -978,6 +978,27 @@ geometry and may not carry padding or a border — but a parent that does is fin
 because `measureInWindow` reads the board's own position and that already accounts
 for it. Verified by tapping cell centres at 5×5 and 10×10, corner included.
 
+**And a third one, which was the biggest: the board was never asking for the
+width in the first place.** `useBoardSize` returned a **fixed 324pt** on native —
+Sudoku's number, inherited when the hook was extracted — while a modern phone is
+393pt wide and the header's buttons ran nearly edge to edge. About 35pt of dead
+margin on each side, on every board. It reads as *compressed*, and it gets worse
+the bigger the board: at 10×10 it is the difference between a **31pt cell and a
+38pt one**, which is squarely in the range §12.3 spent a step making legible.
+
+`useBoardSize({ fill: true })` takes the width the screen actually offers,
+capped so a tablet does not produce a board nobody can reach across.
+**Fungiku asks for it; Sudoku does not** — Sudoku's screen is laid out around 324
+(the number pad, the notes toggle, the timer) and widening its grid underneath is
+not this change's call to make. The same rule runs on web and native so a browser
+check and a device see the same layout.
+
+Everything in Fungiku's column is now that width — counter row, hint banner, win
+banner, the priced buttons, the puzzle/difficulty row. **Nothing may exceed it**:
+the column sits in a ScrollView that centres its children, so anything wider
+widens the content container and pushes every sibling sideways (§14.3's device
+bug).
+
 **Anything else that ever claims to be board-width must come from there too.**
 
 ## 13. Ladder & scoring — notes parked, now superseded

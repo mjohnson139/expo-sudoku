@@ -13,7 +13,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
 import useBoardSize from '../../hooks/useBoardSize';
-import FungikuBoard from './FungikuBoard';
+import FungikuBoard, { FILL_WIDTH } from './FungikuBoard';
 import FungikuMenuModal from './FungikuMenuModal';
 import FungikuOutOfLivesModal from './FungikuOutOfLivesModal';
 import FungikuWinBanner from './FungikuWinBanner';
@@ -67,7 +67,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
   // to 324 left it two pixels proud on each side, which on device reads as the
   // board's edge being clipped by the box above it. `boardExtent` is the one
   // place that remainder is worked out.
-  const available = useBoardSize();
+  const available = useBoardSize(FILL_WIDTH);
 
   // True while a finger is down on the board, which freezes scrolling so a
   // vertical sweep paints instead of scrolling the page.
@@ -383,7 +383,15 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             "nothing is forced" case says so, with the reveal as a second,
             deliberate tap. */}
         {hint && !solved && (
-          <View style={[styles.hintBanner, { backgroundColor: surface, borderColor: border }]}>
+          <View
+            style={[
+              styles.hintBanner,
+              // Board-width, like everything else in this column. A fixed cap
+              // looked deliberate while the board was a fixed 324; against a
+              // board that fills the screen it just looks pinched.
+              { backgroundColor: surface, borderColor: border, width: boardWidth },
+            ]}
+          >
             <MaterialCommunityIcons
               name={hint.kind === 'mistake' ? 'alert' : 'lightbulb-on-outline'}
               size={18}
@@ -505,7 +513,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             wallet telling you that you cannot afford it. Collapsing both into a
             greyed-out button would leave the player with no way to tell whether
             waiting or earning is what fixes it. */}
-        <View style={styles.controlRow}>
+        <View style={[styles.controlRow, { width: boardWidth }]}>
           <AssistButton
             icon="auto-fix"
             label={ruleOutCount === 0 ? 'Rule out' : `Rule out ${ruleOutCount}`}
@@ -539,7 +547,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             The balance shown is the *hint* balance, which the reveal in the
             banner draws on too — one currency, two prices (§11.2's ladder says
             each rung costs more than the last). */}
-        <View style={styles.controlRow}>
+        <View style={[styles.controlRow, { width: boardWidth }]}>
           <AssistButton
             icon="lightbulb-on-outline"
             label={hintsUsed > 0 ? `Hint (${hintsUsed})` : 'Hint'}
@@ -568,7 +576,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             under the board. What is left here is the two things a player wants
             mid-game without going shopping: another board like this one, and the
             menu. */}
-        <View style={styles.controlRow}>
+        <View style={[styles.controlRow, { width: boardWidth }]}>
           <TouchableOpacity
             onPress={nextPuzzle}
             // A second tap while the top size is still generating would only
@@ -742,7 +750,6 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: 10,
     marginBottom: 12,
-    maxWidth: 360,
   },
   hintText: {
     fontSize: 12,
@@ -801,6 +808,7 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   wideButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -815,9 +823,10 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   assistButton: {
-    // Fixed, so a balance falling from 10 to 9 — or to "none left" — does not
-    // resize the button under the finger that is about to press it again.
-    minWidth: 240,
+    // Fills its row, which is board-width — so the price on the right sits under
+    // the board's right edge and the whole screen reads as one column. It also
+    // means the button never resizes when the number on it changes.
+    flex: 1,
     justifyContent: 'space-between',
   },
   assistAction: {
