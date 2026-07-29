@@ -502,14 +502,47 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   // The board itself celebrates a win first (a gentle lift), before the banner
   // above it arrives — same "board celebrates first" idea the sibling color-loop
   // app uses for its win sequence.
+  //
+  // **It pops and comes back.** It used to animate to 1 and *stay* there, which
+  // meant a solved board sat permanently 4% wider than everything else in the
+  // column: it stuck out past the counter row above it, and once the board
+  // started filling the screen's width it had nowhere left to grow into. That is
+  // the whole of the operator's *"it's just when you finish a game"* — the
+  // celebration was not a celebration, it was a resize.
+  //
+  // A resting scale of exactly 1 also keeps the board's drawn box equal to its
+  // measured box, which is what every tap is resolved against. Undo still works
+  // on a finished board, so that is not academic.
   const winLift = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(winLift, {
-      toValue: solved ? 1 : 0,
-      duration: solved ? 420 : 160,
-      easing: solved ? Easing.out(Easing.back(2)) : Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
+    const animation = solved
+      ? Animated.sequence([
+          Animated.timing(winLift, {
+            toValue: 1,
+            duration: 300,
+            easing: Easing.out(Easing.back(2)),
+            useNativeDriver: true,
+          }),
+          Animated.timing(winLift, {
+            toValue: 0,
+            duration: 420,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ])
+      : Animated.timing(winLift, {
+          toValue: 0,
+          duration: 160,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        });
+
+    animation.start();
+
+    // No `setValue` anywhere near this one — it is native-driven, and plan §2's
+    // rule is that the two must never be mixed. Un-solving while the pop is in
+    // flight is handled by the `!solved` branch, which animates it home.
+    return () => animation.stop();
   }, [solved, winLift]);
 
   return (
@@ -527,7 +560,7 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
           backgroundColor: gutter,
           borderRadius: radius + pad,
           transform: [
-            { scale: winLift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] }) },
+            { scale: winLift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.03] }) },
           ],
         },
       ]}

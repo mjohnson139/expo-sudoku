@@ -468,6 +468,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           size={size}
           seed={seed}
           accent={FUNGIKU_ACCENT}
+          width={boardWidth}
           reward={lastReward}
           award={award}
           onNextPuzzle={nextPuzzle}

@@ -46,7 +46,7 @@ const detailLine = ({ reward, award, size, seed }) => {
   return { text: 'Coins earned', coins: reward.total };
 };
 
-const FungikuWinBanner = ({ solved, size, seed, accent, reward, award, onNextPuzzle }) => {
+const FungikuWinBanner = ({ solved, size, seed, accent, width, reward, award, onNextPuzzle }) => {
   const progress = useRef(new Animated.Value(0)).current;
   const shimmer = useRef(new Animated.Value(0)).current;
   const [mounted, setMounted] = useState(solved);
@@ -109,6 +109,13 @@ const FungikuWinBanner = ({ solved, size, seed, accent, reward, award, onNextPuz
       style={[
         styles.banner,
         {
+          // Board-width, like the counter row above it and the buttons below.
+          // It used to size itself from its contents, which read as deliberate
+          // while the board was a fixed 324 and read as a stray narrow box once
+          // the column filled the screen. Its **height** still may not change —
+          // it sits above the board, and `solved` is the only thing that
+          // re-measures the board's origin.
+          width,
           backgroundColor: accent,
           opacity: progress,
           transform: [
@@ -192,6 +199,9 @@ const styles = StyleSheet.create({
   textBlock: {
     marginLeft: 10,
     marginRight: 12,
+    // Takes the slack, so the action stays pinned to the banner's right edge
+    // instead of floating in the middle of a now-wider box.
+    flex: 1,
   },
   title: {
     fontSize: 15,

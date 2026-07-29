@@ -337,6 +337,15 @@ explicitly whether the epic is ready to merge to `main`.
   row. The column sits in a ScrollView that centres its children, so anything
   wider widens the content container and pushes every sibling sideways — that is
   the Step 10 bug that left the last column untappable.
+- **The win lift pops and comes back; it does not rest scaled.** It used to
+  animate to 1 and stay, which left a *solved* board permanently 4% wider than
+  its column — it stuck out past the counter row, and once the board filled the
+  screen it had nowhere to grow into. The operator's report was *"I think it's
+  just when you finish a game"*, and it was: the celebration was a resize.
+  **A resting scale of exactly 1 also keeps the board's drawn box equal to its
+  measured box**, which is what taps resolve against — and a finished board can
+  still be undone. If you ever add another celebration here, it may borrow the
+  footprint, not keep it.
 - **The card is a parent, never padding on the board.** The board's box is the
   touch geometry and may not carry padding or a border; a parent that does is fine
   because `measureInWindow` reads the board's own position and already accounts
