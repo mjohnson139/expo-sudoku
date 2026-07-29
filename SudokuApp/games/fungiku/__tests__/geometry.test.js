@@ -1,4 +1,4 @@
-import { cellFromPoint, cellsAlongLine } from '../geometry';
+import { boardExtent, cellFromPoint, cellsAlongLine } from '../geometry';
 
 describe('cellFromPoint', () => {
   const grid = { cellSize: 40, size: 5 };
@@ -129,5 +129,52 @@ describe('cellsAlongLine', () => {
     expect(cellsAlongLine(3, 25, size)).toEqual([]);
     expect(cellsAlongLine(1.5, 3, size)).toEqual([]);
     expect(cellsAlongLine(0, 3, 0)).toEqual([]);
+  });
+});
+
+/**
+ * The remainder that made the board look clipped (operator device report,
+ * 2026-07-29). A cell is a whole number of pixels, so the board is almost never
+ * exactly the width it was offered — and the counter row above it was matched to
+ * the offer.
+ */
+describe('boardExtent', () => {
+  it('gives whole-pixel cells and a board that is exactly their sum', () => {
+    for (let size = 5; size <= 10; size++) {
+      const { pad, cell, board, outer } = boardExtent(324, size);
+
+      expect(Number.isInteger(cell)).toBe(true);
+      expect(board).toBe(cell * size);
+      expect(outer).toBe(board + 2 * pad);
+      // The whole card has to fit in what it was given.
+      expect(outer).toBeLessThanOrEqual(324);
+    }
+  });
+
+  it('keeps the card the same width across board sizes', () => {
+    // The card comes off the available width, so switching 5x5 -> 10x10 does not
+    // resize the frame around the board.
+    const widths = [5, 6, 7, 8, 9, 10].map((size) => boardExtent(324, size).pad);
+    expect(new Set(widths).size).toBe(1);
+  });
+
+  it('always leaves a band of gutter around the outside', () => {
+    // The bug this fixes: without it, the only thing outside an edge tile was
+    // its own half-gap, which at 10x10 is about a pixel.
+    for (let size = 5; size <= 10; size++) {
+      expect(boardExtent(324, size).pad).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('refuses nonsense rather than returning a NaN width', () => {
+    [
+      [0, 5],
+      [-10, 5],
+      [324, 0],
+      [NaN, 5],
+      [324, NaN],
+    ].forEach(([available, size]) => {
+      expect(boardExtent(available, size)).toEqual({ pad: 0, cell: 0, board: 0, outer: 0 });
+    });
   });
 });

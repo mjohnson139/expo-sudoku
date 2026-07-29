@@ -9,6 +9,7 @@ import {
   fungikuReducer,
   selectCanRedo,
   selectCanUndo,
+  selectHintIsChargeable,
   selectIsSolved,
   selectLives,
   selectMistakeCells,
@@ -1044,5 +1045,47 @@ describe('hints', () => {
 
   it('resets the count for a new puzzle', () => {
     expect(buildPuzzleState({ size: 5, seed: 2, hintsUsed: 0 }).hintsUsed).toBe(0);
+  });
+});
+
+/**
+ * What the wallet charges a hint on (plan §14.4). It has to be answerable
+ * *before* the action is dispatched, and it has to agree with the reducer's own
+ * rule for `hintsUsed` — otherwise a player is billed for an answer that gave
+ * nothing away, or gets a nudge for free.
+ */
+describe('selectHintIsChargeable', () => {
+  const base = buildPuzzleState({ size: 5, seed: 1 });
+  const hintFor = (state) => fungikuReducer(state, { type: FUNGIKU_ACTIONS.REQUEST_HINT });
+
+  /** Every region is a whole row, so nothing anywhere is forced. */
+  const bands = {
+    ...base,
+    seed: 0,
+    regions: Array.from({ length: 25 }, (_, i) => Math.floor(i / 5)),
+    solution: [0, 2, 4, 1, 3],
+    marks: createEmptyMarks(5),
+  };
+
+  it('agrees with the reducer about what counts as a hint used', () => {
+    [base, bands].forEach((state) => {
+      const chargeable = selectHintIsChargeable(state);
+      const after = hintFor(state);
+
+      expect(chargeable).toBe(after.hintsUsed > state.hintsUsed);
+      expect(chargeable).toBe(after.hint.kind === HINT_KINDS.NUDGE);
+    });
+  });
+
+  it('is false when the only answer available is "nothing is forced"', () => {
+    expect(selectHintIsChargeable(bands)).toBe(false);
+    expect(hintFor(bands).hint.kind).toBe(HINT_KINDS.STUCK);
+  });
+
+  it('is false on a solved board — there is nothing left to be forced', () => {
+    const solved = solve(base);
+
+    expect(selectIsSolved(solved)).toBe(true);
+    expect(selectHintIsChargeable(solved)).toBe(false);
   });
 });

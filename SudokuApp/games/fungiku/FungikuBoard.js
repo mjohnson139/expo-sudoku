@@ -1,14 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, Animated, Easing, PanResponder } from 'react-native';
+import { View, StyleSheet, Animated, Easing, PanResponder, PixelRatio } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MARKS } from './engine';
 import { getRegionColor } from '../../utils/symbolSets';
 import useBoardSize from '../../hooks/useBoardSize';
 import useBoardOrigin from '../../hooks/useBoardOrigin';
-import { cellFromPoint, cellsAlongLine } from './geometry';
+import { boardExtent, cellFromPoint, cellsAlongLine } from './geometry';
 import { PAINT_MODES } from './reducer';
-import FungikuGridLines from './FungikuGridLines';
 import { useFungikuContext } from './FungikuContext';
+
+/**
+ * Stable object identity, so the sizing hook's memo is not invalidated on every
+ * render by a fresh options literal. Exported because the screen has to ask the
+ * same question — the counter row and the banners line up with the board, and
+ * they cannot line up with a different answer.
+ */
+export const FILL_WIDTH = { fill: true };
 
 /**
  * The Fungiku board.
@@ -108,32 +115,70 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   // cell for a mistake or a reveal.
   const hintCells = useMemo(() => new Set(hint?.cells || []), [hint]);
 
-  const boardSize = useBoardSize();
-  const cell = Math.floor(boardSize / size);
+  // `fill` — Fungiku's board takes the width the screen offers rather than
+  // Sudoku's fixed 324. See useBoardSize.
+  const available = useBoardSize(FILL_WIDTH);
+  const { pad, cell } = boardExtent(available, size);
   const glyph = Math.round(cell * 0.62);
+
+  // --- separated tiles (operator request, 2026-07-29) -----------------------
+  //
+  // The board is no longer a grid with lines drawn on it: it is a field of
+  // rounded tiles that do not touch. The gap between them is the board's
+  // background showing through, which is where the structure now comes from.
+  //
+  // **The gap lives *inside* the cell box, and that is load-bearing.** The cell
+  // pitch is unchanged and the board's box is still exactly `cell × size`, so
+  // `cellFromPoint` needs to know nothing about any of this and a finger landing
+  // in a gap still belongs to the nearest cell — there is no dead space to miss.
+  // Anything that changed the pitch would have to change the touch geometry with
+  // it, and that is the part of this board that has cost the most to get right.
+  //
+  // Both scale with the cell so a 10×10 board (32pt cells on a phone) reads the
+  // same as a 5×5 one (64pt), rather than being swallowed by a gap tuned for the
+  // large end. Snapped to device pixels for the same reason every line was:
+  // a half-pixel inset antialiases into a smear whose visibility depends on the
+  // fill behind it.
+  const gap = Math.max(2, PixelRatio.roundToNearestPixel(cell * 0.09));
+  const inset = PixelRatio.roundToNearestPixel(gap / 2);
+  const radius = Math.max(3, Math.round(cell * 0.16));
+
+  // What shows *through* the gaps, and the band around the outside of them.
+  //
+  // It is a **card the board sits inside**, not a background on the board
+  // itself. The board's box is the touch geometry — `cellFromPoint` resolves
+  // every tap against its origin — so it may never carry padding. A parent that
+  // does is fine: `measureInWindow` reads the board's own position, which
+  // already accounts for the card's padding, so the touch path is untouched.
+  //
+  // The card exists because the board's own background was not enough: the only
+  // thing outside the edge tiles was their half-gap, which at 10×10 is about a
+  // pixel, so the outer columns looked shaved while the interior ones did not.
+  // `pad` is a band of gutter wide enough to read as a frame at every size.
+  //
+  // **It cannot just be the page**, which is what the first version left showing:
+  // the dark palette's palest fill is a dark tint, and against a dark page those
+  // tiles had no edge and floated. A gutter that is always *lighter* than
+  // everything on top of it gives every tile an edge by construction, whatever
+  // the theme or the fill — the same reasoning as the contrast-picked glyph ink,
+  // applied to the space between tiles instead of the mark inside one.
+  //
+  // Translucent white on dark themes rather than a fixed grey, so it lifts the
+  // theme's own hue (twilight's page is purple, not grey) instead of dropping a
+  // neutral on top of it.
+  const gutter = isDark ? 'rgba(255,255,255,0.10)' : '#ffffff';
 
   // --- legibility at the top size (plan §12.3) ------------------------------
   //
   // The board is a fixed 324pt on native however many cells it holds, so a cell
   // is 64px at 5×5 and **32px at 10×10**. Anything drawn inside a cell was tuned
-  // against the large end and stops working at the small one, so it steps down at
-  // a threshold that leaves 5×5 through 8×8 (cells 64 down to 40) exactly as they
-  // were.
-  //
-  // The board's *lines* are a different story: they changed at every size, because
-  // the way they were drawn was wrong at every size and only obvious at small
-  // ones. See FungikuGridLines.
+  // against the large end and stops working at the small one, which is why the
+  // gap and the corner radius above are both fractions of the cell rather than
+  // constants.
   //
   // Note what the browser cannot tell you here: web boards are up to 450px, so a
   // 10×10 cell is 45px there — *larger* than a 5×5 native cell. None of this is
   // judgeable outside Expo Go.
-  const tightCells = cell < 40;
-
-  // Region-boundary stroke. Drawn once per edge by FungikuGridLines — when this
-  // was a per-cell border every interior boundary was drawn by *both* cells and
-  // came out at double this, which is why 2 looked heavy and the frame around
-  // the board looked thin by comparison.
-  const regionBorder = tightCells ? 2 : 2.5;
 
   // --- drag to sweep X's (plan §2) -----------------------------------------
   //
@@ -453,46 +498,81 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     [beginStroke, endStroke, paintCells, tapCell, placeMushroom, measure]
   );
 
-  // Region boundaries come from the theme's grid colors so the board reads as
-  // part of the app; they need to hold up over both light and dark region fills.
-  //
-  // Grid lines *within* a region do not come from the theme — see the note in
-  // FungikuGridLines. `inkAt` gives that overlay the contrast-picked ink for a
-  // region's fill, which is the one color guaranteed legible on it.
-  const outline = theme?.colors?.grid?.boxBorder || (isDark ? '#e8e8e8' : '#333333');
-  const inkAt = useCallback((region) => getRegionColor(region, isDark).ink, [isDark]);
 
   // The board itself celebrates a win first (a gentle lift), before the banner
   // above it arrives — same "board celebrates first" idea the sibling color-loop
   // app uses for its win sequence.
+  //
+  // **It pops and comes back.** It used to animate to 1 and *stay* there, which
+  // meant a solved board sat permanently 4% wider than everything else in the
+  // column: it stuck out past the counter row above it, and once the board
+  // started filling the screen's width it had nowhere left to grow into. That is
+  // the whole of the operator's *"it's just when you finish a game"* — the
+  // celebration was not a celebration, it was a resize.
+  //
+  // A resting scale of exactly 1 also keeps the board's drawn box equal to its
+  // measured box, which is what every tap is resolved against. Undo still works
+  // on a finished board, so that is not academic.
   const winLift = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(winLift, {
-      toValue: solved ? 1 : 0,
-      duration: solved ? 420 : 160,
-      easing: solved ? Easing.out(Easing.back(2)) : Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
+    const animation = solved
+      ? Animated.sequence([
+          Animated.timing(winLift, {
+            toValue: 1,
+            duration: 300,
+            easing: Easing.out(Easing.back(2)),
+            useNativeDriver: true,
+          }),
+          Animated.timing(winLift, {
+            toValue: 0,
+            duration: 420,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ])
+      : Animated.timing(winLift, {
+          toValue: 0,
+          duration: 160,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: true,
+        });
+
+    animation.start();
+
+    // No `setValue` anywhere near this one — it is native-driven, and plan §2's
+    // rule is that the two must never be mixed. Un-solving while the pop is in
+    // flight is handled by the `!solved` branch, which animates it home.
+    return () => animation.stop();
   }, [solved, winLift]);
 
   return (
+    // The card. It carries the gutter, the rounded frame, the padding that keeps
+    // the edge tiles off the edge, and the win lift — everything *except* the
+    // touch box, which is its child.
     <Animated.View
-      ref={boardRef}
-      onLayout={onLayout}
       // While a big board generates, the board on screen is the *previous*
       // puzzle and is about to be replaced. Marks made on it would vanish.
       pointerEvents={generating ? 'none' : 'auto'}
-      {...responder.panHandlers}
       style={[
-        styles.board,
+        styles.card,
         {
-          width: cell * size,
-          height: cell * size,
+          padding: pad,
+          backgroundColor: gutter,
+          borderRadius: radius + pad,
           transform: [
-            { scale: winLift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.04] }) },
+            { scale: winLift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.03] }) },
           ],
         },
       ]}
+    >
+    {/* The touch box: exactly the tiles' bounding box, no padding, no border.
+        This is what `measureInWindow` reads and what every tap is resolved
+        against, and it must stay exactly `cell × size`. */}
+    <View
+      ref={boardRef}
+      onLayout={onLayout}
+      {...responder.panHandlers}
+      style={{ width: cell * size, height: cell * size }}
     >
       {Array.from({ length: size }, (_, row) => (
         <View key={row} style={styles.row}>
@@ -544,27 +624,38 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                   if (nativeEvent.actionName === 'placeMushroom') placeMushroom(index);
                   else tapCell(index);
                 }}
-                // No borders here: every line on this board is drawn once, by
-                // the FungikuGridLines overlay below. Per-cell borders drew each
-                // interior boundary twice and mitered at every corner.
-                style={{
-                  width: cell,
-                  height: cell,
-                  backgroundColor: entry.background,
-                  // Press feedback, previously TouchableOpacity's activeOpacity.
-                  opacity: pressedCell === index ? 0.6 : 1,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
+                // The touch box, which is the full pitch and carries no colour.
+                // The padding is what separates one tile from the next; the fill
+                // is on the child. Keeping the gap inside this box is what lets
+                // `cellFromPoint` stay ignorant of it.
+                style={{ width: cell, height: cell, padding: inset }}
               >
+                <View
+                  style={{
+                    flex: 1,
+                    backgroundColor: entry.background,
+                    borderRadius: radius,
+                    // Press feedback, previously TouchableOpacity's activeOpacity.
+                    opacity: pressedCell === index ? 0.6 : 1,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
                 {/* A hint points with a dashed inset outline — a separate channel
                     from the glyph, so it can sit on a cell that is also flagged
-                    without either signal being lost. */}
+                    without either signal being lost. It follows the tile's
+                    corner radius, or it would read as a square badge sitting on
+                    a rounded tile. */}
                 {hintCells.has(index) && (
                   <View
                     style={[
                       styles.hintOutline,
-                      { width: cell - 3, height: cell - 3, borderColor: entry.ink },
+                      {
+                        width: cell - gap - 3,
+                        height: cell - gap - 3,
+                        borderRadius: Math.max(2, radius - 2),
+                        borderColor: entry.ink,
+                      },
                     ]}
                   />
                 )}
@@ -609,28 +700,19 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                     />
                   </Animated.View>
                 )}
+                </View>
               </View>
             );
           })}
         </View>
       ))}
-
-      {/* Drawn last so the lines sit on top of the fills rather than being eaten
-          by them. Memoized on the puzzle, so a tap does not rebuild it. */}
-      <FungikuGridLines
-        size={size}
-        cell={cell}
-        regions={regions}
-        width={regionBorder}
-        color={outline}
-        inkAt={inkAt}
-      />
+    </View>
     </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
-  board: {
+  card: {
     alignSelf: 'center',
   },
   row: {
@@ -640,7 +722,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderRadius: 3,
     opacity: 0.9,
   },
 });

@@ -680,6 +680,23 @@ export const selectMistakeCells = (state) => new Set(state.mistakeCells);
 export const selectLives = (state) => ({ left: state.lives, of: MAX_LIVES });
 
 /**
+ * Would a hint request actually hand something over? (plan §14.4)
+ *
+ * This is what a hint is *priced* on, and it has to be answerable **before** the
+ * action is dispatched, because the wallet spends on the action rather than on
+ * the tap that asked for it. The reducer already draws exactly this line for
+ * `hintsUsed`: a nudge counts, and the "no single forced step from here" answer
+ * does not, because it gives nothing away. The wallet charges on the same side of
+ * it, so a player who presses Hint on an unforceable board is told so for free.
+ *
+ * It runs the same `findForcedDeduction` that REQUEST_HINT will — cheap
+ * (O(size²), the same order as the rule-out and reveal selectors beside it) and
+ * deterministic on the state it is given, so asking and acting cannot disagree.
+ */
+export const selectHintIsChargeable = (state) =>
+  findForcedDeduction(state.marks, state.regions, state.size) !== null;
+
+/**
  * Which cell a reveal would fill: a row still missing its mushroom whose solution
  * cell can be placed **without creating a conflict** (plan §11.2 — "a hint that
  * creates a conflict is worse than no hint").
