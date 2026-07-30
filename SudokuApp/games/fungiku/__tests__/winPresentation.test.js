@@ -1,10 +1,10 @@
 import {
   WIN_DIALOG_DELAY_MS,
   WIN_DIALOG_ENTER_MS,
+  AWARD_REVEAL_MS,
   AWARD_START_MS,
-  visibleAwardSteps,
-  shownAwardTotal,
-  isAwardComplete,
+  awardSteps,
+  awardTotal,
 } from '../winPresentation';
 import { WAVE_DELAY_MS, WAVE_DURATION_MS } from '../celebration';
 
@@ -26,82 +26,62 @@ describe('when the dialog arrives', () => {
     expect(WIN_DIALOG_DELAY_MS).toBeGreaterThan(WAVE_DELAY_MS + WAVE_DURATION_MS * 0.5);
   });
 
-  test('the count-up starts only once the dialog is on screen', () => {
-    // The payout is narrated inside the dialog, so counting before it exists
-    // would spend the reasons on an empty screen.
-    expect(AWARD_START_MS).toBe(WIN_DIALOG_DELAY_MS + WIN_DIALOG_ENTER_MS);
-    expect(AWARD_START_MS).toBeGreaterThan(WIN_DIALOG_DELAY_MS);
+  test('arrives without dawdling — it is a fade, not a performance', () => {
+    // Shortened on the operator's "pretty clunky when it animates in".
+    expect(WIN_DIALOG_ENTER_MS).toBeLessThanOrEqual(280);
   });
 
-  // Bounded rather than pinned: the operator lengthened the wave (2026-07-30)
-  // and this number followed it, which is the point of deriving it. What it must
-  // not become is a cutscene the player sits through before they can act — the
-  // dialog and its "Next puzzle" button are already on screen by then, so this
-  // is only about when the coins start moving.
-  test('the coins start once the wave is essentially done, and not much later', () => {
+  test('the payout lands one beat after the dialog, not five', () => {
+    // **The whole of what is left of the narration.** It used to walk the
+    // reasons one at a time over ~4s; now the confetti bursts and the result
+    // appears. This asserts the beat exists (so the result reads as arriving)
+    // and that it is short (so nobody is waiting for it).
+    expect(AWARD_REVEAL_MS).toBeGreaterThan(150);
+    expect(AWARD_REVEAL_MS).toBeLessThan(800);
+    expect(AWARD_START_MS).toBe(WIN_DIALOG_DELAY_MS + WIN_DIALOG_ENTER_MS + AWARD_REVEAL_MS);
+  });
+
+  // Bounded rather than pinned: the operator lengthened the wave and this
+  // followed it, which is the point of deriving it. What it must not become is a
+  // cutscene the player sits through before they can act — the dialog and its
+  // "Next puzzle" button are on screen well before this.
+  test('the coins land once the wave is essentially done, and not much later', () => {
     expect(AWARD_START_MS).toBeGreaterThan(WAVE_DELAY_MS + WAVE_DURATION_MS * 0.7);
-    expect(AWARD_START_MS).toBeLessThan(WAVE_DELAY_MS + WAVE_DURATION_MS + 600);
+    expect(AWARD_START_MS).toBeLessThan(WAVE_DELAY_MS + WAVE_DURATION_MS + 900);
   });
 });
 
-describe('visibleAwardSteps', () => {
-  test('shows nothing before the first reason lands', () => {
-    expect(visibleAwardSteps(reward, -1)).toEqual([]);
+describe('awardSteps', () => {
+  test('shows nothing until the payout is revealed', () => {
+    expect(awardSteps(reward, false)).toEqual([]);
   });
 
-  test('builds up one reason at a time, in order', () => {
-    expect(visibleAwardSteps(reward, 0)).toEqual([reward.steps[0]]);
-    expect(visibleAwardSteps(reward, 1)).toEqual([reward.steps[0], reward.steps[1]]);
-    expect(visibleAwardSteps(reward, 2)).toEqual(reward.steps);
-  });
-
-  test('clamps past the end — stepIndex runs beyond the list by design', () => {
-    // useCoinAward sets stepIndex to steps.length to mean "all in, showing the
-    // total", so the index is *expected* to exceed the array.
-    expect(visibleAwardSteps(reward, 3)).toEqual(reward.steps);
-    expect(visibleAwardSteps(reward, 99)).toEqual(reward.steps);
+  test('shows every reason at once — there is no partial state', () => {
+    // The reasons used to arrive one at a time. This is the assertion that says
+    // that is gone: revealing is all-or-nothing.
+    expect(awardSteps(reward, true)).toEqual(reward.steps);
   });
 
   test('a board that has already been paid has no reasons to show', () => {
     // Redo across the win line, or relaunching onto a finished board.
-    expect(visibleAwardSteps(null, 2)).toEqual([]);
-    expect(visibleAwardSteps({ total: 0 }, 2)).toEqual([]);
+    expect(awardSteps(null, true)).toEqual([]);
+    expect(awardSteps({ total: 0 }, true)).toEqual([]);
   });
 });
 
-describe('shownAwardTotal', () => {
-  test('is the sum of what is actually on screen, never the eventual total', () => {
+describe('awardTotal', () => {
+  test('is the sum of the rows on screen, never a separately held number', () => {
     // The failure mode this exists to prevent: a total that disagrees with the
     // rows above it.
-    expect(shownAwardTotal(reward, -1)).toBe(0);
-    expect(shownAwardTotal(reward, 0)).toBe(3);
-    expect(shownAwardTotal(reward, 1)).toBe(6);
-    expect(shownAwardTotal(reward, 2)).toBe(8);
+    expect(awardTotal(reward, false)).toBe(0);
+    expect(awardTotal(reward, true)).toBe(8);
   });
 
   test('lands on the payout the wallet actually granted', () => {
-    expect(shownAwardTotal(reward, reward.steps.length)).toBe(reward.total);
+    expect(awardTotal(reward, true)).toBe(reward.total);
   });
 
   test('is zero for a board with nothing to pay', () => {
-    expect(shownAwardTotal(null, 5)).toBe(0);
-  });
-});
-
-describe('isAwardComplete', () => {
-  test('is false while reasons are still landing', () => {
-    expect(isAwardComplete(reward, -1)).toBe(false);
-    expect(isAwardComplete(reward, 0)).toBe(false);
-    expect(isAwardComplete(reward, 1)).toBe(false);
-  });
-
-  test('is true once every reason is in', () => {
-    expect(isAwardComplete(reward, 2)).toBe(false);
-    expect(isAwardComplete(reward, 3)).toBe(true);
-  });
-
-  test('a board with no payout is complete immediately', () => {
-    // Otherwise the dialog would sit waiting for a count-up that never comes.
-    expect(isAwardComplete(null, -1)).toBe(true);
+    expect(awardTotal(null, true)).toBe(0);
   });
 });

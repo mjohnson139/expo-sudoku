@@ -407,6 +407,34 @@ explicitly whether the epic is ready to merge to `main`.
 
 ### Noted in passing, for a later step
 
+- **`aria-hidden` is the portable one.** `accessibilityElementsHidden` is
+  iOS-only and **react-native-web does not map `importantForAccessibility` at
+  all**, so hiding something from assistive tech with that pair changes nothing
+  on the web. RN maps `aria-hidden` to both native equivalents — one prop covers
+  iOS, Android and the web. Plan §12.11; a browser check caught the first
+  attempt.
+- **Anything held at `opacity: 0` to reserve its height is still read aloud.**
+  The win dialog mounts its payout early so revealing it cannot resize a centred
+  box; that means it also has to be `aria-hidden` until it is actually shown, or
+  the result is announced a beat before the player sees it and a live region
+  fires against an invisible number.
+- **A centred dialog cannot grow.** Low or top-anchored, a block appearing inside
+  a dialog pushes one edge; centred, it pushes *both* — the title and the buttons
+  move apart at the moment the player is reading them. Reserve the height.
+- **Confetti (and anything like it) is deterministic, not random.**
+  `confetti.js` hashes the piece index. `Math.random()` would re-roll on every
+  render and make each piece jump to a new trajectory mid-flight, and "the pieces
+  go in all directions" is only testable if the answer is the same twice.
+- **The confetti palette is deliberately not the region palette.** Those ten
+  colours are tuned for dichromat separation as fills behind a glyph (§12.2).
+  Reusing them for decoration would tie a cosmetic choice to a load-bearing one,
+  so retuning the board's legibility would restyle the confetti and vice versa.
+- **The payout no longer narrates, and that was an operator call** (§12.11), not
+  a simplification anyone should undo. The reasons are still all *named* — that
+  was the point of narrating them — they just arrive together, one beat after the
+  confetti. `stepIndex`, `step`, `STEP_MS` and `SETTLE_MS` are gone from
+  `useCoinAward`.
+
 - **The hint popover lives inside `FungikuBoard`'s card, as a sibling of the
   touch box, and both halves of that are load-bearing** (plan §12.10). Not
   *inside* the touch box, because the board claims every touch at touch-down in
@@ -899,7 +927,7 @@ explicitly whether the epic is ready to merge to `main`.
 | 9 | Difficulty menu — rungs mapped into `SIZES` by *share*, size-from-seed, menu modal built to Sudoku's, free play + seed behind one constant, real v1→v2 save migration, difficulty in the header rather than a banner, hub badge names the rung | merged to `epic/fungiku` (#77, `02fcdf1`), operator-tested on device |
 | 10 | Lives & mistakes — tap ✕ / double-tap 🍄 replacing the cycle, wrong mushroom flagged immediately as a red ✕ costing one of three lives and announced on three channels, zero lives leaves the losing board up behind a dialog until the player restarts it, undo never refunds, "Show mistakes" deleted, v2→v3 migration, conflict rendering **removed** | merged to `epic/fungiku` (#79), operator-tested on device |
 | 11 | Earned assists — **coins**, one currency, in a wallet under **its own key** (`@FungikuWallet`, no save-version bump); hints and rule-out priced off it (1 / 2 / 4, §11.2's ladder); the "nothing is forced" answer left free; a win **narrated** — the balance counts up one reason at a time — and paid **exactly once per board** across undo/redo/reload; a daily floor so the game cannot become unwinnable; an unaffordable price drawn differently from a disabled button; gift/purchase seam behind `SHOW_DEVELOPER_CONTROLS`; the board redrawn as separated tiles | merged to `epic/fungiku` (#80, `5836b87`) — **device pass not recorded; fold it into Step 13's play-through** |
-| 12 | Art swap — **answered with motion, not artwork** (§12.7). The operator kept the glyph, so the step made the seam true (the board asks `Symbol` for `MUSHROOM_VALUE` instead of naming an icon), grew the placement pop into a **sprout** — the mushroom rises into the cell tilted and squashed and stretches upright, four interpolations of the one spring — and added a **win wave**: every mushroom hops in an anti-diagonal ripple, one shared native-driven value, windows in a pure `celebration.js`. **Device pass passed the animations and rejected the banners** (§12.8): both used to push the board down, so the win became a **dialog** and the hint a **floating overlay**, and nothing sits above the board any more. **Third round** (§12.9): the nudge points at **the one forced cell** instead of outlining its whole group, a ring **converges onto that cell** so the eye is taken there, and the operator's prices land — rule-out 1, **hint 5, reveal 20**, with `DAILY_FLOOR_COINS` derived from the hint price so the floor still buys help. **Fourth round** (§12.10): the hint text becomes a **popover on its cell** — placed by a pure `hintPlacement.js`, drawn inside the board's card so it points without measuring — and the win wave **travels three times as far** (300 ms → 917 ms across the board) with each hop unchanged | **awaiting a device pass on the popover, the longer wave, the new prices and the win dialog** |
+| 12 | Art swap — **answered with motion, not artwork** (§12.7). The operator kept the glyph, so the step made the seam true (the board asks `Symbol` for `MUSHROOM_VALUE` instead of naming an icon), grew the placement pop into a **sprout** — the mushroom rises into the cell tilted and squashed and stretches upright, four interpolations of the one spring — and added a **win wave**: every mushroom hops in an anti-diagonal ripple, one shared native-driven value, windows in a pure `celebration.js`. **Device pass passed the animations and rejected the banners** (§12.8): both used to push the board down, so the win became a **dialog** and the hint a **floating overlay**, and nothing sits above the board any more. **Third round** (§12.9): the nudge points at **the one forced cell** instead of outlining its whole group, a ring **converges onto that cell** so the eye is taken there, and the operator's prices land — rule-out 1, **hint 5, reveal 20**, with `DAILY_FLOOR_COINS` derived from the hint price so the floor still buys help. **Fourth round** (§12.10): the hint text becomes a **popover on its cell** — placed by a pure `hintPlacement.js`, drawn inside the board's card so it points without measuring — and the win wave **travels three times as far** (300 ms → 917 ms across the board) with each hop unchanged **Fifth round** (§12.11): the win dialog **centred**, its entrance un-sprung, the party-popper replaced by a real **confetti burst**, and the payout's five-beat narration collapsed to **one reveal** — the reasons still named, but all at once | **awaiting a device pass on the whole win sequence, the popover and the new prices** |
 
 ## Steps still to come
 

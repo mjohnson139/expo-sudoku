@@ -1391,6 +1391,84 @@ the board's touch capture; and **cell (0, 0) does not move by a pixel** through
 the hint appearing, being dismissed, the win, the dialog, the payout growing and
 Close.
 
+### 12.11 The win dialog, calmed down (operator, 2026-07-30)
+
+> I think the solved dialogue should be centered and it's pretty clunky when it
+> animates in — try to refine that. Doesn't have to animate each thing. I can
+> just kind of show some confetti and then show the results.
+
+#### Centred, and the earlier argument was wrong
+
+§12.8 put it **low, over the controls**, reasoning that the finished board and the
+coin balance counting up in the counter row should both stay visible. The
+operator looked at it and asked for centred, and they are right for a reason that
+argument missed: **the payout no longer counts up in the counter row**, so there
+is nothing behind the dialog left to watch. And a dialog pinned to the bottom of
+a tall phone reads as having *slid off* rather than as having arrived.
+
+#### "Clunky" was five things moving for one event
+
+The entrance was doing a great deal at once: the box sprang in on an
+`Easing.back` overshoot **and** slid up 24px, a party-popper icon wiggled
+±14°, and then four payout rows arrived **one at a time** over about four
+seconds while the coin balance counted up behind them. Every piece was defensible
+on its own; together they were a cutscene.
+
+What went:
+
+- **The spring and the slide.** A dialog that overshoots its size and settles
+  back has arrived twice. It is a plain fade and a 0.94 → 1 scale now, over
+  240 ms rather than 360.
+- **The wiggling popper**, replaced by actual confetti — which is what the icon
+  was standing in for.
+- **The whole narration.** `useCoinAward` walked the reasons with a chain of
+  timers; `stepIndex`, `step`, `STEP_MS` and `SETTLE_MS` are deleted and one
+  timer remains. The reasons are all still *named* — that was the point of
+  narrating them — they just arrive together.
+
+#### The confetti
+
+`confetti.js` is pure, and every piece's angle, distance, spin and size come from
+a **hash of its index** rather than `Math.random()`. Two reasons, both real:
+a component re-renders, and rolling fresh values each time would make every piece
+jump to a new trajectory mid-flight; and *"the pieces go in all directions"* is a
+property worth pinning, which is only checkable if the answer is the same twice.
+
+Angles are spread evenly around the circle and then jittered, because pure
+randomness clumps and leaves gaps at eighteen pieces. Every piece reads **one
+shared `Animated.Value`** and differs only in its output ranges — the same shape
+as the win wave, and the same reason it is safe: nothing is ever re-pointed, so
+the per-cell rule the board's animations follow does not apply. One native-driven
+animation, eighteen pieces.
+
+The palette is deliberately **not** the region palette. Those colours are tuned
+for dichromat separation as fills behind a glyph (§12.2); reusing them here would
+tie a decorative choice to a load-bearing one, so retuning the board's legibility
+would silently restyle the confetti and vice versa.
+
+#### The payout is mounted before it is shown, and that has an accessibility cost
+
+The dialog is centred now, so a block appearing inside it would grow the box
+**symmetrically** and shunt the title and the buttons apart at the exact moment
+the player is reading them. So the payout is mounted from the start, holding its
+height, and only its opacity changes.
+
+**Held at opacity 0 is still readable to a screen reader** — the payout would be
+announced a beat before it is shown, and the total's live region would fire
+against an invisible number. It is hidden with `aria-hidden` while unrevealed.
+The first attempt used `accessibilityElementsHidden` + `importantForAccessibility`
+and **changed nothing on the web**: the first is iOS-only and react-native-web
+does not map the second. A browser check caught it. RN maps `aria-hidden` to both
+native equivalents, so one prop covers all three platforms.
+
+#### Verified
+
+At 5×5 and 10×10, both themes: **17 confetti pieces in flight** as the dialog
+arrives and **none left visible** once it is over; the dialog centred to **0 px**
+on both axes; **no resize and no movement** when the payout appears; the total
+agreeing with the rows above it; the payout hidden from assistive tech until it
+is shown; and Close still dismissing. The board's origin is unmoved throughout.
+
 ## 13. Ladder & scoring — notes parked, now superseded
 
 > **Superseded 2026-07-26 by §14.** The operator asked for a **difficulty menu**

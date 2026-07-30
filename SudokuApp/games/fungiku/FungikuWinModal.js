@@ -4,10 +4,24 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import {
   WIN_DIALOG_DELAY_MS,
   WIN_DIALOG_ENTER_MS,
-  isAwardComplete,
-  shownAwardTotal,
-  visibleAwardSteps,
+  awardSteps,
+  awardTotal,
 } from './winPresentation';
+import {
+  confettiPieces,
+  confettiX,
+  confettiY,
+  CONFETTI_DURATION_MS,
+  CONFETTI_INPUT,
+  CONFETTI_OPACITY,
+} from './confetti';
+
+/**
+ * Built once at module scope, not per render. The trajectories are deterministic
+ * (confetti.js), so there is exactly one burst in the app and rebuilding it would
+ * only churn objects.
+ */
+const PIECES = confettiPieces();
 
 /**
  * The win celebration's second half: a dialog, in front of the board
@@ -76,7 +90,8 @@ const FungikuWinModal = ({
   // which is right: that is a new arrival at the win, not the same one.
   const [visible, setVisible] = useState(false);
   const progress = useRef(new Animated.Value(0)).current;
-  const shimmer = useRef(new Animated.Value(0)).current;
+  const burst = useRef(new Animated.Value(0)).current;
+  const reveal = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (!solved) {
@@ -96,10 +111,15 @@ const FungikuWinModal = ({
   };
 
   useEffect(() => {
+    // **A plain fade and a slight scale.** It was an `Easing.back` overshoot with
+    // a slide up, and the operator's report was that it arrived clunkily — which
+    // it did: a dialog that springs past its size and settles back has arrived
+    // twice, and it was doing that while confetti and four payout rows were also
+    // moving. One thing moves now, and it moves once (plan §12.11).
     const animation = Animated.timing(progress, {
       toValue: visible ? 1 : 0,
-      duration: visible ? WIN_DIALOG_ENTER_MS : 160,
-      easing: visible ? Easing.out(Easing.back(1.6)) : Easing.in(Easing.quad),
+      duration: visible ? WIN_DIALOG_ENTER_MS : 150,
+      easing: visible ? Easing.out(Easing.cubic) : Easing.in(Easing.quad),
       useNativeDriver: true,
     });
     animation.start();
@@ -110,28 +130,36 @@ const FungikuWinModal = ({
   }, [visible, progress]);
 
   useEffect(() => {
-    if (!visible) {
-      shimmer.setValue(0);
-      return undefined;
-    }
+    if (!visible) return undefined;
 
-    // One pass, not a loop: a celebration that never stops becomes wallpaper.
-    const animation = Animated.sequence([
-      Animated.delay(WIN_DIALOG_ENTER_MS),
-      Animated.timing(shimmer, {
-        toValue: 1,
-        duration: 900,
-        easing: Easing.inOut(Easing.quad),
-        // JS driver, because this value is reset with `setValue()` above and the
-        // two must never be mixed — mixing strands the rotation part-way instead
-        // of returning it to 0deg (plan §2).
-        useNativeDriver: false,
-      }),
-    ]);
+    // The confetti. One pass, not a loop: a celebration that never stops becomes
+    // wallpaper. Driven natively and never `setValue`d — it animates from 0 to 1
+    // and both ends of the trajectory are "nothing on screen" (confetti.js), so
+    // there is no reset to get wrong.
+    const animation = Animated.timing(burst, {
+      toValue: 1,
+      duration: CONFETTI_DURATION_MS,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    });
     animation.start();
 
     return () => animation.stop();
-  }, [visible, shimmer]);
+  }, [visible, burst]);
+
+  useEffect(() => {
+    // The payout's one beat. It is a fade only — the block is already mounted
+    // and holding its height (see the render), so nothing moves.
+    const animation = Animated.timing(reveal, {
+      toValue: award.revealed ? 1 : 0,
+      duration: award.revealed ? 260 : 0,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    });
+    animation.start();
+
+    return () => animation.stop();
+  }, [award.revealed, reveal]);
 
   // Every hook has to run before this bails out — an early return above one of
   // them changes the hook count between renders and React throws.
@@ -141,9 +169,10 @@ const FungikuWinModal = ({
   const surface = theme.colors.numberPad.background;
   const border = theme.colors.numberPad.border;
 
-  const steps = visibleAwardSteps(reward, award.stepIndex);
-  const total = shownAwardTotal(reward, award.stepIndex);
-  const complete = isAwardComplete(reward, award.stepIndex);
+  // All of them, together, or none yet. There is no partial state any more.
+  const steps = awardSteps(reward, award.revealed);
+  const total = awardTotal(reward, award.revealed);
+  const hasReward = !!reward && Array.isArray(reward.steps) && reward.steps.length > 0;
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={dismiss}>
@@ -166,41 +195,93 @@ const FungikuWinModal = ({
               backgroundColor: surface,
               borderColor: border,
               opacity: progress,
+              // One transform, one direction, no overshoot. See the entrance
+              // effect above for why the spring and the slide are gone.
               transform: [
-                { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) },
-                { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) },
+                { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) },
               ],
             },
           ]}
         >
-          <Animated.View
-            style={{
-              transform: [
-                {
-                  rotate: shimmer.interpolate({
-                    inputRange: [0, 0.25, 0.5, 0.75, 1],
-                    outputRange: ['0deg', '-14deg', '0deg', '14deg', '0deg'],
+          {/* The confetti (plan §12.11). It bursts from behind the popper and
+              falls past the title. `pointerEvents="none"` because it covers the
+              dialog's whole width and would otherwise eat taps meant for the
+              backdrop; and it is drawn *first* so the text sits over it. */}
+          <View style={styles.confetti} pointerEvents="none">
+            {PIECES.map((piece, i) => (
+              <Animated.View
+                key={i}
+                style={{
+                  position: 'absolute',
+                  width: piece.size,
+                  height: piece.size,
+                  borderRadius: 1,
+                  backgroundColor: piece.color,
+                  opacity: burst.interpolate({
+                    inputRange: CONFETTI_INPUT,
+                    outputRange: CONFETTI_OPACITY,
                   }),
-                },
-              ],
-            }}
-          >
-            <MaterialCommunityIcons name="party-popper" size={30} color={accent} />
-          </Animated.View>
+                  transform: [
+                    {
+                      translateX: burst.interpolate({
+                        inputRange: CONFETTI_INPUT,
+                        outputRange: confettiX(piece.dx),
+                      }),
+                    },
+                    {
+                      translateY: burst.interpolate({
+                        inputRange: CONFETTI_INPUT,
+                        outputRange: confettiY(piece.dy),
+                      }),
+                    },
+                    {
+                      rotate: burst.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ['0deg', `${piece.spin}deg`],
+                      }),
+                    },
+                  ],
+                }}
+              />
+            ))}
+          </View>
+
+          <MaterialCommunityIcons name="party-popper" size={30} color={accent} />
 
           <Text style={[styles.title, { color: titleColor }]}>Solved!</Text>
           <Text style={[styles.identity, { color: titleColor }]}>
             {size}×{size} · seed {seed}
           </Text>
 
-          {/* The payout, one reason at a time. **This is the thing the banner
-              could not do**: it sat above the board, so it could never grow, and
-              each reason had to overwrite the last. Nothing here moves the board,
-              so the reasons stack and the player can see what they earned and
-              why — all of it at once, at the end. */}
-          {steps.length > 0 && (
-            <View style={[styles.payout, { borderColor: border }]}>
-              {steps.map((step) => (
+          {/* The payout, all at once (plan §12.11).
+
+              **Mounted from the moment the dialog is, and faded in** — not
+              conditionally rendered. The dialog is centred now, so a block
+              appearing inside it would grow the box symmetrically and shunt the
+              title and the buttons apart at the exact moment the player is
+              reading them. Reserving the height means the only thing that
+              changes is opacity, which is the calm version of the same reveal.
+
+              The total is summed from the rows on screen (`awardTotal`), never
+              read from `reward.total`, so the dialog cannot contradict itself. */}
+          {hasReward && (
+            <Animated.View
+              style={[styles.payout, { borderColor: border, opacity: reveal }]}
+              // **Held at opacity 0 is still readable to a screen reader.** The
+              // block is mounted early only to reserve its height, so it has to
+              // be hidden from assistive tech until it is actually revealed —
+              // otherwise the payout is announced a beat before it is shown and
+              // the live region below fires against an invisible total.
+              //
+              // `aria-hidden`, not the older pair: `accessibilityElementsHidden`
+              // is iOS-only and react-native-web does not map
+              // `importantForAccessibility` at all, so the first attempt at this
+              // changed nothing on the web and a browser check caught it. RN
+              // maps `aria-hidden` to both native equivalents, so one prop
+              // covers iOS, Android and the web.
+              aria-hidden={!award.revealed}
+            >
+              {(award.revealed ? steps : reward.steps).map((step) => (
                 <View key={step.label} style={styles.payoutRow}>
                   <Text style={[styles.payoutLabel, { color: titleColor }]} numberOfLines={1}>
                     {step.label}
@@ -214,29 +295,23 @@ const FungikuWinModal = ({
                 </View>
               ))}
 
-              {complete && (
-                <View style={[styles.payoutRow, styles.payoutTotal, { borderColor: border }]}>
-                  <Text style={[styles.payoutLabel, styles.payoutTotalText, { color: titleColor }]}>
-                    Coins earned
+              <View style={[styles.payoutRow, styles.payoutTotal, { borderColor: border }]}>
+                <Text style={[styles.payoutLabel, styles.payoutTotalText, { color: titleColor }]}>
+                  Coins earned
+                </Text>
+                <View style={styles.payoutCoins}>
+                  <MaterialCommunityIcons name="circle-multiple" size={13} color={COIN} />
+                  <Text
+                    style={[styles.payoutCoinsText, styles.payoutTotalText, { color: titleColor }]}
+                    // It arrives on its own, so a screen reader has to be told
+                    // rather than left to notice.
+                    accessibilityLiveRegion="polite"
+                  >
+                    +{award.revealed ? total : reward.total}
                   </Text>
-                  <View style={styles.payoutCoins}>
-                    <MaterialCommunityIcons name="circle-multiple" size={13} color={COIN} />
-                    <Text
-                      style={[
-                        styles.payoutCoinsText,
-                        styles.payoutTotalText,
-                        { color: titleColor },
-                      ]}
-                      // The one number here that arrives on its own, so a screen
-                      // reader has to be told rather than left to notice.
-                      accessibilityLiveRegion="polite"
-                    >
-                      +{total}
-                    </Text>
-                  </View>
                 </View>
-              )}
-            </View>
+              </View>
+            </Animated.View>
           )}
 
           <View style={styles.actions}>
@@ -273,11 +348,16 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.35)',
-    // Low, over the controls — not centred. See the note at the top: the
-    // finished board and the counter row's counting balance both stay visible.
-    justifyContent: 'flex-end',
+    // **Centred, on the operator's call (2026-07-30).** It shipped low, over the
+    // controls, reasoning that the finished board and the counting coin balance
+    // should stay visible. The operator looked at it and asked for centred, and
+    // they are right for a reason the argument missed: the payout no longer
+    // counts up in the counter row, so there is nothing behind the dialog left
+    // to watch — and a dialog pinned to the bottom of a tall phone reads as
+    // having slid off rather than as having arrived.
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 32,
+    padding: 20,
   },
   box: {
     width: 300,
@@ -292,6 +372,18 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 6,
+  },
+  confetti: {
+    // Sits over the dialog's top half, centred on the popper: every piece starts
+    // at this view's middle and flies out from there. Zero height so it reserves
+    // no space of its own — the pieces are absolutely positioned inside it.
+    position: 'absolute',
+    top: 42,
+    left: 0,
+    right: 0,
+    height: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 22,

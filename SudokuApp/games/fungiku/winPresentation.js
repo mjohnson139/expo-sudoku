@@ -1,19 +1,20 @@
 /**
- * winPresentation.js — when the win dialog arrives, and how much of the payout
- * it is showing (docs/fungiku-plan.md §12.8).
+ * winPresentation.js — the timing of the win dialog (docs/fungiku-plan.md
+ * §12.8, §12.11).
  *
  * Pure, and separate from the dialog that draws it, for the same reason
  * `celebration.js` is: Jest here is plain node with no React Native, so the only
  * way this arithmetic gets tested is if it lives outside the component.
  *
- * ### Why the delay is derived rather than typed
+ * ### Why the delays are derived rather than typed
  *
- * The win is a **sequence**: the board lifts, the mushrooms ripple, and only then
- * does the dialog arrive. If the dialog's delay were its own number it would drift
- * the first time anyone retuned the wave — and the failure is silent, because a
- * dialog that opens 200 ms early just covers a celebration nobody notices is
- * missing. It is computed from the wave's own timing instead, so the two cannot
- * come apart.
+ * The win is a **sequence**: the board lifts, the mushrooms ripple, the dialog
+ * arrives with a burst of confetti, and the payout lands. If each delay were its
+ * own number they would drift the first time anyone retuned the wave — and the
+ * failure is silent, because a dialog that opens early just covers a celebration
+ * nobody notices is missing. Each is computed from the one before it, so the
+ * chain moves in step: when the operator lengthened the wave (2026-07-30) every
+ * number below followed it without an edit.
  */
 
 import { WAVE_DELAY_MS, WAVE_DURATION_MS } from './celebration';
@@ -22,49 +23,60 @@ import { WAVE_DELAY_MS, WAVE_DURATION_MS } from './celebration';
  * How long after the win the dialog opens.
  *
  * Deliberately a little *before* the ripple finishes: the last diagonal is still
- * landing as the dialog springs in, so the two overlap instead of leaving a beat
- * of dead air where the player wonders whether anything else is coming.
+ * landing as the dialog arrives, so the two overlap instead of leaving a beat of
+ * dead air where the player wonders whether anything else is coming.
  */
 export const WIN_DIALOG_DELAY_MS = Math.round(WAVE_DELAY_MS + WAVE_DURATION_MS * 0.78);
 
-/** How long the dialog takes to spring in once it starts. */
-export const WIN_DIALOG_ENTER_MS = 360;
+/**
+ * How long the dialog takes to arrive.
+ *
+ * **Shortened and un-sprung** on the operator's report that it was *"pretty
+ * clunky when it animates in"* (§12.11). It was a 360 ms `Easing.back` overshoot
+ * plus a slide — and a dialog that bounces is a dialog that arrives twice. It is
+ * now a plain fade and a slight scale.
+ */
+export const WIN_DIALOG_ENTER_MS = 240;
 
 /**
- * When the coin count-up may start: once the dialog is actually on screen.
+ * The pause between the dialog landing and the payout appearing.
  *
- * `useCoinAward` imports this rather than keeping its own start delay. The
- * payout is narrated *inside* the dialog now, so counting before the dialog
- * exists would spend the reasons on an empty screen.
+ * **This is the whole of what is left of the narration.** The payout used to be
+ * walked one reason at a time — five beats, about four seconds — and the
+ * operator's verdict was that it did not have to animate each thing: *"I can just
+ * kind of show some confetti and then show the results."* So there is exactly one
+ * beat now: the confetti bursts, and a moment later the whole result appears at
+ * once.
+ *
+ * Long enough that the result reads as *arriving* rather than as having always
+ * been there; short enough that nobody is waiting for it.
  */
-export const AWARD_START_MS = WIN_DIALOG_DELAY_MS + WIN_DIALOG_ENTER_MS;
+export const AWARD_REVEAL_MS = 420;
 
 /**
- * The payout reasons that have landed so far — the rows the dialog draws.
+ * When the payout lands: the coin balance jumps to its new value, the coin pill
+ * pops once, and every reason appears together.
  *
- * `stepIndex` is `useCoinAward`'s: -1 before the first reason, then the index of
- * the reason showing, then `steps.length` once they are all in and the total is
- * up. Clamped rather than trusted, because it runs past the end by design.
+ * `useCoinAward` imports this rather than keeping a delay of its own, so the
+ * balance behind the dialog and the rows inside it change on the same frame.
  */
-export function visibleAwardSteps(reward, stepIndex) {
-  if (!reward || !reward.steps || stepIndex < 0) return [];
-  return reward.steps.slice(0, Math.min(stepIndex + 1, reward.steps.length));
+export const AWARD_START_MS = WIN_DIALOG_DELAY_MS + WIN_DIALOG_ENTER_MS + AWARD_REVEAL_MS;
+
+/**
+ * The reasons the dialog draws: all of them, or none.
+ *
+ * There is no partial state any more. It stays a function rather than becoming
+ * `reward.steps` at the call site because the guards are real — a board that has
+ * **already been paid** (a redo across the win line, or relaunching onto a
+ * finished board) has no reward at all, and the dialog has to show a payout of
+ * nothing rather than crash or claim one.
+ */
+export function awardSteps(reward, revealed) {
+  if (!revealed || !reward || !Array.isArray(reward.steps)) return [];
+  return reward.steps;
 }
 
-/**
- * What the reasons on screen add up to.
- *
- * **Not the wallet balance, and not `reward.total` until the last row is in.**
- * It is the sum of what the player has actually been shown, so the number in the
- * dialog and the rows above it can never disagree — the failure mode of holding a
- * separate display total.
- */
-export function shownAwardTotal(reward, stepIndex) {
-  return visibleAwardSteps(reward, stepIndex).reduce((sum, step) => sum + step.coins, 0);
-}
-
-/** Whether every reason has landed, so the dialog can show the total as final. */
-export function isAwardComplete(reward, stepIndex) {
-  if (!reward || !reward.steps) return true;
-  return stepIndex >= reward.steps.length;
+/** What those reasons add up to — summed from the rows, never held separately. */
+export function awardTotal(reward, revealed) {
+  return awardSteps(reward, revealed).reduce((sum, step) => sum + step.coins, 0);
 }
