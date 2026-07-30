@@ -1304,6 +1304,93 @@ hinted and it is the cell the engine's own solution names; the ring peaks at
 **two** converge passes, and settles at scale 1 / opacity 0 with nothing left on
 the board; a hint costs **5**. The board's origin is unmoved throughout.
 
+### 12.10 The hint becomes a popover, and the wave gets longer (operator, 2026-07-30)
+
+> Was hoping the hint text would be a popover kind of thing. Also I like the win
+> wave animation and want it to last longer.
+
+#### The hint's third home
+
+It has moved twice already: an inline banner above the board that pushed the
+board down (§12.8), then a bar pinned to the bottom of the screen. The bar fixed
+the layout problem and left a different one — **the message was at the far end of
+the screen from the cell it described**, so the player had to look in two places
+and join them up. A popover says *"this cell, and here is why"* in one glance.
+
+**Where it lives in the tree is not arbitrary.** It is rendered inside
+`FungikuBoard`'s card, as a **sibling of the touch box**:
+
+- **Not inside the touch box.** The board claims every touch at touch-down in the
+  capture phase to win the ScrollView race (§2), so a child of that view can
+  never receive a press — Dismiss and Reveal would be dead buttons.
+- **Not up in the screen.** It would then need the board's measured origin to
+  place itself, and `measureInWindow` is asynchronous: the popover would arrive a
+  frame late in the wrong place, on the one interaction whose entire value is
+  pointing accurately.
+
+As a sibling it is positioned in the board's **own coordinates** — the same space
+`cellFromPoint` resolves taps in — so it points without measuring anything, and
+it sits outside the capture path so its buttons work.
+
+`hintPlacement.js` is pure and holds the two rules, both tested across every cell
+of every playable size:
+
+1. **Never cover the cell it points at.** Below a cell in the board's top half,
+   above one in the bottom half — which also keeps it on the board, because a
+   top-half cell always has half a board of room beneath it. It anchors from the
+   *near* edge (`top` for below, `bottom` for above) so the placement never has to
+   know its own height, which depends on how the message wraps.
+2. **Never hang off the side.** Two separate clamps: the body against the board's
+   width, and then the tail *within the body*. A cell in column 0 pushes the body
+   against the left edge and the tail has to travel left inside it to keep
+   pointing. One clamp without the other is a bubble that points at the wrong
+   mushroom.
+
+The bubble takes its own touches rather than passing them through — tapping
+"somewhere in the message" must not silently rule out a cell hidden underneath —
+while the layer around it is `pointerEvents="box-none"` so the rest of the board
+stays live.
+
+#### Longer, not slower
+
+*"I like the win wave animation and want it to last longer."* The obvious change
+— double `WAVE_DURATION_MS` and leave the ratios alone — would have doubled every
+individual hop too, and a mushroom that takes most of a second to go up and come
+down is not a hop, it is a wobble.
+
+**What should get longer is the journey across the board, not the motion of any
+one mushroom.** So `SPREAD` grew (0.55 → 0.76) and `BUMP` shrank (0.40 → 0.20)
+alongside the longer run. Measured in the browser, frame by frame, on a 5×5:
+
+|  | before | after |
+|---|---|---|
+| first diagonal peaks | 344 ms | 694 ms |
+| last diagonal peaks | 644 ms | 1611 ms |
+| **travel across the board** | **300 ms** | **917 ms** |
+| gap between diagonals | ~75 ms | ~230 ms |
+| hop height | 17 px | 17 px |
+
+Three times the travel, the same hop. Two tests pin the distinction: one bounds a
+single hop's duration (250–700 ms) whatever the wave's length, the other asserts
+the travel is at least 2.5× a hop — so "make it longer" can never again be
+implemented as "make it slower".
+
+**Everything downstream moved with it and none of it was retyped.**
+`WIN_DIALOG_DELAY_MS` is derived from the wave's duration and `AWARD_START_MS`
+from the dialog's (§12.8), so the dialog now arrives at ~2.0 s and the coins start
+at ~2.4 s without a single constant being edited. That is the whole reason those
+were derived.
+
+#### Verified
+
+Both placements (above and below the cell), both themes, 5×5 and 10×10, driving
+the board so the forced deduction lands in a chosen row. The tail sits within
+5 px of the cell's centre and 3–15 px from its near edge; the bubble never
+overlaps the cell it points at; Dismiss works, which is the proof it is outside
+the board's touch capture; and **cell (0, 0) does not move by a pixel** through
+the hint appearing, being dismissed, the win, the dialog, the payout growing and
+Close.
+
 ## 13. Ladder & scoring — notes parked, now superseded
 
 > **Superseded 2026-07-26 by §14.** The operator asked for a **difficulty menu**

@@ -15,6 +15,7 @@ import {
 } from './celebration';
 import { PAINT_MODES } from './reducer';
 import { useFungikuContext } from './FungikuContext';
+import FungikuHintPopover from './FungikuHintPopover';
 
 /**
  * Stable object identity, so the sizing hook's memo is not invalidated on every
@@ -100,7 +101,7 @@ const MAX_TAP_TRAVEL = 28;
  */
 const DOUBLE_TAP_MS = 320;
 
-const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
+const FungikuBoard = ({ isDark, theme, onTouchActiveChange, coinWord, emptyColor, coinColor }) => {
   const {
     size,
     regions,
@@ -971,6 +972,24 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
         </View>
       ))}
     </View>
+
+    {/* The hint's popover, pointing at the cell the ring just closed on
+        (plan §12.10).
+
+        **A sibling of the touch box, not a child of it.** The board claims every
+        touch at touch-down in the capture phase, so a popover inside that view
+        could never receive a press and its Dismiss and Reveal buttons would be
+        dead. Out here it is still in the board's coordinate space — which is
+        what lets it point accurately without measuring anything — and its own
+        touches reach it. */}
+    <FungikuHintPopover
+      size={size}
+      cellSize={cell}
+      theme={theme}
+      coinWord={coinWord}
+      emptyColor={emptyColor}
+      coinColor={coinColor}
+    />
     </Animated.View>
   );
 };

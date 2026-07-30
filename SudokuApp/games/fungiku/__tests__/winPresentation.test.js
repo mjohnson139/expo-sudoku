@@ -33,8 +33,14 @@ describe('when the dialog arrives', () => {
     expect(AWARD_START_MS).toBeGreaterThan(WIN_DIALOG_DELAY_MS);
   });
 
-  test('the whole celebration stays under a few seconds before coins start', () => {
-    expect(AWARD_START_MS).toBeLessThan(2000);
+  // Bounded rather than pinned: the operator lengthened the wave (2026-07-30)
+  // and this number followed it, which is the point of deriving it. What it must
+  // not become is a cutscene the player sits through before they can act — the
+  // dialog and its "Next puzzle" button are already on screen by then, so this
+  // is only about when the coins start moving.
+  test('the coins start once the wave is essentially done, and not much later', () => {
+    expect(AWARD_START_MS).toBeGreaterThan(WAVE_DELAY_MS + WAVE_DURATION_MS * 0.7);
+    expect(AWARD_START_MS).toBeLessThan(WAVE_DELAY_MS + WAVE_DURATION_MS + 600);
   });
 });
 

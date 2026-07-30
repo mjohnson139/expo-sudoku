@@ -17,7 +17,6 @@ import FungikuBoard, { FILL_WIDTH } from './FungikuBoard';
 import FungikuMenuModal from './FungikuMenuModal';
 import FungikuOutOfLivesModal from './FungikuOutOfLivesModal';
 import FungikuWinModal from './FungikuWinModal';
-import FungikuHintOverlay from './FungikuHintOverlay';
 import { boardExtent } from './geometry';
 import { difficultyLabel } from './difficulty';
 import useCoinAward from './useCoinAward';
@@ -95,19 +94,18 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     lives,
     lastMistake,
     restartBoard,
-    hint,
     hintsUsed,
     requestHint,
-    revealMushroom,
-    dismissHint,
-    canReveal,
+    // `hint`, `revealMushroom`, `dismissHint`, `canReveal` and `canAffordReveal`
+    // are **not** read here any more: the hint's popover lives inside the board
+    // (plan §12.10), which is the only place that knows where a cell is without
+    // measuring, and it pulls them from the context itself.
     generating,
     // The wallet (plan §14.4). `coins` is what is left across every board ever
     // played; `hintsUsed` above is still what *this* board has cost. Both, on
     // purpose — earning is computed from the second.
     coins,
     canAffordHint,
-    canAffordReveal,
     canAffordRuleOut,
     lastReward,
     grantCoins,
@@ -385,10 +383,18 @@ const FungikuScreenContent = ({ onExitToHub }) => {
             report. They are now an overlay and a dialog respectively, mounted
             outside this ScrollView, so the board's position is fixed by the
             counter row alone and winning or asking for a hint cannot move it. */}
+        {/* The board also hosts the hint popover (plan §12.10): it is the only
+            place that knows a cell's position without measuring anything, and
+            the popover's whole value is pointing accurately. The colours ride
+            down with it rather than being redefined there — the app has one
+            gold for coins and one red for "you cannot pay". */}
         <FungikuBoard
           isDark={isDark}
           theme={theme}
           onTouchActiveChange={setBoardTouchActive}
+          coinWord={coinWord}
+          emptyColor={FUNGIKU_EMPTY}
+          coinColor={FUNGIKU_COIN}
         />
 
         {/* Undo / redo / clear */}
@@ -526,26 +532,6 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           space at all**, so the board's position is decided by the counter row
           alone — winning, asking for a hint, and dismissing either one cannot
           move it. Mounted after the ScrollView so they draw on top of it. */}
-
-      {/* An overlay, not a dialog, and the distinction is the whole point: a
-          hint's job is to point at cells, and the player has to see and tap
-          those cells while it is showing. A modal would black out the thing it
-          is talking about. It is `pointerEvents="box-none"` inside, so every
-          touch that misses the card falls through to the board. */}
-      <FungikuHintOverlay
-        hint={hint}
-        visible={!!hint && !solved}
-        theme={theme}
-        width={boardWidth}
-        canReveal={canReveal}
-        canAffordReveal={canAffordReveal}
-        revealCost={COIN_COSTS.REVEAL}
-        coinWord={coinWord}
-        emptyColor={FUNGIKU_EMPTY}
-        coinColor={FUNGIKU_COIN}
-        onReveal={revealMushroom}
-        onDismiss={dismissHint}
-      />
 
       {/* A dialog, because the puzzle is over and there is nothing left to do to
           the board. It opens *after* the mushrooms' ripple has played, so the

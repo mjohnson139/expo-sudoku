@@ -407,6 +407,34 @@ explicitly whether the epic is ready to merge to `main`.
 
 ### Noted in passing, for a later step
 
+- **The hint popover lives inside `FungikuBoard`'s card, as a sibling of the
+  touch box, and both halves of that are load-bearing** (plan §12.10). Not
+  *inside* the touch box, because the board claims every touch at touch-down in
+  the capture phase — a child there can never receive a press, so Dismiss and
+  Reveal would be dead. Not up in the screen, because it would then need the
+  board's measured origin and `measureInWindow` is async: it would arrive a frame
+  late, in the wrong place, on the one interaction whose whole value is pointing
+  accurately. As a sibling it is in the board's own coordinates — the same space
+  `cellFromPoint` uses — and outside the capture path.
+- **A popover needs two clamps, not one.** The body is clamped to the board's
+  width *and* the tail is clamped within the body. A cell in column 0 pushes the
+  body against the edge and the tail then has to travel inside it to keep
+  pointing. One clamp without the other is a bubble that points at the wrong
+  mushroom, which is worse than not pointing at all. `hintPlacement.js` is pure
+  and both clamps are tested over every cell of every size.
+- **"Make the wave longer" is not "make the wave slower".** Doubling
+  `WAVE_DURATION_MS` alone doubles every individual hop, and a mushroom that
+  takes most of a second to go up and down is a wobble, not a hop. What should
+  stretch is the *travel across the board*: `SPREAD` up, `BUMP` down, in step
+  with the duration. Measured: travel went 300 ms → 917 ms while the hop stayed
+  ~480 ms and 17 px. Two tests pin the distinction so the next "longer" cannot be
+  implemented as "slower".
+- **`querySelectorAll` is pre-order, so `.find()` on `textContent` returns the
+  *outermost* match.** Every ancestor of a string "contains" it, so a search for
+  the popover's text returned a div near the document root and walking up from
+  there found nothing. Take the **last** match. This cost a round of false
+  failures in a browser check that was actually passing.
+
 - **`Animated.loop({iterations: n})` resets to the value's *construction* value,
   not to the animation's start.** `resetBeforeIteration` calls `resetAnimation()`,
   which snaps back to `_startingValue`. If your value is constructed at its
@@ -871,7 +899,7 @@ explicitly whether the epic is ready to merge to `main`.
 | 9 | Difficulty menu — rungs mapped into `SIZES` by *share*, size-from-seed, menu modal built to Sudoku's, free play + seed behind one constant, real v1→v2 save migration, difficulty in the header rather than a banner, hub badge names the rung | merged to `epic/fungiku` (#77, `02fcdf1`), operator-tested on device |
 | 10 | Lives & mistakes — tap ✕ / double-tap 🍄 replacing the cycle, wrong mushroom flagged immediately as a red ✕ costing one of three lives and announced on three channels, zero lives leaves the losing board up behind a dialog until the player restarts it, undo never refunds, "Show mistakes" deleted, v2→v3 migration, conflict rendering **removed** | merged to `epic/fungiku` (#79), operator-tested on device |
 | 11 | Earned assists — **coins**, one currency, in a wallet under **its own key** (`@FungikuWallet`, no save-version bump); hints and rule-out priced off it (1 / 2 / 4, §11.2's ladder); the "nothing is forced" answer left free; a win **narrated** — the balance counts up one reason at a time — and paid **exactly once per board** across undo/redo/reload; a daily floor so the game cannot become unwinnable; an unaffordable price drawn differently from a disabled button; gift/purchase seam behind `SHOW_DEVELOPER_CONTROLS`; the board redrawn as separated tiles | merged to `epic/fungiku` (#80, `5836b87`) — **device pass not recorded; fold it into Step 13's play-through** |
-| 12 | Art swap — **answered with motion, not artwork** (§12.7). The operator kept the glyph, so the step made the seam true (the board asks `Symbol` for `MUSHROOM_VALUE` instead of naming an icon), grew the placement pop into a **sprout** — the mushroom rises into the cell tilted and squashed and stretches upright, four interpolations of the one spring — and added a **win wave**: every mushroom hops in an anti-diagonal ripple, one shared native-driven value, windows in a pure `celebration.js`. **Device pass passed the animations and rejected the banners** (§12.8): both used to push the board down, so the win became a **dialog** and the hint a **floating overlay**, and nothing sits above the board any more. **Third round** (§12.9): the nudge points at **the one forced cell** instead of outlining its whole group, a ring **converges onto that cell** so the eye is taken there, and the operator's prices land — rule-out 1, **hint 5, reveal 20**, with `DAILY_FLOOR_COINS` derived from the hint price so the floor still buys help | **awaiting a device pass on the overlays, the hint ring and the new prices** |
+| 12 | Art swap — **answered with motion, not artwork** (§12.7). The operator kept the glyph, so the step made the seam true (the board asks `Symbol` for `MUSHROOM_VALUE` instead of naming an icon), grew the placement pop into a **sprout** — the mushroom rises into the cell tilted and squashed and stretches upright, four interpolations of the one spring — and added a **win wave**: every mushroom hops in an anti-diagonal ripple, one shared native-driven value, windows in a pure `celebration.js`. **Device pass passed the animations and rejected the banners** (§12.8): both used to push the board down, so the win became a **dialog** and the hint a **floating overlay**, and nothing sits above the board any more. **Third round** (§12.9): the nudge points at **the one forced cell** instead of outlining its whole group, a ring **converges onto that cell** so the eye is taken there, and the operator's prices land — rule-out 1, **hint 5, reveal 20**, with `DAILY_FLOOR_COINS` derived from the hint price so the floor still buys help. **Fourth round** (§12.10): the hint text becomes a **popover on its cell** — placed by a pure `hintPlacement.js`, drawn inside the board's card so it points without measuring — and the win wave **travels three times as far** (300 ms → 917 ms across the board) with each hop unchanged | **awaiting a device pass on the popover, the longer wave, the new prices and the win dialog** |
 
 ## Steps still to come
 

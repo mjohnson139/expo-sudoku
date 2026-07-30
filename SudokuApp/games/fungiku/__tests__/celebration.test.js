@@ -127,12 +127,38 @@ describe('waveOutputRange', () => {
 });
 
 describe('the wave fits the win sequence', () => {
-  // The board's lift is 300ms and the banner springs in at 220ms; the wave has
-  // to start between them and be over before the celebration outstays itself.
-  test('starts after the board lift begins and is not a loop', () => {
+  // The board's lift is 300ms, so the wave starts inside it and the two run
+  // into each other rather than taking turns.
+  test('starts while the board lift is still going, and runs once', () => {
     expect(WAVE_DELAY_MS).toBeGreaterThan(0);
     expect(WAVE_DELAY_MS).toBeLessThan(300);
     expect(WAVE_DURATION_MS).toBeGreaterThan(0);
-    expect(WAVE_DELAY_MS + WAVE_DURATION_MS).toBeLessThan(2000);
+  });
+
+  // **The operator asked for a longer wave (2026-07-30), and this is the test
+  // that stops "longer" turning into "slower".** What should stretch is the
+  // journey across the board; a single mushroom's hop must stay crisp, or it
+  // stops being a hop and becomes a wobble. Doubling `WAVE_DURATION_MS` on its
+  // own would have doubled both.
+  test('a single hop stays snappy however long the whole wave is', () => {
+    SIZES.forEach((size) => {
+      const stops = waveKeyframes(0, size);
+      const hopMs = (stops[stops.length - 2] - stops[1]) * WAVE_DURATION_MS;
+      expect(hopMs).toBeGreaterThan(250);
+      expect(hopMs).toBeLessThan(700);
+    });
+  });
+
+  test('most of the run is the wave travelling, not one cell moving', () => {
+    const size = 10;
+    const first = waveKeyframes(0, size);
+    const last = waveKeyframes(size * size - 1, size);
+
+    // Time between the first cell starting and the last cell starting…
+    const travel = last[1] - first[1];
+    // …against how long any one of them takes.
+    const hop = first[first.length - 2] - first[1];
+
+    expect(travel).toBeGreaterThan(hop * 2.5);
   });
 });

@@ -61,13 +61,35 @@
  * strictly inside the progress range. `Animated.interpolate` requires a
  * monotonically increasing input range, and a window touching either end would
  * collide with the resting keyframe there.
+ *
+ * ### These moved when the operator asked for a longer wave, and the *ratio* is
+ * the reason it is not simply slower
+ *
+ * *"I like the win wave animation and want it to last longer."* The obvious
+ * change — double `WAVE_DURATION_MS` and leave these alone — would have doubled
+ * every individual hop too, and a mushroom that takes most of a second to go up
+ * and come down is not a hop, it is a wobble. What should get longer is the
+ * **journey across the board**, not the motion of any one mushroom.
+ *
+ * So `SPREAD` grew (0.55 → 0.76) and `BUMP` shrank (0.40 → 0.20) alongside the
+ * longer run. In absolute terms a single hop is ~480 ms, near the ~440 ms it was;
+ * the stagger now runs for ~1.8 s instead of ~0.6 s. The windows still overlap
+ * several deep — that is what makes it a wave rather than a queue, and there is
+ * a test pinning the overlap.
  */
 const LEAD_IN = 0.02;
-const SPREAD = 0.55;
-const BUMP = 0.4;
+const SPREAD = 0.76;
+const BUMP = 0.2;
 
-/** How long the whole ripple takes, and how long after the win it starts. */
-export const WAVE_DURATION_MS = 1100;
+/**
+ * How long the whole ripple takes.
+ *
+ * **Everything else in the win sequence is derived from this** — the dialog's
+ * delay and, through it, when the coins start counting (`winPresentation.js`).
+ * Changing it moves the whole celebration in step rather than leaving three
+ * numbers that used to agree.
+ */
+export const WAVE_DURATION_MS = 2400;
 
 /**
  * The board's own lift (a 300 ms pop) is the first thing that happens on a win,
