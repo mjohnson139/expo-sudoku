@@ -79,6 +79,14 @@ export function confettiPieces(count = CONFETTI_COUNT) {
     const distance = 70 + hash(i + 101) * 85;
 
     return {
+      // **Where the piece starts**, spread across the payout block rather than
+      // every piece sharing one point (plan §12.14). The operator asked for a
+      // burst that looks like it is "kind of exploding out of all the stuff that
+      // you won" — and a single origin reads as a party popper going off
+      // *behind* the rewards, not as the rewards themselves bursting. A modest
+      // spread is enough; the outward velocities do the rest.
+      ox: Math.round((hash(i + 401) - 0.5) * 150),
+      oy: Math.round((hash(i + 509) - 0.5) * 54),
       dx: Math.round(Math.cos(angle) * distance),
       dy: Math.round(Math.sin(angle) * distance),
       // Alternating direction so the burst does not appear to rotate as a whole.
@@ -98,14 +106,20 @@ export const CONFETTI_PEAK = 0.42;
 /** Input range for every piece's interpolations. Strictly increasing. */
 export const CONFETTI_INPUT = [0, 0.08, CONFETTI_PEAK, 1];
 
-/** How a piece travels sideways: straight out, then holds. */
-export function confettiX(dx) {
-  return [0, dx * 0.35, dx, dx * 1.1];
+/**
+ * How a piece travels sideways: straight out from **its own origin**, then holds.
+ *
+ * `ox` is baked into the output range rather than applied as a separate style, so
+ * a piece is one transform however it is placed — and the origin spread stays a
+ * property of the trajectory, where it can be tested.
+ */
+export function confettiX(dx, ox = 0) {
+  return [ox, ox + dx * 0.35, ox + dx, ox + dx * 1.1];
 }
 
 /** Up and out, then down past where it started — the arc gravity would give. */
-export function confettiY(dy) {
-  return [0, dy * 0.4, dy, dy + CONFETTI_FALL];
+export function confettiY(dy, oy = 0) {
+  return [oy, oy + dy * 0.4, oy + dy, oy + dy + CONFETTI_FALL];
 }
 
 /** In fast, gone by the end. Nothing may be left on screen at rest. */

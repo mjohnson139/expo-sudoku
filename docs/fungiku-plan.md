@@ -1642,6 +1642,70 @@ sampled again afterwards. Then Close, reload again: **stays dismissed**, board
 still solved. Three consecutive wins each burst; a win after a reload bursts and
 pays.
 
+### 12.14 One arrival, and the burst comes out of the rewards (operator, 2026-07-30)
+
+> Don't delay the rewards view — the one that says how many coins were given for
+> what. It's kind of weird, the confetti goes and the thing shows up, but then the
+> rewards are delayed and show up later. Just show it altogether with the
+> animation and everything, so the animation would be like kind of exploding out
+> of all the stuff that you won.
+
+#### The delay was the last trace of something already deleted
+
+This dialog began as a *narration*: the payout walked one reason at a time over
+about four seconds, each naming itself as it landed (§14.4). §12.11 collapsed that
+to a single reveal — but kept a 420 ms beat before it, so the box arrived and the
+rewards followed. That beat was the narration's last surviving frame, and out of
+its original context it just reads as the rewards lagging.
+
+`AWARD_REVEAL_MS` is gone. `AWARD_START_MS` is now simply `WIN_DIALOG_DELAY_MS`:
+**one moment, not two.** The box, its rewards and the confetti arrive together,
+and the coin balance behind the dialog moves on the same frame as the rows inside
+it.
+
+Two things fell out with it, and the code is smaller for both:
+
+- **The payout is no longer mounted-then-faded.** §12.11 mounted it invisible to
+  reserve its height, because a centred dialog that grows shunts the title and
+  buttons apart. Nothing grows now — it is drawn with everything else — so the
+  reservation, the `reveal` value and its effect are all deleted.
+- **And with them the `aria-hidden`.** That existed only because something held at
+  `opacity: 0` is still read aloud. Nothing is held at 0 any more, so the
+  accessibility patch has no job; the whole dialog simply arrives, once, and says
+  so once.
+
+`awardSteps`/`awardTotal` lose their `revealed` argument. There is no partial
+state left to describe.
+
+#### Exploding out of the rewards, not from behind them
+
+The burst originated at a single point 42 px down the dialog — under the
+party-popper icon, above the title. That reads as a popper going off *behind* the
+box. The operator asked for the opposite: the rewards themselves bursting.
+
+Two changes, and neither is a bigger burst:
+
+- **The layer now fills the dialog and centres on it**, so the origin is the
+  payout block rather than the header.
+- **Each piece carries its own origin offset** (`ox`, `oy` in `confetti.js`),
+  spread ±75 px across and ±27 px down — wider than tall, because the payout block
+  is a row of lines and not a square. Pieces start scattered over the rewards and
+  fly outward from wherever they are, which is what makes it look like the
+  contents coming apart rather than a point source behind them.
+
+The offsets are baked into the trajectory's output ranges rather than applied as a
+separate style, so a piece stays **one transform** however it is placed — and the
+spread stays a property of the trajectory, where a test can check it.
+
+#### Verified
+
+Polled every frame from before the dialog was due, and recorded **the first frame
+it appears on**: 4 payout rows and 18 confetti pieces already on it. Nothing
+arrives late and the payout does not change afterwards. The burst measures 252 px
+across and its mean height is **within 1 px of the dialog's centre** — out of the
+rewards, not above them. The backdrop still does not dismiss, the dialog still
+survives a relaunch with its coins and replays nothing, and every win bursts.
+
 ## 13. Ladder & scoring — notes parked, now superseded
 
 > **Superseded 2026-07-26 by §14.** The operator asked for a **difficulty menu**

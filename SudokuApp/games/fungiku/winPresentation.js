@@ -39,44 +39,38 @@ export const WIN_DIALOG_DELAY_MS = Math.round(WAVE_DELAY_MS + WAVE_DURATION_MS *
 export const WIN_DIALOG_ENTER_MS = 240;
 
 /**
- * The pause between the dialog landing and the payout appearing.
+ * When the coin balance jumps to its new value and the coin pill pops:
+ * **exactly as the dialog lands**, with no beat of its own.
  *
- * **This is the whole of what is left of the narration.** The payout used to be
- * walked one reason at a time — five beats, about four seconds — and the
- * operator's verdict was that it did not have to animate each thing: *"I can just
- * kind of show some confetti and then show the results."* So there is exactly one
- * beat now: the confetti bursts, and a moment later the whole result appears at
- * once.
+ * There used to be a pause here (`AWARD_REVEAL_MS`, 420 ms) so the payout rows
+ * faded in a moment after the box — the last surviving trace of the narration
+ * this dialog began as. The operator's verdict on it: *"don't delay the rewards
+ * view… it's kind of weird, the confetti goes and the thing shows up, but then
+ * the rewards are delayed and show up later. Just show it altogether."*
  *
- * Long enough that the result reads as *arriving* rather than as having always
- * been there; short enough that nobody is waiting for it.
+ * So there is **one moment** now, not two. The dialog, its rewards and the
+ * confetti all arrive together, and this is that same instant — so the balance
+ * behind the dialog moves on the same frame as the rows inside it.
  */
-export const AWARD_REVEAL_MS = 420;
+export const AWARD_START_MS = WIN_DIALOG_DELAY_MS;
 
 /**
- * When the payout lands: the coin balance jumps to its new value, the coin pill
- * pops once, and every reason appears together.
+ * The reasons the dialog draws.
  *
- * `useCoinAward` imports this rather than keeping a delay of its own, so the
- * balance behind the dialog and the rows inside it change on the same frame.
- */
-export const AWARD_START_MS = WIN_DIALOG_DELAY_MS + WIN_DIALOG_ENTER_MS + AWARD_REVEAL_MS;
-
-/**
- * The reasons the dialog draws: all of them, or none.
+ * It stays a function rather than becoming `reward.steps` at the call site
+ * because the guards are real — a board that has **already been paid** (a redo
+ * across the win line, or relaunching onto a finished board) has no reward at
+ * all, and the dialog has to show a payout of nothing rather than crash or claim
+ * one.
  *
- * There is no partial state any more. It stays a function rather than becoming
- * `reward.steps` at the call site because the guards are real — a board that has
- * **already been paid** (a redo across the win line, or relaunching onto a
- * finished board) has no reward at all, and the dialog has to show a payout of
- * nothing rather than crash or claim one.
+ * **There is no `revealed` argument any more**: nothing is ever half-shown.
  */
-export function awardSteps(reward, revealed) {
-  if (!revealed || !reward || !Array.isArray(reward.steps)) return [];
+export function awardSteps(reward) {
+  if (!reward || !Array.isArray(reward.steps)) return [];
   return reward.steps;
 }
 
 /** What those reasons add up to — summed from the rows, never held separately. */
-export function awardTotal(reward, revealed) {
-  return awardSteps(reward, revealed).reduce((sum, step) => sum + step.coins, 0);
+export function awardTotal(reward) {
+  return awardSteps(reward).reduce((sum, step) => sum + step.coins, 0);
 }

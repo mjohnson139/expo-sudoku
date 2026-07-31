@@ -125,7 +125,6 @@ const FungikuWinModal = ({
   const [visible, setVisible] = useState(false);
   const progress = useRef(new Animated.Value(0)).current;
   const burst = useRef(new Animated.Value(0)).current;
-  const reveal = useRef(new Animated.Value(0)).current;
   // Which win this dialog has already thrown confetti for. Without it, anything
   // that re-runs the effect would burst again over a dialog that is merely open.
   const burstFor = useRef(0);
@@ -232,19 +231,6 @@ const FungikuWinModal = ({
     return () => animation.stop();
   }, [visible, winSeq, burst]);
 
-  useEffect(() => {
-    // The payout's one beat. It is a fade only — the block is already mounted
-    // and holding its height (see the render), so nothing moves.
-    const animation = Animated.timing(reveal, {
-      toValue: award.revealed ? 1 : 0,
-      duration: award.revealed ? 260 : 0,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    });
-    animation.start();
-
-    return () => animation.stop();
-  }, [award.revealed, reveal]);
 
   // Every hook has to run before this bails out — an early return above one of
   // them changes the hook count between renders and React throws.
@@ -254,10 +240,9 @@ const FungikuWinModal = ({
   const surface = theme.colors.numberPad.background;
   const border = theme.colors.numberPad.border;
 
-  // All of them, together, or none yet. There is no partial state any more.
-  const steps = awardSteps(reward, award.revealed);
-  const total = awardTotal(reward, award.revealed);
-  const hasReward = !!reward && Array.isArray(reward.steps) && reward.steps.length > 0;
+  // All of them, always. The dialog is never half-drawn.
+  const steps = awardSteps(reward);
+  const total = awardTotal(reward);
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={dismiss}>
@@ -307,13 +292,13 @@ const FungikuWinModal = ({
                     {
                       translateX: burst.interpolate({
                         inputRange: CONFETTI_INPUT,
-                        outputRange: confettiX(piece.dx),
+                        outputRange: confettiX(piece.dx, piece.ox),
                       }),
                     },
                     {
                       translateY: burst.interpolate({
                         inputRange: CONFETTI_INPUT,
-                        outputRange: confettiY(piece.dy),
+                        outputRange: confettiY(piece.dy, piece.oy),
                       }),
                     },
                     {
@@ -335,35 +320,21 @@ const FungikuWinModal = ({
             {size}×{size} · seed {seed}
           </Text>
 
-          {/* The payout, all at once (plan §12.11).
+          {/* The payout, drawn *with* the dialog rather than after it
+              (plan §12.14).
 
-              **Mounted from the moment the dialog is, and faded in** — not
-              conditionally rendered. The dialog is centred now, so a block
-              appearing inside it would grow the box symmetrically and shunt the
-              title and the buttons apart at the exact moment the player is
-              reading them. Reserving the height means the only thing that
-              changes is opacity, which is the calm version of the same reveal.
+              It used to be mounted invisible and faded in 420 ms later — the
+              last trace of the narration this dialog began as, and the
+              operator's *"it's kind of weird… the rewards are delayed and show
+              up later. Just show it altogether."* There is nothing to reserve
+              height for now, and nothing to hide from a screen reader: the box,
+              its rewards and the confetti are one arrival.
 
               The total is summed from the rows on screen (`awardTotal`), never
               read from `reward.total`, so the dialog cannot contradict itself. */}
-          {hasReward && (
-            <Animated.View
-              style={[styles.payout, { borderColor: border, opacity: reveal }]}
-              // **Held at opacity 0 is still readable to a screen reader.** The
-              // block is mounted early only to reserve its height, so it has to
-              // be hidden from assistive tech until it is actually revealed —
-              // otherwise the payout is announced a beat before it is shown and
-              // the live region below fires against an invisible total.
-              //
-              // `aria-hidden`, not the older pair: `accessibilityElementsHidden`
-              // is iOS-only and react-native-web does not map
-              // `importantForAccessibility` at all, so the first attempt at this
-              // changed nothing on the web and a browser check caught it. RN
-              // maps `aria-hidden` to both native equivalents, so one prop
-              // covers iOS, Android and the web.
-              aria-hidden={!award.revealed}
-            >
-              {(award.revealed ? steps : reward.steps).map((step) => (
+          {steps.length > 0 && (
+            <View style={[styles.payout, { borderColor: border }]}>
+              {steps.map((step) => (
                 <View key={step.label} style={styles.payoutRow}>
                   <Text style={[styles.payoutLabel, { color: titleColor }]} numberOfLines={1}>
                     {step.label}
@@ -385,15 +356,15 @@ const FungikuWinModal = ({
                   <MaterialCommunityIcons name="circle-multiple" size={13} color={COIN} />
                   <Text
                     style={[styles.payoutCoinsText, styles.payoutTotalText, { color: titleColor }]}
-                    // It arrives on its own, so a screen reader has to be told
-                    // rather than left to notice.
+                    // The dialog arrives on its own, so a screen reader has to be
+                    // told rather than left to notice.
                     accessibilityLiveRegion="polite"
                   >
-                    +{award.revealed ? total : reward.total}
+                    +{total}
                   </Text>
                 </View>
               </View>
-            </Animated.View>
+            </View>
           )}
 
           <View style={styles.actions}>
@@ -456,14 +427,17 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   confetti: {
-    // Sits over the dialog's top half, centred on the popper: every piece starts
-    // at this view's middle and flies out from there. Zero height so it reserves
-    // no space of its own — the pieces are absolutely positioned inside it.
+    // **Fills the dialog and centres on it**, so the burst comes out of the
+    // rewards rather than out of a point above the title (plan §12.14). Each
+    // piece then carries its own origin offset (confetti.js), which spreads the
+    // starting points across the payout block instead of stacking them all at
+    // one spot. Pieces fly well past these bounds and nothing clips them, which
+    // is what makes it read as exploding *out of* the box.
     position: 'absolute',
-    top: 42,
+    top: 0,
     left: 0,
     right: 0,
-    height: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },

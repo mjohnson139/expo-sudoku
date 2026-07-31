@@ -1,7 +1,6 @@
 import {
   WIN_DIALOG_DELAY_MS,
   WIN_DIALOG_ENTER_MS,
-  AWARD_REVEAL_MS,
   AWARD_START_MS,
   awardSteps,
   awardTotal,
@@ -31,14 +30,13 @@ describe('when the dialog arrives', () => {
     expect(WIN_DIALOG_ENTER_MS).toBeLessThanOrEqual(280);
   });
 
-  test('the payout lands one beat after the dialog, not five', () => {
-    // **The whole of what is left of the narration.** It used to walk the
-    // reasons one at a time over ~4s; now the confetti bursts and the result
-    // appears. This asserts the beat exists (so the result reads as arriving)
-    // and that it is short (so nobody is waiting for it).
-    expect(AWARD_REVEAL_MS).toBeGreaterThan(150);
-    expect(AWARD_REVEAL_MS).toBeLessThan(800);
-    expect(AWARD_START_MS).toBe(WIN_DIALOG_DELAY_MS + WIN_DIALOG_ENTER_MS + AWARD_REVEAL_MS);
+  test('the payout lands *with* the dialog — one moment, not two', () => {
+    // **The last trace of the narration, removed.** The reasons were walked one
+    // at a time (~4s), then collapsed to one beat 420ms after the box, and the
+    // operator's verdict on that beat was that it read as the rewards being
+    // delayed. There is no offset left: the dialog, its rewards and the confetti
+    // are one arrival, and the coin balance behind moves on the same frame.
+    expect(AWARD_START_MS).toBe(WIN_DIALOG_DELAY_MS);
   });
 
   // Bounded rather than pinned: the operator lengthened the wave and this
@@ -52,20 +50,17 @@ describe('when the dialog arrives', () => {
 });
 
 describe('awardSteps', () => {
-  test('shows nothing until the payout is revealed', () => {
-    expect(awardSteps(reward, false)).toEqual([]);
-  });
-
-  test('shows every reason at once — there is no partial state', () => {
-    // The reasons used to arrive one at a time. This is the assertion that says
-    // that is gone: revealing is all-or-nothing.
-    expect(awardSteps(reward, true)).toEqual(reward.steps);
+  test('shows every reason, always — there is no partial state left', () => {
+    // The reasons used to arrive one at a time, then all-at-once-but-later.
+    // Neither survives: the dialog is never half-drawn, so there is not even a
+    // `revealed` argument to pass.
+    expect(awardSteps(reward)).toEqual(reward.steps);
   });
 
   test('a board that has already been paid has no reasons to show', () => {
     // Redo across the win line, or relaunching onto a finished board.
-    expect(awardSteps(null, true)).toEqual([]);
-    expect(awardSteps({ total: 0 }, true)).toEqual([]);
+    expect(awardSteps(null)).toEqual([]);
+    expect(awardSteps({ total: 0 })).toEqual([]);
   });
 });
 
@@ -73,15 +68,14 @@ describe('awardTotal', () => {
   test('is the sum of the rows on screen, never a separately held number', () => {
     // The failure mode this exists to prevent: a total that disagrees with the
     // rows above it.
-    expect(awardTotal(reward, false)).toBe(0);
-    expect(awardTotal(reward, true)).toBe(8);
+    expect(awardTotal(reward)).toBe(8);
   });
 
   test('lands on the payout the wallet actually granted', () => {
-    expect(awardTotal(reward, true)).toBe(reward.total);
+    expect(awardTotal(reward)).toBe(reward.total);
   });
 
   test('is zero for a board with nothing to pay', () => {
-    expect(awardTotal(null, true)).toBe(0);
+    expect(awardTotal(null)).toBe(0);
   });
 });

@@ -50,6 +50,25 @@ describe('confettiPieces', () => {
     });
   });
 
+  test('starts spread across the rewards, not all from one point', () => {
+    // **What makes it read as the rewards bursting** rather than as a popper
+    // going off behind them (plan §12.14). Pieces begin scattered over the
+    // payout block and fly outward from wherever they are.
+    const pieces = confettiPieces();
+    const xs = pieces.map((p) => p.ox);
+    const ys = pieces.map((p) => p.oy);
+
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(80);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(25);
+    // Wider than tall — the payout block is a row of lines, not a square.
+    expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(
+      Math.max(...ys) - Math.min(...ys)
+    );
+    // Spread around the centre rather than pushed off to one side.
+    expect(pieces.some((p) => p.ox > 20)).toBe(true);
+    expect(pieces.some((p) => p.ox < -20)).toBe(true);
+  });
+
   test('spins both ways, so the burst does not appear to rotate as one', () => {
     const pieces = confettiPieces();
     expect(pieces.some((p) => p.spin > 0)).toBe(true);
@@ -88,6 +107,18 @@ describe('the trajectory', () => {
     expect(y[2]).toBe(-80);
     expect(y[3]).toBe(-80 + CONFETTI_FALL);
     expect(y[3]).toBeGreaterThan(y[2]);
+  });
+
+  test('travels from its own origin, not from the middle', () => {
+    // The offset is baked into the output range so a piece is one transform
+    // however it is placed — which is also what keeps the spread testable.
+    expect(confettiX(90, 40)[0]).toBe(40);
+    expect(confettiY(-80, -12)[0]).toBe(-12);
+
+    // The journey is the same, just moved.
+    const plain = confettiX(90);
+    const shifted = confettiX(90, 40);
+    shifted.forEach((v, i) => expect(v - plain[i]).toBeCloseTo(40));
   });
 
   test('sideways travel never reverses', () => {
