@@ -1564,6 +1564,84 @@ dialog, no confetti**, sampled again across the window the wave would have
 occupied, with the board still solved and its mushrooms intact. Then a fresh win
 after that reload still bursts and still pays.
 
+### 12.13 A dialog the player dismisses, and nobody else (operator, 2026-07-30)
+
+> It's automatically dismissing itself when you tap outside of it, or if you
+> close the app and come back. It should just remain until the user dismisses it
+> themselves.
+
+Two ways the app was deciding on the player's behalf, and the second one is the
+interesting half.
+
+#### The backdrop was a dismiss target
+
+It shipped as a `TouchableOpacity` on the reasoning that a finished board can
+still be undone, so there had to be a way past the dialog. But a stray finger
+anywhere on the screen then threw away a payout the player had not read. The
+scrim is a plain `View` now, and **the two buttons are the only way out** — which
+is what makes *"until the user dismisses it themselves"* true rather than nearly
+true.
+
+#### Closing the app was dismissing it too, and §12.12 is why
+
+§12.12 fixed the celebration replaying on every remount by keying it on the win
+**event** (`winSeq`) instead of the `solved` condition. That was right for the
+*animations* — and wrong for the *dialog*, which then never came back at all.
+Backgrounding the app dismissed the win on the player's behalf.
+
+The two questions had been conflated, and they have different answers:
+
+| | keyed on | why |
+|---|---|---|
+| **should the celebration play?** | the win **event** | a remount is not a win; replaying is the §12.12 bug |
+| **should the dialog be up?** | a persisted **condition** | closing the app is not an acknowledgement |
+
+So `winDismissed` joins the board's own state and its save (**v3 → v4**). The
+dialog shows while `solved && !winDismissed`, which survives a relaunch by
+construction, and only `DISMISS_WIN` clears it. `pushHistory`, undo and redo
+re-arm it — playing on means a board solved again is a win worth announcing —
+and a new board gets `false` from `buildPuzzleState` without anything having to
+remember to reset it.
+
+#### The payout had to become derivable
+
+A restored dialog still needs its coins, and `lastReward` is provider state that a
+remount wipes — that was the other half of *"it comes back and it doesn't have the
+coins"*, and hiding the dialog had only been concealing it.
+
+**`rewardForWin` is pure, and every input it takes is persisted with the board**
+(`difficulty`, `lives`, `hintsUsed`). So the breakdown is *computed*, not
+remembered. Two different questions, kept apart:
+
+- **what did this board earn?** — pure, always answerable, draws the rows.
+- **did this session grant it?** — `lastReward`, non-null only when the wallet just
+  paid, drives the count-up. Correctly null for a board paid days ago, so a
+  restored dialog shows its rows fully and statically rather than animating a
+  payout that already happened.
+
+The wallet remains the only authority on *granting*; this only describes.
+
+#### A one-render race, caught by the browser and not by the tests
+
+The first cut read `winSeq === 0` as "we arrived on this board". But `winSeq` is
+bumped in an **effect**, so on the winning tap there is exactly one render where
+the board is solved and the counter has not caught up — and the dialog took the
+arriving path, popping up instantly with no ripple and no confetti.
+
+It is settled with a fact that cannot race: `arrivedPending`, a lazily-initialised
+`useState` holding whether the board was **already solved and unacknowledged at
+mount**. Arrived boards show at once; anything that becomes pending later is a win
+and waits. **Only the browser check found this** — 453 unit tests were green,
+because the race is between two React commits and nothing pure can see it.
+
+#### Verified
+
+A win, then two backdrop taps in opposite corners: **dialog still up**. A reload
+and a walk back in: **dialog back, same four payout rows, no confetti, no wave**,
+sampled again afterwards. Then Close, reload again: **stays dismissed**, board
+still solved. Three consecutive wins each burst; a win after a reload bursts and
+pays.
+
 ## 13. Ladder & scoring — notes parked, now superseded
 
 > **Superseded 2026-07-26 by §14.** The operator asked for a **difficulty menu**

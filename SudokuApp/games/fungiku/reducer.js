@@ -74,6 +74,10 @@ export const FUNGIKU_ACTIONS = {
   RULE_OUT: 'FUNGIKU_RULE_OUT',
 
   // Feedback and hints (plan §11, §14.3).
+  // Acknowledging a win. The dialog is dismissed by the player and by nobody
+  // else (plan §12.13), so "I have seen this" is state rather than a transient.
+  DISMISS_WIN: 'FUNGIKU_DISMISS_WIN',
+
   REQUEST_HINT: 'FUNGIKU_REQUEST_HINT',
   REVEAL_MUSHROOM: 'FUNGIKU_REVEAL_MUSHROOM',
   DISMISS_HINT: 'FUNGIKU_DISMISS_HINT',
@@ -217,6 +221,7 @@ export const buildPuzzleState = ({
   lives = MAX_LIVES,
   mistakeCells,
   hintsUsed = 0,
+  winDismissed = false,
 } = {}) => {
   const identity = resolvePuzzleIdentity({ difficulty, size, seed });
   const puzzle = generate({ size: identity.size, seed });
@@ -248,6 +253,13 @@ export const buildPuzzleState = ({
     marks: checked.marks,
     undoStack: [],
     redoStack: [],
+    // **Persisted, and that is the point** (plan §12.13). A win dialog is
+    // dismissed by the player and by nobody else — not by a relaunch, not by
+    // returning from the background, not by a tap outside it. Defaulting to
+    // `false` for a save that predates the field is right: an old save has no
+    // record of an acknowledgement, and showing the dialog once is the harmless
+    // direction to be wrong in.
+    winDismissed: !!winDismissed,
     // Lives left on *this* board (plan §14.3). Per-puzzle, and persisted: leaving
     // for the hub and coming back must not refund a mistake.
     lives: Number.isFinite(lives) ? Math.max(0, Math.min(MAX_LIVES, lives)) : MAX_LIVES,
@@ -304,6 +316,9 @@ const pushHistory = (state, marks, extra) => ({
   mistakeCells: pruneMistakeCells(state.mistakeCells, marks),
   // Advice about a board you have since changed is worse than no advice.
   hint: null,
+  // Playing on re-arms the win dialog: if these marks solve the board again,
+  // that is a win the player has not yet acknowledged.
+  winDismissed: false,
   // Both transients belong to one gesture and do not survive the next action.
   lastMistake: null,
   upgradableCell: -1,
@@ -478,6 +493,17 @@ export function fungikuReducer(state, action) {
       return state.hint ? { ...state, hint: null } : state;
 
     /**
+     * The player has seen the win. Nothing else may set this.
+     *
+     * It is deliberately **not** cleared when the board becomes unsolved: undo
+     * across the win line hides the dialog on its own (there is no win to show),
+     * and re-arming on every mark change is `pushHistory`'s job — which covers
+     * redo-into-a-win by way of the marks that got there.
+     */
+    case FUNGIKU_ACTIONS.DISMISS_WIN:
+      return state.winDismissed ? state : { ...state, winDismissed: true };
+
+    /**
      * One hint, as weak as will still help (plan §11.2). The cascade matters:
      *
      * 1. Nudge: point at **the cell** where something is forced, and say the
@@ -621,6 +647,9 @@ export function fungikuReducer(state, action) {
         redoStack: [...state.redoStack, state.marks],
         mistakeCells: pruneMistakeCells(state.mistakeCells, marks),
         hint: null,
+        // Stepping back and forward across the win line is playing the board, so
+        // it re-arms the dialog the same way a fresh mark does.
+        winDismissed: false,
         lastMistake: null,
         upgradableCell: -1,
       };
@@ -636,6 +665,9 @@ export function fungikuReducer(state, action) {
         redoStack: state.redoStack.slice(0, -1),
         mistakeCells: pruneMistakeCells(state.mistakeCells, marks),
         hint: null,
+        // Stepping back and forward across the win line is playing the board, so
+        // it re-arms the dialog the same way a fresh mark does.
+        winDismissed: false,
         lastMistake: null,
         upgradableCell: -1,
       };

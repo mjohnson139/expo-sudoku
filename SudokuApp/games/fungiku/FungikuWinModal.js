@@ -71,6 +71,7 @@ const PIECES = confettiPieces();
 const FungikuWinModal = ({
   solved,
   winSeq,
+  winDismissed,
   size,
   seed,
   accent,
@@ -89,10 +90,45 @@ const FungikuWinModal = ({
   // dialog, and it lives with the dialog. The effect below keys on `solved`, so
   // un-solving and re-solving — undo across the win line, then redo — reopens it,
   // which is right: that is a new arrival at the win, not the same one.
+  /**
+   * **Whether this win is still waiting to be acknowledged** — a condition, and
+   * deliberately so (plan §12.13).
+   *
+   * The previous version opened on the win *event* and never reopened, which
+   * meant closing the app dismissed the dialog on the player's behalf. It is not
+   * the app's to dismiss: *"it should just remain until the user dismisses it
+   * themselves."* `winDismissed` is persisted with the board, so this survives a
+   * relaunch, a resume, and a trip to the hub.
+   *
+   * The *event* (`winSeq`) still decides the **celebration** — the delay before
+   * the dialog lands, and the confetti. Arriving on an unacknowledged win is not
+   * a win happening; the dialog is simply already there.
+   */
+  const pending = solved && !winDismissed;
+
+  /**
+   * **What this board looked like the first time this dialog saw it.**
+   *
+   * There is one render on the winning tap where `pending` is already true and
+   * `winSeq` is still 0 — the counter is bumped in an effect, which lands a tick
+   * later. Treating "winSeq === 0" as "we arrived on this" therefore fired on the
+   * *win itself*, and the dialog popped up instantly instead of waiting for the
+   * ripple, with no confetti. A browser check caught it.
+   *
+   * This settles the ambiguity with a fact that cannot race: a board that was
+   * **already solved and unacknowledged at mount** was arrived at; anything that
+   * becomes pending later is a win happening. Lazily initialised so it is the
+   * first render's answer and never re-evaluated.
+   */
+  const [arrivedPending] = useState(() => pending);
+
   const [visible, setVisible] = useState(false);
   const progress = useRef(new Animated.Value(0)).current;
   const burst = useRef(new Animated.Value(0)).current;
   const reveal = useRef(new Animated.Value(0)).current;
+  // Which win this dialog has already thrown confetti for. Without it, anything
+  // that re-runs the effect would burst again over a dialog that is merely open.
+  const burstFor = useRef(0);
 
   /**
    * **Opened by the win event, closed by the board leaving the solved state.**
@@ -110,25 +146,37 @@ const FungikuWinModal = ({
    * remount opens nothing.
    */
   useEffect(() => {
-    if (winSeq === 0) return undefined;
+    if (!pending) {
+      // Either the win was acknowledged, or an undo took the board back across
+      // the win line. Both close it; neither is the app deciding for the player.
+      setVisible(false);
+      return undefined;
+    }
 
-    // Un-solving before the dialog is due (an undo across the win line, which
-    // the player has ~2 seconds to do) cancels it rather than opening it late.
+    // **Arriving** on an unacknowledged win — a relaunch, a resume, walking back
+    // in from the hub — shows it straight away. There is no celebration to wait
+    // for, because nothing just happened.
+    if (winSeq === 0 && arrivedPending) {
+      setVisible(true);
+      return undefined;
+    }
+
+    // A win that just happened waits for the board's ripple. Un-solving before
+    // the dialog is due cancels it rather than opening it late.
     const timer = setTimeout(() => setVisible(true), WIN_DIALOG_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [winSeq]);
+  }, [pending, winSeq, arrivedPending]);
 
-  useEffect(() => {
-    // Undo across the win line takes the dialog with it. Deliberately one-way:
-    // this never *opens* the dialog, so a board that is merely solved — restored,
-    // remounted, redone into — cannot summon it.
-    if (!solved) setVisible(false);
-  }, [solved]);
-
-  const dismiss = () => {
-    setVisible(false);
-    onDismiss?.();
-  };
+  /**
+   * **Dismissing writes it down.** Hiding the dialog locally would leave it
+   * dismissed only for as long as this component happens to live — a relaunch
+   * would bring it straight back, or (worse, and what actually shipped) opening
+   * on the event meant closing the app dismissed it *for* the player. `onDismiss`
+   * records the acknowledgement in the board's own state, which is persisted, and
+   * `pending` above reads it back. This does not touch `visible` at all: the
+   * effect that owns it will see `pending` go false and close.
+   */
+  const dismiss = () => onDismiss?.();
 
   useEffect(() => {
     // **A plain fade and a slight scale.** It was an `Easing.back` overshoot with
@@ -150,7 +198,11 @@ const FungikuWinModal = ({
   }, [visible, progress]);
 
   useEffect(() => {
-    if (!visible) return undefined;
+    // Only for a win this session actually watched, and only once for it. A
+    // dialog restored from a save has nothing to celebrate — the confetti was
+    // thrown when the board was solved, possibly days ago.
+    if (!visible || winSeq === 0 || burstFor.current === winSeq) return undefined;
+    burstFor.current = winSeq;
 
     // **Wound back to 0 before every burst**, and that is the operator's *"the
     // confetti only happens like every other time."* This value ends each burst
@@ -178,7 +230,7 @@ const FungikuWinModal = ({
     animation.start();
 
     return () => animation.stop();
-  }, [visible, burst]);
+  }, [visible, winSeq, burst]);
 
   useEffect(() => {
     // The payout's one beat. It is a fade only — the block is already mounted
@@ -209,18 +261,15 @@ const FungikuWinModal = ({
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={dismiss}>
-      {/* The backdrop is a dismiss target as well as a scrim: a finished board
-          can still be undone, and a dialog with no way past it would make that
-          unreachable. Light enough (0.35) that the board and the counter row's
-          counting coins stay readable behind it — the payout is meant to be
-          watched. */}
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={dismiss}
-        accessibilityRole="button"
-        accessibilityLabel="Dismiss, and look at the finished board"
-      >
+      {/* **The backdrop is a scrim and nothing else.** It used to dismiss on tap,
+          which meant a stray finger anywhere on the screen threw away a payout the
+          player had not read — the operator's *"it's automatically dismissing
+          itself when you tap outside of it."* The two buttons are the only way
+          out now, which is also what makes "until the user dismisses it
+          themselves" true rather than nearly true.
+
+          Light (0.35) so the finished board stays readable behind it. */}
+      <View style={styles.overlay}>
         <Animated.View
           style={[
             styles.box,
@@ -368,7 +417,7 @@ const FungikuWinModal = ({
             </TouchableOpacity>
           </View>
         </Animated.View>
-      </TouchableOpacity>
+      </View>
     </Modal>
   );
 };

@@ -79,10 +79,17 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     seed,
     mushroomCount,
     solved,
-    // The win *event*. Everything that celebrates keys on this rather than on
-    // `solved`, which is merely true whenever the board happens to be finished
-    // — including on the first render after a remount (plan §12.12).
+    // The win *event*. The celebration keys on this rather than on `solved`,
+    // which is merely true whenever the board happens to be finished — including
+    // on the first render after a remount (plan §12.12).
     winSeq,
+    // Whether the player has acknowledged this board's win. Persisted, so the
+    // dialog outlives a relaunch (plan §12.13).
+    winDismissed,
+    dismissWin,
+    // What the board earned, computed from persisted state — so a dialog that
+    // survived a relaunch can still show its coins.
+    winReward,
     hasMarks,
     canUndo,
     canRedo,
@@ -543,11 +550,13 @@ const FungikuScreenContent = ({ onExitToHub }) => {
       <FungikuWinModal
         solved={solved}
         winSeq={winSeq}
+        winDismissed={winDismissed}
+        onDismiss={dismissWin}
         size={size}
         seed={seed}
         accent={FUNGIKU_ACCENT}
         theme={theme}
-        reward={lastReward}
+        reward={winReward}
         award={award}
         onNextPuzzle={nextPuzzle}
       />

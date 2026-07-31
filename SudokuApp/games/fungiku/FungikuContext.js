@@ -3,7 +3,7 @@ import usePersistentReducer from '../../hooks/usePersistentReducer';
 import { MARKS, MAX_SIZE, MIN_SIZE } from './engine';
 import { loadFungikuState, saveFungikuState } from './storage';
 import useFungikuWallet from './useFungikuWallet';
-import { COIN_COSTS, balance, canAfford, puzzleKey } from './wallet';
+import { COIN_COSTS, balance, canAfford, puzzleKey, rewardForWin } from './wallet';
 import {
   DEFAULT_SEED,
   FUNGIKU_ACTIONS,
@@ -234,9 +234,41 @@ export const FungikuProvider = ({ children }) => {
   ]);
 
   // Only for the board it was paid for. A new puzzle at the same instant the
-  // banner is animating out must not inherit the last one's payout.
+  // dialog is animating out must not inherit the last one's payout.
   const rewardForThisBoard =
     lastReward && lastReward.puzzle === puzzleKey(state) ? lastReward : null;
+
+  /**
+   * **What this board earns — computed, not remembered** (plan §12.13).
+   *
+   * `rewardForWin` is pure, and every input it takes (`difficulty`, `lives`,
+   * `hintsUsed`) is persisted with the board. So the breakdown can be worked out
+   * from a restored save, which is what lets a win dialog that survives a
+   * relaunch still show its coins.
+   *
+   * This is deliberately **not** the same thing as `rewardForThisBoard`, and
+   * conflating them is what produced the operator's *"it comes back and it
+   * doesn't have the coins"*. Two different questions:
+   *
+   *   - *what did this board earn?* — pure, always answerable. Drives the rows
+   *     the dialog draws.
+   *   - *did this session grant it?* — `rewardForThisBoard`, non-null only when
+   *     the wallet actually paid out just now. Drives the count-up animation, and
+   *     is correctly null for a board paid in an earlier session.
+   *
+   * The wallet remains the only authority on *granting*; this only describes.
+   */
+  const winReward = useMemo(
+    () =>
+      solved
+        ? rewardForWin({
+            difficulty: state.difficulty,
+            lives: state.lives,
+            hintsUsed: state.hintsUsed,
+          })
+        : null,
+    [solved, state.difficulty, state.lives, state.hintsUsed]
+  );
 
   // --- the input model (plan §14.2) ----------------------------------------
   // A tap rules a cell out, or clears a filled one. It is dispatched the moment
@@ -305,6 +337,12 @@ export const FungikuProvider = ({ children }) => {
 
   const dismissHint = useCallback(
     () => dispatch({ type: FUNGIKU_ACTIONS.DISMISS_HINT }),
+    [dispatch]
+  );
+
+  /** The player acknowledging a win. Nothing else dismisses the dialog. */
+  const dismissWin = useCallback(
+    () => dispatch({ type: FUNGIKU_ACTIONS.DISMISS_WIN }),
     [dispatch]
   );
 
@@ -467,6 +505,11 @@ export const FungikuProvider = ({ children }) => {
       canAffordHint,
       canAffordReveal,
       canAffordRuleOut,
+      // What the board earned (always answerable) and what this session granted
+      // (only just now). The dialog draws the first and animates the second.
+      winReward,
+      winDismissed: state.winDismissed,
+      dismissWin,
       lastReward: rewardForThisBoard,
       grantCoins,
       requestHint,
@@ -505,6 +548,8 @@ export const FungikuProvider = ({ children }) => {
       canAffordReveal,
       canAffordRuleOut,
       rewardForThisBoard,
+      winReward,
+      dismissWin,
       grantCoins,
       requestHint,
       revealMushroom,
