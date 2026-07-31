@@ -70,6 +70,7 @@ const PIECES = confettiPieces();
  */
 const FungikuWinModal = ({
   solved,
+  winSeq,
   size,
   seed,
   accent,
@@ -93,16 +94,35 @@ const FungikuWinModal = ({
   const burst = useRef(new Animated.Value(0)).current;
   const reveal = useRef(new Animated.Value(0)).current;
 
+  /**
+   * **Opened by the win event, closed by the board leaving the solved state.**
+   *
+   * Two effects, because they are two different questions — and the bug the
+   * operator hit came from asking only one of them. Keying `visible` on `solved`
+   * meant the dialog reopened on every remount: coming back from the background
+   * reloads the bundle, and the first render of a restored finished board already
+   * says `solved`. Worse, it reopened **empty** — the payout lives in provider
+   * state that a remount resets, and the wallet correctly refuses to pay the same
+   * board twice, so it came back with no coins in it. That is the whole of *"it
+   * comes back and it doesn't have the coins"* (plan §12.12).
+   *
+   * `winSeq` is 0 until a win happens *while this session is watching*, so a
+   * remount opens nothing.
+   */
   useEffect(() => {
-    if (!solved) {
-      setVisible(false);
-      return undefined;
-    }
+    if (winSeq === 0) return undefined;
 
     // Un-solving before the dialog is due (an undo across the win line, which
-    // the player has ~1 second to do) cancels it rather than opening it late.
+    // the player has ~2 seconds to do) cancels it rather than opening it late.
     const timer = setTimeout(() => setVisible(true), WIN_DIALOG_DELAY_MS);
     return () => clearTimeout(timer);
+  }, [winSeq]);
+
+  useEffect(() => {
+    // Undo across the win line takes the dialog with it. Deliberately one-way:
+    // this never *opens* the dialog, so a board that is merely solved — restored,
+    // remounted, redone into — cannot summon it.
+    if (!solved) setVisible(false);
   }, [solved]);
 
   const dismiss = () => {
@@ -132,16 +152,29 @@ const FungikuWinModal = ({
   useEffect(() => {
     if (!visible) return undefined;
 
-    // The confetti. One pass, not a loop: a celebration that never stops becomes
-    // wallpaper. Driven natively and never `setValue`d — it animates from 0 to 1
-    // and both ends of the trajectory are "nothing on screen" (confetti.js), so
-    // there is no reset to get wrong.
-    const animation = Animated.timing(burst, {
-      toValue: 1,
-      duration: CONFETTI_DURATION_MS,
-      easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    });
+    // **Wound back to 0 before every burst**, and that is the operator's *"the
+    // confetti only happens like every other time."* This value ends each burst
+    // at 1, and the component is never unmounted — it returns `null` while
+    // hidden, which keeps its refs — so the second win ran
+    // `timing(burst, {toValue: 1})` against a value already sitting at 1 and
+    // animated it from 1 to 1. No error, no warning, no confetti. The same shape
+    // as the `Animated.loop` trap in §12.9: an animation that has to start from a
+    // known place has to be *put* there.
+    //
+    // A zero-duration timing rather than `setValue`, because this is
+    // native-driven and plan §2's rule is that the two must never be mixed — and
+    // unlike `setValue` it stops with the sequence.
+    //
+    // One pass, not a loop: a celebration that never stops becomes wallpaper.
+    const animation = Animated.sequence([
+      Animated.timing(burst, { toValue: 0, duration: 0, useNativeDriver: true }),
+      Animated.timing(burst, {
+        toValue: 1,
+        duration: CONFETTI_DURATION_MS,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]);
     animation.start();
 
     return () => animation.stop();

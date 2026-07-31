@@ -79,6 +79,10 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     seed,
     mushroomCount,
     solved,
+    // The win *event*. Everything that celebrates keys on this rather than on
+    // `solved`, which is merely true whenever the board happens to be finished
+    // — including on the first render after a remount (plan §12.12).
+    winSeq,
     hasMarks,
     canUndo,
     canRedo,
@@ -538,6 +542,7 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           celebration is not covered by the thing announcing it. */}
       <FungikuWinModal
         solved={solved}
+        winSeq={winSeq}
         size={size}
         seed={seed}
         accent={FUNGIKU_ACCENT}

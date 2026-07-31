@@ -116,6 +116,7 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange, coinWord, emptyColor
     beginStroke,
     endStroke,
     solved,
+    winSeq,
     generating,
   } = useFungikuContext();
 
@@ -612,7 +613,11 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange, coinWord, emptyColor
   // on a finished board, so that is not academic.
   const winLift = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const animation = solved
+    // **The win *event*, not the `solved` condition** (plan §12.12). `solved` is
+    // already true on the first render after a remount, so an effect reading it
+    // replays the celebration every time the app returns from the background.
+    // `winSeq === 0` means nothing has been won since this board came on screen.
+    const animation = solved && winSeq > 0
       ? Animated.sequence([
           Animated.timing(winLift, {
             toValue: 1,
@@ -638,9 +643,9 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange, coinWord, emptyColor
 
     // No `setValue` anywhere near this one — it is native-driven, and plan §2's
     // rule is that the two must never be mixed. Un-solving while the pop is in
-    // flight is handled by the `!solved` branch, which animates it home.
+    // flight is handled by the other branch, which animates it home.
     return () => animation.stop();
-  }, [solved, winLift]);
+  }, [solved, winSeq, winLift]);
 
   // --- the win wave (plan §12.7) -------------------------------------------
   //
@@ -664,10 +669,16 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange, coinWord, emptyColor
   // Animated.Views, is how both get the driver they need.
   const winWave = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    // **The win *event*, not the `solved` condition** (plan §12.12). The operator
+    // reported the ripple replaying every time the app came back from the
+    // background: a reload remounts the tree, and the first render of a restored
+    // finished board already says `solved`. `winSeq` only counts transitions this
+    // provider watched, so arriving on a finished board celebrates nothing.
+    //
     // Both ends of the progress are the resting pose (celebration.js), so
     // cancelling is a jump to the nearest end rather than an unwind — an undo
     // across the win line must never leave a mushroom stranded mid-hop.
-    const animation = solved
+    const animation = solved && winSeq > 0
       ? Animated.sequence([
           Animated.timing(winWave, {
             toValue: 1,
@@ -686,7 +697,7 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange, coinWord, emptyColor
     animation.start();
 
     return () => animation.stop();
-  }, [solved, winWave]);
+  }, [solved, winSeq, winWave]);
 
   // How far a mushroom hops, and how big it swells at the top of the hop. Both
   // scale with the cell, so a 10×10 board (32pt cells on a phone) reads the same

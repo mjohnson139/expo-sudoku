@@ -1469,6 +1469,101 @@ on both axes; **no resize and no movement** when the payout appears; the total
 agreeing with the rows above it; the payout hidden from assistive tech until it
 is shown; and Close still dismissing. The board's origin is unmoved throughout.
 
+### 12.12 A win is an event, and `solved` is not one (operator, 2026-07-30)
+
+Three reports from play, and they turned out to be **one root cause plus one
+stale value**:
+
+> The confetti seems like it only happens like every other time — I solve a
+> board and the confetti goes, and then I solve another one and it doesn't. Also
+> it seems like the board refreshes at times and then the dialogue goes away, but
+> then it comes back and it doesn't have the coins… And that win animation, the
+> wave, runs each time — like if you put the app in the background and come back,
+> if you're on the success screen it would show that animation again. So there's
+> something with how it's being triggered. We don't really want to run it every
+> time — just run it when the board is initially solved and then keep everything
+> static until it's dismissed.
+
+#### The root cause: every celebration keyed on a *condition*
+
+`solved` is derived from `marks`. It is not an event — it is simply **true
+whenever the board happens to be complete**, on every render, forever. The board
+lift, the wave, and the dialog's visibility all read it directly.
+
+That is fine while nothing remounts. Backgrounding Expo Go and returning reloads
+the bundle, which remounts the whole tree onto a **restored, already-finished
+board** — and the very first render says `solved`. So every effect keyed on it
+fired: the board lifted, the wave rippled, the dialog reopened.
+
+And it reopened **empty**. The payout lives in provider state (`lastReward`); a
+remount resets it to null, and `payWin` correctly refuses to pay the same board
+twice, so there was nothing to put in the dialog. *"It comes back and it doesn't
+have the coins"* is not a separate bug — it is the same one, seen from the
+wallet's side.
+
+**`winSeq` counts transitions into solved that the provider actually watched
+happen.** Consumers key their effects on it and do nothing while it is 0.
+Monotonic, the same shape as `mistakeSeq` (§14.3): two wins in a row must be two
+distinct values or the second celebration would not re-fire.
+
+It is **not in the reducer and not in the save**. It is a fact about what *this
+session* watched, not about the puzzle; persisting it would make a restored board
+claim a win the player never saw.
+
+##### The subtlety that made the first fix wrong
+
+Initialising the watcher from `solved` at mount **did not work**, and the browser
+check caught it. The provider renders *before* hydration, with the default empty
+board — so `solved` genuinely goes false → true when the save loads, and reading
+that transition is exactly the bug. The watcher is therefore gated on `hydrated`
+and its first pass after hydration **adopts** whatever the board is without
+celebrating it. Only changes after that are wins.
+
+This is the same class of mistake as the payout's, and the same shape of fix:
+`payOutWin` records *which board* it paid rather than setting a flag; `winSeq`
+records *what it watched* rather than reading a condition.
+
+#### The stale value: confetti that only ever burst once
+
+Separate bug, same family as §12.9's `Animated.loop` trap. `burst` animates 0 → 1
+and **was never wound back**. The dialog returns `null` while hidden rather than
+unmounting, so its refs survive — and the second win ran
+`timing(burst, {toValue: 1})` against a value already sitting at 1, animating it
+from 1 to 1. No error, no warning, no confetti.
+
+It looked like *"every other time"* because the operator's sessions interleaved
+same-session wins (no burst) with reloads (fresh value, burst). A zero-duration
+timing now precedes each burst — not `setValue`, because this is native-driven
+and §2's rule forbids mixing, and unlike `setValue` it stops with the sequence.
+
+**The general rule this is the third instance of: an animation that must start
+from a known place has to be *put* there.** Every value in this game that runs
+more than once now says so explicitly.
+
+#### What "static until it's dismissed" means now
+
+- Solve a board → the full sequence, once.
+- Anything that is not a win — a re-render, a remount, returning from the
+  background, re-entering from the hub, relaunching cold — celebrates **nothing**.
+  The board stays solved and still; there is no dialog.
+- Undo across the win line closes the dialog. That effect is deliberately
+  **one-way**: it never opens it, so a board that is merely *solved* cannot summon
+  one.
+
+The visible consequence worth knowing: **arriving on a finished board no longer
+shows the win dialog at all.** That is the ask — "just when the board is initially
+solved" — and *New puzzle* and *Difficulty* are always under the board, so there
+is still a way on.
+
+#### Verified
+
+Three consecutive wins in one session each burst **17 confetti pieces** and each
+showed a **4-row payout** — the "every other time" symptom is gone. Then a reload
+and a walk back into Fungiku onto the finished board: **0 mushrooms moving, no
+dialog, no confetti**, sampled again across the window the wave would have
+occupied, with the board still solved and its mushrooms intact. Then a fresh win
+after that reload still bursts and still pays.
+
 ## 13. Ladder & scoring — notes parked, now superseded
 
 > **Superseded 2026-07-26 by §14.** The operator asked for a **difficulty menu**

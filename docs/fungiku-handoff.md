@@ -407,6 +407,27 @@ explicitly whether the epic is ready to merge to `main`.
 
 ### Noted in passing, for a later step
 
+- **Nothing that celebrates may key on `solved`.** It is a *condition* derived
+  from `marks` — true on every render where the board happens to be complete,
+  including the first render after a remount. Use **`winSeq`** from the context,
+  which counts transitions into solved that the provider actually watched, and
+  **do nothing while it is 0**. Plan §12.12; this cost three operator-visible bugs
+  (the wave replaying on resume, the dialog reopening, and reopening *empty*).
+- **The provider renders before hydration, with the default empty board.** So
+  `solved` really does go false → true when a save loads. Any "did this just
+  become true?" watcher has to be gated on `hydrated` and **adopt** the restored
+  value on its first pass instead of treating it as a change. The first version of
+  `winSeq` got this wrong and a browser check caught it.
+- **An animation that must start from a known place has to be *put* there — third
+  instance.** The confetti burst only ever played once per mount because its value
+  ended at 1 and was never wound back (the dialog returns `null` while hidden, so
+  refs survive). Same family as the `Animated.loop` reset trap (§12.9) and the
+  hint ring. Use a zero-duration timing, not `setValue`, when the value is
+  native-driven.
+- **Arriving on a finished board shows no win dialog**, deliberately (§12.12).
+  Re-entering from the hub, relaunching, or returning from the background all
+  count as arriving. *New puzzle* and *Difficulty* are always under the board.
+
 - **`aria-hidden` is the portable one.** `accessibilityElementsHidden` is
   iOS-only and **react-native-web does not map `importantForAccessibility` at
   all**, so hiding something from assistive tech with that pair changes nothing
@@ -927,7 +948,7 @@ explicitly whether the epic is ready to merge to `main`.
 | 9 | Difficulty menu — rungs mapped into `SIZES` by *share*, size-from-seed, menu modal built to Sudoku's, free play + seed behind one constant, real v1→v2 save migration, difficulty in the header rather than a banner, hub badge names the rung | merged to `epic/fungiku` (#77, `02fcdf1`), operator-tested on device |
 | 10 | Lives & mistakes — tap ✕ / double-tap 🍄 replacing the cycle, wrong mushroom flagged immediately as a red ✕ costing one of three lives and announced on three channels, zero lives leaves the losing board up behind a dialog until the player restarts it, undo never refunds, "Show mistakes" deleted, v2→v3 migration, conflict rendering **removed** | merged to `epic/fungiku` (#79), operator-tested on device |
 | 11 | Earned assists — **coins**, one currency, in a wallet under **its own key** (`@FungikuWallet`, no save-version bump); hints and rule-out priced off it (1 / 2 / 4, §11.2's ladder); the "nothing is forced" answer left free; a win **narrated** — the balance counts up one reason at a time — and paid **exactly once per board** across undo/redo/reload; a daily floor so the game cannot become unwinnable; an unaffordable price drawn differently from a disabled button; gift/purchase seam behind `SHOW_DEVELOPER_CONTROLS`; the board redrawn as separated tiles | merged to `epic/fungiku` (#80, `5836b87`) — **device pass not recorded; fold it into Step 13's play-through** |
-| 12 | Art swap — **answered with motion, not artwork** (§12.7). The operator kept the glyph, so the step made the seam true (the board asks `Symbol` for `MUSHROOM_VALUE` instead of naming an icon), grew the placement pop into a **sprout** — the mushroom rises into the cell tilted and squashed and stretches upright, four interpolations of the one spring — and added a **win wave**: every mushroom hops in an anti-diagonal ripple, one shared native-driven value, windows in a pure `celebration.js`. **Device pass passed the animations and rejected the banners** (§12.8): both used to push the board down, so the win became a **dialog** and the hint a **floating overlay**, and nothing sits above the board any more. **Third round** (§12.9): the nudge points at **the one forced cell** instead of outlining its whole group, a ring **converges onto that cell** so the eye is taken there, and the operator's prices land — rule-out 1, **hint 5, reveal 20**, with `DAILY_FLOOR_COINS` derived from the hint price so the floor still buys help. **Fourth round** (§12.10): the hint text becomes a **popover on its cell** — placed by a pure `hintPlacement.js`, drawn inside the board's card so it points without measuring — and the win wave **travels three times as far** (300 ms → 917 ms across the board) with each hop unchanged **Fifth round** (§12.11): the win dialog **centred**, its entrance un-sprung, the party-popper replaced by a real **confetti burst**, and the payout's five-beat narration collapsed to **one reveal** — the reasons still named, but all at once | **awaiting a device pass on the whole win sequence, the popover and the new prices** |
+| 12 | Art swap — **answered with motion, not artwork** (§12.7). The operator kept the glyph, so the step made the seam true (the board asks `Symbol` for `MUSHROOM_VALUE` instead of naming an icon), grew the placement pop into a **sprout** — the mushroom rises into the cell tilted and squashed and stretches upright, four interpolations of the one spring — and added a **win wave**: every mushroom hops in an anti-diagonal ripple, one shared native-driven value, windows in a pure `celebration.js`. **Device pass passed the animations and rejected the banners** (§12.8): both used to push the board down, so the win became a **dialog** and the hint a **floating overlay**, and nothing sits above the board any more. **Third round** (§12.9): the nudge points at **the one forced cell** instead of outlining its whole group, a ring **converges onto that cell** so the eye is taken there, and the operator's prices land — rule-out 1, **hint 5, reveal 20**, with `DAILY_FLOOR_COINS` derived from the hint price so the floor still buys help. **Fourth round** (§12.10): the hint text becomes a **popover on its cell** — placed by a pure `hintPlacement.js`, drawn inside the board's card so it points without measuring — and the win wave **travels three times as far** (300 ms → 917 ms across the board) with each hop unchanged **Fifth round** (§12.11): the win dialog **centred**, its entrance un-sprung, the party-popper replaced by a real **confetti burst**, and the payout's five-beat narration collapsed to **one reveal** — the reasons still named, but all at once **Sixth round** (§12.12): the celebration keys on a **win event** (`winSeq`) rather than on the `solved` condition, so it no longer replays on every remount, and the confetti value is wound back so every win bursts | **awaiting a device pass on the whole win sequence, the popover and the new prices** |
 
 ## Steps still to come
 

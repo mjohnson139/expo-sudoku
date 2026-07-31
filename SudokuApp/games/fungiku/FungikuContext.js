@@ -86,6 +86,56 @@ export const FungikuProvider = ({ children }) => {
   const mushroomCount = useMemo(() => selectMushroomCount(state), [state.marks]);
   const solved = useMemo(() => selectIsSolved(state), [state.marks, state.regions, state.size]);
 
+  /**
+   * **A win is an event; `solved` is not one.** (docs/fungiku-plan.md §12.12)
+   *
+   * `solved` is derived from `marks`, so it is true on *every* render where the
+   * board happens to be complete — after the winning tap, after a redo across the
+   * win line, and again on the very first render when a save restores a board that
+   * was already finished. Every part of the celebration used to key on it
+   * directly, and the operator found what that costs: **the wave and the dialog
+   * replayed whenever the app came back from the background**, because a reload
+   * remounts the tree and the first render already says `solved`.
+   *
+   * `winSeq` counts the **transitions into solved that this provider actually
+   * watched happen**. It starts at 0 and increments only when a board that was not
+   * solved becomes solved while it is looking, so:
+   *
+   *   - arriving on a finished board never fires it — nothing transitioned;
+   *   - a remount *is* arriving again, so it does not fire either;
+   *   - a re-render with no change cannot fire it, because there is no change.
+   *
+   * Monotonic on purpose, the same shape as `mistakeSeq` in the reducer: two wins
+   * in a row have to be two distinct values or the second celebration would not
+   * re-fire. Consumers key their effects on it and **do nothing while it is 0**.
+   *
+   * It is not in the reducer and not in the save. It is a fact about what *this
+   * session* watched, not about the puzzle — persisting it would make a restored
+   * board claim a win the player never saw.
+   */
+  const [winSeq, setWinSeq] = useState(0);
+  const watchedSolved = useRef(false);
+  const watching = useRef(false);
+  useEffect(() => {
+    // **Do not start watching until the save has loaded.** This provider renders
+    // *before* hydration with the default empty board, so `solved` genuinely goes
+    // false → true when a finished board is restored — and reading that as a win
+    // is exactly the bug this counter exists to prevent. The first pass after
+    // hydration therefore **adopts** whatever the board is without celebrating
+    // it; only changes after that are wins.
+    if (!hydrated) return;
+
+    if (!watching.current) {
+      watching.current = true;
+      watchedSolved.current = solved;
+      return;
+    }
+
+    if (solved === watchedSolved.current) return;
+    watchedSolved.current = solved;
+    if (solved) setWinSeq((n) => n + 1);
+  }, [solved, hydrated]);
+
   // Any mark at all, not just mushrooms — a board restored with only X marks on
   // it still has something to clear, even though its undo stack is empty.
   const hasMarks = useMemo(
@@ -391,6 +441,9 @@ export const FungikuProvider = ({ children }) => {
       ...state,
       mushroomCount,
       solved,
+      // The *event*, for everything that celebrates. Nothing may key a
+      // celebration on `solved`, or it replays on every remount. See above.
+      winSeq,
       hasMarks,
       canUndo: selectCanUndo(state),
       canRedo: selectCanRedo(state),
@@ -433,6 +486,7 @@ export const FungikuProvider = ({ children }) => {
       state,
       mushroomCount,
       solved,
+      winSeq,
       hasMarks,
       generating,
       tapCell,
