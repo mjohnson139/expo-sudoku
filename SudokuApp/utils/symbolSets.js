@@ -23,7 +23,14 @@ export const SYMBOL_SET_IDS = { NUMBERS: 'numbers', FUNGIKU: 'fungiku' };
 
 // Which cell value is drawn as the mushroom (the "star"). Fixed per game — it's
 // logically just another symbol. Plan §3: "e.g. always 1".
-const MUSHROOM_VALUE = 1;
+//
+// **Exported so the Fungiku board can ask `Symbol` for the mushroom instead of
+// naming a glyph itself.** Fungiku's board has no cell *values* — a cell holds a
+// mark, not a digit — so without this constant the board had the icon name
+// `'mushroom'` written into it, and an art swap would have had to edit the board
+// as well as this file. That is exactly the seam Step 1 built and Step 12 exists
+// to use: the mushroom's identity lives here, in one place.
+export const MUSHROOM_VALUE = 1;
 
 // The mushroom placeholder: MaterialCommunityIcons glyph + a spotlight color and
 // a stable screen-reader name. Swapped for a static PNG later (plan Step 5).

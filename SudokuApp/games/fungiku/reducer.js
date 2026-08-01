@@ -74,6 +74,10 @@ export const FUNGIKU_ACTIONS = {
   RULE_OUT: 'FUNGIKU_RULE_OUT',
 
   // Feedback and hints (plan §11, §14.3).
+  // Acknowledging a win. The dialog is dismissed by the player and by nobody
+  // else (plan §12.13), so "I have seen this" is state rather than a transient.
+  DISMISS_WIN: 'FUNGIKU_DISMISS_WIN',
+
   REQUEST_HINT: 'FUNGIKU_REQUEST_HINT',
   REVEAL_MUSHROOM: 'FUNGIKU_REVEAL_MUSHROOM',
   DISMISS_HINT: 'FUNGIKU_DISMISS_HINT',
@@ -217,6 +221,7 @@ export const buildPuzzleState = ({
   lives = MAX_LIVES,
   mistakeCells,
   hintsUsed = 0,
+  winDismissed = false,
 } = {}) => {
   const identity = resolvePuzzleIdentity({ difficulty, size, seed });
   const puzzle = generate({ size: identity.size, seed });
@@ -248,6 +253,13 @@ export const buildPuzzleState = ({
     marks: checked.marks,
     undoStack: [],
     redoStack: [],
+    // **Persisted, and that is the point** (plan §12.13). A win dialog is
+    // dismissed by the player and by nobody else — not by a relaunch, not by
+    // returning from the background, not by a tap outside it. Defaulting to
+    // `false` for a save that predates the field is right: an old save has no
+    // record of an acknowledgement, and showing the dialog once is the harmless
+    // direction to be wrong in.
+    winDismissed: !!winDismissed,
     // Lives left on *this* board (plan §14.3). Per-puzzle, and persisted: leaving
     // for the hub and coming back must not refund a mistake.
     lives: Number.isFinite(lives) ? Math.max(0, Math.min(MAX_LIVES, lives)) : MAX_LIVES,
@@ -304,6 +316,9 @@ const pushHistory = (state, marks, extra) => ({
   mistakeCells: pruneMistakeCells(state.mistakeCells, marks),
   // Advice about a board you have since changed is worse than no advice.
   hint: null,
+  // Playing on re-arms the win dialog: if these marks solve the board again,
+  // that is a win the player has not yet acknowledged.
+  winDismissed: false,
   // Both transients belong to one gesture and do not survive the next action.
   lastMistake: null,
   upgradableCell: -1,
@@ -478,12 +493,40 @@ export function fungikuReducer(state, action) {
       return state.hint ? { ...state, hint: null } : state;
 
     /**
+     * The player has seen the win. Nothing else may set this.
+     *
+     * It is deliberately **not** cleared when the board becomes unsolved: undo
+     * across the win line hides the dialog on its own (there is no win to show),
+     * and re-arming on every mark change is `pushHistory`'s job — which covers
+     * redo-into-a-win by way of the marks that got there.
+     */
+    case FUNGIKU_ACTIONS.DISMISS_WIN:
+      return state.winDismissed ? state : { ...state, winDismissed: true };
+
+    /**
      * One hint, as weak as will still help (plan §11.2). The cascade matters:
      *
-     * 1. Nudge: name the row, column or region where something is forced,
-     *    *without* saying which cell. That is the hint that teaches.
+     * 1. Nudge: point at **the cell** where something is forced, and say the
+     *    reason it is forced.
      * 2. Nothing forced from here — **say so** rather than quietly revealing.
      *    The reveal is a second, deliberate tap.
+     *
+     * ### The nudge used to highlight the whole group, and it was unhelpful
+     *
+     * It named the row/column/region and outlined *every* cell in it, on the
+     * theory that making the player find the cell themselves is the version that
+     * teaches. On device that produced a message reading **"One color region has
+     * only one cell left that can hold a mushroom"** next to **seven outlined
+     * cells** — the words say *one* and the board says *seven*, so the hint
+     * contradicted itself and the player still had to do the search the hint was
+     * bought to shortcut. The operator's verdict: *"this hint isn't helpful, it
+     * should highlight the specific cell."* (plan §12.9)
+     *
+     * **The teaching survives in the message, not in the search.** The hint still
+     * says *why* — which row, column or region forces it — so the player learns
+     * the deduction; what it no longer does is make them re-derive the answer it
+     * already knows. And it is still not a reveal: the mushroom is not placed,
+     * and committing it is a deliberate double-tap the player makes themselves.
      *
      * There used to be a rung above both of these — "one of your mushrooms is in
      * the wrong place" — and it is gone rather than dormant. Since §14.3 a wrong
@@ -498,9 +541,11 @@ export function fungikuReducer(state, action) {
           hintsUsed: state.hintsUsed + 1,
           hint: {
             kind: HINT_KINDS.NUDGE,
-            // The whole row/column/region, deliberately — not `forced.cell`.
-            cells: [...cellsOfGroup(forced, state.regions, state.size)],
-            message: `${describeGroup(forced)} has only one cell left that can hold a mushroom.`,
+            // **The cell, not the group.** `findForcedDeduction` has always
+            // known it — the old code threw it away and highlighted
+            // `cellsOfGroup` instead.
+            cells: [forced.cell],
+            message: `${describeGroup(forced)} has only one cell left that can hold a mushroom — this one.`,
           },
         };
       }
@@ -602,6 +647,9 @@ export function fungikuReducer(state, action) {
         redoStack: [...state.redoStack, state.marks],
         mistakeCells: pruneMistakeCells(state.mistakeCells, marks),
         hint: null,
+        // Stepping back and forward across the win line is playing the board, so
+        // it re-arms the dialog the same way a fresh mark does.
+        winDismissed: false,
         lastMistake: null,
         upgradableCell: -1,
       };
@@ -617,6 +665,9 @@ export function fungikuReducer(state, action) {
         redoStack: state.redoStack.slice(0, -1),
         mistakeCells: pruneMistakeCells(state.mistakeCells, marks),
         hint: null,
+        // Stepping back and forward across the win line is playing the board, so
+        // it re-arms the dialog the same way a fresh mark does.
+        winDismissed: false,
         lastMistake: null,
         upgradableCell: -1,
       };
@@ -724,24 +775,20 @@ export const selectRevealCell = (state) => {
   return -1;
 };
 
-/** Every cell of the row/column/region a nudge points at. */
-const cellsOfGroup = ({ kind, index }, regions, size) => {
-  if (kind === 'row') return Array.from({ length: size }, (_, col) => index * size + col);
-  if (kind === 'column') return Array.from({ length: size }, (_, row) => row * size + index);
-
-  const cells = [];
-  regions.forEach((region, cell) => {
-    if (region === index) cells.push(cell);
-  });
-  return cells;
-};
-
-/** How a nudge names the group it is pointing at, in the player's terms. */
+/**
+ * How a nudge names the *reason* it is pointing where it is.
+ *
+ * This is the whole of what survived the change from highlighting a group to
+ * highlighting a cell (plan §12.9): the board says **where**, and this says
+ * **why**. A hint that only pointed would be a cheap reveal; a hint that only
+ * explained was the one the operator called unhelpful.
+ */
 const describeGroup = ({ kind, index }) => {
   if (kind === 'row') return `Row ${index + 1}`;
   if (kind === 'column') return `Column ${index + 1}`;
-  // Regions have no number the player can see — the highlight does the pointing.
-  return 'One color region';
+  // Regions have no number the player can see — the colour is the name, and the
+  // highlighted cell is in it.
+  return 'This colour region';
 };
 
 export default fungikuReducer;

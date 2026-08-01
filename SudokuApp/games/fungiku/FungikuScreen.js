@@ -16,7 +16,7 @@ import useBoardSize from '../../hooks/useBoardSize';
 import FungikuBoard, { FILL_WIDTH } from './FungikuBoard';
 import FungikuMenuModal from './FungikuMenuModal';
 import FungikuOutOfLivesModal from './FungikuOutOfLivesModal';
-import FungikuWinBanner from './FungikuWinBanner';
+import FungikuWinModal from './FungikuWinModal';
 import { boardExtent } from './geometry';
 import { difficultyLabel } from './difficulty';
 import useCoinAward from './useCoinAward';
@@ -79,6 +79,17 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     seed,
     mushroomCount,
     solved,
+    // The win *event*. The celebration keys on this rather than on `solved`,
+    // which is merely true whenever the board happens to be finished — including
+    // on the first render after a remount (plan §12.12).
+    winSeq,
+    // Whether the player has acknowledged this board's win. Persisted, so the
+    // dialog outlives a relaunch (plan §12.13).
+    winDismissed,
+    dismissWin,
+    // What the board earned, computed from persisted state — so a dialog that
+    // survived a relaunch can still show its coins.
+    winReward,
     hasMarks,
     canUndo,
     canRedo,
@@ -94,19 +105,18 @@ const FungikuScreenContent = ({ onExitToHub }) => {
     lives,
     lastMistake,
     restartBoard,
-    hint,
     hintsUsed,
     requestHint,
-    revealMushroom,
-    dismissHint,
-    canReveal,
+    // `hint`, `revealMushroom`, `dismissHint`, `canReveal` and `canAffordReveal`
+    // are **not** read here any more: the hint's popover lives inside the board
+    // (plan §12.10), which is the only place that knows where a cell is without
+    // measuring, and it pulls them from the context itself.
     generating,
     // The wallet (plan §14.4). `coins` is what is left across every board ever
     // played; `hintsUsed` above is still what *this* board has cost. Both, on
     // purpose — earning is computed from the second.
     coins,
     canAffordHint,
-    canAffordReveal,
     canAffordRuleOut,
     lastReward,
     grantCoins,
@@ -378,106 +388,24 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           </Text>
         </View>
 
-        {/* Hint output (plan §11.2). A hint is an explicit request, so its
-            result gets its own line rather than a fleeting toast — and the
-            "nothing is forced" case says so, with the reveal as a second,
-            deliberate tap. */}
-        {hint && !solved && (
-          <View
-            style={[
-              styles.hintBanner,
-              // Board-width, like everything else in this column. A fixed cap
-              // looked deliberate while the board was a fixed 324; against a
-              // board that fills the screen it just looks pinched.
-              { backgroundColor: surface, borderColor: border, width: boardWidth },
-            ]}
-          >
-            <MaterialCommunityIcons
-              name={hint.kind === 'mistake' ? 'alert' : 'lightbulb-on-outline'}
-              size={18}
-              color={titleColor}
-            />
-            <Text style={[styles.hintText, { color: titleColor }]}>{hint.message}</Text>
-
-            {/* The top rung, and the dearest (plan §11.2, §14.4). It draws on the
-                same hint balance as the nudge, at a higher price — so a player
-                who can afford a nudge cannot necessarily afford the answer. The
-                price is on the button rather than in the small print, because
-                finding out what something cost after paying is not a choice. */}
-            {hint.offerReveal && canReveal && (
-              <TouchableOpacity
-                onPress={revealMushroom}
-                disabled={!canAffordReveal}
-                style={[
-                  styles.hintAction,
-                  { borderColor: canAffordReveal ? titleColor : FUNGIKU_EMPTY },
-                  !canAffordReveal && styles.toolButtonDisabled,
-                ]}
-                accessibilityRole="button"
-                accessibilityState={{ disabled: !canAffordReveal }}
-                accessibilityLabel={
-                  canAffordReveal
-                    ? `Reveal a mushroom, costs ${coinWord(COIN_COSTS.REVEAL)}, you have ${coins}`
-                    : `Reveal a mushroom, costs ${coinWord(COIN_COSTS.REVEAL)} and you have ${coins}`
-                }
-              >
-                <Text
-                  style={[
-                    styles.hintActionText,
-                    { color: canAffordReveal ? titleColor : FUNGIKU_EMPTY },
-                  ]}
-                >
-                  Reveal
-                </Text>
-                <MaterialCommunityIcons
-                  name="circle-multiple-outline"
-                  size={11}
-                  color={canAffordReveal ? FUNGIKU_COIN : FUNGIKU_EMPTY}
-                  style={styles.hintActionCoin}
-                />
-                <Text
-                  style={[
-                    styles.hintActionText,
-                    styles.hintActionPrice,
-                    { color: canAffordReveal ? titleColor : FUNGIKU_EMPTY },
-                  ]}
-                >
-                  {COIN_COSTS.REVEAL}
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            <TouchableOpacity
-              onPress={dismissHint}
-              style={styles.hintDismiss}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss hint"
-            >
-              <MaterialCommunityIcons name="close" size={16} color={titleColor} />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* The payout rides in the banner that is already there rather than in a
-            view of its own (plan §14.4). A new view above the board would move
-            the board and invalidate the tap origin; `solved` is *already* one of
-            FungikuBoard's re-measure deps, so the banner is the one place above
-            the board that can change without adding a dependency. */}
-        <FungikuWinBanner
-          solved={solved}
-          size={size}
-          seed={seed}
-          accent={FUNGIKU_ACCENT}
-          width={boardWidth}
-          reward={lastReward}
-          award={award}
-          onNextPuzzle={nextPuzzle}
-        />
-
+        {/* **Nothing goes between the counter row and the board any more**
+            (plan §12.8). The hint banner and the win banner both used to, and
+            both pushed the board down when they appeared — the operator's
+            report. They are now an overlay and a dialog respectively, mounted
+            outside this ScrollView, so the board's position is fixed by the
+            counter row alone and winning or asking for a hint cannot move it. */}
+        {/* The board also hosts the hint popover (plan §12.10): it is the only
+            place that knows a cell's position without measuring anything, and
+            the popover's whole value is pointing accurately. The colours ride
+            down with it rather than being redefined there — the app has one
+            gold for coins and one red for "you cannot pay". */}
         <FungikuBoard
           isDark={isDark}
           theme={theme}
           onTouchActiveChange={setBoardTouchActive}
+          coinWord={coinWord}
+          emptyColor={FUNGIKU_EMPTY}
+          coinColor={FUNGIKU_COIN}
         />
 
         {/* Undo / redo / clear */}
@@ -608,6 +536,30 @@ const FungikuScreenContent = ({ onExitToHub }) => {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* --- everything below here floats over the screen (plan §12.8) -------
+          Both of these used to sit in the column above the board, and both
+          pushed it down when they appeared. Out here they take **no layout
+          space at all**, so the board's position is decided by the counter row
+          alone — winning, asking for a hint, and dismissing either one cannot
+          move it. Mounted after the ScrollView so they draw on top of it. */}
+
+      {/* A dialog, because the puzzle is over and there is nothing left to do to
+          the board. It opens *after* the mushrooms' ripple has played, so the
+          celebration is not covered by the thing announcing it. */}
+      <FungikuWinModal
+        solved={solved}
+        winSeq={winSeq}
+        winDismissed={winDismissed}
+        onDismiss={dismissWin}
+        size={size}
+        seed={seed}
+        accent={FUNGIKU_ACCENT}
+        theme={theme}
+        reward={winReward}
+        award={award}
+        onNextPuzzle={nextPuzzle}
+      />
     </View>
   );
 };
@@ -743,34 +695,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: 6,
   },
-  hintBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    marginBottom: 12,
-  },
-  hintText: {
-    fontSize: 12,
-    marginLeft: 8,
-    flexShrink: 1,
-  },
-  hintAction: {
-    borderWidth: 1,
-    borderRadius: 7,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    marginLeft: 8,
-  },
-  hintActionText: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  hintDismiss: {
-    paddingLeft: 8,
-  },
   counterHint: {
     fontSize: 11,
     opacity: 0.7,
@@ -852,12 +776,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     marginLeft: 4,
-  },
-  hintActionCoin: {
-    marginLeft: 5,
-  },
-  hintActionPrice: {
-    marginLeft: 2,
   },
 });
 

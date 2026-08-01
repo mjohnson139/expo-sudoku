@@ -919,6 +919,83 @@ describe('the rule-out button', () => {
   });
 });
 
+describe('acknowledging a win (plan §12.13)', () => {
+  const board = () => buildPuzzleState({ size: 5, seed: 1 });
+  const dismiss = (state) => fungikuReducer(state, { type: FUNGIKU_ACTIONS.DISMISS_WIN });
+
+  const solvedBoard = () => {
+    let state = board();
+    for (let row = 0; row < state.size; row += 1) {
+      state = doubleTap(state, solutionCellOf(state, row));
+    }
+    return state;
+  };
+
+  /** Any cell the solution does not use, so tapping it cannot cost a life. */
+  const spareCell = (state) => {
+    for (let cell = 0; cell < state.size * state.size; cell += 1) {
+      if (state.marks[cell] === MARKS.EMPTY) return cell;
+    }
+    return -1;
+  };
+
+  it('starts un-acknowledged', () => {
+    expect(board().winDismissed).toBe(false);
+    expect(solvedBoard().winDismissed).toBe(false);
+  });
+
+  it('records the player dismissing it, and nothing else does', () => {
+    const dismissed = dismiss(solvedBoard());
+    expect(dismissed.winDismissed).toBe(true);
+
+    // Idempotent, and by identity — a second dismiss is not a state change.
+    expect(dismiss(dismissed)).toBe(dismissed);
+  });
+
+  it('survives a save round trip, which is the whole point', () => {
+    // A dialog a relaunch dismisses was never dismissed by the player. This is
+    // the field that stops that happening; storage.js writes and reads it.
+    const dismissed = dismiss(solvedBoard());
+    const restored = buildPuzzleState({
+      difficulty: dismissed.difficulty,
+      size: dismissed.size,
+      seed: dismissed.seed,
+      marks: dismissed.marks,
+      lives: dismissed.lives,
+      mistakeCells: dismissed.mistakeCells,
+      hintsUsed: dismissed.hintsUsed,
+      winDismissed: dismissed.winDismissed,
+    });
+
+    expect(restored.winDismissed).toBe(true);
+    expect(selectIsSolved(restored)).toBe(true);
+  });
+
+  it('is re-armed by playing on, so a board solved again is announced again', () => {
+    const dismissed = dismiss(solvedBoard());
+    expect(tap(dismissed, spareCell(dismissed)).winDismissed).toBe(false);
+  });
+
+  it('is re-armed by undo and redo across the win line', () => {
+    const dismissed = dismiss(solvedBoard());
+    const undone = undo(dismissed);
+    expect(undone.winDismissed).toBe(false);
+    expect(redo(undone).winDismissed).toBe(false);
+  });
+
+  it('a new board starts un-acknowledged without anything having to clear it', () => {
+    // NEW_PUZZLE's payload is a whole built state, so the fresh board's own
+    // `false` overwrites the old board's acknowledgement. Nothing has to
+    // remember to reset it — which is why it lives in the built state at all.
+    const dismissed = dismiss(solvedBoard());
+    const next = fungikuReducer(dismissed, {
+      type: FUNGIKU_ACTIONS.NEW_PUZZLE,
+      payload: buildPuzzleState({ size: dismissed.size, seed: dismissed.seed + 1 }),
+    });
+    expect(next.winDismissed).toBe(false);
+  });
+});
+
 describe('hints', () => {
   const base = buildPuzzleState({ size: 5, seed: 1 });
   const hintFor = (state) => fungikuReducer(state, { type: FUNGIKU_ACTIONS.REQUEST_HINT });
@@ -938,18 +1015,39 @@ describe('hints', () => {
     expect(hintFor(guessed).hint.kind).not.toBe('mistake');
   });
 
-  it('nudges at a group without naming the cell', () => {
+  it('nudges at the one forced cell, and says why it is forced', () => {
     // Four of five rows solved leaves the fifth forced.
     let state = base;
     for (let row = 0; row < 4; row++) state = doubleTap(state, solutionCellOf(state, row));
 
     const hinted = hintFor(state);
     expect(hinted.hint.kind).toBe(HINT_KINDS.NUDGE);
-    // The highlight is the whole group, not the single forced cell — that is
-    // what makes it a nudge rather than a reveal.
-    expect(hinted.hint.cells.length).toBeGreaterThan(1);
-    expect(hinted.hint.cells).toContain(solutionCellOf(base, 4));
+
+    // **Exactly one cell** (plan §12.9). It used to highlight the whole
+    // row/column/region on the theory that finding the cell is what teaches —
+    // which on device produced a message saying "only one cell" beside seven
+    // outlined ones. The words and the board contradicted each other, and the
+    // player still had to do the search the hint was bought to shortcut.
+    expect(hinted.hint.cells).toEqual([solutionCellOf(base, 4)]);
+
+    // The teaching survives in the *reason*: the message still names the group
+    // that forces it, so a hint is an explanation and not just a pointer.
     expect(hinted.hint.message).toMatch(/only one cell/i);
+    expect(hinted.hint.message).toMatch(/^(Row|Column|This colour region)/);
+  });
+
+  it('a nudge is still not a reveal — it points, it does not place', () => {
+    let state = base;
+    for (let row = 0; row < 4; row++) state = doubleTap(state, solutionCellOf(state, row));
+
+    const before = state.marks.slice();
+    const hinted = hintFor(state);
+
+    // Naming the cell is the whole change; committing the mushroom is still a
+    // deliberate double-tap the player makes themselves. If this ever fails, a
+    // nudge has quietly become the dearest rung at the cheapest price.
+    expect(hinted.marks).toEqual(before);
+    expect(hinted.marks[hinted.hint.cells[0]]).not.toBe(MARKS.MUSHROOM);
   });
 
   it('says so honestly when nothing is forced, instead of quietly revealing', () => {

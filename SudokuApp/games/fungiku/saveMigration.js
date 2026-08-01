@@ -23,7 +23,7 @@ import { MAX_LIVES } from './reducer';
  * v2 — v1 plus `difficulty`, the rung the player picked (Step 9).
  * v3 — `showMistakes` dropped; `lives` and `mistakeCells` added (Step 10).
  */
-export const FUNGIKU_STORAGE_VERSION = 3;
+export const FUNGIKU_STORAGE_VERSION = 4;
 
 /**
  * v1 → v2: name the rung the saved board belongs to.
@@ -63,10 +63,25 @@ const v2ToV3 = ({ showMistakes, ...rest }) => ({
   mistakeCells: [],
 });
 
+/**
+ * v3 → v4: a board remembers whether its win has been acknowledged
+ * (plan §12.13).
+ *
+ * `false` is the only defensible value. A v3 save carries no record either way,
+ * and the two ways to be wrong are not symmetrical: showing the dialog once more
+ * costs a tap, while suppressing it would hide a payout the player may never have
+ * seen. Wrong in the harmless direction.
+ */
+const v3ToV4 = (saved) => ({
+  ...saved,
+  winDismissed: false,
+});
+
 /** Keyed by the version each function upgrades *from*. */
 const MIGRATIONS = {
   1: v1ToV2,
   2: v2ToV3,
+  3: v3ToV4,
 };
 
 /**

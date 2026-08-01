@@ -377,7 +377,7 @@ the step's real acceptance test, alongside its automated checks.
 | 9 | ~~**Difficulty menu**~~ ✅ (§14.1) — rungs mapped *into* `SIZES`, size picked from the seed, menu modal matching Sudoku's, free play + seed field behind one flag, a real v1→v2 save migration, hub badge names the rung | **Pick a difficulty like you do in Sudoku**, instead of picking a raw board size |
 | 10 | ~~**Lives & mistakes**~~ ✅ (§14.2, §14.3) — tap ✕ / double-tap 🍄, wrong guess costs a life, three lives then the board restarts | **A wrong mushroom turns red and costs you a life**; run out and the board resets |
 | 11 | ~~**Earned assists**~~ ✅ (§14.4) — a wallet under its own key, hints and rule-out metered, a reveal dearer than a nudge, earning on solve, a daily floor | **Hints and Rule out can run out**, and solving boards earns more |
-| 12 | **Art swap** (floating, asset-only — gated on artwork, not on code) | Static mushroom art replaces the icon glyph |
+| 12 | ~~**Art swap**~~ ✅ (§12.7) — **the operator kept the glyph and asked for motion instead.** The seam made true (the board goes through `Symbol` rather than naming an icon), the placement pop grown into a sprout, and a staggered win wave across the whole board | **Mushrooms sprout into their cells**, and the whole board ripples when you solve it |
 
 > **Steps 9–12 were replanned on 2026-07-26** (§14). The old Step 9 was a training
 > ladder with per-level star thresholds; the operator asked instead for the
@@ -1000,6 +1000,711 @@ widens the content container and pushes every sibling sideways (§14.3's device
 bug).
 
 **Anything else that ever claims to be board-width must come from there too.**
+
+### 12.7 The art swap, answered with motion (operator call, 2026-07-29)
+
+§7 always called Step 12 *"floating, gated on artwork rather than code"*, and the
+step's first act was to ask the operator which of three routes to take. **The
+answer was route 1 with a rider:** *"We don't have any art work at this point so
+we will stick with what we have but anyway to add some fun animations for when
+they appear?"*
+
+So the mushroom stays the MaterialCommunityIcons glyph, and the step spends
+itself on two things instead: **making the seam true**, and **making a mushroom
+arrive like something worth arriving.**
+
+#### The seam was one file short of real
+
+`Symbol.js` and `symbolSets.js` (Step 1) exist so that swapping the art touches
+one file. `FungikuBoard` was not going through them. It rendered
+`<MaterialCommunityIcons name="mushroom" …>` directly, so the icon's identity was
+written in **two** places and an asset-only change would not have been asset-only.
+
+The reason it drifted is worth recording, because it will be true of anything
+else Fungiku draws: **`Symbol` is keyed on a cell *value*, and Fungiku's cells
+hold marks, not values.** There was no `value` to hand it, so the board named the
+glyph itself. The fix is to export `MUSHROOM_VALUE` — the constant that already
+decided which digit is the mushroom — and let the board ask for *that* symbol.
+The board now says "draw the fungiku set's mushroom", not "draw this icon".
+
+The ✕ is deliberately **not** routed the same way. It is a mark, not a value: no
+symbol set has an entry for it, and inventing one to satisfy the rule would put a
+non-symbol in the value table. If real art ever includes an ✕, that is the moment
+to add a mark table beside the value table — not before.
+
+#### A mushroom grows; it does not appear
+
+The placement pop was a scale spring, 0.45 → 1. It is now the same single spring
+read four ways: the mushroom **rises into the cell from below, tilted and
+squashed flat, and stretches upright as it lands**, overshooting slightly because
+the spring is loose enough to. No extra `Animated.Value`, no extra animation, no
+extra state — four interpolations of the value that was already there, and every
+output range ends on the identity pose, so a mushroom at rest is pixel-identical
+to the one the plain scale drew.
+
+That last property is not decoration. It is what lets the sprout be free: a
+resting pose that is exactly the identity means nothing downstream — the win
+lift, the measured box, the tap geometry — can tell the difference.
+
+#### The win wave, and the exception to the per-cell rule
+
+When the board is solved, **every mushroom hops, one diagonal at a time, from the
+top-left corner to the bottom-right**. It lands between the board's own lift
+(300 ms) and the banner's spring-in (220 ms delay), so the win reads as
+board → mushrooms → banner rather than as three things moving at once.
+
+The standing rule from §2 is *one `Animated.Value` per cell, never one shared
+value pointed at "the current cell"* — and the wave is a **single value read by
+every cell at once**, which is not the same shape and is not the rule breaking.
+The rule is about a value that gets **re-pointed**: re-pointing is a React state
+update while resetting is immediate, so for a frame the value is still attached
+to the previous cell (that is the bug that made an earlier mushroom visibly
+shrink). Nothing is re-pointed here. Each cell interpolates the same 0→1 progress
+through **its own fixed window**, so the stagger is geometry rather than
+scheduling, and no cell ever hands the value to another.
+
+Which is also what buys the wave the **native driver**: one animation, no
+`setValue`, a hundred cells. The sprout stays JS-driven because it *is*
+`setValue`d, and §2's rule is that the two must never be mixed **on one value**.
+They are on separate values — and, necessarily, on **separate `Animated.View`s**,
+because once any value in a style has been moved to native, a JS-driven animation
+on that same props node throws. The mushroom is therefore two nested views: wave
+outside, sprout inside. That nesting is load-bearing, not tidiness.
+
+`games/fungiku/celebration.js` owns the window math and is **pure**, so the part
+that is easy to get wrong is the part that is tested — the Jest environment is
+plain node with no React Native in it, which is exactly why the geometry lives
+outside the component.
+
+Two constraints the windows have to satisfy, both pinned by tests:
+
+- **Every keyframe lands strictly inside the progress**, because
+  `Animated.interpolate` needs a monotonically increasing input range and a window
+  touching either end would collide with the resting keyframe there.
+- **Both ends of the progress are the resting pose.** `solved` is a *condition*,
+  not an event (§14.4) — it goes false on an undo across the win line and true
+  again on a redo or a relaunch — so the wave has to be cancellable by jumping to
+  the nearer end. A mushroom stranded mid-hop is a permanent visual defect, not a
+  glitch, and this game has shipped that bug twice already.
+
+#### A trap worth naming: `easing` does not survive the native driver
+
+The hop's arc is spelled out as extra keyframes rather than expressed as an
+easing curve, and that is not a style preference. `Animated.interpolate` accepts
+an `easing`, but **`__getNativeConfig` does not send it** — it forwards only the
+ranges and the extrapolation. A natively-driven eased interpolation animates as a
+straight line, so the hop would have been a mechanical zigzag on device while
+looking correct in a browser (react-native-web ignores `useNativeDriver` and
+animates everything in JS, easing included). RN warns about it in a dev build and
+says nothing in a release one. **Same family as §2's other native-only bugs: the
+browser cannot see it.**
+
+#### What the browser could and could not settle
+
+Verified in Chromium against the exported web build, by tracing every mushroom
+wrapper's inline transform frame by frame rather than by looking at screenshots:
+the sprout starts at `translateY(18.8px) rotate(-15.8deg) scaleX(0.51)
+scaleY(0.29)` and lands on the identity; the wave's peaks arrive in strict
+anti-diagonal order, ~70–85 ms apart, and every mushroom is back at rest when it
+ends. Undo mid-wave, redo back across the win line, and a reload onto a finished
+board all leave nothing stranded.
+
+None of that is evidence about how it *feels*, and — because web ignores the
+native driver entirely — none of it exercises the one thing the two-view nesting
+exists to satisfy. That needs a device.
+
+### 12.8 Nothing above the board any more (operator device report, 2026-07-29)
+
+The Step 12 device pass passed the animations — *"I like the animations!!"* — and
+found something else:
+
+> One thing that I would like to change is the board solved banner. I don't like
+> where it appears… where it is right now moves the board and I don't like that.
+> Same for the hints — it kind of appears right above the board and it pushes it
+> down and then it messes up the position of things. I think it should be an
+> overlay or possibly a dialogue in front of the board.
+
+Both banners sat **in the column**, between the counter row and the board. So
+winning moved the board down, and asking for a hint moved it down, and dismissing
+the hint moved it back up.
+
+#### This was never only cosmetic
+
+It is the same fact this document has been working around since Step 7. **A view
+that mounts above the board invalidates the origin every tap is resolved
+against** — `onLayout` does not save you, because on web it is backed by a
+ResizeObserver that watches size and not position, so a board that merely *moves*
+never fires it. That is why `FungikuBoard` carries a re-measure effect keyed on
+`[hint, solved, …]`, and it is why the constraint spread outward:
+
+- the counter row may not size itself from its contents (§14.3's device bug);
+- the win banner's **height** could never change, so the payout had to *replace*
+  a line rather than add one — three reasons could never be on screen together
+  (§14.4);
+- the difficulty went into the header's subtitle rather than a banner (§14.1).
+
+**Taking both out of the layout deletes the class, not the instance.** An overlay
+takes no layout space, so there is no origin to invalidate and no height rule to
+keep. The re-measure effect stays as insurance — it is cheap, `measure()` is
+idempotent, and it is still the right home for the next thing anyone mounts above
+the board — but nothing depends on it any more.
+
+#### One is a dialog, the other is not, and the difference is the point
+
+The operator offered both words — *"an overlay or possibly a dialogue"* — and the
+two banners want different ones:
+
+- **The win is a dialog** (`FungikuWinModal`). The puzzle is over; there is
+  nothing left to do to the board, so a modal may take the screen. This is the
+  Sudoku inspiration the operator asked for: Sudoku's win has always been a
+  `Modal`, not an inline banner.
+- **The hint is an overlay** (`FungikuHintOverlay`), and it *may not* be a
+  dialog. Its whole job is to point at cells — the board draws a dashed outline
+  on the ones it names — and the player has to look at those cells and tap them
+  **while it is showing**. A modal would black out the thing it is talking about.
+  So it is an absolutely-positioned view with **`pointerEvents="box-none"`**: it
+  draws over the screen, takes no layout space, and every touch that misses the
+  card falls through to the board.
+
+Both sit **low, over the controls**, matching `FungikuOutOfLivesModal`. Sudoku's
+`WinModal` centres itself, and where the two conventions disagree Fungiku's own
+precedent wins — the complaint that produced this change was about covering and
+moving the board, so a centred dialog would answer half of it and reintroduce the
+other half.
+
+#### The dialog waits, and the timing chain is derived
+
+The win is now a **sequence**: the board lifts (300 ms), the mushrooms ripple
+(§12.7), the dialog springs in, and only then do the coins count. A dialog that
+arrived on the winning tap would cover the celebration it is part of.
+
+Three timings therefore have to stay in order, and none of them is typed twice:
+`WIN_DIALOG_DELAY_MS` is computed from the wave's own duration, `AWARD_START_MS`
+from the dialog's, and `useCoinAward` imports the last one rather than keeping a
+start delay of its own. **The failure this prevents is silent** — a dialog that
+opens 200 ms early just covers a ripple nobody notices is missing.
+
+#### What the dialog can do that the banner could not
+
+The payout **stacks**. Each reason lands as its own row and stays, so the finished
+dialog shows the whole account — *Easy board +3 · 3 lives left +3 · **Coins
+earned +6*** — where the banner could only ever show the reason that was landing
+right now. The total is **summed from the rows on screen** (`shownAwardTotal`),
+not read from `reward.total`, so the dialog cannot contradict itself mid-count.
+
+The scrim is light (0.35) on purpose: the balance in the counter row is still
+counting up behind it, and the payout is meant to be watched.
+
+`winPresentation.js` holds the timing and the row arithmetic and is **pure**, for
+the same reason `celebration.js` is — Jest here is plain node, so the only way
+this gets tested is if it lives outside the component.
+
+#### Verified
+
+The check is the one the change is *for*, and it is exact rather than visual:
+**cell (0,0)'s screen position, sampled across every transition.** It is
+byte-identical before and after a hint appears, after it is dismissed, on
+solving, when the dialog opens, as the payout grows from one row to four, and
+after Close — at 5×5 and 10×10, light and dark. A tap made while the hint overlay
+is up still lands in the cell it aimed at, which is the bug the re-measure effect
+was written for.
+
+One sampling subtlety worth keeping: measuring *during* the win lift reads a 1px
+shift, because the lift is a 1.03 scale on the card. That is the celebration
+working, not a layout move — the lift rests at exactly 1 (§12.7). The check
+samples the window after it settles.
+
+### 12.9 The hint points at the cell, and costs what it is worth (operator, 2026-07-29)
+
+Second device report on the overlays:
+
+> As of a hint. I think that it should animate to the cell and show the hint. And
+> hints should cost 20 coins if we are revealing a mushroom and 5 if it's a simple
+> thing. And this hint isn't helpful. It should highlight the specific cell.
+
+Three changes, and they are the same change.
+
+#### The nudge contradicted itself
+
+§11.2 designed the nudge to name the row/column/region and outline **every cell
+in it**, on the theory that making the player find the cell is the version that
+teaches. On device that produced a message reading **"One color region has only
+one cell left that can hold a mushroom"** beside **seven outlined cells**. The
+words said *one*; the board said *seven*. And the player still had to do the
+search they had just paid to skip.
+
+`findForcedDeduction` has always returned `{kind, index, cell}` — the deduction
+*and* the cell it forces. The old code threw the cell away and called
+`cellsOfGroup`. It now highlights `[forced.cell]`, and `cellsOfGroup` is deleted
+rather than left for someone to reintroduce.
+
+**The teaching survives in the message, not in the search.** The hint still says
+*why* — "Row 10 has only one cell left that can hold a mushroom — this one" — so
+the deduction is still explained; what it no longer does is make the player
+re-derive an answer it already knows. And it is still not a reveal: the mushroom
+is not placed, and committing it is a double-tap the player makes themselves.
+There is a test pinning exactly that, because the difference between the two
+rungs is now one line of reducer.
+
+#### A hint that appears where you are not looking has not pointed at anything
+
+The other half of "isn't helpful" is that a dashed 2px outline arriving on one of
+a hundred 32pt tiles is not a signal — it is a change you find by looking for it.
+So a ring now **starts nearly three cells wide and closes onto the target**,
+twice, before leaving the outline behind as the marker that persists. Motion
+toward a point is what an eye follows.
+
+Two things that had to be got right, both found by measuring rather than looking:
+
+- **`Animated.loop({iterations: 2})` silently did nothing.** `resetBeforeIteration`
+  resets by calling `resetAnimation()`, which snaps the value back to the one it
+  was **constructed with** — not to the start of the animation being looped. The
+  ring's value is constructed at 1 because 1 is its *resting* pose (converged,
+  transparent), so `loop` reset it to 1 and animated it from 1 to 1. Both
+  iterations ran, ~75 frames of nothing, **no error and no warning**. It is
+  written out as an explicit sequence with a zero-duration timing for the reset,
+  which stops with the sequence in a way `setValue` would not.
+- **`Easing.out` was too fast to watch.** An ease-out spends nearly all its
+  progress in the first frames: the ring reached the cell inside 150 ms, which is
+  the motion being over before the eye can follow it — the whole job. `inOut`
+  holds it wide for a beat, travels visibly, and settles.
+
+#### The prices, and the one consequence that had to move with them
+
+`COIN_COSTS` is now **rule-out 1, hint 5, reveal 20**, as asked. Still a ladder
+(§11.2), with the gap between the rungs widened sharply — and that goes with the
+nudge getting *stronger*: a hint that hands you the answer's location should not
+cost what a riddle cost.
+
+**`DAILY_FLOOR_COINS` had to follow, and this is the one thing here that was not
+literally requested.** It was a flat 4 while a hint cost 2. At a hint price of 5
+it would have topped a stranded player up to **four coins — enough for nothing
+but rule-outs**, which quietly repeals the floor's entire stated purpose: a
+player stuck on a hard board does not need tedium saved, they need to be *told*
+something. It is now defined as `COIN_COSTS.HINT`. That is not economy tuning by
+the back door — it is the smallest number that keeps the promise the constant
+already makes, and deriving it means the next reprice cannot break it silently
+either. A test pins it. **A deliberate choice to make it something else is fine;
+a stale constant that clears no price is not.**
+
+**The earn rates were deliberately not touched**, and they are now the thing to
+watch. `WIN_BASE` still pays 3–8, so a reveal is two or three whole boards' work
+and a brand-new wallet (10 coins) cannot buy one at all. That may be exactly
+right — help you have to save for is help you think about — but it is a real
+change in the economy's shape, and it is a play question, not an arithmetic one
+(§8 #14).
+
+#### Verified
+
+At 5×5 and 10×10, both themes, driven to a genuinely forced position first —
+on an empty 10×10 nothing is forced and the hint correctly answers *"no single
+forced step"* for free, which is a different branch. Exactly **one** cell is
+hinted and it is the cell the engine's own solution names; the ring peaks at
+2.80× and holds above 1.5× for **34 frames** (watchable, not a flash), makes
+**two** converge passes, and settles at scale 1 / opacity 0 with nothing left on
+the board; a hint costs **5**. The board's origin is unmoved throughout.
+
+### 12.10 The hint becomes a popover, and the wave gets longer (operator, 2026-07-30)
+
+> Was hoping the hint text would be a popover kind of thing. Also I like the win
+> wave animation and want it to last longer.
+
+#### The hint's third home
+
+It has moved twice already: an inline banner above the board that pushed the
+board down (§12.8), then a bar pinned to the bottom of the screen. The bar fixed
+the layout problem and left a different one — **the message was at the far end of
+the screen from the cell it described**, so the player had to look in two places
+and join them up. A popover says *"this cell, and here is why"* in one glance.
+
+**Where it lives in the tree is not arbitrary.** It is rendered inside
+`FungikuBoard`'s card, as a **sibling of the touch box**:
+
+- **Not inside the touch box.** The board claims every touch at touch-down in the
+  capture phase to win the ScrollView race (§2), so a child of that view can
+  never receive a press — Dismiss and Reveal would be dead buttons.
+- **Not up in the screen.** It would then need the board's measured origin to
+  place itself, and `measureInWindow` is asynchronous: the popover would arrive a
+  frame late in the wrong place, on the one interaction whose entire value is
+  pointing accurately.
+
+As a sibling it is positioned in the board's **own coordinates** — the same space
+`cellFromPoint` resolves taps in — so it points without measuring anything, and
+it sits outside the capture path so its buttons work.
+
+`hintPlacement.js` is pure and holds the two rules, both tested across every cell
+of every playable size:
+
+1. **Never cover the cell it points at.** Below a cell in the board's top half,
+   above one in the bottom half — which also keeps it on the board, because a
+   top-half cell always has half a board of room beneath it. It anchors from the
+   *near* edge (`top` for below, `bottom` for above) so the placement never has to
+   know its own height, which depends on how the message wraps.
+2. **Never hang off the side.** Two separate clamps: the body against the board's
+   width, and then the tail *within the body*. A cell in column 0 pushes the body
+   against the left edge and the tail has to travel left inside it to keep
+   pointing. One clamp without the other is a bubble that points at the wrong
+   mushroom.
+
+The bubble takes its own touches rather than passing them through — tapping
+"somewhere in the message" must not silently rule out a cell hidden underneath —
+while the layer around it is `pointerEvents="box-none"` so the rest of the board
+stays live.
+
+#### Longer, not slower
+
+*"I like the win wave animation and want it to last longer."* The obvious change
+— double `WAVE_DURATION_MS` and leave the ratios alone — would have doubled every
+individual hop too, and a mushroom that takes most of a second to go up and come
+down is not a hop, it is a wobble.
+
+**What should get longer is the journey across the board, not the motion of any
+one mushroom.** So `SPREAD` grew (0.55 → 0.76) and `BUMP` shrank (0.40 → 0.20)
+alongside the longer run. Measured in the browser, frame by frame, on a 5×5:
+
+|  | before | after |
+|---|---|---|
+| first diagonal peaks | 344 ms | 694 ms |
+| last diagonal peaks | 644 ms | 1611 ms |
+| **travel across the board** | **300 ms** | **917 ms** |
+| gap between diagonals | ~75 ms | ~230 ms |
+| hop height | 17 px | 17 px |
+
+Three times the travel, the same hop. Two tests pin the distinction: one bounds a
+single hop's duration (250–700 ms) whatever the wave's length, the other asserts
+the travel is at least 2.5× a hop — so "make it longer" can never again be
+implemented as "make it slower".
+
+**Everything downstream moved with it and none of it was retyped.**
+`WIN_DIALOG_DELAY_MS` is derived from the wave's duration and `AWARD_START_MS`
+from the dialog's (§12.8), so the dialog now arrives at ~2.0 s and the coins start
+at ~2.4 s without a single constant being edited. That is the whole reason those
+were derived.
+
+#### Verified
+
+Both placements (above and below the cell), both themes, 5×5 and 10×10, driving
+the board so the forced deduction lands in a chosen row. The tail sits within
+5 px of the cell's centre and 3–15 px from its near edge; the bubble never
+overlaps the cell it points at; Dismiss works, which is the proof it is outside
+the board's touch capture; and **cell (0, 0) does not move by a pixel** through
+the hint appearing, being dismissed, the win, the dialog, the payout growing and
+Close.
+
+### 12.11 The win dialog, calmed down (operator, 2026-07-30)
+
+> I think the solved dialogue should be centered and it's pretty clunky when it
+> animates in — try to refine that. Doesn't have to animate each thing. I can
+> just kind of show some confetti and then show the results.
+
+#### Centred, and the earlier argument was wrong
+
+§12.8 put it **low, over the controls**, reasoning that the finished board and the
+coin balance counting up in the counter row should both stay visible. The
+operator looked at it and asked for centred, and they are right for a reason that
+argument missed: **the payout no longer counts up in the counter row**, so there
+is nothing behind the dialog left to watch. And a dialog pinned to the bottom of
+a tall phone reads as having *slid off* rather than as having arrived.
+
+#### "Clunky" was five things moving for one event
+
+The entrance was doing a great deal at once: the box sprang in on an
+`Easing.back` overshoot **and** slid up 24px, a party-popper icon wiggled
+±14°, and then four payout rows arrived **one at a time** over about four
+seconds while the coin balance counted up behind them. Every piece was defensible
+on its own; together they were a cutscene.
+
+What went:
+
+- **The spring and the slide.** A dialog that overshoots its size and settles
+  back has arrived twice. It is a plain fade and a 0.94 → 1 scale now, over
+  240 ms rather than 360.
+- **The wiggling popper**, replaced by actual confetti — which is what the icon
+  was standing in for.
+- **The whole narration.** `useCoinAward` walked the reasons with a chain of
+  timers; `stepIndex`, `step`, `STEP_MS` and `SETTLE_MS` are deleted and one
+  timer remains. The reasons are all still *named* — that was the point of
+  narrating them — they just arrive together.
+
+#### The confetti
+
+`confetti.js` is pure, and every piece's angle, distance, spin and size come from
+a **hash of its index** rather than `Math.random()`. Two reasons, both real:
+a component re-renders, and rolling fresh values each time would make every piece
+jump to a new trajectory mid-flight; and *"the pieces go in all directions"* is a
+property worth pinning, which is only checkable if the answer is the same twice.
+
+Angles are spread evenly around the circle and then jittered, because pure
+randomness clumps and leaves gaps at eighteen pieces. Every piece reads **one
+shared `Animated.Value`** and differs only in its output ranges — the same shape
+as the win wave, and the same reason it is safe: nothing is ever re-pointed, so
+the per-cell rule the board's animations follow does not apply. One native-driven
+animation, eighteen pieces.
+
+The palette is deliberately **not** the region palette. Those colours are tuned
+for dichromat separation as fills behind a glyph (§12.2); reusing them here would
+tie a decorative choice to a load-bearing one, so retuning the board's legibility
+would silently restyle the confetti and vice versa.
+
+#### The payout is mounted before it is shown, and that has an accessibility cost
+
+The dialog is centred now, so a block appearing inside it would grow the box
+**symmetrically** and shunt the title and the buttons apart at the exact moment
+the player is reading them. So the payout is mounted from the start, holding its
+height, and only its opacity changes.
+
+**Held at opacity 0 is still readable to a screen reader** — the payout would be
+announced a beat before it is shown, and the total's live region would fire
+against an invisible number. It is hidden with `aria-hidden` while unrevealed.
+The first attempt used `accessibilityElementsHidden` + `importantForAccessibility`
+and **changed nothing on the web**: the first is iOS-only and react-native-web
+does not map the second. A browser check caught it. RN maps `aria-hidden` to both
+native equivalents, so one prop covers all three platforms.
+
+#### Verified
+
+At 5×5 and 10×10, both themes: **17 confetti pieces in flight** as the dialog
+arrives and **none left visible** once it is over; the dialog centred to **0 px**
+on both axes; **no resize and no movement** when the payout appears; the total
+agreeing with the rows above it; the payout hidden from assistive tech until it
+is shown; and Close still dismissing. The board's origin is unmoved throughout.
+
+### 12.12 A win is an event, and `solved` is not one (operator, 2026-07-30)
+
+Three reports from play, and they turned out to be **one root cause plus one
+stale value**:
+
+> The confetti seems like it only happens like every other time — I solve a
+> board and the confetti goes, and then I solve another one and it doesn't. Also
+> it seems like the board refreshes at times and then the dialogue goes away, but
+> then it comes back and it doesn't have the coins… And that win animation, the
+> wave, runs each time — like if you put the app in the background and come back,
+> if you're on the success screen it would show that animation again. So there's
+> something with how it's being triggered. We don't really want to run it every
+> time — just run it when the board is initially solved and then keep everything
+> static until it's dismissed.
+
+#### The root cause: every celebration keyed on a *condition*
+
+`solved` is derived from `marks`. It is not an event — it is simply **true
+whenever the board happens to be complete**, on every render, forever. The board
+lift, the wave, and the dialog's visibility all read it directly.
+
+That is fine while nothing remounts. Backgrounding Expo Go and returning reloads
+the bundle, which remounts the whole tree onto a **restored, already-finished
+board** — and the very first render says `solved`. So every effect keyed on it
+fired: the board lifted, the wave rippled, the dialog reopened.
+
+And it reopened **empty**. The payout lives in provider state (`lastReward`); a
+remount resets it to null, and `payWin` correctly refuses to pay the same board
+twice, so there was nothing to put in the dialog. *"It comes back and it doesn't
+have the coins"* is not a separate bug — it is the same one, seen from the
+wallet's side.
+
+**`winSeq` counts transitions into solved that the provider actually watched
+happen.** Consumers key their effects on it and do nothing while it is 0.
+Monotonic, the same shape as `mistakeSeq` (§14.3): two wins in a row must be two
+distinct values or the second celebration would not re-fire.
+
+It is **not in the reducer and not in the save**. It is a fact about what *this
+session* watched, not about the puzzle; persisting it would make a restored board
+claim a win the player never saw.
+
+##### The subtlety that made the first fix wrong
+
+Initialising the watcher from `solved` at mount **did not work**, and the browser
+check caught it. The provider renders *before* hydration, with the default empty
+board — so `solved` genuinely goes false → true when the save loads, and reading
+that transition is exactly the bug. The watcher is therefore gated on `hydrated`
+and its first pass after hydration **adopts** whatever the board is without
+celebrating it. Only changes after that are wins.
+
+This is the same class of mistake as the payout's, and the same shape of fix:
+`payOutWin` records *which board* it paid rather than setting a flag; `winSeq`
+records *what it watched* rather than reading a condition.
+
+#### The stale value: confetti that only ever burst once
+
+Separate bug, same family as §12.9's `Animated.loop` trap. `burst` animates 0 → 1
+and **was never wound back**. The dialog returns `null` while hidden rather than
+unmounting, so its refs survive — and the second win ran
+`timing(burst, {toValue: 1})` against a value already sitting at 1, animating it
+from 1 to 1. No error, no warning, no confetti.
+
+It looked like *"every other time"* because the operator's sessions interleaved
+same-session wins (no burst) with reloads (fresh value, burst). A zero-duration
+timing now precedes each burst — not `setValue`, because this is native-driven
+and §2's rule forbids mixing, and unlike `setValue` it stops with the sequence.
+
+**The general rule this is the third instance of: an animation that must start
+from a known place has to be *put* there.** Every value in this game that runs
+more than once now says so explicitly.
+
+#### What "static until it's dismissed" means now
+
+- Solve a board → the full sequence, once.
+- Anything that is not a win — a re-render, a remount, returning from the
+  background, re-entering from the hub, relaunching cold — celebrates **nothing**.
+  The board stays solved and still; there is no dialog.
+- Undo across the win line closes the dialog. That effect is deliberately
+  **one-way**: it never opens it, so a board that is merely *solved* cannot summon
+  one.
+
+The visible consequence worth knowing: **arriving on a finished board no longer
+shows the win dialog at all.** That is the ask — "just when the board is initially
+solved" — and *New puzzle* and *Difficulty* are always under the board, so there
+is still a way on.
+
+#### Verified
+
+Three consecutive wins in one session each burst **17 confetti pieces** and each
+showed a **4-row payout** — the "every other time" symptom is gone. Then a reload
+and a walk back into Fungiku onto the finished board: **0 mushrooms moving, no
+dialog, no confetti**, sampled again across the window the wave would have
+occupied, with the board still solved and its mushrooms intact. Then a fresh win
+after that reload still bursts and still pays.
+
+### 12.13 A dialog the player dismisses, and nobody else (operator, 2026-07-30)
+
+> It's automatically dismissing itself when you tap outside of it, or if you
+> close the app and come back. It should just remain until the user dismisses it
+> themselves.
+
+Two ways the app was deciding on the player's behalf, and the second one is the
+interesting half.
+
+#### The backdrop was a dismiss target
+
+It shipped as a `TouchableOpacity` on the reasoning that a finished board can
+still be undone, so there had to be a way past the dialog. But a stray finger
+anywhere on the screen then threw away a payout the player had not read. The
+scrim is a plain `View` now, and **the two buttons are the only way out** — which
+is what makes *"until the user dismisses it themselves"* true rather than nearly
+true.
+
+#### Closing the app was dismissing it too, and §12.12 is why
+
+§12.12 fixed the celebration replaying on every remount by keying it on the win
+**event** (`winSeq`) instead of the `solved` condition. That was right for the
+*animations* — and wrong for the *dialog*, which then never came back at all.
+Backgrounding the app dismissed the win on the player's behalf.
+
+The two questions had been conflated, and they have different answers:
+
+| | keyed on | why |
+|---|---|---|
+| **should the celebration play?** | the win **event** | a remount is not a win; replaying is the §12.12 bug |
+| **should the dialog be up?** | a persisted **condition** | closing the app is not an acknowledgement |
+
+So `winDismissed` joins the board's own state and its save (**v3 → v4**). The
+dialog shows while `solved && !winDismissed`, which survives a relaunch by
+construction, and only `DISMISS_WIN` clears it. `pushHistory`, undo and redo
+re-arm it — playing on means a board solved again is a win worth announcing —
+and a new board gets `false` from `buildPuzzleState` without anything having to
+remember to reset it.
+
+#### The payout had to become derivable
+
+A restored dialog still needs its coins, and `lastReward` is provider state that a
+remount wipes — that was the other half of *"it comes back and it doesn't have the
+coins"*, and hiding the dialog had only been concealing it.
+
+**`rewardForWin` is pure, and every input it takes is persisted with the board**
+(`difficulty`, `lives`, `hintsUsed`). So the breakdown is *computed*, not
+remembered. Two different questions, kept apart:
+
+- **what did this board earn?** — pure, always answerable, draws the rows.
+- **did this session grant it?** — `lastReward`, non-null only when the wallet just
+  paid, drives the count-up. Correctly null for a board paid days ago, so a
+  restored dialog shows its rows fully and statically rather than animating a
+  payout that already happened.
+
+The wallet remains the only authority on *granting*; this only describes.
+
+#### A one-render race, caught by the browser and not by the tests
+
+The first cut read `winSeq === 0` as "we arrived on this board". But `winSeq` is
+bumped in an **effect**, so on the winning tap there is exactly one render where
+the board is solved and the counter has not caught up — and the dialog took the
+arriving path, popping up instantly with no ripple and no confetti.
+
+It is settled with a fact that cannot race: `arrivedPending`, a lazily-initialised
+`useState` holding whether the board was **already solved and unacknowledged at
+mount**. Arrived boards show at once; anything that becomes pending later is a win
+and waits. **Only the browser check found this** — 453 unit tests were green,
+because the race is between two React commits and nothing pure can see it.
+
+#### Verified
+
+A win, then two backdrop taps in opposite corners: **dialog still up**. A reload
+and a walk back in: **dialog back, same four payout rows, no confetti, no wave**,
+sampled again afterwards. Then Close, reload again: **stays dismissed**, board
+still solved. Three consecutive wins each burst; a win after a reload bursts and
+pays.
+
+### 12.14 One arrival, and the burst comes out of the rewards (operator, 2026-07-30)
+
+> Don't delay the rewards view — the one that says how many coins were given for
+> what. It's kind of weird, the confetti goes and the thing shows up, but then the
+> rewards are delayed and show up later. Just show it altogether with the
+> animation and everything, so the animation would be like kind of exploding out
+> of all the stuff that you won.
+
+#### The delay was the last trace of something already deleted
+
+This dialog began as a *narration*: the payout walked one reason at a time over
+about four seconds, each naming itself as it landed (§14.4). §12.11 collapsed that
+to a single reveal — but kept a 420 ms beat before it, so the box arrived and the
+rewards followed. That beat was the narration's last surviving frame, and out of
+its original context it just reads as the rewards lagging.
+
+`AWARD_REVEAL_MS` is gone. `AWARD_START_MS` is now simply `WIN_DIALOG_DELAY_MS`:
+**one moment, not two.** The box, its rewards and the confetti arrive together,
+and the coin balance behind the dialog moves on the same frame as the rows inside
+it.
+
+Two things fell out with it, and the code is smaller for both:
+
+- **The payout is no longer mounted-then-faded.** §12.11 mounted it invisible to
+  reserve its height, because a centred dialog that grows shunts the title and
+  buttons apart. Nothing grows now — it is drawn with everything else — so the
+  reservation, the `reveal` value and its effect are all deleted.
+- **And with them the `aria-hidden`.** That existed only because something held at
+  `opacity: 0` is still read aloud. Nothing is held at 0 any more, so the
+  accessibility patch has no job; the whole dialog simply arrives, once, and says
+  so once.
+
+`awardSteps`/`awardTotal` lose their `revealed` argument. There is no partial
+state left to describe.
+
+#### Exploding out of the rewards, not from behind them
+
+The burst originated at a single point 42 px down the dialog — under the
+party-popper icon, above the title. That reads as a popper going off *behind* the
+box. The operator asked for the opposite: the rewards themselves bursting.
+
+Two changes, and neither is a bigger burst:
+
+- **The layer now fills the dialog and centres on it**, so the origin is the
+  payout block rather than the header.
+- **Each piece carries its own origin offset** (`ox`, `oy` in `confetti.js`),
+  spread ±75 px across and ±27 px down — wider than tall, because the payout block
+  is a row of lines and not a square. Pieces start scattered over the rewards and
+  fly outward from wherever they are, which is what makes it look like the
+  contents coming apart rather than a point source behind them.
+
+The offsets are baked into the trajectory's output ranges rather than applied as a
+separate style, so a piece stays **one transform** however it is placed — and the
+spread stays a property of the trajectory, where a test can check it.
+
+#### Verified
+
+Polled every frame from before the dialog was due, and recorded **the first frame
+it appears on**: 4 payout rows and 18 confetti pieces already on it. Nothing
+arrives late and the payout does not change afterwards. The burst measures 252 px
+across and its mean height is **within 1 px of the dialog's centre** — out of the
+rewards, not above them. The backdrop still does not dismiss, the dialog still
+survives a relaunch with its coins and replays nothing, and every win bursts.
 
 ## 13. Ladder & scoring — notes parked, now superseded
 

@@ -46,6 +46,7 @@ export const loadFungikuState = async () => {
       lives: saved.lives,
       mistakeCells: saved.mistakeCells,
       hintsUsed: saved.hintsUsed,
+      winDismissed: saved.winDismissed,
     });
   } catch (error) {
     console.error('Error loading Fungiku state:', error);
@@ -83,6 +84,12 @@ export const saveFungikuState = debounce(async (state) => {
         // rule-out assist — it is an action the player taps, not a mode with a
         // remembered setting.
         hintsUsed: state.hintsUsed || 0,
+        // Whether the player has acknowledged this board's win (plan §12.13).
+        // **Persisted for the same reason `lives` is**: a win dialog that a
+        // relaunch dismisses was never dismissed by the player, and closing the
+        // app is not an acknowledgement. It is per-puzzle, so a new board starts
+        // un-acknowledged without anything having to clear it.
+        winDismissed: !!state.winDismissed,
       })
     );
   } catch (error) {

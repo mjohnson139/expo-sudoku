@@ -121,6 +121,34 @@ describe('a v1 save brought all the way forward', () => {
   });
 });
 
+/**
+ * v3 → v4 (plan §12.13): a board remembers whether its win has been
+ * acknowledged, so the dialog outlives a relaunch.
+ */
+describe('migrating a v3 save', () => {
+  const v3Save = (overrides = {}) => {
+    const { showMistakes, ...rest } = v1Save();
+    return { ...rest, _v: 3, difficulty: 'easy', lives: 2, mistakeCells: [4], ...overrides };
+  };
+
+  it('arrives un-acknowledged, which is the harmless direction to be wrong in', () => {
+    // A v3 save carries no record either way. Showing the dialog once more costs
+    // a tap; suppressing it could hide a payout the player never saw.
+    expect(migrateFungikuSave(v3Save()).winDismissed).toBe(false);
+  });
+
+  it('does not wipe or alter the board — still the whole point', () => {
+    const saved = v3Save();
+    const migrated = migrateFungikuSave(saved);
+
+    expect(migrated._v).toBe(FUNGIKU_STORAGE_VERSION);
+    expect(migrated.marks).toEqual(saved.marks);
+    expect(migrated.lives).toBe(2);
+    expect(migrated.mistakeCells).toEqual([4]);
+    expect(migrated.difficulty).toBe('easy');
+  });
+});
+
 describe('a current save', () => {
   const v3Save = (overrides = {}) => {
     const { showMistakes, ...rest } = v1Save();
@@ -130,6 +158,7 @@ describe('a current save', () => {
       difficulty: 'easy',
       lives: 2,
       mistakeCells: [4],
+      winDismissed: false,
       ...overrides,
     };
   };
