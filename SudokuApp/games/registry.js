@@ -1,7 +1,9 @@
 import GameScreen from '../screens/GameScreen';
 import FungikuScreen from './fungiku/FungikuScreen';
+import CubeScreen from './cube/CubeScreen';
 import { readSudokuProgress } from '../utils/storage';
 import { readFungikuProgress } from './fungiku/storage';
+import { readCubeProgress } from './cube/storage';
 
 /**
  * The game registry — the single list of games the hub knows about
@@ -44,6 +46,18 @@ export const GAMES = [
     accent: '#a0522d',
     Screen: FungikuScreen,
     readProgress: readFungikuProgress,
+  },
+  {
+    // Not a puzzle the app sets you — a tool for the puzzle in your hands.
+    // It lives in the same list because the hub is the app's front door and a
+    // second front door for one tile would be a worse app (docs/cube-plan.md §2).
+    id: 'cube',
+    title: 'Cube Scramble',
+    tagline: 'Scramble a 3×3 and turn it in 3D to inspect every face.',
+    icon: 'cube-outline',
+    accent: '#c62828',
+    Screen: CubeScreen,
+    readProgress: readCubeProgress,
   },
 ];
 
