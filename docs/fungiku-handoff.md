@@ -1,68 +1,71 @@
-# Fungiku — next-step handoff
+# Fungiku — the epic, closed
 
-**If you are a session picking up Fungiku work: this file is your entry point.
-Read it first, then do the step described under "Next step" below.**
+**The epic is finished and merged to `main`. There is no next step.**
 
-It always describes **exactly one step — the next one**. It is rewritten at the
-end of every step so the following session can start from a one-line prompt.
+For twelve steps this file described exactly one step at a time and was rewritten
+at the end of each. Step 13 was the last of them: close the epic and merge it.
+What is left is a record of what got built, and a **backlog** — the open questions
+and the noted-in-passing list — that outlived the epic and now belongs to `main`.
 
-## The one-line prompt that starts a session
+## If you are a session picking up this work
 
-```
-Work in mjohnson139/expo-sudoku. Continue the Fungiku epic: check out
-epic/fungiku, read docs/fungiku-handoff.md, and do the next step it describes.
-```
+Fungiku is on `main`. Branch from `main`, open PRs against `main`, and treat the
+sections below as reference rather than instruction:
 
-Nothing else needs to be pasted. Everything a session needs is in this file and
-the documents it points at.
+- **"Open questions"** is the list of things nobody has answered yet. Most of
+  them are play questions a browser cannot settle. Each one names the file and
+  the constant a change would touch.
+- **"Noted in passing"** is the list of decisions that are *settled* and expensive
+  to re-open. Read it before changing the win dialog, the confetti, or anything
+  keyed on `winSeq` — every entry is there because getting it wrong already
+  happened once.
+- **"Steps already done"** is the twelve-step history, in order.
 
-## Before you finish: rewrite this file
-
-**This is part of every step's definition of done.** Before you open your PR,
-replace the "Next step" section with a brief for the step *after* yours, at the
-same level of detail — scope, the files to read, the behaviors that are easy to
-get wrong, what must be visible in Expo Go, and how to verify. Carry the open
-questions forward. A step that leaves this file describing already-finished work
-has broken the chain for the next session.
+The one thing that has not changed: **`docs/fungiku-plan.md` is still the source
+of truth for the rules, the engine, and why the game is shaped this way.**
 
 ---
 
-## Standing context (true for every step)
+## Standing context
 
 - **Repo:** `mjohnson139/expo-sudoku`. App code is in the **`SudokuApp/`**
   subdirectory (Expo · React Native · JavaScript).
 - **Source of truth:** `docs/fungiku-plan.md`. Read it end to end before writing
   code — it has the rules (§1), input model (§2), board (§3), engine (§4), hub
   design (§6), the step table (§7), open questions (§8), and edge cases (§9).
-- **Tracker:** GitHub issue **#65**. Tick your step's checkboxes as you go.
+- **Tracker:** GitHub issue **#65** — every box ticked, closed by the merge.
 - **Process:** `.github/dev-process.md` — one delivery step per branch, commit
   after each step, **prompt the operator to test after each step.**
 
 ### Branching
 
-Fungiku lands on an **epic branch**, never straight to `main`:
+Fungiku landed on an **epic branch** so that `main` never carried a half-built
+game mode:
 
 ```
-main ─── epic/fungiku ─── feature/fungiku-<step>   (PRs target the epic)
+main ─── epic/fungiku ─── feature/fungiku-<step>   (PRs targeted the epic)
 ```
 
-Branch from **`epic/fungiku`**, and open your PR **against `epic/fungiku`**.
-The epic merges to `main` only once Fungiku is playable end to end, so `main`
-never carries a half-built game mode.
+**That arrangement is over.** The epic merged to `main` at Step 13 and
+`epic/fungiku` is history. Branch from `main` and open PRs against `main`.
 
-### Every step must be visible in Expo Go
+### Every change must be visible in Expo Go
 
-Hard requirement, not a nicety. Every step — including pure-logic ones — ships
-something the operator can open and look at on a device. **A step whose only
-evidence is a passing test suite is not done.** Preview/scaffolding surfaces are
-explicitly temporary and get replaced by real UI as later steps land.
+Hard requirement, not a nicety. Every step — including pure-logic ones — shipped
+something the operator could open and look at on a device. **A change whose only
+evidence is a passing test suite is not done.** It held for twelve steps and it
+is the reason the merge to `main` was uneventful; keep it.
 
 ### Golden rules
 
 - **Fungiku is a separate game mode. Classic Sudoku keeps working as it does
   today.** Do not modify `sudoku-gen` / `boardFactory`, the Sudoku reducer's game
   logic, `NumberPad`, notes, feedback, or Sudoku's win detection unless the
-  current step explicitly calls for it.
+  change explicitly calls for it. **It held:** across twelve steps the only
+  shared files the epic touched were `GameContext.js` (a persistence adapter and
+  a theme write-through), `GameHeader.js`, `App.js` and the new `ScreenHeader`.
+  `Grid.js`, `Cell.js`, `NumberPad.js` and `boardFactory` are byte-identical to
+  the pre-epic `main`.
 - **The engine owns the Fungiku rules.** Import `findConflicts` / `isSolved` /
   `nextMark` / `MARKS` / `createEmptyMarks` / `generate` from
   `games/fungiku/engine.js`. If you find yourself hand-writing a
@@ -70,131 +73,128 @@ explicitly temporary and get replaced by real UI as later steps land.
 - **Stay in scope.** Note anything you spot for a later step rather than fixing
   it now, and say so in your PR.
 
-### Verify before handoff (from `SudokuApp/`)
+### Verify before you hand back (from `SudokuApp/`)
 
 ```bash
+npm install                       # the container starts with no node_modules
 npm test                          # Jest — keep the suite green and extend it
 npx expo-doctor                   # expect 18/18
 npx expo export --platform all    # web + iOS + Android must all bundle
 ```
 
-Then **drive the web build in a browser** to confirm the step's visible outcome
-really works. Chromium is preinstalled at `/opt/pw-browsers/chromium`
-(`PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`) — **do not run
-`playwright install`**. Serve `dist/`, click through, confirm no page errors, and
-screenshot the result.
+Then **drive the web build in a browser** to confirm the visible outcome really
+works. Serve `dist/` and use the preinstalled Chromium at
+**`/opt/pw-browsers/chromium-1194/chrome-linux/chrome`** — note the versioned
+path; `/opt/pw-browsers/chromium` is a file, not the binary. **Do not run
+`playwright install`.** Click through, confirm no page errors, screenshot.
 
-### Finishing a step
+**What the browser can and cannot drive** (learned the hard way at Step 13):
 
-Commit, update issue #65, **rewrite this file for the next step**, push your
-branch, open a PR to `epic/fungiku` referencing #65, then **stop and prompt the
-operator to test in Expo Go.**
+- **Fungiku is fully drivable.** Its cells and buttons are real
+  `role="button"` elements with rich `aria-label`s — `Row 3, column 2, yellow
+  region, empty` gives you the whole board, regions included, from the
+  accessibility tree. Read it, solve it, double-click to place. A whole game to a
+  win takes seconds.
+- **Sudoku's board is not.** `Grid.js` selects on `onPressIn` through
+  react-native-web's responder system, and neither a synthesized click nor a
+  synthesized touch selects a cell headlessly. **This is not a regression** — it
+  reproduces identically on the pre-epic `main`, which is the check to run before
+  believing otherwise. Sudoku's *generation, persistence, theming and menus* are
+  all drivable; entering digits is a device job.
 
----
+### Finishing a change
 
-## Next step: **Step 13 — close the epic: merge `epic/fungiku` to `main`**
-
-Branch: **none of your own.** This step's deliverable is a **PR from
-`epic/fungiku` to `main`**, plus whatever small fixes the final pass turns up
-(those go on `feature/fungiku-close` off `epic/fungiku`, and land on the epic
-before it merges).
-
-**Step 12 was the last building step and it has landed.** Every row of §7's step
-table is ticked. What is left is the thing the epic branch was created to make
-possible: putting a finished game mode on `main` in one reviewable move.
-
-### Do not start by writing code
-
-The two things that gate this step are both operator decisions, and one of them
-has been open since Step 3:
-
-1. ~~**The device pass on Step 12.**~~ **Done, eight times over.** Every round of
-   #81 came from the operator playing it on a phone — the animations, the
-   banners that moved the board, the hint, the prices, the win dialog's placement
-   and entrance, and three separate flakiness reports. §§12.7–12.14 record what
-   each one changed. **Nothing on this list is waiting for that any more.**
-2. **The app name** — open question #2 below, and now on every screen. The hub
-   still says the Step 3 placeholder **"Puzzle Box"**. Merging to `main` is the
-   moment it stops being a placeholder and starts being what the app is called in
-   the store, so this is the last cheap chance to change it. It is two constants
-   in `SudokuApp/utils/appIdentity.js`, plus `app.json` (`expo.name`,
-   `web.name`/`shortName`), the icon, and the listing.
-
-Do not guess at either. **A step that merges an epic on an unanswered brand
-question has made the decision by not making it.**
-
-### Scope — ONLY this
-
-1. **Play the whole game through once, end to end**, not just the last thing that
-   changed: hub → Fungiku → each of the four difficulties → win one → lose one on
-   purpose → spend every assist → quit to the hub mid-board and come back →
-   relaunch cold onto a restored board. Then the same for Sudoku, because the
-   golden rule was that it kept working and nobody has checked it in eleven steps.
-2. **Fix only what that pass breaks.** Anything it merely *reveals* — the open
-   questions, the noted-in-passing list — is a follow-up issue against `main`, not
-   a reason to hold the merge.
-3. **Open the PR to `main`** with the epic's story: what Fungiku is, the eleven
-   steps that built it, and — honestly — what is still a guess (the coin rates,
-   §14.4; the hint ceiling, §8 #6; colourblind separation since the region strokes
-   went, §8 #16).
-4. **Retire the developer controls, or decide out loud not to.**
-   `SHOW_DEVELOPER_CONTROLS` in `FungikuMenuModal.js` currently ships free play,
-   the seed field **and the gift-ten-coins button** to anyone who opens the menu.
-   A gift button on `main` is an economy nobody has to play for. Flipping it to
-   `false` is a one-line change; leaving it is a choice that has to be argued.
-
-### Read first
-
-- `docs/fungiku-plan.md` §7 (the whole table is now history), §14.4 (what is
-  still a guess), and **§12.7** (what Step 12 actually did, and why the browser
-  could not judge it).
-- `SudokuApp/utils/appIdentity.js` and `app.json` — the two halves of the name.
-- `SudokuApp/games/fungiku/FungikuMenuModal.js` — `SHOW_DEVELOPER_CONTROLS`.
-- The "Noted in passing" list below. It is the follow-up backlog; **turn it into
-  issues rather than carrying it into `main`'s handoff.**
-
-### Behaviors that are easy to get wrong
-
-- **A merge to `main` is not a step you can un-ship.** Every other step landed on
-  the epic, where a mistake cost one revert. This one puts Fungiku in front of
-  whoever installs the app.
-- **`main` has moved.** Steps 0 and 1 merged there directly and nothing since;
-  check whether anything else has landed and merge `main` into the epic *first*,
-  so the PR to `main` is a clean fast-forward-able diff rather than a conflict
-  resolved under review.
-- **The epic is 12 steps of commits.** Do not squash it into one — the commit
-  messages are the only record of why several decisions went the way they did.
-- **Sudoku still hydrates its own theme** (see the note below). That is a known,
-  deliberate half-fix, not something the final pass should "discover" and fix in
-  the merge PR.
-
-### Out of scope for this step
-
-- **No new features, and no economy tuning.** The rates are guesses awaiting a
-  play session (§14.4); tuning them is its own change driven by the operator's
-  numbers.
-- **No store, no IAP** — unchanged since Step 11.
-- **No board rating / propagator work** (§14.1, §12.1).
-- **No palette re-tuning** (§12.2) and **no re-litigating the tile look** (§12.5).
-
-### Visible in Expo Go when this lands
-
-**Nothing changes, and that is the point** — the app the operator has been
-testing off the epic branch becomes the app on `main`.
-
-### How to verify
-
-`npm test` · `npx expo-doctor` (18/18) · `npx expo export --platform all`, then
-drive the web build (serve `dist/`, Chromium at
-`/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — **note the versioned
-path**, `/opt/pw-browsers/chromium` is a file, not the binary; do not run
-`playwright install`; `npm install` first, the container starts with no
-`node_modules`). Then the full manual pass above, **and the operator's device
-pass**, which is the one that actually gates the merge.
+Commit, push your branch, open a PR to `main`, then **stop and prompt the
+operator to test in Expo Go.** The device pass is the one that actually gates
+anything — it caught eight rounds of Step 12 that the browser had passed.
 
 ---
 
-## Previous step: **Step 12 — the art swap** ✅
+## Step 13 — the epic closed and merged to `main` ✅
+
+The step with no feature in it. Step 12 was the last building step; this one
+answered the two questions that had been deferred to the merge, did the full
+manual pass, and put Fungiku on `main` in one move — 16 commits, not squashed,
+because the commit messages are the only record of why several decisions went the
+way they did.
+
+### The two decisions
+
+1. **The app name is "Puzzle Box"** — open question #2, open since Step 3,
+   **answered by the operator at the merge.** The Step 3 placeholder became the
+   real name: a collection brand, so neither game is *the* app and a third can
+   arrive without a rename. `utils/appIdentity.js`, `app.json` (`expo.name`,
+   `web.name`/`shortName`, `description`) and `web/manifest.json` all now agree.
+   **`expo.slug` stayed `expo-sudoku` and the iOS bundle identifier stayed
+   `com.mjohnson139.sudokuapp`** — those are identity for EAS and the store, not
+   for the player, and changing them orphans the project and every install.
+   The icon and the store listing are the two places the name has *not* landed;
+   both are follow-ups against `main`.
+2. **`SHOW_DEVELOPER_CONTROLS` is `false`.** The gift-ten-coins button was the
+   deciding one: the assist economy is precisely what the next play sessions are
+   meant to measure (§14.4, open question #14), and a button that hands out ten
+   coins means nobody ever plays for them. Free play and the seed field went with
+   it — they answer developer questions, not player ones. Setting it back to
+   `true` locally is still how a reported board gets reopened by seed.
+
+### What the final pass actually checked
+
+Green: `npm test` 454/454 · `expo-doctor` 18/18 · `expo export --platform all`
+(web + iOS + Android). Then the whole game driven in Chromium against the
+exported web build, with **zero page errors anywhere**:
+
+- **All four rungs generate the right board and every one is solvable** — Easy
+  6×6, Medium 7×7, Hard 9×9, Expert 10×10, each checked against an independent
+  solver written from §1 rather than imported from the app, so a disagreement
+  would have shown up as a disagreement.
+- **A win pays exactly what §14.4 says.** Easy board 6×6: base 3 + 3 lives
+  standing + 2 for no hints = 8, wallet 10 → 18, dialog and confetti arriving on
+  one frame as §12.14 requires.
+- **Three wrong mushrooms end the board.** Lives 3 → 0, the out-of-lives dialog
+  says the puzzle is the same one before the marks clear (§14.3).
+- **The assist economy holds at the edges.** Rule-out charged 1 and marked 14
+  cells; the hint answered "no single forced step from here" and charged
+  **nothing**, which is the §11.2 seam working; the 20-coin reveal was correctly
+  `disabled`/`aria-disabled` against a 9-coin wallet and could not be bought.
+- **Progress survives everything.** Quit to the hub mid-board and the Continue
+  badge read `Medium · 3 of 7 placed`; coming back restored the board
+  byte-identically; a cold relaunch in a fresh page did the same.
+- **Sudoku still works.** It generates, persists, shows its own Continue badge
+  (`Easy · 00:05 · 45 left`), and the theme toggle writes through to the hub.
+
+### The one thing the browser could not do
+
+**Sudoku's board cannot be driven headlessly** — `Grid.js` selects on
+`onPressIn` through react-native-web's responder system, and neither a
+synthesized click nor a synthesized touch selects a cell. Before treating that as
+a regression the pre-epic `main` was built and served side by side and probed the
+same way: **identical behavior on both.** So it is a harness limit, not something
+the epic did, and entering digits in Sudoku remains a device check.
+
+### What is still a guess, honestly
+
+The merge did not resolve these, and pretending otherwise would be the failure
+mode this file exists to prevent:
+
+- **The coin rates** (§14.4, open question #14). Prices are the operator's;
+  earnings are still the original guess and the two have never been played
+  against each other.
+- **The hint ceiling** (§11, open question #6). And a specific consequence worth
+  naming: `findForcedDeduction` reasons only from **placed mushrooms**, never
+  from the player's X's, so on an *empty* board nothing is ever forced. A new
+  player's first hint is therefore always the free "nothing is forced" answer
+  offering a 20-coin reveal they cannot afford on a 10-coin starting wallet. That
+  is the two open questions intersecting, it is deliberate on both sides, and it
+  has never been watched over a real player's shoulder.
+- **Colourblind separation** (open question #16). The tile redesign removed the
+  region-boundary stroke — the second channel — and nothing has been checked
+  under simulation since. `corners` in `utils/symbolSets.js` is still sitting
+  there as a third channel if it turns out to be needed.
+
+---
+
+
+## Step 12 — the art swap ✅
 
 Landed as **motion, not artwork**. The operator's answer to the step's opening
 question was route 1 with a rider: *"We don't have any art work at this point so
@@ -309,13 +309,14 @@ explicitly whether the epic is ready to merge to `main`.
 ## Open questions for the operator (carry these forward)
 
 1. ~~**Mode name**~~ — decided: **"Fungiku"** (internal id `fungiku`).
-2. **App name** — **still unanswered, and now visible on screen.** Step 3 shipped
-   the placeholder **"Puzzle Box"** (tagline "Pick a puzzle") in
-   `SudokuApp/utils/appIdentity.js` — change those two constants and the hub
-   follows. A final answer also has to land in `app.json` (`expo.name`,
-   `web.name`/`shortName`), the icon and the store listing. Keep "Sudoku"
-   (undersells Fungiku), pick a neutral puzzle-collection brand, or lead with the
-   family name?
+2. ~~**App name**~~ — **answered at the merge, 2026-08-01: "Puzzle Box".** The
+   Step 3 placeholder became the real name — a collection brand, so neither game
+   is *the* app and a third can arrive without a rename. `appIdentity.js`,
+   `app.json` (`expo.name`, `web.name`/`shortName`, `description`) and
+   `web/manifest.json` agree; `expo.slug` and the iOS bundle identifier
+   deliberately did **not** move. **Still outstanding, as follow-ups against
+   `main`:** the icon and the store listing, which are the two places the name
+   has not landed.
 3. ~~**Hub vs. resume on launch**~~ — built hub-first in Step 3: the app opens on
    the hub and the Sudoku card carries a *Continue* badge. Revisit only if the
    operator dislikes it on device.
@@ -332,6 +333,15 @@ explicitly whether the epic is ready to merge to `main`.
    coins against a nudge's 2 and a rule-out's 1, so the strongest rung is the one
    you can least afford. Whether that is enough, or whether it wants capping
    outright, is still open and is a play-session question.
+   **Step 13's pass found the sharp edge of this**, and it is worth stating
+   plainly because it is what a brand-new player meets first:
+   `findForcedDeduction` reasons only from **placed mushrooms**, never from the
+   player's X marks (deliberately — an X is a belief and may be wrong, and
+   deducing from a wrong X gives a confidently wrong hint). On an **empty** board
+   nothing is therefore ever forced, so the first hint of every game is the free
+   "no single forced step from here" answer, offering a **20-coin reveal against
+   a 10-coin starting wallet**. Both halves are intentional; nobody has yet
+   watched a real player hit them together.
 7. ~~**Should "Show mistakes" default on for younger players?**~~ — **answered
    by deletion, 2026-07-26** (plan §14.3). Correctness feedback stops being
    optional: a wrong guess is flagged immediately and costs a life, so the toggle
@@ -983,14 +993,16 @@ explicitly whether the epic is ready to merge to `main`.
 | 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds, board lines redrawn as a snapped overlay | merged to `epic/fungiku` (#75, `d4d2018`), operator-tested on device |
 | 9 | Difficulty menu — rungs mapped into `SIZES` by *share*, size-from-seed, menu modal built to Sudoku's, free play + seed behind one constant, real v1→v2 save migration, difficulty in the header rather than a banner, hub badge names the rung | merged to `epic/fungiku` (#77, `02fcdf1`), operator-tested on device |
 | 10 | Lives & mistakes — tap ✕ / double-tap 🍄 replacing the cycle, wrong mushroom flagged immediately as a red ✕ costing one of three lives and announced on three channels, zero lives leaves the losing board up behind a dialog until the player restarts it, undo never refunds, "Show mistakes" deleted, v2→v3 migration, conflict rendering **removed** | merged to `epic/fungiku` (#79), operator-tested on device |
-| 11 | Earned assists — **coins**, one currency, in a wallet under **its own key** (`@FungikuWallet`, no save-version bump); hints and rule-out priced off it (1 / 2 / 4, §11.2's ladder); the "nothing is forced" answer left free; a win **narrated** — the balance counts up one reason at a time — and paid **exactly once per board** across undo/redo/reload; a daily floor so the game cannot become unwinnable; an unaffordable price drawn differently from a disabled button; gift/purchase seam behind `SHOW_DEVELOPER_CONTROLS`; the board redrawn as separated tiles | merged to `epic/fungiku` (#80, `5836b87`) — **device pass not recorded; fold it into Step 13's play-through** |
+| 11 | Earned assists — **coins**, one currency, in a wallet under **its own key** (`@FungikuWallet`, no save-version bump); hints and rule-out priced off it (1 / 2 / 4, §11.2's ladder); the "nothing is forced" answer left free; a win **narrated** — the balance counts up one reason at a time — and paid **exactly once per board** across undo/redo/reload; a daily floor so the game cannot become unwinnable; an unaffordable price drawn differently from a disabled button; gift/purchase seam behind `SHOW_DEVELOPER_CONTROLS`; the board redrawn as separated tiles | merged to `epic/fungiku` (#80, `5836b87`) — device pass folded into Step 13's play-through |
 | 12 | Art swap — **answered with motion, not artwork** (§12.7). The operator kept the glyph, so the step made the seam true (the board asks `Symbol` for `MUSHROOM_VALUE` instead of naming an icon), grew the placement pop into a **sprout** — the mushroom rises into the cell tilted and squashed and stretches upright, four interpolations of the one spring — and added a **win wave**: every mushroom hops in an anti-diagonal ripple, one shared native-driven value, windows in a pure `celebration.js`. **Device pass passed the animations and rejected the banners** (§12.8): both used to push the board down, so the win became a **dialog** and the hint a **floating overlay**, and nothing sits above the board any more. **Third round** (§12.9): the nudge points at **the one forced cell** instead of outlining its whole group, a ring **converges onto that cell** so the eye is taken there, and the operator's prices land — rule-out 1, **hint 5, reveal 20**, with `DAILY_FLOOR_COINS` derived from the hint price so the floor still buys help. **Fourth round** (§12.10): the hint text becomes a **popover on its cell** — placed by a pure `hintPlacement.js`, drawn inside the board's card so it points without measuring — and the win wave **travels three times as far** (300 ms → 917 ms across the board) with each hop unchanged **Fifth round** (§12.11): the win dialog **centred**, its entrance un-sprung, the party-popper replaced by a real **confetti burst**, and the payout's five-beat narration collapsed to **one reveal** — the reasons still named, but all at once **Sixth round** (§12.12): the celebration keys on a **win event** (`winSeq`) rather than on the `solved` condition, so it no longer replays on every remount, and the confetti value is wound back so every win bursts **Seventh round** (§12.13): the win dialog is dismissed by the player and nobody else — the backdrop no longer closes it, and `winDismissed` is persisted (**save v4**) so it survives a relaunch, with the payout **computed** from persisted state rather than held in provider state **Eighth round** (§12.14): the payout's 420 ms beat is gone — box, rewards and confetti are **one arrival** — and the burst now originates across the rewards rather than from a point above the title | **merged to `epic/fungiku` (#81)** — eight rounds, every one of them driven by an operator device pass |
+
+| 13 | Close the epic — the app name settled as **Puzzle Box**, `SHOW_DEVELOPER_CONTROLS` off, a full play-through of both games against the exported web build, then `epic/fungiku` → `main` as 16 commits rather than one. No new features. | merged to `main` |
 
 ## Steps still to come
 
-| # | Step | Plan |
-|---|------|------|
-| 13 | **Close the epic** — full play-through, the app name, the developer controls, then `epic/fungiku` → `main`. No new features. | §7 |
+**None.** The step table is finished. What used to live here is now the backlog
+above: the open questions, and the noted-in-passing list. Both are play questions
+or follow-ups against `main`, not steps.
 
 **Replanned 2026-07-26.** The old Step 9 was a training ladder with per-level
 star thresholds; the operator asked instead for the difficulty menu the
