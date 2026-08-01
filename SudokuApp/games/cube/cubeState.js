@@ -163,7 +163,7 @@ const stickerIndex = (cube) => {
  * The cube as six 9-letter faces, in reading order.
  *
  * This is the model's canonical form: it is what the tests compare, and it is
- * the shape a 2D net view or an external solver would want.
+ * the shape an external solver would want.
  *
  * @returns {Object<string, string[]>} face letter → 9 face letters
  */

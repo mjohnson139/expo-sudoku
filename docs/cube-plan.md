@@ -8,9 +8,16 @@ workbench*: step through a scramble move by move, then step through a **solve**
 showing what each phase does.
 
 The reference the operator gave is **<https://scramble.cubing.net/>**: a
-scramble, a draggable 3D cube, a 2D net toggle, and nothing else on the page.
-That restraint is the target. This is a tool, not a game — nothing here is
-scored, timed, or won.
+scramble, a draggable 3D cube, and nothing else on the page. That restraint is
+the target. This is a tool, not a game — nothing here is scored, timed, or won.
+
+**The cube is 3D, and only 3D** (operator, 2026-08-01). The reference also has a
+flat "2D Show" net, and Step 2 was briefly planned to copy it. It was cut before
+any of it was built: a net is a *second* way to read the same state, and two
+views of one cube means every later feature — a highlighted F2L pair, a phase
+label, an animating turn — has to be designed twice or look wrong in one of them.
+`facelets()` still returns the six flat faces, so nothing about the model
+forecloses it if that judgement ever changes.
 
 ## For the implementer (start here)
 
@@ -246,7 +253,7 @@ the operator can open in Expo Go.
 | Step | What lands | State |
 |---|---|---|
 | **1** | Scramble · 3D cube you can drag · favorites · hub tile | **shipped** |
-| **2** | **Play the scramble.** Animated layer turns, a move-by-move scrubber, and a 2D net toggle beside the 3D view (the reference's "2D Show") | next |
+| **2** | **Play the scramble.** Animated layer turns and a move-by-move scrubber | next |
 | **3** | **Enter a cube.** Paste or type a scramble, and/or set the colours by hand, so the cube on screen is the cube on the table | |
 | **4** | **Solve it.** A two-phase solver in JS; play the solution back on the cube | |
 | **5** | **CFOP.** The solve split into cross / F2L / OLL / PLL, each phase named, its pieces highlighted, steppable | |

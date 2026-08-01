@@ -112,15 +112,12 @@ being able to watch one move happen.
 2. **A scrubber under the cube.** Move *n* of *20*, with back/forward, and a
    play/pause that walks the whole scramble. Tapping a token in the scramble text
    jumps to it.
-3. **A 2D net toggle**, beside the 3D view, like the reference's "2D Show".
-   `facelets()` already returns exactly what it needs — six 9-letter faces — so
-   this is a layout job, not a model job.
 
 ### Read first
 
 - `docs/cube-plan.md` §3 (model), §5 (renderer), §8 (why this step is second)
 - `games/cube/geometry.js` — `rotateQuarter`, `buildScene`
-- `games/cube/cubeState.js` — `applyMove`, `facelets`
+- `games/cube/cubeState.js` — `applyMove`, and which cubies a move selects
 - `games/cube/CubeScreen.js` — where the scramble and the cube meet
 - `docs/fungiku-plan.md` §2 "A pattern worth knowing: native-only gesture and
   animation bugs" — this repo has been bitten before, and this step is animation
@@ -152,8 +149,7 @@ cube by hand, a timer. All of those are later rows in plan §8.
 ### Visible in Expo Go when this lands
 
 Open Cube Scramble, tap play, and watch the cube turn through the scramble one
-move at a time; scrub back and forth; flip to the 2D net and see the same state
-flattened.
+move at a time; scrub back and forth to any point in it.
 
 ### How to verify
 
