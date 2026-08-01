@@ -116,7 +116,7 @@ const CubeScreen = ({ onExitToHub }) => {
   // middle of a scramble they thought they had whole. A new scramble, or one
   // loaded from favorites, opens fully applied.
   const player = useScramblePlayer(scramble);
-  const { pause, seek } = player;
+  const { pause, playTo, seek } = player;
 
   const saved = isFavorite(favorites, scramble);
 
@@ -198,12 +198,13 @@ const CubeScreen = ({ onExitToHub }) => {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScreenHeader title="Cube Scramble" theme={theme} onHomePress={onExitToHub} />
 
-      {/* The scramble is also the scrubber's track: every token is a tap
-          target that jumps the cube to just after that move, which is a
-          shorter route to "what does move 14 do" than fourteen taps on the
-          step button. The tokens are the *parsed* moves rather than a split of
-          the raw text, so a token and the move it jumps to can never drift
-          apart. */}
+      {/* The scramble is also the scrubber's track: tapping a token turns the
+          cube to that point, one move at a time and in whichever direction it
+          lies — which is a shorter route to "what does move 14 do" than
+          fourteen taps on the step button, and still shows the moves rather
+          than cutting to the answer. The tokens are the *parsed* moves rather
+          than a split of the raw text, so a token and the move it turns to can
+          never drift apart. */}
       <View style={[styles.scrambleCard, { backgroundColor: surface, borderColor: border }]}>
         <Text
           style={[styles.scrambleText, { color: pendingColor }]}
@@ -215,11 +216,11 @@ const CubeScreen = ({ onExitToHub }) => {
             : player.moves.map((move, i) => (
                 <Text
                   key={`${move.token}-${i}`}
-                  onPress={() => seek(i + 1)}
+                  onPress={() => playTo(i + 1)}
                   suppressHighlighting
                   accessibilityRole="button"
                   accessibilityLabel={`Move ${i + 1}, ${move.token}`}
-                  accessibilityHint="Plays the scramble up to this move"
+                  accessibilityHint="Turns the cube to this point in the scramble"
                   style={
                     i === player.index - 1
                       ? [styles.currentToken, { color: CUBE_ACCENT }]
@@ -291,16 +292,18 @@ const CubeScreen = ({ onExitToHub }) => {
         index={player.index}
         count={player.count}
         playing={player.playing}
+        rate={player.rate}
         accent={CUBE_ACCENT}
         theme={theme}
         onPlayPause={player.togglePlay}
         onStepBack={player.stepBack}
         onStepForward={player.stepForward}
         onSeek={seek}
+        onCycleSpeed={player.cycleSpeed}
       />
 
       <Text style={[styles.hint, { color: titleColor }]}>
-        Drag the cube · tap a move to jump to it
+        Drag the cube · tap a move to turn to it
       </Text>
 
       <View style={styles.bottomRow}>

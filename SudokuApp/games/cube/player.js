@@ -32,6 +32,30 @@ export const HALF_TURN_SCALE = 1.45;
 export const MOVE_GAP_MS = 80;
 
 /**
+ * The speeds the tempo control cycles through.
+ *
+ * Three, not five: the control is a chip you tap to advance, and a cycle you
+ * have to go round four times to get back where you were is a control nobody
+ * uses twice. Half speed is for reading one move, double for getting somewhere.
+ * Faster than double stops being a turn you can watch, which is the whole point
+ * of this screen, so there is deliberately no 4×.
+ */
+export const SPEEDS = [0.5, 1, 2];
+
+/** The speed a scramble opens at. */
+export const DEFAULT_SPEED = 1;
+
+/** The next speed round the cycle. An unrecognized rate lands back at 1×. */
+export const nextSpeed = (rate) => {
+  const at = SPEEDS.indexOf(rate);
+  return at === -1 ? DEFAULT_SPEED : SPEEDS[(at + 1) % SPEEDS.length];
+};
+
+/** `"1×"` — what the chip says. Trailing `.0` never appears, so 2 reads as
+ *  `2×` rather than `2.0×` while 0.5 keeps its half. */
+export const describeSpeed = (rate) => `${rate}×`;
+
+/**
  * Everything a scrubber needs for one algorithm.
  *
  * Unparseable text yields no moves and a single solved state rather than
@@ -53,9 +77,24 @@ export const buildPlayback = (alg) => {
   return { moves, states };
 };
 
-/** How long one move's animation runs. */
-export const turnDuration = (move) =>
-  Math.round(TURN_MS * (Math.abs(shortWay(move.amount)) === 2 ? HALF_TURN_SCALE : 1));
+/**
+ * How long one move's animation runs, at `rate` times normal speed.
+ *
+ * The rate divides rather than multiplies, so 2× is twice as *quick*, which is
+ * what the chip's label promises. It scales single steps as well as playback:
+ * half speed is for reading one move, and a step button is exactly that.
+ */
+export const turnDuration = (move, rate = DEFAULT_SPEED) =>
+  Math.round(
+    (TURN_MS * (Math.abs(shortWay(move.amount)) === 2 ? HALF_TURN_SCALE : 1)) /
+      (rate > 0 ? rate : DEFAULT_SPEED)
+  );
+
+/** The beat between moves, at `rate`. The pause between turns is part of the
+ *  tempo, so it stretches and shrinks with them rather than staying put and
+ *  turning double speed into a stutter. */
+export const gapDuration = (rate = DEFAULT_SPEED) =>
+  Math.round(MOVE_GAP_MS / (rate > 0 ? rate : DEFAULT_SPEED));
 
 /**
  * Ease in and out of a turn.
@@ -89,4 +128,13 @@ export const announcePosition = (index, count) => {
   return `After move ${index} of ${count}`;
 };
 
-export default { buildPlayback, turnDuration, ease, clampIndex, describePosition };
+export default {
+  buildPlayback,
+  turnDuration,
+  gapDuration,
+  nextSpeed,
+  describeSpeed,
+  ease,
+  clampIndex,
+  describePosition,
+};

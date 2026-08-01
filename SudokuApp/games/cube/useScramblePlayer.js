@@ -1,15 +1,26 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  MOVE_GAP_MS,
+  DEFAULT_SPEED,
   buildPlayback,
   clampIndex,
   ease,
+  gapDuration,
+  nextSpeed,
   turnDuration,
 } from './player';
 
 /**
  * The clock behind the scrubber: where in a scramble the cube is, and the turn
  * it is part-way through.
+ *
+ * ### One loop, a goal, and a direction
+ *
+ * Playing the scramble, playing it backwards, and turning the cube to the move
+ * someone tapped are the same thing: keep taking one move toward a goal until
+ * you arrive. So there is one loop and it is told where to stop — `play` aims at
+ * the end, a tapped token aims at itself, and both can be interrupted the same
+ * way. A second "seek by animating" path would be the same walk written twice
+ * and would drift the first time one of them learned something.
  *
  * ### Why `requestAnimationFrame` and not `Animated`
  *
@@ -40,14 +51,22 @@ const useScramblePlayer = (alg) => {
   const [turn, setTurn] = useState(null);
   const [playing, setPlayingState] = useState(false);
 
+  // How fast turns run. Not persisted, for the same reason the view angle is
+  // not: it is how the player is watching right now, and the save file holds
+  // algorithm text (plan §7).
+  const [rate, setRateState] = useState(DEFAULT_SPEED);
+
   const indexRef = useRef(count);
   const playingRef = useRef(false);
+  const rateRef = useRef(DEFAULT_SPEED);
   const movesRef = useRef(moves);
   const frameRef = useRef(null);
   const timerRef = useRef(null);
   // The turn the frame loop is in the middle of, so an interruption can land it
   // rather than abandon it half-way.
   const pendingRef = useRef(null);
+  // Where the walk is heading. Only meaningful while `playing`.
+  const goalRef = useRef(count);
 
   movesRef.current = moves;
 
@@ -59,6 +78,15 @@ const useScramblePlayer = (alg) => {
   const setPlaying = useCallback((next) => {
     playingRef.current = next;
     setPlayingState(next);
+  }, []);
+
+  // The turn already running keeps the tempo it started at — retiming it
+  // mid-flight would make the cube lurch on the frame the chip was tapped. The
+  // next one picks the new speed up.
+  const cycleSpeed = useCallback(() => {
+    const next = nextSpeed(rateRef.current);
+    rateRef.current = next;
+    setRateState(next);
   }, []);
 
   const stopClock = useCallback(() => {
@@ -107,7 +135,7 @@ const useScramblePlayer = (alg) => {
 
       settle();
 
-      const ms = turnDuration(move);
+      const ms = turnDuration(move, rateRef.current);
       const started = Date.now();
       pendingRef.current = { at, forward };
       setTurn({ at, t: forward ? 0 : 1 });
@@ -134,38 +162,72 @@ const useScramblePlayer = (alg) => {
     [setIndex, settle]
   );
 
-  // Playback is one move plus a beat, then itself again — checking on each hop
-  // whether it is still wanted, because pause and a drag both work by saying no.
-  const playNextRef = useRef(null);
-  const playNext = useCallback(() => {
+  // One move toward the goal, plus a beat, then itself again — checking on each
+  // hop whether it is still wanted, because pause and a drag both work by
+  // saying no. Direction falls out of which side of the goal we are on, so
+  // walking a scramble backwards costs nothing extra.
+  const stepTowardRef = useRef(null);
+  const stepToward = useCallback(() => {
     if (!playingRef.current) return;
-    if (indexRef.current >= movesRef.current.length) {
+
+    const at = indexRef.current;
+    const goal = goalRef.current;
+    if (at === goal) {
       setPlaying(false);
       return;
     }
 
-    animate(indexRef.current, true, () => {
+    const forward = goal > at;
+    animate(forward ? at : at - 1, forward, () => {
       if (!playingRef.current) return;
+      if (indexRef.current === goalRef.current) {
+        setPlaying(false);
+        return;
+      }
       timerRef.current = setTimeout(() => {
         timerRef.current = null;
-        playNextRef.current();
-      }, MOVE_GAP_MS);
+        stepTowardRef.current();
+      }, gapDuration(rateRef.current));
     });
   }, [animate, setPlaying]);
-  playNextRef.current = playNext;
+  stepTowardRef.current = stepToward;
 
   const pause = useCallback(() => {
     settle();
     setPlaying(false);
   }, [settle, setPlaying]);
 
+  /**
+   * Turn the cube, one move at a time, until it is `target` moves in.
+   *
+   * Interrupts whatever was already walking, including one heading the other
+   * way: the in-flight turn lands first, and the next step is taken from where
+   * that left it rather than from where the old walk was going.
+   */
+  const playTo = useCallback(
+    (target) => {
+      settle();
+
+      const goal = clampIndex(target, movesRef.current.length);
+      goalRef.current = goal;
+
+      if (indexRef.current === goal) {
+        setPlaying(false);
+        return;
+      }
+
+      setPlaying(true);
+      stepTowardRef.current();
+    },
+    [setPlaying, settle]
+  );
+
   const play = useCallback(() => {
     settle();
     // Pressing play at the end means "show me that again", not nothing.
     if (indexRef.current >= movesRef.current.length) setIndex(0);
-    setPlaying(true);
-    playNext();
-  }, [playNext, setIndex, setPlaying, settle]);
+    playTo(movesRef.current.length);
+  }, [playTo, setIndex, settle]);
 
   const togglePlay = useCallback(() => {
     if (playingRef.current) pause();
@@ -184,7 +246,14 @@ const useScramblePlayer = (alg) => {
     animate(indexRef.current - 1, false);
   }, [animate, pause]);
 
-  /** Jump straight to a position — no animation; a jump is not a turn. */
+  /**
+   * Jump straight to a position — no animation.
+   *
+   * This is what the two skip buttons do, and only them. "Back to the solved
+   * cube" is a way out of wherever you are; turning twenty moves to get there
+   * would be the opposite of what the button says. Tapping a *move* is the
+   * other intent — take me there — and that is `playTo`.
+   */
   const seek = useCallback(
     (next) => {
       pause();
@@ -199,6 +268,7 @@ const useScramblePlayer = (alg) => {
   useEffect(() => {
     stopClock();
     pendingRef.current = null;
+    goalRef.current = moves.length;
     setTurn(null);
     setPlaying(false);
     setIndex(moves.length);
@@ -227,12 +297,15 @@ const useScramblePlayer = (alg) => {
     cube,
     turn: turning,
     playing,
+    rate,
     play,
     pause,
     togglePlay,
+    playTo,
     stepForward,
     stepBack,
     seek,
+    cycleSpeed,
   };
 };
 

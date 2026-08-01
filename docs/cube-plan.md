@@ -213,6 +213,29 @@ A face is keyed by **where it is going**, not where it is, so React re-renders
 the cube each frame instead of remounting fifty-four views twenty times a
 scramble.
 
+### The transport (added in Step 2)
+
+`games/cube/player.js` is the pure half — every cube state built once per
+scramble, so scrubbing is a lookup and stepping backwards needs no inverse move,
+just the previous cube and the same move run from `t = 1` down to 0.
+`useScramblePlayer` is the clock, driven by `requestAnimationFrame` rather than
+an `Animated.Value`: a turn rebuilds the SVG scene, so there is nothing for
+`useNativeDriver` to drive, and not having one closes the question
+`docs/fungiku-plan.md` §2 raises.
+
+**Playing forwards, playing backwards and turning to a tapped move are one
+loop.** It is told a goal and takes one move toward it at a time; direction falls
+out of which side of the goal the cube is on. So a tap on move 14 turns its way
+there rather than cutting to it, reversing mid-walk lands the in-flight turn and
+sets off the other way, and pause, a drag and a new goal all interrupt it
+identically. Only the two skip buttons jump — "back to the solved cube" is a way
+*out* of where you are.
+
+Tempo is a chip cycling 1× → 2× → 0.5×, scaling the beat between moves as well as
+the turns so double speed hurries rather than stutters, and applying to single
+steps as much as to playback. It is transient, like the view angle: the save file
+holds algorithm text (§7).
+
 **The alternatives, and why not (yet):**
 
 - **`expo-gl` + three.js** would give real lighting, bevels and reflections. It

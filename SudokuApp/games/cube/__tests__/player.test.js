@@ -8,14 +8,19 @@
  */
 
 import {
+  DEFAULT_SPEED,
   HALF_TURN_SCALE,
   MOVE_GAP_MS,
+  SPEEDS,
   TURN_MS,
   announcePosition,
   buildPlayback,
   clampIndex,
   describePosition,
+  describeSpeed,
   ease,
+  gapDuration,
+  nextSpeed,
   turnDuration,
 } from '../player';
 import { faceletString, isSolved, cubeFromAlg } from '../cubeState';
@@ -94,6 +99,65 @@ describe('turnDuration', () => {
       0
     );
     expect(total).toBeLessThan(10000);
+  });
+
+  it('divides by the rate, so 2× is twice as quick', () => {
+    // The chip says "2×". A rate that multiplied the duration would make it
+    // half speed while the label promised double — the one way to get this
+    // backwards, and invisible until someone taps it.
+    const move = parseMove('R');
+    expect(turnDuration(move, 2)).toBe(Math.round(TURN_MS / 2));
+    expect(turnDuration(move, 0.5)).toBe(TURN_MS * 2);
+    expect(turnDuration(move, 1)).toBe(turnDuration(move));
+  });
+
+  it('scales half turns and the beat between moves by the same rate', () => {
+    // Otherwise double speed is a stutter: quick turns with a full-length pause
+    // between them, which reads as the cube hesitating rather than hurrying.
+    SPEEDS.forEach((rate) => {
+      expect(turnDuration(parseMove('R2'), rate)).toBe(
+        Math.round((TURN_MS * HALF_TURN_SCALE) / rate)
+      );
+      expect(gapDuration(rate)).toBe(Math.round(MOVE_GAP_MS / rate));
+    });
+  });
+
+  it('falls back to normal speed rather than dividing by zero', () => {
+    [0, -1, undefined].forEach((rate) => {
+      expect(turnDuration(parseMove('R'), rate)).toBe(TURN_MS);
+      expect(gapDuration(rate)).toBe(MOVE_GAP_MS);
+    });
+  });
+});
+
+describe('nextSpeed', () => {
+  it('cycles and comes back round', () => {
+    let rate = DEFAULT_SPEED;
+    const seen = SPEEDS.map(() => {
+      rate = nextSpeed(rate);
+      return rate;
+    });
+    expect(new Set(seen)).toEqual(new Set(SPEEDS));
+    expect(rate).toBe(DEFAULT_SPEED);
+  });
+
+  it('lands back at normal speed from anywhere it does not recognize', () => {
+    [3, 0, NaN, undefined].forEach((rate) => {
+      expect(nextSpeed(rate)).toBe(DEFAULT_SPEED);
+    });
+  });
+
+  it('opens at a speed that is in the cycle', () => {
+    expect(SPEEDS).toContain(DEFAULT_SPEED);
+  });
+});
+
+describe('describeSpeed', () => {
+  it('is what the chip says', () => {
+    // No trailing zero: "2×", not "2.0×", in 34 points of chip.
+    expect(describeSpeed(1)).toBe('1×');
+    expect(describeSpeed(2)).toBe('2×');
+    expect(describeSpeed(0.5)).toBe('0.5×');
   });
 });
 

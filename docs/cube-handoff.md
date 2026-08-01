@@ -199,9 +199,12 @@ Step 3.
 5. What a "solve" should be for Steps 5–6: the method's own logic, or the
    shortest algorithm?
 6. Drag direction — currently "push the surface under your finger".
-7. **New, from Step 2: turn speed.** A quarter turn takes 260ms with a 80ms beat
-   between moves, so a whole scramble plays in about seven seconds. That is a
-   watching pace, not a solving one. Worth a speed control, or is one pace right?
+7. ~~Turn speed.~~ **Answered** (operator, 2026-08-01): a speed control, and it
+   is in — a chip cycling 1× → 2× → 0.5×, scaling the beat between moves as well
+   as the turns, and applying to single steps as much as to playback. It is not
+   persisted, for the same reason the view angle is not. If it should survive a
+   relaunch, that is a save-file change and belongs with Step 3's decision about
+   what else the file holds.
 
 ### Noted in passing, for a later step
 
@@ -220,6 +223,10 @@ Step 3.
   applying moves from `solvedCube()`. Playing a *solve* back (Step 4) starts from
   a scrambled one, so it will want a starting cube as an argument — a small
   change, worth making when there is a caller for it rather than now.
+- **The scrubber row is full.** Five buttons, `n / 20` and the speed chip come to
+  about 284 points, and the narrowest phone this app supports has 300. It wraps
+  rather than overflows, but a sixth control wants a rethink rather than another
+  chip.
 - **Half turns animate clockwise.** `shortWay(2)` is 2, not −2; both land in the
   same place and nothing prefers one. If a solve tutorial ever wants `R2` to go
   the way a particular fingertrick goes, that is the line to change.
@@ -232,8 +239,16 @@ Step 3.
 
 Shipped: `buildScene` takes an optional in-progress `turn` and draws the cube
 part-way through a move; a transport under the cube (start · back · play/pause ·
-forward · end, with `n / 20`); every token in the scramble is a tap target that
-jumps the cube to that point; a drag stops playback. 118 cube tests.
+forward · end, with `n / 20` and a speed chip); every token in the scramble is a
+tap target that **turns the cube its way there**, forwards or backwards; a drag
+stops playback. 125 cube tests.
+
+Playing the scramble, playing it backwards and turning to a tapped move are one
+loop told where to stop (`playTo`), so direction falls out of which side of the
+goal the cube is on and an interruption — including one that reverses — works
+the same way for all three. The two skip buttons are the only thing that still
+jumps: "back to the solved cube" is a way *out* of where you are, and turning
+twenty moves to get there would be the opposite of what the button says.
 
 Three things this step learned, all of them now in plan §5 and §10:
 
