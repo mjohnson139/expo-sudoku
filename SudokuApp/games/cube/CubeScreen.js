@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -14,12 +14,15 @@ import useAppTheme from '../../hooks/useAppTheme';
 import useBoardSize from '../../hooks/useBoardSize';
 import CubeView from './CubeView';
 import CubeFavoritesModal from './CubeFavoritesModal';
+import CubeScrubber from './CubeScrubber';
 import { ALG_FONT } from './algText';
 import { DEFAULT_PITCH, DEFAULT_YAW } from './geometry';
-import { cubeFromAlg, solvedCube } from './cubeState';
-import { describeScramble, randomScramble } from './scramble';
+import { announcePosition } from './player';
+import { randomScramble } from './scramble';
 import { addFavorite, isFavorite, removeFavorite } from './favorites';
 import { loadCubeState, saveCubeState } from './storage';
+import useScramblePlayer from './useScramblePlayer';
+import { mix } from '../../utils/color';
 
 /** The accent this game is identified by on the hub card, reused for the primary
  *  action here so the screen looks like the card it was opened from. */
@@ -32,23 +35,6 @@ const MAX_CUBE = 440;
 
 /** Share of the window height the cube may take. */
 const CUBE_HEIGHT_SHARE = 0.42;
-
-/**
- * Build the cube for an algorithm, never throwing.
- *
- * Every algorithm that reaches here has already been validated — the generator
- * writes them and storage filters them — but this screen's whole job is to show
- * a cube, and a scramble that somehow slipped through should cost the player a
- * confusing solved cube, not a red screen.
- */
-const safeCube = (alg) => {
-  try {
-    return cubeFromAlg(alg);
-  } catch (error) {
-    console.error('Unparseable scramble, showing a solved cube:', error);
-    return solvedCube();
-  }
-};
 
 /**
  * Cube Scramble — get a scramble, save it, and turn the cube to inspect it
@@ -124,13 +110,27 @@ const CubeScreen = ({ onExitToHub }) => {
   // fired yet is a write that never happens.
   useEffect(() => () => saveCubeState.flush(), []);
 
-  const cube = useMemo(() => safeCube(scramble), [scramble]);
+  // Where in the scramble the cube is, and the turn it is part-way through.
+  // Deliberately *not* persisted (plan §7): the saved file holds algorithm text
+  // only, and a position that outlived a relaunch would drop the player into the
+  // middle of a scramble they thought they had whole. A new scramble, or one
+  // loaded from favorites, opens fully applied.
+  const player = useScramblePlayer(scramble);
+  const { pause, playTo, seek } = player;
+
   const saved = isFavorite(favorites, scramble);
 
-  const onOrbit = useCallback((nextYaw, nextPitch) => {
-    setYaw(nextYaw);
-    setPitch(nextPitch);
-  }, []);
+  // Dragging mid-playback would be the cube and the finger fighting over the
+  // same cube, so the finger wins: a drag stops playback and lands the turn it
+  // interrupted. A tap does not — it is how you look without losing your place.
+  const onOrbit = useCallback(
+    (nextYaw, nextPitch) => {
+      pause();
+      setYaw(nextYaw);
+      setPitch(nextPitch);
+    },
+    [pause]
+  );
 
   const newScramble = useCallback(() => {
     setScramble(randomScramble());
@@ -169,6 +169,11 @@ const CubeScreen = ({ onExitToHub }) => {
   const surface = theme.colors.numberPad.background;
   const border = theme.colors.numberPad.border;
 
+  // Moves not played yet are muted rather than hidden, so the scramble stays a
+  // scramble you can read ahead in. Mixed toward the background so it works on
+  // both themes without a second palette.
+  const pendingColor = mix(titleColor, theme.colors.background, 0.55);
+
   // Before the first layout there is nothing to measure, so fall back to the
   // window-share estimate — close enough that the cube does not visibly resize
   // on the frame the real number arrives.
@@ -193,16 +198,41 @@ const CubeScreen = ({ onExitToHub }) => {
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScreenHeader title="Cube Scramble" theme={theme} onHomePress={onExitToHub} />
 
+      {/* The scramble is also the scrubber's track: tapping a token turns the
+          cube to that point, one move at a time and in whichever direction it
+          lies — which is a shorter route to "what does move 14 do" than
+          fourteen taps on the step button, and still shows the moves rather
+          than cutting to the answer. The tokens are the *parsed* moves rather
+          than a split of the raw text, so a token and the move it turns to can
+          never drift apart. */}
       <View style={[styles.scrambleCard, { backgroundColor: surface, borderColor: border }]}>
         <Text
-          style={[styles.scrambleText, { color: titleColor }]}
+          style={[styles.scrambleText, { color: pendingColor }]}
           accessibilityLabel={`Scramble: ${scramble}`}
           selectable
         >
-          {scramble}
-        </Text>
-        <Text style={[styles.scrambleMeta, { color: titleColor }]}>
-          {describeScramble(scramble)}
+          {player.count === 0
+            ? scramble
+            : player.moves.map((move, i) => (
+                <Text
+                  key={`${move.token}-${i}`}
+                  onPress={() => playTo(i + 1)}
+                  suppressHighlighting
+                  accessibilityRole="button"
+                  accessibilityLabel={`Move ${i + 1}, ${move.token}`}
+                  accessibilityHint="Turns the cube to this point in the scramble"
+                  style={
+                    i === player.index - 1
+                      ? [styles.currentToken, { color: CUBE_ACCENT }]
+                      : i < player.index
+                        ? { color: titleColor }
+                        : null
+                  }
+                >
+                  {i > 0 ? '  ' : ''}
+                  {move.token}
+                </Text>
+              ))}
         </Text>
       </View>
 
@@ -248,16 +278,33 @@ const CubeScreen = ({ onExitToHub }) => {
           be bigger than the space it was given. */}
       <View style={styles.stage} onLayout={measureStage}>
         <CubeView
-          cube={cube}
+          cube={player.cube}
+          turn={player.turn}
           size={cubeSize}
           yaw={yaw}
           pitch={pitch}
           onOrbit={onOrbit}
-          accessibilityLabel={`Cube after the scramble ${scramble}`}
+          accessibilityLabel={`Cube — ${announcePosition(player.index, player.count)}`}
         />
       </View>
 
-      <Text style={[styles.hint, { color: titleColor }]}>Drag the cube to see every face</Text>
+      <CubeScrubber
+        index={player.index}
+        count={player.count}
+        playing={player.playing}
+        rate={player.rate}
+        accent={CUBE_ACCENT}
+        theme={theme}
+        onPlayPause={player.togglePlay}
+        onStepBack={player.stepBack}
+        onStepForward={player.stepForward}
+        onSeek={seek}
+        onCycleSpeed={player.cycleSpeed}
+      />
+
+      <Text style={[styles.hint, { color: titleColor }]}>
+        Drag the cube · tap a move to turn to it
+      </Text>
 
       <View style={styles.bottomRow}>
         <TouchableOpacity
@@ -343,11 +390,11 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     textAlign: 'center',
   },
-  scrambleMeta: {
-    fontSize: 11,
-    opacity: 0.65,
-    textAlign: 'center',
-    marginTop: 6,
+  // Bold as well as coloured: the token you are on has to be findable in a
+  // twenty-token block at a glance, and on a monospaced face weight is the
+  // difference that survives a small screen.
+  currentToken: {
+    fontWeight: '700',
   },
   actionRow: {
     flexDirection: 'row',
