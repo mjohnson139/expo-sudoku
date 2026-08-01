@@ -1,4 +1,9 @@
-import { describeFungikuProgress, describeSudokuProgress, formatElapsed } from '../gameProgress';
+import {
+  describeCubeProgress,
+  describeFungikuProgress,
+  describeSudokuProgress,
+  formatElapsed,
+} from '../gameProgress';
 import { MARKS, createEmptyMarks } from '../../games/fungiku/engine';
 
 describe('formatElapsed', () => {
@@ -124,5 +129,40 @@ describe('describeFungikuProgress', () => {
     expect(describeFungikuProgress(undefined)).toBeNull();
     expect(describeFungikuProgress({ size: 5 })).toBeNull();
     expect(describeFungikuProgress({ marks: [MARKS.MUSHROOM] })).toBeNull();
+  });
+});
+
+describe('describeCubeProgress', () => {
+  const SCRAMBLE = "R U2 F' D L B2 R' U";
+
+  it('summarizes the scramble that was on the cube', () => {
+    expect(describeCubeProgress({ scramble: SCRAMBLE, favorites: [] })).toEqual({
+      label: '8 moves',
+      detail: 'tap to inspect',
+    });
+  });
+
+  it('counts the favorites once there are any', () => {
+    expect(
+      describeCubeProgress({
+        scramble: SCRAMBLE,
+        favorites: [{ alg: SCRAMBLE, savedAt: 1 }, { alg: 'R U', savedAt: 2 }],
+      }).detail
+    ).toBe('2 favorites');
+  });
+
+  it('gets the singular right for a single favorite', () => {
+    expect(
+      describeCubeProgress({
+        scramble: SCRAMBLE,
+        favorites: [{ alg: SCRAMBLE, savedAt: 1 }],
+      }).detail
+    ).toBe('1 favorite');
+  });
+
+  it('returns null when there is no scramble to come back to', () => {
+    expect(describeCubeProgress(null)).toBeNull();
+    expect(describeCubeProgress({ scramble: '', favorites: [] })).toBeNull();
+    expect(describeCubeProgress({ favorites: [] })).toBeNull();
   });
 });
