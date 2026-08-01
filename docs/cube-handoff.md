@@ -9,8 +9,8 @@ end of every step so the following session can start from a one-line prompt.
 ## The one-line prompt that starts a session
 
 ```
-Work in mjohnson139/expo-sudoku. Continue the Cube Scramble epic: read
-docs/cube-handoff.md and do the next step it describes.
+Work in mjohnson139/expo-sudoku. Continue the Cube Scramble epic: check out
+epic/cube, read docs/cube-handoff.md and do the next step it describes.
 ```
 
 Nothing else needs to be pasted.
@@ -62,12 +62,16 @@ is always openable in Expo Go (project → Branches) even with no step PR open.
 - **The cube's code lives under `games/cube/`.** Sudoku and Fungiku keep working
   exactly as they do. Outside that directory Step 1 touched three things — a
   registry entry, `describeCubeProgress` in `utils/gameProgress.js`, and adding
-  `react-native-svg` — and a step that needs to touch a fourth should say why in
+  `react-native-svg` — and Step 2 touched only `utils/buildNotes.js`, because
+  plan §12 says to. A step that needs to touch anything else should say why in
   its PR.
 - **The model owns the rules.** Import `solvedCube` / `applyMove` / `applyMoves`
   / `cubeFromAlg` / `facelets` / `isSolved` from `games/cube/cubeState.js`, and
   `parseAlg` / `parseMove` / `moveCount` from `games/cube/moves.js`. If you find
-  yourself writing a facelet permutation table anywhere, that is a bug.
+  yourself writing a facelet permutation table anywhere, that is a bug. Playing
+  an algorithm back is `games/cube/player.js` and `useScramblePlayer` — a solve
+  is a list of moves like any other, so a later step should drive them rather
+  than write a second transport.
 - **Anything pure goes in a module the node test runner can import.** No React
   Native imports in the parts worth testing — that is why `readCubeSave` lives in
   `favorites.js` and not in `storage.js`.
@@ -87,86 +91,106 @@ npx expo-doctor                   # expect 18/18
 npx expo export --platform all    # web + iOS + Android must all bundle
 ```
 
+`expo-doctor`'s "Expo config schema" and "React Native Directory" checks both
+fetch over the network, and both fail with a DNS error in a sandbox that has
+none. 16/18 with exactly those two failing is not a regression — say which two,
+rather than reporting the number on its own.
+
 For anything visual, the web export can be driven headlessly — serve the export
-directory and drive it with the pre-installed Chromium
-(`/opt/pw-browsers/chromium`). Step 1 used that to check three viewport sizes for
-overflow before handing over; it caught a real layout bug that a single
-screenshot did not.
+directory and drive it with the pre-installed Chromium (the binary is at
+`/opt/pw-browsers/chromium-1194/chrome-linux/chrome`). Step 1 used that to check
+three viewport sizes for overflow before handing over; it caught a real layout
+bug that a single screenshot did not. **Step 2 found one a headless check could
+not:** the turn animation was geometrically wrong in the middle of every move,
+and no assertion about the ends could see it — the screenshot did. Look at what
+you built, at every stage of the motion, not only at rest.
 
 ---
 
-## Next step: **Step 2 — play the scramble**
+## Next step: **Step 3 — enter a cube**
 
-Make the cube *move*. Right now it snaps from solved to scrambled with nothing in
-between; the operator's stated goal is to "see each phase", and that starts with
-being able to watch one move happen.
+The cube on screen is always a cube this app made up. The operator's goal is a
+workbench for *the cube in their hands*, and every step after this one — the
+solver, CFOP, Roux — is worth nothing until the state being solved is theirs.
 
 ### Scope — ONLY this
 
-1. **Animated layer turns.** `applyMove` already isolates the affected cubies;
-   the renderer needs to draw them mid-turn. `buildScene` takes an optional
-   in-progress move — `{ axis, layers, amount, t }` with `t` from 0 to 1 — and
-   applies a partial rotation of `t * amount * -90°` about `axis` to the cubies
-   in `layers` before projecting. That is the whole change to the renderer, and
-   it stays exact: the cube is still convex, so the depth sort still holds.
-2. **A scrubber under the cube.** Move *n* of *20*, with back/forward, and a
-   play/pause that walks the whole scramble. Tapping a token in the scramble text
-   jumps to it.
+1. **Paste or type an algorithm.** A text field that takes notation, validates it
+   live, and applies it to the cube. `parseAlg` already accepts the whole set —
+   faces, slices, wides, rotations, curly apostrophes, optional spaces — and
+   already refuses anything it cannot read whole, so this is a screen, not a
+   parser. Show *why* it was rejected: `parseAlg` throws with the offending
+   token in the message.
+2. **Set the colours by hand.** Tap a facelet on the cube, tap a colour, and the
+   sticker changes. This is the half that makes a *scrambled physical cube*
+   enterable, since nobody knows the algorithm that produced the cube on their
+   table.
+3. **Say whether what was entered is a real cube.** A hand-entered facelet state
+   can be impossible — ten green stickers, a flipped edge, a twisted corner, two
+   identical corners. Report it in the UI, and do not let Step 4's solver be
+   handed a state it will search forever for.
 
 ### Read first
 
-- `docs/cube-plan.md` §3 (model), §5 (renderer), §8 (why this step is second)
-- `games/cube/geometry.js` — `rotateQuarter`, `buildScene`
-- `games/cube/cubeState.js` — `applyMove`, and which cubies a move selects
-- `games/cube/CubeScreen.js` — where the scramble and the cube meet
-- `docs/fungiku-plan.md` §2 "A pattern worth knowing: native-only gesture and
-  animation bugs" — this repo has been bitten before, and this step is animation
+- `docs/cube-plan.md` §3 (model), §4 (notation), §7 (what is stored), §8
+- `games/cube/moves.js` — `parseAlg`, `tryParseAlg`, `isValidAlg`, `formatAlg`
+- `games/cube/cubeState.js` — `facelets`, `faceletString`, `FACE_READING`; the
+  reading order of D and B is the thing to get right (plan §10)
+- `games/cube/favorites.js` and `storage.js` — what a save is allowed to contain
+- `games/cube/CubeScreen.js` and `CubeScrubber.js` — where new furniture goes on
+  a screen that already fits exactly
 
 ### Behaviors that are easy to get wrong
 
-- **A partial turn is not integer arithmetic.** `rotateQuarter` is exact and must
-  stay that way; the animation rotates *projected* geometry by a float angle and
-  never touches the model. Apply the move to the model once, at the end.
-- **Which direction a turn goes.** `amount` is quarter turns clockwise *seen from
-  the positive end of the axis*, so D, L and B carry 3 rather than 1. Animating
-  `amount` as a raw angle will spin half the moves the wrong way; animate the
-  short way round (`amount === 3` is `-90°`, not `+270°`).
-- **The pan gesture and the animation.** Dragging mid-animation must not fight
-  it. Simplest answer: a drag cancels playback.
-- **The scrubber's state and the saved scramble.** Where you are in a scramble is
-  transient. Do not persist it — plan §7 stores algorithm text only, and a
-  position that outlived a relaunch would put the operator in the middle of a
-  scramble they thought they had.
-- **`useNativeDriver`.** The rotation drives an SVG rebuild, so it cannot use it.
-  Drive `t` from an `Animated.Value` listener or `requestAnimationFrame` and keep
-  the polygon count where it is — 27 faces is the budget that makes this fine.
+- **Storage holds algorithm text, not a cube** (plan §7). A hand-entered facelet
+  state is not algorithm text, so it needs an answer: either store a 54-character
+  facelet string alongside — a *second* shape that `readCubeSave` has to filter
+  and that every later reader has to handle — or do not persist hand-entered
+  states at all and say so. Decide it deliberately and write down which, because
+  it is the first time the save file has had two kinds of thing in it.
+- **The scrubber assumes a scramble** — `useScramblePlayer` builds its states by
+  applying moves to a solved cube. A cube entered by colour has no move list, so
+  the transport has nothing to walk. Decide what the scrubber shows then; a
+  scrubber that silently reads `0 / 0` and does nothing is worse than one that
+  is honestly absent.
+- **Validity is not "54 stickers, nine of each".** Permutation parity, corner
+  twist and edge flip are all separately checkable and all separately violable
+  by a single mis-tapped sticker. Getting this wrong ships a screen that says
+  "looks fine" and a Step 4 solver that never terminates.
+- **A text field on a screen that does not scroll.** The keyboard covers the
+  bottom half of a phone, and this page is a fixed column by design (plan §2).
+  Editing probably belongs in a modal, like the favorites list does.
+- **Do not let the input clobber the current scramble mid-typing.** The cube
+  should follow a *valid* draft, not every keystroke of an invalid one.
 
 ### Out of scope for this step
 
-Solving, CFOP/Roux phases, other puzzle sizes, random-state scrambles, entering a
-cube by hand, a timer. All of those are later rows in plan §8.
+Solving, CFOP/Roux phases, other puzzle sizes, random-state scrambles, a timer.
+All of those are later rows in plan §8. The solver is Step 4 and it is the
+customer for this step's output — build for it, do not start it.
 
 ### Visible in Expo Go when this lands
 
-Open Cube Scramble, tap play, and watch the cube turn through the scramble one
-move at a time; scrub back and forth to any point in it.
+Open Cube Scramble, paste `R U R' U'`, and see that cube. Then set a few stickers
+by hand and see those. Enter something impossible and be told so.
 
 ### How to verify
 
-- `npm test` — extend `geometry.test.js` for the partial-turn path: `t = 0` must
-  equal the un-animated scene exactly, and `t = 1` must equal the scene of the
-  cube with the move applied.
-- The three commands above, all green.
-- Drive the web export headlessly at 320×568, 375×667 and 420×860 and check for
-  vertical overflow — the scrubber is new furniture on a screen that already fits
-  exactly.
+- `npm test` — the validity check is pure and belongs in a module the node
+  runner can import, tested against known-good and known-impossible states.
+- `npx expo-doctor` (18/18 — the two network-dependent checks may fail behind a
+  proxy; say so rather than reporting 16/18 as a regression) and
+  `npx expo export --platform all`.
+- Drive the web export headlessly at 320×568, 375×667 and 420×860. Step 2's
+  driver is a good starting point: serve `dist` and drive it with
+  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
 
 ---
 
 ## Open questions for the operator (carry these forward)
 
 These are plan §9, restated so a session does not have to go looking. None block
-Step 2.
+Step 3.
 
 1. Scramble length — 20 moves. Leave it?
 2. Other puzzles — 2×2, 4×4, pyraminx, skewb?
@@ -175,6 +199,12 @@ Step 2.
 5. What a "solve" should be for Steps 5–6: the method's own logic, or the
    shortest algorithm?
 6. Drag direction — currently "push the surface under your finger".
+7. ~~Turn speed.~~ **Answered** (operator, 2026-08-01): a speed control, and it
+   is in — a chip cycling 1× → 2× → 0.5×, scaling the beat between moves as well
+   as the turns, and applying to single steps as much as to playback. It is not
+   persisted, for the same reason the view angle is not. If it should survive a
+   relaunch, that is a save-file change and belongs with Step 3's decision about
+   what else the file holds.
 
 ### Noted in passing, for a later step
 
@@ -184,10 +214,64 @@ Step 2.
   `expo.version` matching the newest key.
 - `CubeView` takes a `colors` prop already, so a colour-scheme setting is a
   screen-level change, not a renderer one.
+- **The animation has only been seen on web.** `docs/fungiku-plan.md` §2 is the
+  standing warning: both animation bugs this repo has shipped were invisible in
+  the browser. This one uses no native driver and no `setValue`, which is the
+  class of problem avoided rather than dodged, but a device pass is still the
+  only evidence that counts for how it *feels*.
+- **`useScramblePlayer` assumes a solved starting cube.** It builds its states by
+  applying moves from `solvedCube()`. Playing a *solve* back (Step 4) starts from
+  a scrambled one, so it will want a starting cube as an argument — a small
+  change, worth making when there is a caller for it rather than now.
+- **The scrubber row is full.** Five buttons, `n / 20` and the speed chip come to
+  about 284 points, and the narrowest phone this app supports has 300. It wraps
+  rather than overflows, but a sixth control wants a rethink rather than another
+  chip.
+- **Half turns animate clockwise.** `shortWay(2)` is 2, not −2; both land in the
+  same place and nothing prefers one. If a solve tutorial ever wants `R2` to go
+  the way a particular fingertrick goes, that is the line to change.
 
 ---
 
 ## Steps already done
+
+### **Step 2 — play the scramble** ✅
+
+Shipped: `buildScene` takes an optional in-progress `turn` and draws the cube
+part-way through a move; a transport under the cube (start · back · play/pause ·
+forward · end, with `n / 20` and a speed chip); every token in the scramble is a
+tap target that **turns the cube its way there**, forwards or backwards; a drag
+stops playback. 125 cube tests.
+
+Playing the scramble, playing it backwards and turning to a tapped move are one
+loop told where to stop (`playTo`), so direction falls out of which side of the
+goal the cube is on and an interruption — including one that reverses — works
+the same way for all three. The two skip buttons are the only thing that still
+jumps: "back to the solved cube" is a way *out* of where you are, and turning
+twenty moves to get there would be the opposite of what the button says.
+
+Three things this step learned, all of them now in plan §5 and §10:
+
+- **A turning cube has an inside.** Only outward stickers exist, so a layer
+  half-way round showed the app's background through the gap. `buildScene` now
+  draws the seams a move cuts — plastic only, `0 < t < 1` only — and walks all 27
+  lattice positions so the core plugs the hole a slice opens.
+- **`faceBasis` only spans an axis-aligned normal.** Building a square from a
+  half-turned normal gives an unrotated square at a rotated centre, and the tiles
+  come off the cube in the middle of every move while both ends stay perfect.
+  Squares are built on the lattice and their corners carried. **This got past
+  `t = 0` and `t = 1` tests and was caught in a screenshot** — the tests that
+  hold it now are the continuity ones.
+- **Both ends are exact by construction**, so `t = 0` and `t = 1` frames are
+  identical, key for key, to the still cube either side of the move.
+
+Verified with `npm test` (576 across the app), `npx expo export --platform all`
+(web + iOS + Android), and a headless run of the web export at 320×568, 375×667
+and 420×860: no vertical or horizontal overflow, no console errors, and the whole
+transport driven — step, play, pause mid-turn, drag-to-cancel, tap-a-token,
+save, new scramble, load a favorite back. `npx expo-doctor` reported 16/18, both
+failures being the two checks that need network access this environment does not
+have (config schema fetch, React Native Directory).
 
 ### **Step 1 — scramble, inspect, favorite** ✅
 

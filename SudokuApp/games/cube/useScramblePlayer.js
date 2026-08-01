@@ -1,0 +1,312 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  DEFAULT_SPEED,
+  buildPlayback,
+  clampIndex,
+  ease,
+  gapDuration,
+  nextSpeed,
+  turnDuration,
+} from './player';
+
+/**
+ * The clock behind the scrubber: where in a scramble the cube is, and the turn
+ * it is part-way through.
+ *
+ * ### One loop, a goal, and a direction
+ *
+ * Playing the scramble, playing it backwards, and turning the cube to the move
+ * someone tapped are the same thing: keep taking one move toward a goal until
+ * you arrive. So there is one loop and it is told where to stop — `play` aims at
+ * the end, a tapped token aims at itself, and both can be interrupted the same
+ * way. A second "seek by animating" path would be the same walk written twice
+ * and would drift the first time one of them learned something.
+ *
+ * ### Why `requestAnimationFrame` and not `Animated`
+ *
+ * A turn rebuilds the SVG scene every frame, so there is nothing for
+ * `useNativeDriver` to drive — and an `Animated.Value` that cannot use it is a
+ * listener writing into React state, which is what this does directly with one
+ * fewer moving part. `docs/fungiku-plan.md` §2 is emphatic about mixing
+ * `setValue()` with a native driver; not having one closes the question.
+ *
+ * ### Refs, not state, for the things the loop reads
+ *
+ * The frame callback and the gap timer both outlive the render that scheduled
+ * them, so anything they consult — where we are, whether we are still playing,
+ * which moves — is held in a ref and mirrored into state for rendering. Reading
+ * `index` from a closure instead is how playback ends up replaying move four
+ * forever, and it is the same stale-closure trap `CubeView`'s pan handlers
+ * already dodge.
+ *
+ * @param {string} alg the scramble
+ */
+const useScramblePlayer = (alg) => {
+  const { moves, states } = useMemo(() => buildPlayback(alg), [alg]);
+  const count = moves.length;
+
+  // How many moves of the scramble are on the cube, and — while one is turning
+  // — that move and how far through it is.
+  const [index, setIndexState] = useState(count);
+  const [turn, setTurn] = useState(null);
+  const [playing, setPlayingState] = useState(false);
+
+  // How fast turns run. Not persisted, for the same reason the view angle is
+  // not: it is how the player is watching right now, and the save file holds
+  // algorithm text (plan §7).
+  const [rate, setRateState] = useState(DEFAULT_SPEED);
+
+  const indexRef = useRef(count);
+  const playingRef = useRef(false);
+  const rateRef = useRef(DEFAULT_SPEED);
+  const movesRef = useRef(moves);
+  const frameRef = useRef(null);
+  const timerRef = useRef(null);
+  // The turn the frame loop is in the middle of, so an interruption can land it
+  // rather than abandon it half-way.
+  const pendingRef = useRef(null);
+  // Where the walk is heading. Only meaningful while `playing`.
+  const goalRef = useRef(count);
+
+  movesRef.current = moves;
+
+  const setIndex = useCallback((next) => {
+    indexRef.current = next;
+    setIndexState(next);
+  }, []);
+
+  const setPlaying = useCallback((next) => {
+    playingRef.current = next;
+    setPlayingState(next);
+  }, []);
+
+  // The turn already running keeps the tempo it started at — retiming it
+  // mid-flight would make the cube lurch on the frame the chip was tapped. The
+  // next one picks the new speed up.
+  const cycleSpeed = useCallback(() => {
+    const next = nextSpeed(rateRef.current);
+    rateRef.current = next;
+    setRateState(next);
+  }, []);
+
+  const stopClock = useCallback(() => {
+    if (frameRef.current !== null) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Stop, and land whatever was mid-air.
+   *
+   * A turn frozen half-way is a cube in a position no cube can be in, and the
+   * model has not moved yet, so leaving one on screen desynchronizes the
+   * picture from the state behind it. Every interruption — a tap, a drag, a
+   * seek — finishes the move first.
+   */
+  const settle = useCallback(() => {
+    stopClock();
+    const pending = pendingRef.current;
+    pendingRef.current = null;
+    if (!pending) return;
+
+    setTurn(null);
+    setIndex(pending.forward ? pending.at + 1 : pending.at);
+  }, [setIndex, stopClock]);
+
+  /**
+   * Animate move `at`, forwards or backwards.
+   *
+   * Backwards is the same move run from `t = 1` down to 0 on the cube *before*
+   * it — no inverse move, no second code path, and the frame it lands on is the
+   * one the still cube would draw.
+   */
+  const animate = useCallback(
+    (at, forward, onDone) => {
+      const move = movesRef.current[at];
+      if (!move) {
+        if (onDone) onDone();
+        return;
+      }
+
+      settle();
+
+      const ms = turnDuration(move, rateRef.current);
+      const started = Date.now();
+      pendingRef.current = { at, forward };
+      setTurn({ at, t: forward ? 0 : 1 });
+
+      const tick = () => {
+        const progress = Math.min(1, (Date.now() - started) / ms);
+        const eased = ease(progress);
+        setTurn({ at, t: forward ? eased : 1 - eased });
+
+        if (progress < 1) {
+          frameRef.current = requestAnimationFrame(tick);
+          return;
+        }
+
+        frameRef.current = null;
+        pendingRef.current = null;
+        setTurn(null);
+        setIndex(forward ? at + 1 : at);
+        if (onDone) onDone();
+      };
+
+      frameRef.current = requestAnimationFrame(tick);
+    },
+    [setIndex, settle]
+  );
+
+  // One move toward the goal, plus a beat, then itself again — checking on each
+  // hop whether it is still wanted, because pause and a drag both work by
+  // saying no. Direction falls out of which side of the goal we are on, so
+  // walking a scramble backwards costs nothing extra.
+  const stepTowardRef = useRef(null);
+  const stepToward = useCallback(() => {
+    if (!playingRef.current) return;
+
+    const at = indexRef.current;
+    const goal = goalRef.current;
+    if (at === goal) {
+      setPlaying(false);
+      return;
+    }
+
+    const forward = goal > at;
+    animate(forward ? at : at - 1, forward, () => {
+      if (!playingRef.current) return;
+      if (indexRef.current === goalRef.current) {
+        setPlaying(false);
+        return;
+      }
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        stepTowardRef.current();
+      }, gapDuration(rateRef.current));
+    });
+  }, [animate, setPlaying]);
+  stepTowardRef.current = stepToward;
+
+  const pause = useCallback(() => {
+    settle();
+    setPlaying(false);
+  }, [settle, setPlaying]);
+
+  /**
+   * Turn the cube, one move at a time, until it is `target` moves in.
+   *
+   * Interrupts whatever was already walking, including one heading the other
+   * way: the in-flight turn lands first, and the next step is taken from where
+   * that left it rather than from where the old walk was going.
+   */
+  const playTo = useCallback(
+    (target) => {
+      settle();
+
+      const goal = clampIndex(target, movesRef.current.length);
+      goalRef.current = goal;
+
+      if (indexRef.current === goal) {
+        setPlaying(false);
+        return;
+      }
+
+      setPlaying(true);
+      stepTowardRef.current();
+    },
+    [setPlaying, settle]
+  );
+
+  const play = useCallback(() => {
+    settle();
+    // Pressing play at the end means "show me that again", not nothing.
+    if (indexRef.current >= movesRef.current.length) setIndex(0);
+    playTo(movesRef.current.length);
+  }, [playTo, setIndex, settle]);
+
+  const togglePlay = useCallback(() => {
+    if (playingRef.current) pause();
+    else play();
+  }, [pause, play]);
+
+  const stepForward = useCallback(() => {
+    pause();
+    if (indexRef.current >= movesRef.current.length) return;
+    animate(indexRef.current, true);
+  }, [animate, pause]);
+
+  const stepBack = useCallback(() => {
+    pause();
+    if (indexRef.current <= 0) return;
+    animate(indexRef.current - 1, false);
+  }, [animate, pause]);
+
+  /**
+   * Jump straight to a position — no animation.
+   *
+   * This is what the two skip buttons do, and only them. "Back to the solved
+   * cube" is a way out of wherever you are; turning twenty moves to get there
+   * would be the opposite of what the button says. Tapping a *move* is the
+   * other intent — take me there — and that is `playTo`.
+   */
+  const seek = useCallback(
+    (next) => {
+      pause();
+      setIndex(clampIndex(next, movesRef.current.length));
+    },
+    [pause, setIndex]
+  );
+
+  // A new scramble — or a favorite loaded back — opens fully applied, which is
+  // the cube this screen showed before it could play anything. Where you were
+  // in the last scramble is not somewhere to be in this one.
+  useEffect(() => {
+    stopClock();
+    pendingRef.current = null;
+    goalRef.current = moves.length;
+    setTurn(null);
+    setPlaying(false);
+    setIndex(moves.length);
+  }, [moves, setIndex, setPlaying, stopClock]);
+
+  // Leaving the screen mid-turn must not leave a frame loop running against an
+  // unmounted component.
+  useEffect(() => () => stopClock(), [stopClock]);
+
+  // The cube being drawn is the one *before* the turning move: `buildScene`
+  // carries the moving layer itself, so handing it the cube afterwards would
+  // apply the move twice.
+  //
+  // A turn is dropped if it does not belong to the current algorithm. The
+  // effect above clears it, but effects run *after* the render that changed the
+  // scramble, and a move index left over from a longer one would reach the
+  // renderer first — as `undefined`.
+  const live = turn && turn.at < count ? turn : null;
+  const cube = live ? states[live.at] : states[clampIndex(index, count)];
+  const turning = live ? { ...moves[live.at], t: live.t } : null;
+
+  return {
+    moves,
+    count,
+    index,
+    cube,
+    turn: turning,
+    playing,
+    rate,
+    play,
+    pause,
+    togglePlay,
+    playTo,
+    stepForward,
+    stepBack,
+    seek,
+    cycleSpeed,
+  };
+};
+
+export default useScramblePlayer;

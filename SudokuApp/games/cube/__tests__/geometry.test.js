@@ -15,9 +15,13 @@ import {
   DEFAULT_YAW,
   buildScene,
   orbit,
+  partialTurn,
   rotateQuarter,
+  shortWay,
+  turnAngle,
 } from '../geometry';
-import { STICKER_COLORS, cubeFromAlg, solvedCube } from '../cubeState';
+import { STICKER_COLORS, applyMove, cubeFromAlg, solvedCube } from '../cubeState';
+import { parseMove } from '../moves';
 
 const SIZE = 300;
 
@@ -194,6 +198,13 @@ describe('buildScene', () => {
     expect(frontTile(0)).not.toBe(frontTile(1.2));
   });
 
+  it('leaves the still cube alone when handed a turn that has not started', () => {
+    // Not the same assertion as the `t = 0` one below: this is the *absence* of
+    // a turn, and it is what every frame of the scrubbed-but-not-playing cube
+    // goes through.
+    expect(scene({ turn: null })).toEqual(scene());
+  });
+
   it('scrambles change the picture', () => {
     const solved = buildScene(solvedCube(), {
       size: SIZE,
@@ -212,5 +223,300 @@ describe('buildScene', () => {
     expect(scrambled.polygons.map((p) => p.fill)).not.toEqual(
       solved.polygons.map((p) => p.fill)
     );
+  });
+});
+
+describe('shortWay', () => {
+  it('reads a quarter turn as the short way round', () => {
+    // The model stores 0–3 because it only cares where a turn *lands*. An
+    // animation cares which way it goes to get there, and 3 is −1.
+    expect(shortWay(1)).toBe(1);
+    expect(shortWay(2)).toBe(2);
+    expect(shortWay(3)).toBe(-1);
+    expect(shortWay(0)).toBe(0);
+  });
+});
+
+describe('turnAngle', () => {
+  it('is the angle rotateQuarter turns through', () => {
+    // Clockwise seen from the positive end of the axis is −90° in right-handed
+    // coordinates, which is the sign `rotateOnce` is built on.
+    expect(turnAngle(1, 1)).toBeCloseTo(-Math.PI / 2, 12);
+    expect(turnAngle(2, 1)).toBeCloseTo(-Math.PI, 12);
+    expect(turnAngle(3, 1)).toBeCloseTo(Math.PI / 2, 12);
+  });
+
+  it('is exactly zero before a turn starts', () => {
+    expect(turnAngle(3, 0)).toBe(0);
+  });
+});
+
+describe('partialTurn', () => {
+  it('is the model itself at both ends, integers and all', () => {
+    const v = [0, -1, 1];
+
+    expect(partialTurn(v, AXIS.y, 3, 0)).toEqual(v);
+    expect(partialTurn(v, AXIS.y, 3, 1)).toEqual(rotateQuarter(v, AXIS.y, 3));
+
+    // Not 6.1e-17 — the ends hand off to the integer path rather than trusting
+    // `Math.cos(Math.PI / 2)`.
+    partialTurn(v, AXIS.y, 1, 1).forEach((c) => expect(Number.isInteger(c)).toBe(true));
+  });
+
+  it('goes the short way round for a counter-clockwise turn', () => {
+    // D carries `amount: 3`. Half way through, the F-D edge must be a *quarter*
+    // turn from where it started, in the direction of where it lands — animating
+    // 3 as a raw angle sends it three quarters of the way round the other way,
+    // which is the bug this pins.
+    const from = [0, -1, 1];
+    const to = rotateQuarter(from, AXIS.y, 3);
+    expect(to).toEqual([1, -1, 0]);
+
+    const mid = partialTurn(from, AXIS.y, 3, 0.5);
+
+    // Between the two, not diametrically opposite them.
+    expect(mid[0]).toBeGreaterThan(0);
+    expect(mid[2]).toBeGreaterThan(0);
+    expect(mid[1]).toBe(-1);
+  });
+
+  it('is a rotation, so nothing stretches part-way through a move', () => {
+    const v = [1, -1, 1];
+    [0.1, 0.37, 0.5, 0.9].forEach((t) => {
+      expect(Math.hypot(...partialTurn(v, AXIS.x, 2, t))).toBeCloseTo(Math.hypot(...v), 10);
+    });
+  });
+});
+
+describe('buildScene, part-way through a turn', () => {
+  const still = (cube) =>
+    buildScene(cube, {
+      size: SIZE,
+      yaw: DEFAULT_YAW,
+      pitch: DEFAULT_PITCH,
+      colors: STICKER_COLORS,
+    });
+
+  const turning = (token, t, cube = solvedCube()) =>
+    buildScene(cube, {
+      size: SIZE,
+      yaw: DEFAULT_YAW,
+      pitch: DEFAULT_PITCH,
+      colors: STICKER_COLORS,
+      turn: { ...parseMove(token), t },
+    });
+
+  const seams = (built) => built.polygons.filter((p) => p.key.startsWith('seam|'));
+
+  // Faces, slices, wides, rotations and a half turn: the shapes of `layers` and
+  // `amount` that exist, rather than one representative that would let a sign
+  // error hide in the other five.
+  const EVERY_SHAPE = ['U', 'D', 'R', 'L', 'F', 'B', 'M', 'E', 'S', 'Rw', 'y', 'R2', "D'"];
+
+  it('draws the cube it started from, exactly, at t = 0', () => {
+    // No jump on the frame an animation begins.
+    const before = still(solvedCube());
+    EVERY_SHAPE.forEach((token) => {
+      expect(turning(token, 0)).toEqual(before);
+    });
+  });
+
+  it('draws the cube with the move applied, exactly, at t = 1', () => {
+    // The other half of the same property, and the one that catches a turn
+    // animating the wrong way: it would still *land* here, but only because the
+    // last frame is computed by the model rather than by the animation — so the
+    // test is only worth anything alongside `partialTurn`'s direction test.
+    EVERY_SHAPE.forEach((token) => {
+      const move = parseMove(token);
+      expect(turning(token, 1)).toEqual(still(applyMove(solvedCube(), move)));
+    });
+  });
+
+  it('is somewhere else in between', () => {
+    const mid = turning('R', 0.5);
+    expect(mid).not.toEqual(turning('R', 0));
+    expect(mid).not.toEqual(turning('R', 1));
+  });
+
+  it('opens the seams the move cuts, and only while it is open', () => {
+    // Half way through a turn the layer has swung off the one under it. Without
+    // plastic in the gap you would see the app's background through the middle
+    // of the cube — the one thing a renderer with no backdrop cannot survive.
+    expect(seams(turning('R', 0.5)).length).toBeGreaterThan(0);
+    expect(seams(turning('R', 0))).toHaveLength(0);
+    expect(seams(turning('R', 1))).toHaveLength(0);
+  });
+
+  it('plugs the hole a slice leaves in the middle of the cube', () => {
+    // The core is not a cubie — it is invisible on a closed cube — but an M
+    // turn swings it away from the centre, and the gap it leaves is looked
+    // straight into from the standard view.
+    const keys = seams(turning('M', 0.5)).map((p) => p.key);
+    expect(keys.some((key) => key.startsWith('seam|0,0,0|'))).toBe(true);
+  });
+
+  it('opens nothing for a whole-cube rotation', () => {
+    // Every cubie goes the same way, so there is no seam to cut.
+    [0.25, 0.5, 0.75].forEach((t) => {
+      expect(seams(turning('y', t))).toHaveLength(0);
+      expect(seams(turning('x', t))).toHaveLength(0);
+    });
+  });
+
+  it('puts no sticker on the inside of the cube', () => {
+    turning('U', 0.4).polygons.forEach((polygon) => {
+      if (polygon.key.startsWith('seam|')) expect(polygon.key.endsWith(':body')).toBe(true);
+    });
+  });
+
+  it('keeps every key unique through the whole turn', () => {
+    [0, 0.2, 0.5, 0.8, 1].forEach((t) => {
+      const built = turning('F', t);
+      expect(new Set(built.polygons.map((p) => p.key)).size).toBe(built.polygons.length);
+    });
+  });
+
+  it('names a moving face by where it lands, not by where it is', () => {
+    // Which faces survive culling changes as a layer swings round, so the *list*
+    // of keys moves — but every key in it is one the cube will still be using
+    // when the turn is over. That is what lets React re-render the cube each
+    // frame and hand the last frame's polygons straight to the frame after it,
+    // rather than remounting 54 views twenty times a scramble.
+    // Every sticker the cube will have once the move lands, visible or not —
+    // culling picks a different 27 of them each frame, which is exactly why the
+    // comparison is against the whole set rather than against one frame's.
+    const after = new Set(
+      applyMove(solvedCube(), parseMove('U')).cubies.flatMap((cubie) =>
+        cubie.stickers.map(
+          (sticker) => `${cubie.pos.join(',')}|${sticker.normal.join(',')}`
+        )
+      )
+    );
+
+    [0.1, 0.3, 0.7, 1].forEach((t) => {
+      turning('U', t).polygons.forEach((polygon) => {
+        if (polygon.key.startsWith('seam|')) return;
+        expect(after.has(polygon.key.split(':')[0])).toBe(true);
+      });
+    });
+  });
+
+  /**
+   * How far a corner is from the nearest corner of `points`.
+   *
+   * Nearest rather than same-index, because the corner *cycle* is not
+   * meaningful: the same square listed from a different vertex fills
+   * identically, and a rotating square's vertices swap places under any fixed
+   * ordering. Distance to the nearest corner is continuous in the rotation,
+   * which is the whole point of measuring it.
+   */
+  const nearest = (point, points) =>
+    Math.min(...points.map((p) => Math.hypot(point[0] - p[0], point[1] - p[1])));
+
+  const byKey = (built) => new Map(built.polygons.map((p) => [p.key, p.points]));
+
+  /** The furthest any square moves between two frames, in points. */
+  const travel = (a, b) => {
+    const to = byKey(b);
+    let worst = 0;
+
+    byKey(a).forEach((points, key) => {
+      const other = to.get(key);
+      if (!other) return; // Culled in one of the two frames; nothing to compare.
+      points.forEach((point) => {
+        worst = Math.max(worst, nearest(point, other));
+      });
+    });
+
+    return worst;
+  };
+
+  it('moves smoothly, with no frame the cube jumps between', () => {
+    // The property that catches a turn whose *squares* are wrong even though
+    // its centres are right. A face square is spanned from its normal, and a
+    // normal half-way through a turn is not axis-aligned — build the square
+    // from the carried normal instead of carrying the square and the tiles come
+    // off the cube in the middle of every move while both ends stay perfect.
+    // Nothing that checks only `t = 0` and `t = 1` can see it.
+    //
+    // Stepped by angle rather than by `t`, so a half turn is sampled twice as
+    // often as a quarter one and the bound means the same thing for both: 4.5°
+    // moves a corner at the cube's radius by about 11 points on a 300-point
+    // viewport. The sweep starts just past zero because that is where a turn's
+    // keys begin — at `t = 0` there is no turn at all, and its faces are named
+    // for where they are rather than where they are going.
+    const MOST = 15;
+
+    EVERY_SHAPE.forEach((token) => {
+      const step = 0.05 / Math.abs(shortWay(parseMove(token).amount));
+      let previous = turning(token, 0.0001);
+
+      for (let t = step; t <= 1 + step / 2; t += step) {
+        const next = turning(token, Math.min(1, t));
+        expect(travel(previous, next)).toBeLessThan(MOST);
+        previous = next;
+      }
+    });
+  });
+
+  it('leaves and lands without a jump', () => {
+    // The two joins between the animation and the still cube either side of it.
+    // Compared corner by corner over the whole frame rather than face by face,
+    // because a turn renames its faces the moment it starts.
+    const tileCorners = (built) =>
+      built.polygons
+        .filter((polygon) => polygon.key.endsWith(':tile'))
+        .flatMap((polygon) => polygon.points);
+
+    EVERY_SHAPE.forEach((token) => {
+      const start = tileCorners(turning(token, 0));
+      const moved = tileCorners(turning(token, 0.0001));
+      expect(moved).toHaveLength(start.length);
+      moved.forEach((point) => expect(nearest(point, start)).toBeLessThan(1));
+
+      expect(travel(turning(token, 0.999), turning(token, 1))).toBeLessThan(1);
+    });
+  });
+
+  it('keeps the cube inside its viewport all the way through', () => {
+    // A layer rotating about an axis through the centre keeps every point at
+    // the same distance from it, so the bounding-sphere fit is still exact
+    // mid-turn — but that is a claim worth a test rather than an argument.
+    let lowest = Infinity;
+    let highest = -Infinity;
+
+    EVERY_SHAPE.forEach((token) => {
+      [0.15, 0.35, 0.5, 0.65, 0.85].forEach((t) => {
+        turning(token, t).polygons.forEach((polygon) => {
+          polygon.points.forEach((point) => {
+            lowest = Math.min(lowest, point[0], point[1]);
+            highest = Math.max(highest, point[0], point[1]);
+          });
+        });
+      });
+    });
+
+    expect(lowest).toBeGreaterThanOrEqual(0);
+    expect(highest).toBeLessThanOrEqual(SIZE);
+  });
+
+  it('still orders faces back to front', () => {
+    // Mid-turn the cube is no longer one convex solid, so this is the property
+    // that would degrade first if the seam faces were sorted wrongly.
+    const built = turning('R', 0.5);
+    expect(built.polygons.length).toBeGreaterThan(0);
+    // Plastic before the tile on it, for every face that has one.
+    built.polygons.forEach((polygon, i) => {
+      if (polygon.key.endsWith(':tile')) {
+        expect(built.polygons[i - 1].key).toBe(polygon.key.replace(':tile', ':body'));
+      }
+    });
+  });
+
+  it('turns a scrambled cube, not just a solved one', () => {
+    const scrambled = cubeFromAlg("R U R' U' F2 L D' B");
+    const move = parseMove('L2');
+    expect(turning('L2', 1, scrambled)).toEqual(still(applyMove(scrambled, move)));
+    expect(turning('L2', 0, scrambled)).toEqual(still(scrambled));
   });
 });

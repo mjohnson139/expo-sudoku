@@ -35,6 +35,7 @@ const CubeView = ({
   yaw = DEFAULT_YAW,
   pitch = DEFAULT_PITCH,
   onOrbit,
+  turn = null,
   colors = STICKER_COLORS,
   accessibilityLabel,
 }) => {
@@ -80,9 +81,12 @@ const CubeView = ({
     })
   ).current;
 
+  // Rebuilt on every frame of a turn, which is the whole cost of the animation
+  // and the reason the polygon budget is worth keeping small: 27 faces at rest,
+  // and a dozen more plastic seams while a layer is part-way round.
   const scene = useMemo(
-    () => buildScene(cube, { size, yaw, pitch, colors }),
-    [cube, size, yaw, pitch, colors]
+    () => buildScene(cube, { size, yaw, pitch, colors, turn }),
+    [cube, size, yaw, pitch, colors, turn]
   );
 
   return (
