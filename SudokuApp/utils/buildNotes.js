@@ -2,6 +2,19 @@
 // Each version's notes are stored in this file
 
 const BUILD_NOTES = {
+  '3.1.0': {
+    title: 'Cube Scramble — a 3D cube on the hub',
+    date: '2026-08-01',
+    notes: [
+      'New on the hub: Cube Scramble, a tool for the Rubik\'s cube in your hands',
+      'Every visit hands you a fresh 20-move scramble in standard notation',
+      'The cube is drawn in 3D with the scramble already applied — drag it to turn it and read any face',
+      '"Other side" jumps to the three faces you cannot see; "Reset view" goes back to the opening angle',
+      'Save a scramble to your favorites, and load any of them back onto the cube later',
+      'The scramble you were looking at, and everything you saved, survive closing the app',
+      'Sudoku and Fungiku are unchanged',
+    ]
+  },
   '3.0.0': {
     title: 'Puzzle Box — two games, one hub',
     date: '2026-08-01',

@@ -7,6 +7,7 @@
  */
 import { MARKS } from '../games/fungiku/engine';
 import { difficultyForSize, difficultyLabel } from '../games/fungiku/difficulty';
+import { describeScramble } from '../games/cube/scramble';
 
 const TOTAL_SUDOKU_CELLS = 81;
 
@@ -78,4 +79,37 @@ export const describeFungikuProgress = (saved) => {
   };
 };
 
-export default { describeSudokuProgress, describeFungikuProgress, formatElapsed };
+/**
+ * Summarize the saved cube scramble for a hub card.
+ *
+ * "Continue" means something slightly different here than it does for a puzzle:
+ * there is no progress to lose, only a scramble the player was looking at. That
+ * is still worth a badge — a scramble is a thing you go back to, and the count
+ * of saved ones is what tells you whether this card has anything in it yet.
+ *
+ * @param {{scramble: string, favorites: Array}|null} saved as returned by
+ *   `games/cube/storage.js`'s `readCubeSave`
+ * @returns {{label: string, detail: string}|null}
+ */
+export const describeCubeProgress = (saved) => {
+  if (!saved || typeof saved.scramble !== 'string' || saved.scramble.length === 0) {
+    return null;
+  }
+
+  const savedCount = Array.isArray(saved.favorites) ? saved.favorites.length : 0;
+
+  return {
+    label: describeScramble(saved.scramble),
+    detail:
+      savedCount > 0
+        ? `${savedCount} favorite${savedCount === 1 ? '' : 's'}`
+        : 'tap to inspect',
+  };
+};
+
+export default {
+  describeSudokuProgress,
+  describeFungikuProgress,
+  describeCubeProgress,
+  formatElapsed,
+};
