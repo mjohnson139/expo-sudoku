@@ -92,7 +92,119 @@ operator to test in Expo Go.**
 
 ---
 
-## Next step: **Step 12 — the art swap**
+## Next step: **Step 13 — close the epic: merge `epic/fungiku` to `main`**
+
+Branch: **none of your own.** This step's deliverable is a **PR from
+`epic/fungiku` to `main`**, plus whatever small fixes the final pass turns up
+(those go on `feature/fungiku-close` off `epic/fungiku`, and land on the epic
+before it merges).
+
+**Step 12 was the last building step and it has landed.** Every row of §7's step
+table is ticked. What is left is the thing the epic branch was created to make
+possible: putting a finished game mode on `main` in one reviewable move.
+
+### Do not start by writing code
+
+The two things that gate this step are both operator decisions, and one of them
+has been open since Step 3:
+
+1. ~~**The device pass on Step 12.**~~ **Done, eight times over.** Every round of
+   #81 came from the operator playing it on a phone — the animations, the
+   banners that moved the board, the hint, the prices, the win dialog's placement
+   and entrance, and three separate flakiness reports. §§12.7–12.14 record what
+   each one changed. **Nothing on this list is waiting for that any more.**
+2. **The app name** — open question #2 below, and now on every screen. The hub
+   still says the Step 3 placeholder **"Puzzle Box"**. Merging to `main` is the
+   moment it stops being a placeholder and starts being what the app is called in
+   the store, so this is the last cheap chance to change it. It is two constants
+   in `SudokuApp/utils/appIdentity.js`, plus `app.json` (`expo.name`,
+   `web.name`/`shortName`), the icon, and the listing.
+
+Do not guess at either. **A step that merges an epic on an unanswered brand
+question has made the decision by not making it.**
+
+### Scope — ONLY this
+
+1. **Play the whole game through once, end to end**, not just the last thing that
+   changed: hub → Fungiku → each of the four difficulties → win one → lose one on
+   purpose → spend every assist → quit to the hub mid-board and come back →
+   relaunch cold onto a restored board. Then the same for Sudoku, because the
+   golden rule was that it kept working and nobody has checked it in eleven steps.
+2. **Fix only what that pass breaks.** Anything it merely *reveals* — the open
+   questions, the noted-in-passing list — is a follow-up issue against `main`, not
+   a reason to hold the merge.
+3. **Open the PR to `main`** with the epic's story: what Fungiku is, the eleven
+   steps that built it, and — honestly — what is still a guess (the coin rates,
+   §14.4; the hint ceiling, §8 #6; colourblind separation since the region strokes
+   went, §8 #16).
+4. **Retire the developer controls, or decide out loud not to.**
+   `SHOW_DEVELOPER_CONTROLS` in `FungikuMenuModal.js` currently ships free play,
+   the seed field **and the gift-ten-coins button** to anyone who opens the menu.
+   A gift button on `main` is an economy nobody has to play for. Flipping it to
+   `false` is a one-line change; leaving it is a choice that has to be argued.
+
+### Read first
+
+- `docs/fungiku-plan.md` §7 (the whole table is now history), §14.4 (what is
+  still a guess), and **§12.7** (what Step 12 actually did, and why the browser
+  could not judge it).
+- `SudokuApp/utils/appIdentity.js` and `app.json` — the two halves of the name.
+- `SudokuApp/games/fungiku/FungikuMenuModal.js` — `SHOW_DEVELOPER_CONTROLS`.
+- The "Noted in passing" list below. It is the follow-up backlog; **turn it into
+  issues rather than carrying it into `main`'s handoff.**
+
+### Behaviors that are easy to get wrong
+
+- **A merge to `main` is not a step you can un-ship.** Every other step landed on
+  the epic, where a mistake cost one revert. This one puts Fungiku in front of
+  whoever installs the app.
+- **`main` has moved.** Steps 0 and 1 merged there directly and nothing since;
+  check whether anything else has landed and merge `main` into the epic *first*,
+  so the PR to `main` is a clean fast-forward-able diff rather than a conflict
+  resolved under review.
+- **The epic is 12 steps of commits.** Do not squash it into one — the commit
+  messages are the only record of why several decisions went the way they did.
+- **Sudoku still hydrates its own theme** (see the note below). That is a known,
+  deliberate half-fix, not something the final pass should "discover" and fix in
+  the merge PR.
+
+### Out of scope for this step
+
+- **No new features, and no economy tuning.** The rates are guesses awaiting a
+  play session (§14.4); tuning them is its own change driven by the operator's
+  numbers.
+- **No store, no IAP** — unchanged since Step 11.
+- **No board rating / propagator work** (§14.1, §12.1).
+- **No palette re-tuning** (§12.2) and **no re-litigating the tile look** (§12.5).
+
+### Visible in Expo Go when this lands
+
+**Nothing changes, and that is the point** — the app the operator has been
+testing off the epic branch becomes the app on `main`.
+
+### How to verify
+
+`npm test` · `npx expo-doctor` (18/18) · `npx expo export --platform all`, then
+drive the web build (serve `dist/`, Chromium at
+`/opt/pw-browsers/chromium-1194/chrome-linux/chrome` — **note the versioned
+path**, `/opt/pw-browsers/chromium` is a file, not the binary; do not run
+`playwright install`; `npm install` first, the container starts with no
+`node_modules`). Then the full manual pass above, **and the operator's device
+pass**, which is the one that actually gates the merge.
+
+---
+
+## Previous step: **Step 12 — the art swap** ✅
+
+Landed as **motion, not artwork**. The operator's answer to the step's opening
+question was route 1 with a rider: *"We don't have any art work at this point so
+we will stick with what we have but anyway to add some fun animations for when
+they appear?"* — so the glyph stayed and the step spent itself on the seam and on
+two animations. Plan §12.7 has the whole account. The brief that produced it is
+kept below for one step, then can go.
+
+<details>
+<summary>The original Step 12 brief</summary>
 
 Branch: **`feature/fungiku-art`** off `epic/fungiku`.
 Plan: **§7** (the step table's last row) and **§5**, "What is reused vs. new".
@@ -115,7 +227,8 @@ operator which of these they want, and *say in the PR which was chosen*:
    art arrives later as an asset-only change.
 2. **Draw it in code** — an SVG/vector mushroom built here, no external asset.
    `react-native-svg` is already a dependency (check `package.json` before
-   promising it).
+   promising it). **Checked, 2026-07-29: it is not.** Route 2 would have meant
+   adding a dependency, which is worth knowing if the art question ever reopens.
 3. **Wait for a supplied asset** — in which case this step is a no-op and the
    epic merges without it.
 
@@ -191,6 +304,8 @@ path**, `/opt/pw-browsers/chromium` is a file, not the binary; do not run
 where legibility is decided. Then **ask the operator for a device pass**, and ask
 explicitly whether the epic is ready to merge to `main`.
 
+</details>
+
 ## Open questions for the operator (carry these forward)
 
 1. ~~**Mode name**~~ — decided: **"Fungiku"** (internal id `fungiku`).
@@ -257,10 +372,14 @@ explicitly whether the epic is ready to merge to `main`.
     ✕ deductions included, and the operator chose that over keeping them. The
     dialog is what makes it survivable — it says the puzzle is the same one before
     the board clears. Worth re-asking after a child has hit it.
-14. **Are the coin rates right?** (plan §14.4) **Every number in
-    `games/fungiku/wallet.js` is a guess**, drafted to be playable rather than
-    balanced, and they are gathered at the top of that file so tuning is editing
-    one block. Start 10 coins; rule-out 1, hint 2, reveal 4; a win pays a base by
+14. **Are the coin rates right?** (plan §14.4, §12.9) **The prices are now the
+    operator's** — rule-out 1, **hint 5, reveal 20** (2026-07-29) — but **the
+    earning side is still the original guess**, and the two have not been played
+    against each other. A win pays 3–8 plus bonuses, so a reveal is two or three
+    whole boards' work and a brand-new wallet (10 coins) cannot buy one at all.
+    That may be exactly the intent; it is a play question. `DAILY_FLOOR_COINS`
+    now derives from the hint price so the floor still buys *something that
+    helps*. Start 10 coins; rule-out 1, hint 5, reveal 20; a win pays a base by
     rung (Easy 3 → Expert 8) plus 1 per life still standing and 2 for asking for
     no hints; a daily floor raises the balance *to* 4 if it has fallen below. The
     questions a session answers: does an Easy board pay enough to keep playing,
@@ -288,6 +407,208 @@ explicitly whether the epic is ready to merge to `main`.
 
 ### Noted in passing, for a later step
 
+- **The win dialog is one arrival, and must stay one** (plan §12.14). Box,
+  rewards and confetti land on the same frame; `AWARD_START_MS` *is*
+  `WIN_DIALOG_DELAY_MS`. Every attempt so far to stage this in beats — five, then
+  one — has come back as "why is it delayed". If a future change wants to
+  introduce a beat, that is re-opening a settled question.
+- **A staged reveal costs more than it looks.** Fading a block in inside a
+  *centred* dialog means mounting it invisible to reserve height, which means
+  `aria-hidden` so a screen reader does not read it early, which means knowing
+  that `accessibilityElementsHidden`/`importantForAccessibility` do not work on
+  web. All three of those are deleted now, and all three came from the one beat.
+- **Confetti origins are spread, not a point.** `ox`/`oy` per piece, baked into
+  the trajectory's output ranges so a piece is one transform however it is
+  placed. A single origin reads as a popper going off *behind* the rewards; the
+  spread is what makes it look like the rewards themselves bursting.
+
+- **The celebration and the dialog are two questions with two different
+  answers** (plan §12.13). *Should the animation play?* → the win **event**
+  (`winSeq`); a remount is not a win. *Should the dialog be up?* → the persisted
+  **condition** `solved && !winDismissed`; closing the app is not an
+  acknowledgement. Keying both on the same thing has now been wrong in both
+  directions.
+- **The payout is computed, not remembered.** `rewardForWin` is pure and its
+  inputs are all persisted, so a dialog restored after a relaunch can show its
+  coins. Do not go back to reading `lastReward` for the rows — that is provider
+  state a remount wipes, and it is what made the dialog come back empty.
+  `lastReward` means *"this session granted it"* and drives only the count-up.
+- **`winSeq` is bumped in an effect, so it lags `solved` by one render.** Anything
+  asking "did we arrive on this, or did it just happen?" cannot use `winSeq === 0`
+  alone — on the winning tap that is briefly true. The win dialog settles it with
+  `arrivedPending`, a lazily-initialised `useState` captured at mount. **453 unit
+  tests were green while this was broken**; only the browser check saw it, because
+  the race is between two React commits.
+- **Save version is 4.** v3 → v4 adds `winDismissed`, defaulting to `false` —
+  an old save has no record either way, and showing the dialog once more costs a
+  tap while suppressing it could hide a payout. Wrong in the harmless direction.
+
+- **Nothing that celebrates may key on `solved`.** It is a *condition* derived
+  from `marks` — true on every render where the board happens to be complete,
+  including the first render after a remount. Use **`winSeq`** from the context,
+  which counts transitions into solved that the provider actually watched, and
+  **do nothing while it is 0**. Plan §12.12; this cost three operator-visible bugs
+  (the wave replaying on resume, the dialog reopening, and reopening *empty*).
+- **The provider renders before hydration, with the default empty board.** So
+  `solved` really does go false → true when a save loads. Any "did this just
+  become true?" watcher has to be gated on `hydrated` and **adopt** the restored
+  value on its first pass instead of treating it as a change. The first version of
+  `winSeq` got this wrong and a browser check caught it.
+- **An animation that must start from a known place has to be *put* there — third
+  instance.** The confetti burst only ever played once per mount because its value
+  ended at 1 and was never wound back (the dialog returns `null` while hidden, so
+  refs survive). Same family as the `Animated.loop` reset trap (§12.9) and the
+  hint ring. Use a zero-duration timing, not `setValue`, when the value is
+  native-driven.
+- **Arriving on a finished board shows no win dialog**, deliberately (§12.12).
+  Re-entering from the hub, relaunching, or returning from the background all
+  count as arriving. *New puzzle* and *Difficulty* are always under the board.
+
+- **`aria-hidden` is the portable one.** `accessibilityElementsHidden` is
+  iOS-only and **react-native-web does not map `importantForAccessibility` at
+  all**, so hiding something from assistive tech with that pair changes nothing
+  on the web. RN maps `aria-hidden` to both native equivalents — one prop covers
+  iOS, Android and the web. Plan §12.11; a browser check caught the first
+  attempt.
+- **Anything held at `opacity: 0` to reserve its height is still read aloud.**
+  The win dialog mounts its payout early so revealing it cannot resize a centred
+  box; that means it also has to be `aria-hidden` until it is actually shown, or
+  the result is announced a beat before the player sees it and a live region
+  fires against an invisible number.
+- **A centred dialog cannot grow.** Low or top-anchored, a block appearing inside
+  a dialog pushes one edge; centred, it pushes *both* — the title and the buttons
+  move apart at the moment the player is reading them. Reserve the height.
+- **Confetti (and anything like it) is deterministic, not random.**
+  `confetti.js` hashes the piece index. `Math.random()` would re-roll on every
+  render and make each piece jump to a new trajectory mid-flight, and "the pieces
+  go in all directions" is only testable if the answer is the same twice.
+- **The confetti palette is deliberately not the region palette.** Those ten
+  colours are tuned for dichromat separation as fills behind a glyph (§12.2).
+  Reusing them for decoration would tie a cosmetic choice to a load-bearing one,
+  so retuning the board's legibility would restyle the confetti and vice versa.
+- **The payout no longer narrates, and that was an operator call** (§12.11), not
+  a simplification anyone should undo. The reasons are still all *named* — that
+  was the point of narrating them — they just arrive together, one beat after the
+  confetti. `stepIndex`, `step`, `STEP_MS` and `SETTLE_MS` are gone from
+  `useCoinAward`.
+
+- **The hint popover lives inside `FungikuBoard`'s card, as a sibling of the
+  touch box, and both halves of that are load-bearing** (plan §12.10). Not
+  *inside* the touch box, because the board claims every touch at touch-down in
+  the capture phase — a child there can never receive a press, so Dismiss and
+  Reveal would be dead. Not up in the screen, because it would then need the
+  board's measured origin and `measureInWindow` is async: it would arrive a frame
+  late, in the wrong place, on the one interaction whose whole value is pointing
+  accurately. As a sibling it is in the board's own coordinates — the same space
+  `cellFromPoint` uses — and outside the capture path.
+- **A popover needs two clamps, not one.** The body is clamped to the board's
+  width *and* the tail is clamped within the body. A cell in column 0 pushes the
+  body against the edge and the tail then has to travel inside it to keep
+  pointing. One clamp without the other is a bubble that points at the wrong
+  mushroom, which is worse than not pointing at all. `hintPlacement.js` is pure
+  and both clamps are tested over every cell of every size.
+- **"Make the wave longer" is not "make the wave slower".** Doubling
+  `WAVE_DURATION_MS` alone doubles every individual hop, and a mushroom that
+  takes most of a second to go up and down is a wobble, not a hop. What should
+  stretch is the *travel across the board*: `SPREAD` up, `BUMP` down, in step
+  with the duration. Measured: travel went 300 ms → 917 ms while the hop stayed
+  ~480 ms and 17 px. Two tests pin the distinction so the next "longer" cannot be
+  implemented as "slower".
+- **`querySelectorAll` is pre-order, so `.find()` on `textContent` returns the
+  *outermost* match.** Every ancestor of a string "contains" it, so a search for
+  the popover's text returned a div near the document root and walking up from
+  there found nothing. Take the **last** match. This cost a round of false
+  failures in a browser check that was actually passing.
+
+- **`Animated.loop({iterations: n})` resets to the value's *construction* value,
+  not to the animation's start.** `resetBeforeIteration` calls `resetAnimation()`,
+  which snaps back to `_startingValue`. If your value is constructed at its
+  **resting** pose — which every animation in this codebase does, so nothing is
+  ever stranded — then `loop` resets it to the rest and animates from rest to
+  rest. **No error, no warning, ~75 frames of nothing.** The hint ring hit this
+  and simply never appeared. Write repeats out as an `Animated.sequence` with a
+  zero-duration timing for the reset (it stops with the sequence; `setValue` does
+  not). Plan §12.9.
+- **`Easing.out` on a short attention animation is too fast to watch.** An
+  ease-out spends nearly all its progress in the first frames: the hint ring
+  reached its cell inside 150 ms, so the motion was over before an eye could
+  follow it — which was the entire point of the motion. `inOut` is what makes
+  travel legible. Measure the frame count above the threshold you care about;
+  a screenshot cannot tell you this.
+- **A hint's teaching lives in its *message*, not in making the player search.**
+  The nudge used to outline the whole row/column/region and say "only one cell
+  can hold a mushroom" — words saying *one*, board showing *seven*. It now names
+  the cell and still says why. **It is one line of reducer away from being a
+  reveal at a quarter of the price**, so there is a test asserting a nudge does
+  not place a mushroom. Do not delete it.
+- **`DAILY_FLOOR_COINS` is `COIN_COSTS.HINT`, deliberately derived.** The floor's
+  whole claim is that the game cannot become unwinnable, and a floor that clears
+  the rule-out price but not the hint price does not keep it — a stranded player
+  needs to be told something, not to have tedium saved. **Any reprice of hints
+  moves the floor with it.** A conscious decision to decouple them is fine; a
+  stale constant is not.
+- **The earn rates are now the loudest open question.** Prices went to 1 / 5 / 20
+  (operator, plan §12.9) and `WIN_BASE` was left at 3–8, so a reveal is two or
+  three boards' work and a new wallet cannot afford one. That may be the point.
+  It is a play question — §8 #14.
+
+- **Nothing sits between the counter row and the board any more, and the rule
+  that produced so many workarounds is gone with it** (plan §12.8). The hint
+  banner is a floating overlay and the win banner is a dialog; neither takes
+  layout space, so **`hint` and `solved` no longer move the board.**
+  `FungikuBoard`'s re-measure effect stays as *insurance* rather than as the fix.
+  The constraints it spawned are dead too: **the win dialog may change height**,
+  which is why the payout now stacks its reasons instead of replacing them. The
+  counter row's width rule (§14.3) is unaffected and still load-bearing — that
+  one is about the ScrollView centring its children, not about height.
+- **The hint is an overlay and the win is a dialog, and swapping either is a
+  mistake.** A hint points at cells the player must *see and tap while it is
+  showing*, so it uses `pointerEvents="box-none"` and lets every touch that
+  misses the card fall through to the board. A modal there would black out the
+  thing the hint is talking about. The win may take the screen because the puzzle
+  is over.
+- **Three win timings are chained by derivation, not by agreement.**
+  `WIN_DIALOG_DELAY_MS` comes from the wave's duration, `AWARD_START_MS` from the
+  dialog's, and `useCoinAward` imports the last rather than keeping its own start
+  delay. Retuning the wave moves all three. **The failure mode is silent** — a
+  dialog that opens early just covers a ripple nobody notices is missing.
+- **Measuring the board's position during the win lift reads a ~1px shift, and it
+  is not a bug.** The lift is a 1.03 scale on the card that rests at exactly 1.
+  Any future check of "did the board move" has to sample outside the 720 ms the
+  lift owns, or it will chase the celebration.
+- **`Symbol` is keyed on a cell *value*, and Fungiku's cells hold marks.** That
+  mismatch is why the board had drifted into naming the `mushroom` icon itself,
+  and it is why the ✕ is still drawn by `FungikuBoard` rather than through the
+  seam: no symbol set has an entry for a mark, and inventing one would put a
+  non-symbol in the value table. Step 12 fixed the mushroom by exporting
+  `MUSHROOM_VALUE` and asking for *that* symbol. **If real art ever includes an
+  ✕, that is the moment to add a mark table beside the value table** — the fix is
+  a second lookup, not a fake value.
+- **The win wave is one `Animated.Value` for the whole board, and it is not the
+  per-cell rule breaking.** The rule below is about a value that gets
+  *re-pointed*; the wave is one value **every cell reads at once**, each through
+  its own fixed window, so nothing is ever re-pointed. That is what lets it run on
+  the native driver while the sprout — which *is* `setValue`d — stays on the JS
+  driver. They are on separate values and, necessarily, **separate
+  `Animated.View`s**: once any value in a style has moved to native, a JS-driven
+  animation on that same props node throws, so the mushroom is two nested views
+  (wave outside, sprout inside) and **that nesting is load-bearing**.
+- **`interpolate`'s `easing` is silently dropped by the native driver.**
+  `__getNativeConfig` forwards only the ranges and the extrapolation, so an eased
+  interpolation animates natively as a straight line — correct in a browser
+  (react-native-web ignores `useNativeDriver` and eases in JS), a mechanical
+  zigzag on device, and warned about only in a dev build. The win wave's arc is
+  therefore **extra keyframes in `celebration.js`**, not a curve. Same family as
+  every other native-only bug this epic has hit: the browser cannot see it.
+- **`games/fungiku/celebration.js` is pure on purpose.** Jest here is plain node
+  with no React Native, so the only way an animation's math gets tested is if it
+  lives outside the component. Anything else fiddly enough to get wrong should go
+  the same way.
+- **Both ends of the wave's progress are the resting pose.** `solved` is a
+  condition, not an event, so the celebration has to be cancellable by jumping to
+  the nearer end — undo across the win line, redo back, and a relaunch onto a
+  finished board all hit it. Checked in the browser: nothing is left mid-hop on
+  any of the three.
 - **The board is tiles now, not a grid — and `FungikuGridLines.js` is deleted.**
   The operator asked for Meowdoku's look (2026-07-29): rounded tiles with a gap
   between them, no grid lines, no region strokes, no frame. The file is
@@ -662,13 +983,14 @@ explicitly whether the epic is ready to merge to `main`.
 | 8 | Bigger boards — `MAX_SIZE = 10`, a tenth region colour tuned for CVD, no-wrap `getRegionColor`, generation announced, legibility at 32px, cost bound in rounds, board lines redrawn as a snapped overlay | merged to `epic/fungiku` (#75, `d4d2018`), operator-tested on device |
 | 9 | Difficulty menu — rungs mapped into `SIZES` by *share*, size-from-seed, menu modal built to Sudoku's, free play + seed behind one constant, real v1→v2 save migration, difficulty in the header rather than a banner, hub badge names the rung | merged to `epic/fungiku` (#77, `02fcdf1`), operator-tested on device |
 | 10 | Lives & mistakes — tap ✕ / double-tap 🍄 replacing the cycle, wrong mushroom flagged immediately as a red ✕ costing one of three lives and announced on three channels, zero lives leaves the losing board up behind a dialog until the player restarts it, undo never refunds, "Show mistakes" deleted, v2→v3 migration, conflict rendering **removed** | merged to `epic/fungiku` (#79), operator-tested on device |
-| 11 | Earned assists — **coins**, one currency, in a wallet under **its own key** (`@FungikuWallet`, no save-version bump); hints and rule-out priced off it (1 / 2 / 4, §11.2's ladder); the "nothing is forced" answer left free; a win **narrated** — the balance counts up one reason at a time — and paid **exactly once per board** across undo/redo/reload; a daily floor so the game cannot become unwinnable; an unaffordable price drawn differently from a disabled button; gift/purchase seam behind `SHOW_DEVELOPER_CONTROLS` | **awaiting operator device pass** |
+| 11 | Earned assists — **coins**, one currency, in a wallet under **its own key** (`@FungikuWallet`, no save-version bump); hints and rule-out priced off it (1 / 2 / 4, §11.2's ladder); the "nothing is forced" answer left free; a win **narrated** — the balance counts up one reason at a time — and paid **exactly once per board** across undo/redo/reload; a daily floor so the game cannot become unwinnable; an unaffordable price drawn differently from a disabled button; gift/purchase seam behind `SHOW_DEVELOPER_CONTROLS`; the board redrawn as separated tiles | merged to `epic/fungiku` (#80, `5836b87`) — **device pass not recorded; fold it into Step 13's play-through** |
+| 12 | Art swap — **answered with motion, not artwork** (§12.7). The operator kept the glyph, so the step made the seam true (the board asks `Symbol` for `MUSHROOM_VALUE` instead of naming an icon), grew the placement pop into a **sprout** — the mushroom rises into the cell tilted and squashed and stretches upright, four interpolations of the one spring — and added a **win wave**: every mushroom hops in an anti-diagonal ripple, one shared native-driven value, windows in a pure `celebration.js`. **Device pass passed the animations and rejected the banners** (§12.8): both used to push the board down, so the win became a **dialog** and the hint a **floating overlay**, and nothing sits above the board any more. **Third round** (§12.9): the nudge points at **the one forced cell** instead of outlining its whole group, a ring **converges onto that cell** so the eye is taken there, and the operator's prices land — rule-out 1, **hint 5, reveal 20**, with `DAILY_FLOOR_COINS` derived from the hint price so the floor still buys help. **Fourth round** (§12.10): the hint text becomes a **popover on its cell** — placed by a pure `hintPlacement.js`, drawn inside the board's card so it points without measuring — and the win wave **travels three times as far** (300 ms → 917 ms across the board) with each hop unchanged **Fifth round** (§12.11): the win dialog **centred**, its entrance un-sprung, the party-popper replaced by a real **confetti burst**, and the payout's five-beat narration collapsed to **one reveal** — the reasons still named, but all at once **Sixth round** (§12.12): the celebration keys on a **win event** (`winSeq`) rather than on the `solved` condition, so it no longer replays on every remount, and the confetti value is wound back so every win bursts **Seventh round** (§12.13): the win dialog is dismissed by the player and nobody else — the backdrop no longer closes it, and `winDismissed` is persisted (**save v4**) so it survives a relaunch, with the payout **computed** from persisted state rather than held in provider state **Eighth round** (§12.14): the payout's 420 ms beat is gone — box, rewards and confetti are **one arrival** — and the burst now originates across the rewards rather than from a point above the title | **merged to `epic/fungiku` (#81)** — eight rounds, every one of them driven by an operator device pass |
 
 ## Steps still to come
 
 | # | Step | Plan |
 |---|------|------|
-| 12 | **Art swap** — floating, gated on artwork rather than code. **The last step: the epic merges to `main` when it lands.** | §7 |
+| 13 | **Close the epic** — full play-through, the app name, the developer controls, then `epic/fungiku` → `main`. No new features. | §7 |
 
 **Replanned 2026-07-26.** The old Step 9 was a training ladder with per-level
 star thresholds; the operator asked instead for the difficulty menu the

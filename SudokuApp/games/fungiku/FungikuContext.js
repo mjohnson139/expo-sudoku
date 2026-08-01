@@ -3,7 +3,7 @@ import usePersistentReducer from '../../hooks/usePersistentReducer';
 import { MARKS, MAX_SIZE, MIN_SIZE } from './engine';
 import { loadFungikuState, saveFungikuState } from './storage';
 import useFungikuWallet from './useFungikuWallet';
-import { COIN_COSTS, balance, canAfford, puzzleKey } from './wallet';
+import { COIN_COSTS, balance, canAfford, puzzleKey, rewardForWin } from './wallet';
 import {
   DEFAULT_SEED,
   FUNGIKU_ACTIONS,
@@ -85,6 +85,56 @@ export const FungikuProvider = ({ children }) => {
 
   const mushroomCount = useMemo(() => selectMushroomCount(state), [state.marks]);
   const solved = useMemo(() => selectIsSolved(state), [state.marks, state.regions, state.size]);
+
+  /**
+   * **A win is an event; `solved` is not one.** (docs/fungiku-plan.md §12.12)
+   *
+   * `solved` is derived from `marks`, so it is true on *every* render where the
+   * board happens to be complete — after the winning tap, after a redo across the
+   * win line, and again on the very first render when a save restores a board that
+   * was already finished. Every part of the celebration used to key on it
+   * directly, and the operator found what that costs: **the wave and the dialog
+   * replayed whenever the app came back from the background**, because a reload
+   * remounts the tree and the first render already says `solved`.
+   *
+   * `winSeq` counts the **transitions into solved that this provider actually
+   * watched happen**. It starts at 0 and increments only when a board that was not
+   * solved becomes solved while it is looking, so:
+   *
+   *   - arriving on a finished board never fires it — nothing transitioned;
+   *   - a remount *is* arriving again, so it does not fire either;
+   *   - a re-render with no change cannot fire it, because there is no change.
+   *
+   * Monotonic on purpose, the same shape as `mistakeSeq` in the reducer: two wins
+   * in a row have to be two distinct values or the second celebration would not
+   * re-fire. Consumers key their effects on it and **do nothing while it is 0**.
+   *
+   * It is not in the reducer and not in the save. It is a fact about what *this
+   * session* watched, not about the puzzle — persisting it would make a restored
+   * board claim a win the player never saw.
+   */
+  const [winSeq, setWinSeq] = useState(0);
+  const watchedSolved = useRef(false);
+  const watching = useRef(false);
+  useEffect(() => {
+    // **Do not start watching until the save has loaded.** This provider renders
+    // *before* hydration with the default empty board, so `solved` genuinely goes
+    // false → true when a finished board is restored — and reading that as a win
+    // is exactly the bug this counter exists to prevent. The first pass after
+    // hydration therefore **adopts** whatever the board is without celebrating
+    // it; only changes after that are wins.
+    if (!hydrated) return;
+
+    if (!watching.current) {
+      watching.current = true;
+      watchedSolved.current = solved;
+      return;
+    }
+
+    if (solved === watchedSolved.current) return;
+    watchedSolved.current = solved;
+    if (solved) setWinSeq((n) => n + 1);
+  }, [solved, hydrated]);
 
   // Any mark at all, not just mushrooms — a board restored with only X marks on
   // it still has something to clear, even though its undo stack is empty.
@@ -184,9 +234,41 @@ export const FungikuProvider = ({ children }) => {
   ]);
 
   // Only for the board it was paid for. A new puzzle at the same instant the
-  // banner is animating out must not inherit the last one's payout.
+  // dialog is animating out must not inherit the last one's payout.
   const rewardForThisBoard =
     lastReward && lastReward.puzzle === puzzleKey(state) ? lastReward : null;
+
+  /**
+   * **What this board earns — computed, not remembered** (plan §12.13).
+   *
+   * `rewardForWin` is pure, and every input it takes (`difficulty`, `lives`,
+   * `hintsUsed`) is persisted with the board. So the breakdown can be worked out
+   * from a restored save, which is what lets a win dialog that survives a
+   * relaunch still show its coins.
+   *
+   * This is deliberately **not** the same thing as `rewardForThisBoard`, and
+   * conflating them is what produced the operator's *"it comes back and it
+   * doesn't have the coins"*. Two different questions:
+   *
+   *   - *what did this board earn?* — pure, always answerable. Drives the rows
+   *     the dialog draws.
+   *   - *did this session grant it?* — `rewardForThisBoard`, non-null only when
+   *     the wallet actually paid out just now. Drives the count-up animation, and
+   *     is correctly null for a board paid in an earlier session.
+   *
+   * The wallet remains the only authority on *granting*; this only describes.
+   */
+  const winReward = useMemo(
+    () =>
+      solved
+        ? rewardForWin({
+            difficulty: state.difficulty,
+            lives: state.lives,
+            hintsUsed: state.hintsUsed,
+          })
+        : null,
+    [solved, state.difficulty, state.lives, state.hintsUsed]
+  );
 
   // --- the input model (plan §14.2) ----------------------------------------
   // A tap rules a cell out, or clears a filled one. It is dispatched the moment
@@ -255,6 +337,12 @@ export const FungikuProvider = ({ children }) => {
 
   const dismissHint = useCallback(
     () => dispatch({ type: FUNGIKU_ACTIONS.DISMISS_HINT }),
+    [dispatch]
+  );
+
+  /** The player acknowledging a win. Nothing else dismisses the dialog. */
+  const dismissWin = useCallback(
+    () => dispatch({ type: FUNGIKU_ACTIONS.DISMISS_WIN }),
     [dispatch]
   );
 
@@ -391,6 +479,9 @@ export const FungikuProvider = ({ children }) => {
       ...state,
       mushroomCount,
       solved,
+      // The *event*, for everything that celebrates. Nothing may key a
+      // celebration on `solved`, or it replays on every remount. See above.
+      winSeq,
       hasMarks,
       canUndo: selectCanUndo(state),
       canRedo: selectCanRedo(state),
@@ -414,6 +505,11 @@ export const FungikuProvider = ({ children }) => {
       canAffordHint,
       canAffordReveal,
       canAffordRuleOut,
+      // What the board earned (always answerable) and what this session granted
+      // (only just now). The dialog draws the first and animates the second.
+      winReward,
+      winDismissed: state.winDismissed,
+      dismissWin,
       lastReward: rewardForThisBoard,
       grantCoins,
       requestHint,
@@ -433,6 +529,7 @@ export const FungikuProvider = ({ children }) => {
       state,
       mushroomCount,
       solved,
+      winSeq,
       hasMarks,
       generating,
       tapCell,
@@ -451,6 +548,8 @@ export const FungikuProvider = ({ children }) => {
       canAffordReveal,
       canAffordRuleOut,
       rewardForThisBoard,
+      winReward,
+      dismissWin,
       grantCoins,
       requestHint,
       revealMushroom,

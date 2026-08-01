@@ -34,13 +34,26 @@ import { MAX_LIVES } from './reducer';
 import { DEFAULT_DIFFICULTY, difficultyLabel, isDifficulty } from './difficulty';
 
 /**
- * What each assist costs, in coins.
+ * What each assist costs, in coins. **Set by the operator, 2026-07-29**
+ * (plan §12.9): *"hints should cost 20 coins if we are revealing a mushroom and
+ * 5 if it's a simple thing."*
  *
  * The ladder is §11.2's, priced: **rule-out is the cheap one** because it reveals
  * nothing a player could not derive mechanically — it saves tedium, not thinking
  * — while a nudge is real help and a reveal solves a cell outright. Each rung
  * costs more than the last, which is what §11.2 asked for and what two separate
  * currencies could never express.
+ *
+ * The gap widened sharply — a reveal was 2× a nudge and is now 4× — and it went
+ * with the nudge getting **stronger**: since the same operator pass, a nudge
+ * points at the cell rather than at the group it is in (plan §12.9). A hint that
+ * hands you the answer's location should not cost what a riddle cost.
+ *
+ * **The earn rates were not changed to match, and that is worth knowing before
+ * a play session.** `WIN_BASE` still pays 3–8; a reveal is now two or three
+ * whole boards' work. That may be exactly right — help you have to save for is
+ * help you think about — but it is a real shift in the economy's shape and it is
+ * the thing to watch (§8 #14).
  *
  * The **"nothing is forced from here" answer is not in this table and that is
  * deliberate.** It gives nothing away — the reducer already declines to count it
@@ -49,8 +62,8 @@ import { DEFAULT_DIFFICULTY, difficultyLabel, isDifficulty } from './difficulty'
  */
 export const COIN_COSTS = {
   RULE_OUT: 1,
-  HINT: 2,
-  REVEAL: 4,
+  HINT: 5,
+  REVEAL: 20,
 };
 
 /** The cheapest thing on the board — what "you can still do something" means. */
@@ -67,7 +80,7 @@ export const STARTING_COINS = 10;
  *
  * Once a day the balance is raised *to* this level if it has fallen below it.
  * Raised to, never added to: a player who does not play for a week comes back to
- * four coins, not twenty-eight, so the floor is a safety net rather than an idle
+ * one hint's worth, not seven, so the floor is a safety net rather than an idle
  * income that makes earning pointless.
  *
  * A player stranded at zero on a hard board therefore always has a way forward
@@ -75,8 +88,22 @@ export const STARTING_COINS = 10;
  * The alternatives considered were a per-win minimum (does not help a player who
  * cannot finish the board they are on) and a permanent minimum balance (which is
  * just "assists are free", with extra steps).
+ *
+ * ### It is `COIN_COSTS.HINT`, and it is derived rather than typed
+ *
+ * It was a flat 4 while a hint cost 2. The operator's repricing (hint 2 → 5)
+ * would have left the floor at 4 — **enough to buy nothing but rule-outs**, which
+ * quietly repeals the paragraph above: a player stuck on a hard board does not
+ * need tedium saved, they need to be told something, and a floor that cannot buy
+ * the cheapest *hint* is not the safety net it claims to be.
+ *
+ * So it is defined as the price of one hint. That is not tuning the economy by
+ * the back door — it is the smallest number that keeps the floor's stated
+ * promise, and tying it to the price means the next reprice cannot silently
+ * break it either. **A deliberate choice to make it something else is fine; a
+ * stale constant that no longer clears any price is not.**
  */
-export const DAILY_FLOOR_COINS = 4;
+export const DAILY_FLOOR_COINS = COIN_COSTS.HINT;
 
 /** A ceiling, so a long win streak cannot turn the economy off entirely. */
 export const MAX_COINS = 999;

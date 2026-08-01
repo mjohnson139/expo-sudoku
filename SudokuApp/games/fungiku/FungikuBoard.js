@@ -2,12 +2,20 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { View, StyleSheet, Animated, Easing, PanResponder, PixelRatio } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MARKS } from './engine';
-import { getRegionColor } from '../../utils/symbolSets';
+import { getRegionColor, MUSHROOM_VALUE, SYMBOL_SET_IDS } from '../../utils/symbolSets';
+import Symbol from '../../components/Symbol';
 import useBoardSize from '../../hooks/useBoardSize';
 import useBoardOrigin from '../../hooks/useBoardOrigin';
 import { boardExtent, cellFromPoint, cellsAlongLine } from './geometry';
+import {
+  waveKeyframes,
+  waveOutputRange,
+  WAVE_DELAY_MS,
+  WAVE_DURATION_MS,
+} from './celebration';
 import { PAINT_MODES } from './reducer';
 import { useFungikuContext } from './FungikuContext';
+import FungikuHintPopover from './FungikuHintPopover';
 
 /**
  * Stable object identity, so the sizing hook's memo is not invalidated on every
@@ -93,7 +101,7 @@ const MAX_TAP_TRAVEL = 28;
  */
 const DOUBLE_TAP_MS = 320;
 
-const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
+const FungikuBoard = ({ isDark, theme, onTouchActiveChange, coinWord, emptyColor, coinColor }) => {
   const {
     size,
     regions,
@@ -108,6 +116,7 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     beginStroke,
     endStroke,
     solved,
+    winSeq,
     generating,
   } = useFungikuContext();
 
@@ -226,6 +235,13 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   // frames the value sat at 0 while still attached to the *previous* mushroom,
   // and the earlier mushroom visibly shrank and snapped back. Per-cell values
   // remove the class of bug rather than patching the ordering.
+  //
+  // **The value is a 0→1 progress, and every part of the sprout is interpolated
+  // from it** (plan §12.7). It used to *be* the scale, which is why the sprout
+  // costs no extra values, no extra animations and no extra state: a rise, a
+  // tilt and a squash-and-stretch are four interpolations of the one spring. It
+  // still rests at exactly 1, where every interpolation is the identity pose, so
+  // a mushroom nobody has just placed is drawn exactly as it was before.
   const popValues = useMemo(
     () => Array.from({ length: size * size }, () => new Animated.Value(1)),
     [size]
@@ -286,9 +302,16 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     // Placing, removing and replacing a mushroom quickly would otherwise leave
     // two springs driving one value.
     value.stopAnimation();
-    value.setValue(0.45);
+    value.setValue(0);
     Animated.spring(value, {
       toValue: 1,
+      // Loose enough to overshoot, which is what makes the sprout land with a
+      // wobble instead of easing politely into place. The overshoot is not
+      // clamped anywhere: the interpolations below extrapolate past 1, so the
+      // scale swells a little, the tilt swings through upright to the other side,
+      // and the rise carries the mushroom a few pixels above its resting spot
+      // before settling. That is the whole of the "fun" — one spring, read four
+      // ways.
       friction: 5,
       tension: 140,
       // **Deliberately NOT the native driver.** This value has to *rest* at
@@ -307,6 +330,80 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
     });
   }, [marks, popValues]);
 
+  // --- the hint converges on its cell (plan §12.9) --------------------------
+  //
+  // A hint used to be a dashed outline that simply *appeared*. On a 10×10 board
+  // that is a 2px change on one of a hundred tiles, and the operator's report was
+  // that the hint was not helpful — partly because it pointed at a whole region,
+  // and partly because there was nothing to make the eye go there at all. Their
+  // words: *"it should animate to the cell and show the hint."*
+  //
+  // So a ring starts well outside the cell and **closes onto it**, twice. Motion
+  // toward a point is what the eye follows; a thing that fades in where you are
+  // not looking is not. The dashed outline stays as the marker that persists
+  // after the motion is over — the ring says *look here*, the outline says
+  // *this one*.
+  //
+  // One value for however many cells a hint names (today: one). Every cell reads
+  // the same progress at once and none of them re-points it, which is the same
+  // shape as the win wave and not the per-cell rule this file's other animations
+  // follow.
+  const hintPulse = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (!hint || !hint.cells || hint.cells.length === 0) return undefined;
+
+    // Stop anything still running before restarting: asking for a second hint
+    // while the first is mid-flight would otherwise leave two animations on one
+    // value.
+    hintPulse.stopAnimation();
+
+    // **Written out, rather than `Animated.loop({iterations: 2})` — and the
+    // reason is a trap worth keeping.** `loop`'s `resetBeforeIteration` resets by
+    // calling `resetAnimation()`, which snaps the value back to the one it was
+    // **constructed** with, not to the start of the animation being looped. This
+    // value is constructed at 1 because 1 is its *resting* pose (converged,
+    // fully transparent) — so `loop` reset it to 1 and then animated it from 1
+    // to 1. Both iterations ran, ~75 frames of nothing, no error and no warning:
+    // the ring simply never appeared. A zero-duration timing is the honest way
+    // to say "start wide again", and unlike `setValue` it stops with the
+    // sequence.
+    const converge = () =>
+      Animated.sequence([
+        Animated.timing(hintPulse, { toValue: 0, duration: 0, useNativeDriver: false }),
+        Animated.timing(hintPulse, {
+          toValue: 1,
+          duration: 620,
+          // **Not `out`.** An ease-out spends almost all of its progress in the
+          // first frames, which put the ring at the cell within 150 ms — the
+          // motion was over before the eye could follow it, which is the whole
+          // job. `inOut` holds it wide for a beat, travels visibly, and settles.
+          easing: Easing.inOut(Easing.quad),
+          // JS driver, because this value is `setValue`d on the way out — plan
+          // §2's rule is that the two must never be mixed on one value.
+          useNativeDriver: false,
+        }),
+      ]);
+
+    // Twice, not forever. A hint that pulses until dismissed becomes something
+    // to ignore, and it would keep a JS-driven animation running for as long as
+    // the player is thinking.
+    const animation = Animated.sequence([converge(), converge()]);
+
+    animation.start(() => {
+      // An explicit rest. Whatever interrupts it, a ring frozen part-way across
+      // the board is a permanent visual defect rather than a glitch.
+      hintPulse.setValue(1);
+    });
+
+    return () => {
+      animation.stop();
+      hintPulse.setValue(1);
+    };
+    // `hint` is a fresh object per request, so asking twice for the same cell
+    // re-fires rather than doing nothing.
+  }, [hint, hintPulse]);
+
   // Re-measure whenever something *above* the board appears or disappears.
   //
   // `onLayout` is not enough: on web it is backed by a ResizeObserver, which
@@ -316,15 +413,16 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   // was a real bug: the first tap after a hint appeared landed on the wrong cell,
   // or missed the board entirely.
   //
-  // This effect runs after the banner has been committed, so the origin is right
-  // before the player can touch anything. `hint` and `solved` are the two things
-  // that mount a banner above the board.
-  // `generating` and `lives.left` are in here for the same reason, one step
-  // weaker: they change what the row above the board *renders* rather than
-  // whether it exists. That row keeps its height by design — the hearts live
-  // inside it precisely so losing one cannot move the board — so this is the
-  // cheap insurance that says so, and the place the next thing added above the
-  // board belongs.
+  // **`hint` and `solved` no longer move the board** (plan §12.8). The hint
+  // banner became a floating overlay and the win banner became a dialog, so
+  // neither takes layout space and nothing between the counter row and the board
+  // can push it down any more. `generating` and `lives.left` never did — they
+  // change what the always-mounted counter row *renders*, not whether it exists.
+  //
+  // So all four deps are now **insurance rather than the fix**, and they stay for
+  // three reasons: the effect is cheap, `measure()` is idempotent, and this is
+  // still the right place for the next thing anyone mounts above the board. The
+  // bug this was written for is a layout mistake away from returning.
   useEffect(() => {
     measure();
   }, [hint, solved, generating, lives.left, measure]);
@@ -515,7 +613,11 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
   // on a finished board, so that is not academic.
   const winLift = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    const animation = solved
+    // **The win *event*, not the `solved` condition** (plan §12.12). `solved` is
+    // already true on the first render after a remount, so an effect reading it
+    // replays the celebration every time the app returns from the background.
+    // `winSeq === 0` means nothing has been won since this board came on screen.
+    const animation = solved && winSeq > 0
       ? Animated.sequence([
           Animated.timing(winLift, {
             toValue: 1,
@@ -541,9 +643,120 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
 
     // No `setValue` anywhere near this one — it is native-driven, and plan §2's
     // rule is that the two must never be mixed. Un-solving while the pop is in
-    // flight is handled by the `!solved` branch, which animates it home.
+    // flight is handled by the other branch, which animates it home.
     return () => animation.stop();
-  }, [solved, winLift]);
+  }, [solved, winSeq, winLift]);
+
+  // --- the win wave (plan §12.7) -------------------------------------------
+  //
+  // Every mushroom on a solved board hops, one diagonal at a time, from the
+  // top-left corner to the bottom-right. It is the payoff for the whole puzzle,
+  // and it is the one moment where the mushrooms are the subject rather than the
+  // notation.
+  //
+  // **One value for the entire board, and it is not the per-cell rule breaking.**
+  // The rule the handoff carries — never one shared value pointed at "the current
+  // cell" — is about a value that gets *re-pointed*, because re-pointing is a
+  // render and resetting is immediate, so for a frame the value is still attached
+  // to the last cell. Nothing is re-pointed here: every mushroom reads this same
+  // progress at once and each one interpolates it through its own fixed window,
+  // so the stagger is geometry (celebration.js) rather than scheduling.
+  //
+  // That is also what lets it run on the **native driver** — one animation, no
+  // `setValue`, a hundred cells — while the placement pop above stays JS-driven
+  // because it *is* `setValue`d. Plan §2's rule is that the two must never be
+  // mixed **on one value**; keeping them on separate values, in separate
+  // Animated.Views, is how both get the driver they need.
+  const winWave = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    // **The win *event*, not the `solved` condition** (plan §12.12). The operator
+    // reported the ripple replaying every time the app came back from the
+    // background: a reload remounts the tree, and the first render of a restored
+    // finished board already says `solved`. `winSeq` only counts transitions this
+    // provider watched, so arriving on a finished board celebrates nothing.
+    //
+    // Both ends of the progress are the resting pose (celebration.js), so
+    // cancelling is a jump to the nearest end rather than an unwind — an undo
+    // across the win line must never leave a mushroom stranded mid-hop.
+    const animation = solved && winSeq > 0
+      ? Animated.sequence([
+          Animated.timing(winWave, {
+            toValue: 1,
+            duration: WAVE_DURATION_MS,
+            delay: WAVE_DELAY_MS,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          // Home again for the next win. A 1 ms trip rather than `setValue`,
+          // which may not be mixed with the native driver — and invisible,
+          // because both ends draw the identical pose.
+          Animated.timing(winWave, { toValue: 0, duration: 1, useNativeDriver: true }),
+        ])
+      : Animated.timing(winWave, { toValue: 0, duration: 1, useNativeDriver: true });
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [solved, winSeq, winWave]);
+
+  // How far a mushroom hops, and how big it swells at the top of the hop. Both
+  // scale with the cell, so a 10×10 board (32pt cells on a phone) reads the same
+  // as a 5×5 one rather than barely moving. The hop leaves the tile — that is
+  // the point of it — but it never touches layout, so the board's drawn box
+  // stays equal to its measured box and taps keep resolving correctly even
+  // mid-celebration.
+  const waveLift = Math.round(cell * 0.22);
+
+  // Both sets of transforms are built **once per board**, not per render.
+  //
+  // Interpolating inline in the JSX would mint a fresh AnimatedInterpolation for
+  // every mushroom on every render — and this board re-renders on every touch
+  // down, every touch up and every mark — which means tearing down and rebuilding
+  // up to a hundred native animation nodes mid-gesture. The values themselves are
+  // already stable per board (`popValues`) or per component (`winWave`), so the
+  // nodes reading them can be too.
+  const waveTransforms = useMemo(
+    () =>
+      Array.from({ length: size * size }, (_, index) => {
+        const inputRange = waveKeyframes(index, size);
+        return [
+          {
+            translateY: winWave.interpolate({
+              inputRange,
+              outputRange: waveOutputRange(0, -waveLift),
+            }),
+          },
+          {
+            scale: winWave.interpolate({ inputRange, outputRange: waveOutputRange(1, 1.18) }),
+          },
+        ];
+      }),
+    [size, waveLift, winWave]
+  );
+
+  // A mushroom does not appear, it *grows*: it rises into the cell from below,
+  // squashed flat and tilted, and stretches upright as it arrives. Every one of
+  // these is the same spring read through a different interpolation — which is
+  // why the sprout costs no extra values and no extra animations — and every
+  // output range **ends on the identity pose**, so a mushroom at rest is drawn
+  // exactly as the plain scale drew it.
+  const sproutTransforms = useMemo(
+    () =>
+      popValues.map((value) => [
+        {
+          translateY: value.interpolate({
+            inputRange: [0, 1],
+            outputRange: [Math.round(glyph * 0.4), 0],
+          }),
+        },
+        { rotate: value.interpolate({ inputRange: [0, 1], outputRange: ['-16deg', '0deg'] }) },
+        { scaleX: value.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) },
+        // Flatter than it is wide at the start, so the sprout squashes and
+        // stretches rather than merely getting bigger.
+        { scaleY: value.interpolate({ inputRange: [0, 1], outputRange: [0.28, 1] }) },
+      ]),
+    [popValues, glyph]
+  );
 
   return (
     // The card. It carries the gutter, the rounded frame, the padding that keeps
@@ -647,27 +860,90 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
                     corner radius, or it would read as a square badge sitting on
                     a rounded tile. */}
                 {hintCells.has(index) && (
-                  <View
-                    style={[
-                      styles.hintOutline,
-                      {
-                        width: cell - gap - 3,
-                        height: cell - gap - 3,
-                        borderRadius: Math.max(2, radius - 2),
-                        borderColor: entry.ink,
-                      },
-                    ]}
-                  />
+                  <>
+                    {/* The ring that closes onto the cell (plan §12.9). It starts
+                        nearly three cells wide and shrinks onto this one, twice,
+                        then leaves. Drawn *under* nothing and over nothing that
+                        matters — it is `pointerEvents="none"` by virtue of being
+                        a plain View inside a cell the board's own responder owns,
+                        so it cannot intercept a tap on the cell it is pointing
+                        at. */}
+                    <Animated.View
+                      style={[
+                        styles.hintPulse,
+                        {
+                          width: cell - gap,
+                          height: cell - gap,
+                          borderRadius: Math.max(2, radius),
+                          borderColor: entry.ink,
+                          opacity: hintPulse.interpolate({
+                            inputRange: [0, 0.12, 0.55, 0.78, 1],
+                            outputRange: [0, 0.95, 0.9, 0.45, 0],
+                          }),
+                          transform: [
+                            {
+                              scale: hintPulse.interpolate({
+                                inputRange: [0, 0.55, 1],
+                                outputRange: [2.8, 1, 1],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    />
+
+                    <View
+                      style={[
+                        styles.hintOutline,
+                        {
+                          width: cell - gap - 3,
+                          height: cell - gap - 3,
+                          borderRadius: Math.max(2, radius - 2),
+                          borderColor: entry.ink,
+                        },
+                      ]}
+                    />
+                  </>
                 )}
 
                 {mark === MARKS.MUSHROOM && (
+                  // **Two nested Animated.Views, and the nesting is load-bearing.**
+                  // The wave is native-driven and the sprout is JS-driven (see
+                  // both effects above), and a single view cannot carry both:
+                  // once any value in a style has been moved to the native
+                  // driver, a JS-driven animation on that same props node
+                  // throws. Separate views are separate props nodes, so each
+                  // half gets the driver it needs and the transforms still
+                  // compose.
                   <Animated.View
-                    // This cell's own pop value, which rests at 1. Only the cell
-                    // that was just placed is ever away from 1, so no other
-                    // mushroom can be affected.
-                    style={{ transform: [{ scale: popValues[index] }] }}
+                    // Outer: the win wave. Rests at the identity pose whenever
+                    // the board is unsolved, and at *both* ends of the ripple.
+                    style={{ transform: waveTransforms[index] }}
                   >
-                    <MaterialCommunityIcons name="mushroom" size={glyph} color={entry.ink} />
+                    <Animated.View
+                      // Inner: this cell's own sprout, which rests at 1. Only the
+                      // cell that was just placed is ever away from 1, so no
+                      // other mushroom can be affected.
+                      style={{ transform: sproutTransforms[index] }}
+                    >
+                      {/* **Through the seam, not around it** (plan §5, Step 1).
+                          The board used to name the `mushroom` icon itself,
+                          which meant the one file an art swap was supposed to
+                          touch was not the only file it would have had to
+                          touch. Fungiku's cells hold marks rather than values,
+                          so the mushroom's value is imported rather than
+                          implied — and dropping in real art is now an edit to
+                          `symbolSets.js` and `Symbol.js` alone. */}
+                      <Symbol
+                        symbolSet={SYMBOL_SET_IDS.FUNGIKU}
+                        value={MUSHROOM_VALUE}
+                        size={glyph}
+                        // The contrast-picked ink for *this* fill, not the
+                        // symbol set's own red — a saturated mushroom on a
+                        // warm fill is nearly invisible (symbolSets.js).
+                        color={entry.ink}
+                      />
+                    </Animated.View>
                   </Animated.View>
                 )}
 
@@ -707,6 +983,24 @@ const FungikuBoard = ({ isDark, theme, onTouchActiveChange }) => {
         </View>
       ))}
     </View>
+
+    {/* The hint's popover, pointing at the cell the ring just closed on
+        (plan §12.10).
+
+        **A sibling of the touch box, not a child of it.** The board claims every
+        touch at touch-down in the capture phase, so a popover inside that view
+        could never receive a press and its Dismiss and Reveal buttons would be
+        dead. Out here it is still in the board's coordinate space — which is
+        what lets it point accurately without measuring anything — and its own
+        touches reach it. */}
+    <FungikuHintPopover
+      size={size}
+      cellSize={cell}
+      theme={theme}
+      coinWord={coinWord}
+      emptyColor={emptyColor}
+      coinColor={coinColor}
+    />
     </Animated.View>
   );
 };
@@ -723,6 +1017,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderStyle: 'dashed',
     opacity: 0.9,
+  },
+  hintPulse: {
+    position: 'absolute',
+    borderWidth: 2,
   },
 });
 
