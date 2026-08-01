@@ -29,14 +29,30 @@ scored, timed, or won.
   three things: a registry entry, a `describeCubeProgress` in
   `utils/gameProgress.js`, and `react-native-svg` in `package.json`.
 
-### Where this branches from, and why it matters
+### Branching, and why the base is not `main`
 
-The cube's tile lives on the hub, and **the hub only exists on `epic/fungiku`** —
-it was built as part of that epic and has not reached `main` yet. So this work is
-based on `epic/fungiku` rather than on `main`. Fungiku's own Step 13 is "merge
-the epic to `main`"; once that lands, this rebases onto `main` cleanly and the
-dependency disappears. Until then, **do not try to base cube work on `main`** —
-there is no `games/registry.js` there to add a tile to.
+The cube lands on its own epic branch, like Fungiku does. Every step PR targets
+**`epic/cube`**:
+
+```
+main ─── epic/fungiku ─── epic/cube ─── feature/cube-<step>   (PRs target epic/cube)
+```
+
+`epic/cube` is cut from `epic/fungiku`, not from `main`, for one concrete reason:
+**the cube's tile lives on the hub, and the hub only exists on `epic/fungiku`.**
+It was built as part of that epic and has not reached `main` yet — there is no
+`games/registry.js` on `main` to add a tile to, so a cube branch based there
+would not build.
+
+Fungiku's own Step 13 is "merge the epic to `main`". Once that lands, **rebase
+`epic/cube` onto `main`** and the dependency is gone; until then `epic/cube`
+carries Fungiku's commits, so read its diff against `epic/fungiku` rather than
+against `main`.
+
+Pushing to `epic/cube` publishes an EAS Update branch of the same name
+(`.github/workflows/eas-publish.yml`), so the epic stays openable in Expo Go
+between step PRs — a step PR also gets its own throwaway `pr-<N>` preview with a
+QR code in the PR comments.
 
 ## 1. What the first step delivers
 

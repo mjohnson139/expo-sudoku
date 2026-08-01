@@ -39,11 +39,20 @@ questions forward.
 
 ### Branching
 
-The hub the cube's tile lives on exists only on **`epic/fungiku`**, so cube work
-is based there, not on `main` (plan §"Where this branches from"). Once Fungiku's
-Step 13 merges that epic to `main`, rebase onto `main` and the dependency is
-gone. Branch from wherever the previous cube step landed; do not start from
-`main` while `games/registry.js` is still missing there.
+The cube lands on an epic branch, never straight to `main`:
+
+```
+main ─── epic/fungiku ─── epic/cube ─── feature/cube-<step>   (PRs target epic/cube)
+```
+
+Branch from **`epic/cube`**, and open your PR **against `epic/cube`**. It is cut
+from `epic/fungiku` rather than `main` because the hub the cube's tile sits on
+only exists there — `main` has no `games/registry.js` yet (plan §"Branching").
+Once Fungiku's Step 13 merges that epic to `main`, rebase `epic/cube` onto `main`
+and the dependency is gone.
+
+Pushing `epic/cube` publishes an EAS Update branch of the same name, so the epic
+is always openable in Expo Go (project → Branches) even with no step PR open.
 
 ### Golden rules
 
