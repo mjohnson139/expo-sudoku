@@ -69,6 +69,64 @@ export const rotateQuarter = (v, axis, turns) => {
 };
 
 // ---------------------------------------------------------------------------
+// Partial turns — the same rotation, mid-flight
+// ---------------------------------------------------------------------------
+
+/** One quarter turn in radians. `rotateQuarter`'s "clockwise seen from the
+ *  positive end of the axis" is −90° in right-handed coordinates. */
+const QUARTER = Math.PI / 2;
+
+/**
+ * A move's quarter-turn count as a **signed** number: the short way round.
+ *
+ * `amount` is always 0–3 because the model only ever needs to know where a turn
+ * *lands*, and 3 lands where −1 does. An animation cares about the difference:
+ * spinning a `D` (which carries 3) through +270° is three quarters of a second
+ * of the cube going the wrong way before it arrives at the right place.
+ */
+export const shortWay = (amount) => {
+  const n = ((amount % 4) + 4) % 4;
+  return n > 2 ? n - 4 : n;
+};
+
+/** How far through a turn of `amount` quarter turns a fraction `t` is, in
+ *  radians about the move's axis. Exactly the angle `rotateQuarter` would give
+ *  at `t = 1`, and exactly zero at `t = 0`. */
+export const turnAngle = (amount, t) => shortWay(amount) * -QUARTER * t;
+
+/**
+ * Rotate `v` about `axis` by `angle` radians, right-handed — the floating-point
+ * sibling of `rotateQuarter`, and the *only* place a non-integer rotation is
+ * allowed to touch the cube.
+ *
+ * It never touches the model: `buildScene` calls it on a copy on its way to the
+ * screen, so a cube part-way through a turn is a picture, not a state. The model
+ * gets the move once, exactly, when the animation ends.
+ */
+const rotateAxis = (v, axis, angle) => {
+  const c = Math.cos(angle);
+  const s = Math.sin(angle);
+  const [x, y, z] = v;
+  if (axis === AXIS.x) return [x, y * c - z * s, y * s + z * c];
+  if (axis === AXIS.y) return [x * c + z * s, y, -x * s + z * c];
+  return [x * c - y * s, x * s + y * c, z];
+};
+
+/**
+ * `v`, a fraction `t` of the way through a turn of `amount` quarter turns.
+ *
+ * The two ends are handed off to the exact integer path rather than computed:
+ * `Math.cos(Math.PI / 2)` is 6.1e-17, not 0, and a turn that ends 6.1e-17 short
+ * of where the model puts the cube is a frame that does not match the one after
+ * it. `t = 0` gives `v` back, and `t = 1` gives exactly `rotateQuarter`.
+ */
+export const partialTurn = (v, axis, amount, t) => {
+  if (!(t > 0)) return v;
+  if (t >= 1) return rotateQuarter(v, axis, amount);
+  return rotateAxis(v, axis, turnAngle(amount, t));
+};
+
+// ---------------------------------------------------------------------------
 // Floating-point view math
 // ---------------------------------------------------------------------------
 
@@ -177,6 +235,67 @@ const quad = (pos, n, lift, half) => {
   return [corner(1, 1), corner(-1, 1), corner(-1, -1), corner(1, -1)];
 };
 
+/** The 27 lattice positions — the 26 cubies **and the core**. Only the seam
+ *  pass below walks this, and only there does the core matter: a slice turn
+ *  swings it away from the middle of the cube, and if nothing plugged the hole
+ *  you would see the background through the middle of a turning cube. */
+const LATTICE = (() => {
+  const out = [];
+  for (let x = -1; x <= 1; x += 1) {
+    for (let y = -1; y <= 1; y += 1) {
+      for (let z = -1; z <= 1; z += 1) out.push([x, y, z]);
+    }
+  }
+  return out;
+})();
+
+/** The six directions a cubie has a neighbour in. */
+const NEIGHBOURS = [
+  [1, 0, 0],
+  [-1, 0, 0],
+  [0, 1, 0],
+  [0, -1, 0],
+  [0, 0, 1],
+  [0, 0, -1],
+];
+
+/**
+ * A move in flight: which cubies it carries, where they are *now*, and where
+ * they land. `null` when there is nothing to animate, which is what keeps the
+ * still cube's code path — and its output — exactly what it was.
+ *
+ * @param {{axis: number, layers: number[], amount: number, t: number}|null} turn
+ */
+const spinFor = (turn) => {
+  if (!turn) return null;
+
+  const { axis, layers, amount } = turn;
+  const t = Number.isFinite(turn.t) ? Math.max(0, Math.min(1, turn.t)) : 0;
+  if (t === 0) return null;
+
+  const settle = (v) => rotateQuarter(v, axis, amount);
+
+  // The last frame of a turn is not a turn: at `t = 1` the move has landed, so
+  // the frame is built on the settled lattice by exactly the code a still cube
+  // goes through. Carrying the corners round by 90° instead would put the same
+  // square on the screen with its vertices listed from a different one, which
+  // draws identically and compares unequal — and "the last frame of a turn *is*
+  // the still cube after it" is a property worth being able to assert.
+  const landed = t === 1;
+
+  return {
+    // Part-way through, the move has cut the cube open along the seams either
+    // side of the layers it carries. Landed, it is closed again.
+    open: !landed,
+    carries: (pos) => layers.includes(pos[axis]),
+    /** The lattice a carried cubie's squares are built on. */
+    place: landed ? settle : (v) => v,
+    /** Where those squares are carried afterwards — null once it has landed. */
+    carry: landed ? null : (v) => partialTurn(v, axis, amount, t),
+    settle,
+  };
+};
+
 /**
  * Scale that keeps the cube the same size at every angle.
  *
@@ -198,18 +317,32 @@ const focalFor = (size) =>
  *
  * Each visible face contributes two polygons, plastic then tile, so the caller
  * can draw the returned list start to finish without thinking about layering.
+ * A seam opened by a turn contributes plastic only — there is no sticker on the
+ * inside of a cube.
  *
- * @param {{cubies: Array}} cube from `cubeState.js`
+ * ### Turns
+ *
+ * `turn` draws the cube part-way through a move without the model knowing
+ * anything about it: the cubies the move carries are rotated by `t` of the way
+ * round on their way to the screen, and everything else is drawn where it is.
+ * At `t = 0` and `t = 1` the frame is **identical** — polygon for polygon, key
+ * for key — to the still cube before and after the move, which is what makes an
+ * animation that starts and lands without a jump a property rather than a hope.
+ *
+ * @param {{cubies: Array}} cube from `cubeState.js` — the cube *before* the move
  * @param {Object} options
  * @param {number} options.size viewport edge in points (square)
  * @param {number} options.yaw radians about Y
  * @param {number} options.pitch radians about X
  * @param {Object<string,string>} options.colors face letter → hex
+ * @param {{axis: number, layers: number[], amount: number, t: number}} [options.turn]
+ *   a move in progress, `t` from 0 (not started) to 1 (landed)
  * @returns {{polygons: Array<{key: string, points: number[][], fill: string}>}}
  */
-export const buildScene = (cube, { size, yaw, pitch, colors }) => {
+export const buildScene = (cube, { size, yaw, pitch, colors, turn = null }) => {
   const focal = focalFor(size);
   const half = size / 2;
+  const spin = spinFor(turn);
 
   const project = (p) => {
     const s = focal / (CAMERA_DISTANCE - p[2]);
@@ -218,52 +351,122 @@ export const buildScene = (cube, { size, yaw, pitch, colors }) => {
 
   const faces = [];
 
-  cube.cubies.forEach((cubie) => {
-    cubie.stickers.forEach((sticker) => {
-      const n = orbit(sticker.normal, yaw, pitch);
-      const centre = orbit(
-        [
-          cubie.pos[0] + sticker.normal[0] * BODY_HALF,
-          cubie.pos[1] + sticker.normal[1] * BODY_HALF,
-          cubie.pos[2] + sticker.normal[2] * BODY_HALF,
-        ],
-        yaw,
-        pitch
+  /**
+   * One outward face of one cubie: the square at `home` facing `normal` on a
+   * cube at rest, carried into the frame by `carry`.
+   *
+   * The square is always *built* on the lattice and carried afterwards, never
+   * built where the turn has got to. `faceBasis` only knows how to span an
+   * axis-aligned normal, so a face built from a half-turned normal comes out as
+   * an unrotated square at a rotated centre — which draws a layer whose tiles
+   * have come off it. Carrying the four corners through the same rotation as
+   * the cubie is both correct and, since a rotation about the origin is linear,
+   * the same square.
+   *
+   * `fill` is the sticker colour, or null for a seam, which is bare plastic.
+   */
+  const addFace = (key, home, homeNormal, fill, carry) => {
+    const at = carry ? carry(home) : home;
+    const normal = carry ? carry(homeNormal) : homeNormal;
+
+    const n = orbit(normal, yaw, pitch);
+    const centre = orbit(
+      [
+        at[0] + normal[0] * BODY_HALF,
+        at[1] + normal[1] * BODY_HALF,
+        at[2] + normal[2] * BODY_HALF,
+      ],
+      yaw,
+      pitch
+    );
+
+    // Back-face cull against the vector from this face to the camera, not
+    // against the view axis: with perspective those differ near the silhouette,
+    // and using the view axis leaves a sliver of edge-on faces showing through.
+    const toCamera = [-centre[0], -centre[1], CAMERA_DISTANCE - centre[2]];
+    if (dot(n, toCamera) <= 0) return;
+
+    const shade = AMBIENT + (1 - AMBIENT) * Math.max(0, dot(n, LIGHT));
+    const darken = 1 - shade;
+
+    const points = (lift, size2) =>
+      quad(home, homeNormal, lift, size2).map((p) =>
+        project(orbit(carry ? carry(p) : p, yaw, pitch))
       );
 
-      // Back-face cull against the vector from this face to the camera, not
-      // against the view axis: with perspective those differ near the silhouette,
-      // and using the view axis leaves a sliver of edge-on faces showing through.
-      const toCamera = [-centre[0], -centre[1], CAMERA_DISTANCE - centre[2]];
-      if (dot(n, toCamera) <= 0) return;
+    faces.push({
+      key,
+      depth: centre[2],
+      body: points(BODY_HALF, BODY_HALF),
+      tile: fill ? points(STICKER_LIFT, STICKER_HALF) : null,
+      fill: fill ? mix(fill, '#000000', darken) : null,
+      bodyFill: mix(CUBE_BODY, '#000000', darken * 0.5),
+    });
+  };
 
-      const shade = AMBIENT + (1 - AMBIENT) * Math.max(0, dot(n, LIGHT));
-      const darken = 1 - shade;
+  cube.cubies.forEach((cubie) => {
+    const carried = spin ? spin.carries(cubie.pos) : false;
+    const carry = carried ? spin.carry : null;
+    const home = carried ? spin.place(cubie.pos) : cubie.pos;
+    // The key names where the face is *going*, not where it is. That holds it
+    // still across the whole turn and hands the same polygon straight to the
+    // frame after it, so React re-renders the cube each frame rather than
+    // remounting 54 views.
+    const keyPos = carried ? spin.settle(cubie.pos) : cubie.pos;
 
-      faces.push({
-        key: `${cubie.pos.join(',')}|${sticker.normal.join(',')}`,
-        depth: centre[2],
-        body: quad(cubie.pos, sticker.normal, BODY_HALF, BODY_HALF).map((p) =>
-          project(orbit(p, yaw, pitch))
-        ),
-        tile: quad(cubie.pos, sticker.normal, STICKER_LIFT, STICKER_HALF).map((p) =>
-          project(orbit(p, yaw, pitch))
-        ),
-        fill: mix(colors[sticker.face], '#000000', darken),
-        bodyFill: mix(CUBE_BODY, '#000000', darken * 0.5),
-      });
+    cubie.stickers.forEach((sticker) => {
+      const keyNormal = carried ? spin.settle(sticker.normal) : sticker.normal;
+      addFace(
+        `${keyPos.join(',')}|${keyNormal.join(',')}`,
+        home,
+        carried ? spin.place(sticker.normal) : sticker.normal,
+        colors[sticker.face],
+        carry
+      );
     });
   });
+
+  // The seams a turn cuts open. A cubie's inward faces carry no sticker and are
+  // never drawn on a still cube, because a closed cube has no inside — but a
+  // layer half-way round has swung away from the one under it, and without
+  // these you would see the app's background through the gap.
+  if (spin && spin.open) {
+    LATTICE.forEach((home) => {
+      const carried = spin.carries(home);
+
+      NEIGHBOURS.forEach((direction) => {
+        const neighbour = [
+          home[0] + direction[0],
+          home[1] + direction[1],
+          home[2] + direction[2],
+        ];
+        // Outside the cube: that face is on the surface and has a sticker.
+        if (neighbour.some((c) => c < -1 || c > 1)) return;
+        // Both sides go the same way, so this seam never opens.
+        if (carried === spin.carries(neighbour)) return;
+
+        const keyPos = carried ? spin.settle(home) : home;
+        const keyNormal = carried ? spin.settle(direction) : direction;
+        addFace(
+          `seam|${keyPos.join(',')}|${keyNormal.join(',')}`,
+          home,
+          direction,
+          null,
+          carried ? spin.carry : null
+        );
+      });
+    });
+  }
 
   faces.sort((a, b) => a.depth - b.depth);
 
   const polygons = [];
   faces.forEach((face) => {
     polygons.push({ key: `${face.key}:body`, points: face.body, fill: face.bodyFill });
-    polygons.push({ key: `${face.key}:tile`, points: face.tile, fill: face.fill });
+    if (face.tile) polygons.push({ key: `${face.key}:tile`, points: face.tile, fill: face.fill });
   });
 
   return { polygons };
 };
 
-export default { AXIS, rotateQuarter, orbit, buildScene };
+export default { AXIS, rotateQuarter, shortWay, turnAngle, partialTurn, orbit, buildScene };

@@ -186,6 +186,33 @@ cube would visibly breathe as it spun.
 `react-native-svg` is in Expo Go, ships the same code path on iOS, Android and
 web, and needs no bridge, no HTML string and no bundled megabyte of three.js.
 
+### Turns (added in Step 2)
+
+`buildScene` takes an optional `turn` — `{ axis, layers, amount, t }` — and draws
+the cube part-way through a move **without the model knowing anything about it**:
+the cubies the move carries are rotated by `t` of the way round on their way to
+the screen, and the move is applied to the model once, exactly, when it lands.
+
+Two things about it are worth not rediscovering:
+
+- **A closed cube has no inside, and a turning one does.** Only outward stickers
+  exist, so a layer half-way round leaves a gap with nothing behind it and the
+  app's background shows through the middle of the cube. `buildScene` therefore
+  draws the *seams a move cuts* — the inward faces either side of the cut,
+  plastic only — for `0 < t < 1`, and walks all 27 lattice positions rather than
+  the 26 cubies, because a slice swings the core away from the middle too. A
+  face turn costs about a dozen extra polygons, and only while it is turning.
+- **Both ends are exact, by construction.** At `t = 0` there is no turn; at
+  `t = 1` the frame is built on the settled lattice by the same code a still
+  cube goes through. So a frame at either end is **identical**, polygon for
+  polygon and key for key, to the still cube before or after the move — which
+  makes "the animation starts and lands without a jump" a test rather than a
+  hope (`geometry.test.js`).
+
+A face is keyed by **where it is going**, not where it is, so React re-renders
+the cube each frame instead of remounting fifty-four views twenty times a
+scramble.
+
 **The alternatives, and why not (yet):**
 
 - **`expo-gl` + three.js** would give real lighting, bevels and reflections. It
@@ -253,8 +280,8 @@ the operator can open in Expo Go.
 | Step | What lands | State |
 |---|---|---|
 | **1** | Scramble · 3D cube you can drag · favorites · hub tile | **shipped** |
-| **2** | **Play the scramble.** Animated layer turns and a move-by-move scrubber | next |
-| **3** | **Enter a cube.** Paste or type a scramble, and/or set the colours by hand, so the cube on screen is the cube on the table | |
+| **2** | **Play the scramble.** Animated layer turns and a move-by-move scrubber | **shipped** |
+| **3** | **Enter a cube.** Paste or type a scramble, and/or set the colours by hand, so the cube on screen is the cube on the table | next |
 | **4** | **Solve it.** A two-phase solver in JS; play the solution back on the cube | |
 | **5** | **CFOP.** The solve split into cross / F2L / OLL / PLL, each phase named, its pieces highlighted, steppable | |
 | **6** | **Roux.** The same treatment for blocks / CMLL / LSE | |
@@ -304,6 +331,20 @@ search Step 4 needs; doing it once, for the solver, gets both.
   drag. `CubeView` keeps them in a ref that is updated on each render.
 - **Pitch past the pole.** Clamped just short of ±90°, or the cube rolls over and
   the drag direction inverts, which reads as the cube fighting you.
+- **`faceBasis` only spans an *axis-aligned* normal.** It is a lookup on which
+  component is non-zero, which is fine for a still cube and wrong for every
+  frame of a turn — a square built from a half-turned normal comes out
+  unrotated at a rotated centre, so the tiles come off the cube in the middle of
+  every move while both ends stay perfect. The fix is the one that generalizes:
+  build every square on the lattice and **carry its four corners** through the
+  same rotation as the cubie. This got as far as a screenshot before it was
+  caught, and no test that checks only `t = 0` and `t = 1` can see it — the ones
+  that do are `moves smoothly` and `leaves and lands without a jump`.
+- **A rotating square has no stable corner order.** Comparing two frames by
+  sorting each polygon's corners looks reasonable and is not: which corner sorts
+  first changes as the square turns, so the comparison reports a 40-point jump
+  where the picture moved four. Compare each corner to the *nearest* corner of
+  the other polygon.
 - **Sizing from the window.** A cube sized as a share of the window looked right
   on a 6" phone and pushed its own caption through the buttons on a 4" one,
   because the space left over depends on how many lines the header and scramble
