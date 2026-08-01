@@ -23,8 +23,15 @@ const ICON_SIZE = 24;
  * control, not a way a player picks a puzzle. Flip this to `false` and the menu
  * is four difficulty buttons; nothing else has to change, which is the point of
  * putting it behind a constant rather than deleting the UI later.
+ *
+ * **Off since the epic merged to `main` (Step 13).** The gift-coins button was
+ * the deciding one: the assist economy (§14.4) is the thing the next play
+ * sessions are meant to measure, and a button that hands out ten coins means
+ * nobody ever plays for them. Free play and the seed field went with it because
+ * they answer developer questions, not player ones. Set it back to `true`
+ * locally to reopen a reported board by seed — that is what it is for.
  */
-export const SHOW_DEVELOPER_CONTROLS = true;
+export const SHOW_DEVELOPER_CONTROLS = false;
 
 /**
  * Fungiku's way in (docs/fungiku-plan.md §14.1).

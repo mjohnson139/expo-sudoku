@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "SudokuApp",
+    "name": "Puzzle Box",
     "slug": "expo-sudoku",
-    "version": "2.8.0",
+    "version": "3.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -28,11 +28,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "name": "Sudoku App",
-      "shortName": "Sudoku",
+      "name": "Puzzle Box",
+      "shortName": "Puzzle Box",
       "backgroundColor": "#ffffff",
       "themeColor": "#000000",
-      "description": "A beautifully designed Sudoku game",
+      "description": "Two logic puzzles behind one hub: Sudoku, and Fungiku's mushrooms",
       "lang": "en",
       "orientation": "portrait"
     },

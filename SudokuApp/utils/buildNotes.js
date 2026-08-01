@@ -1,7 +1,24 @@
-// Build notes for the Sudoku app
+// Build notes for the app
 // Each version's notes are stored in this file
 
 const BUILD_NOTES = {
+  '3.0.0': {
+    title: 'Puzzle Box — two games, one hub',
+    date: '2026-08-01',
+    notes: [
+      'The app is now Puzzle Box, and it opens on a hub with both games side by side',
+      'A game you left half-finished carries a Continue badge on the hub',
+      'New game: Fungiku — one mushroom per row, column and colour, none touching',
+      'Fungiku boards run 5×5 to 10×10, with the size set by the difficulty you pick',
+      'Tap a cell to rule it out, double-tap to place a mushroom, drag to sweep a run of ✕s',
+      'Three lives: a wrong mushroom is flagged at once and costs one, and running out restarts the same puzzle',
+      'Coins are earned by solving boards and spent on Rule out, Hint, and Reveal',
+      'A daily floor tops up a low balance so the game cannot become unwinnable',
+      'Mushrooms sprout into their cells, and the board ripples in a wave when you solve it',
+      'Themes are now app-wide: change one in Sudoku and the hub follows',
+      'Sudoku is unchanged — same board, same rules, same scoring',
+    ]
+  },
   '2.8.0': {
     title: 'Fill in Notes Helper Feature',
     date: '2025-05-22',

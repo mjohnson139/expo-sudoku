@@ -378,6 +378,7 @@ the step's real acceptance test, alongside its automated checks.
 | 10 | ~~**Lives & mistakes**~~ ✅ (§14.2, §14.3) — tap ✕ / double-tap 🍄, wrong guess costs a life, three lives then the board restarts | **A wrong mushroom turns red and costs you a life**; run out and the board resets |
 | 11 | ~~**Earned assists**~~ ✅ (§14.4) — a wallet under its own key, hints and rule-out metered, a reveal dearer than a nudge, earning on solve, a daily floor | **Hints and Rule out can run out**, and solving boards earns more |
 | 12 | ~~**Art swap**~~ ✅ (§12.7) — **the operator kept the glyph and asked for motion instead.** The seam made true (the board goes through `Symbol` rather than naming an icon), the placement pop grown into a sprout, and a staggered win wave across the whole board | **Mushrooms sprout into their cells**, and the whole board ripples when you solve it |
+| 13 | ~~**Close the epic**~~ ✅ — the app named **Puzzle Box**, `SHOW_DEVELOPER_CONTROLS` off, a full play-through of both games, then `epic/fungiku` → `main` as 16 commits rather than one. No new features. | **Nothing changes, and that is the point** — the app the operator had been testing off the epic branch becomes the app on `main` |
 
 > **Steps 9–12 were replanned on 2026-07-26** (§14). The old Step 9 was a training
 > ladder with per-level star thresholds; the operator asked instead for the
@@ -419,14 +420,18 @@ Step 5 replaced that rough grid with the themed, responsive board.
 ## 8. Open questions for the operator
 
 1. **Mode name in the UI** — **decided: "Fungiku"** (internal id `fungiku`).
-2. **What is the app called now?** It ships as "Sudoku" but is about to host two
-   games as peers (§6). The hub needs a title, and the app's name, icon and
-   store listing follow from it. Options: keep "Sudoku" and treat Fungiku as a
-   bonus (undersells it), rename to a neutral puzzle-collection brand, or lead
-   with the family name. This is a branding call, not a technical one, and it
-   blocks nothing. **Step 3 shipped the placeholder "Puzzle Box"** in
-   `SudokuApp/utils/appIdentity.js`; a final answer changes those constants plus
-   `app.json`, the icon and the store listing.
+2. ~~**What is the app called now?**~~ — **decided at the merge, 2026-08-01:
+   "Puzzle Box."** It shipped as "Sudoku" when Sudoku was the app; it now hosts
+   two games as peers (§6), so the shell took a name of its own. Step 3's
+   placeholder became the real name — the operator chose the neutral
+   collection brand over keeping "Sudoku" (which undersells Fungiku) and over
+   leading with the family name (which would demote Sudoku). Landed in
+   `SudokuApp/utils/appIdentity.js`, `app.json` (`expo.name`,
+   `web.name`/`shortName`, `description`) and `web/manifest.json`. **`expo.slug`
+   stayed `expo-sudoku` and the iOS bundle identifier stayed
+   `com.mjohnson139.sudokuapp`** — EAS and store identity, not player-facing, and
+   moving them orphans the project and every install. **The icon and the store
+   listing still say Sudoku**; both are follow-ups against `main`.
 3. ~~**Hub vs. resume on launch**~~ — **decided in Step 3: hub-first.** The app
    opens on the hub and a game with saved progress carries a *Continue* badge, so
    both games stay discoverable. Revisit only if it grates on device.
@@ -451,6 +456,14 @@ Step 5 replaced that rough grid with the themed, responsive board.
 8. **Should metering Rule out survive contact with a child?** (§14.4) Decided
    metered, but rule-out saves tedium rather than insight — worth re-checking
    after a family play session.
+9. ~~**Do the developer controls ship?**~~ — **decided at the merge, 2026-08-01:
+   no.** `SHOW_DEVELOPER_CONTROLS` in `games/fungiku/FungikuMenuModal.js` is
+   `false`, so free play, the seed field and the gift-ten-coins button are all
+   off on `main`. The gift button decided it: the assist economy is exactly what
+   the next play sessions are meant to measure (§14.4, and question 8 above), and
+   a button handing out ten coins means nobody ever plays for them. Setting the
+   constant back to `true` locally is still how a reported board gets reopened by
+   seed — that is what it is for.
 
 ## 9. Edge cases to get right
 
