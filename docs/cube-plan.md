@@ -29,25 +29,22 @@ scored, timed, or won.
   three things: a registry entry, a `describeCubeProgress` in
   `utils/gameProgress.js`, and `react-native-svg` in `package.json`.
 
-### Branching, and why the base is not `main`
+### Branching
 
-The cube lands on its own epic branch, like Fungiku does. Every step PR targets
-**`epic/cube`**:
+The cube lands on its own epic branch, like Fungiku did. Every step PR targets
+**`epic/cube`**, and the epic merges to `main` once the cube is worth shipping:
 
 ```
-main ─── epic/fungiku ─── epic/cube ─── feature/cube-<step>   (PRs target epic/cube)
+main ─── epic/cube ─── feature/cube-<step>   (PRs target epic/cube)
 ```
 
-`epic/cube` is cut from `epic/fungiku`, not from `main`, for one concrete reason:
-**the cube's tile lives on the hub, and the hub only exists on `epic/fungiku`.**
-It was built as part of that epic and has not reached `main` yet — there is no
-`games/registry.js` on `main` to add a tile to, so a cube branch based there
-would not build.
-
-Fungiku's own Step 13 is "merge the epic to `main`". Once that lands, **rebase
-`epic/cube` onto `main`** and the dependency is gone; until then `epic/cube`
-carries Fungiku's commits, so read its diff against `epic/fungiku` rather than
-against `main`.
+`epic/cube` is cut from **`main`**, which is where it belongs and where it now
+sits. It briefly was not: the hub the cube's tile lives on was built inside the
+Fungiku epic, so until that epic merged there was no `games/registry.js` on
+`main` to add a tile to, and `epic/cube` was cut from `epic/fungiku` instead.
+Fungiku's Step 13 closed that epic on 2026-08-01 and `epic/cube` was rebased onto
+`main` the same day. **There is no Fungiku dependency any more** — this is
+recorded only so that a reader of the early history is not confused by it.
 
 Pushing to `epic/cube` publishes an EAS Update branch of the same name
 (`.github/workflows/eas-publish.yml`), so the epic stays openable in Expo Go
@@ -318,10 +315,22 @@ search Step 4 needs; doing it once, for the solver, gets both.
 - Nothing from either is vendored today. Step 1 has no third-party cube code in
   it at all — `react-native-svg` is the only dependency it added.
 
-## 12. Housekeeping noticed in passing
+## 12. Build notes and versioning
 
-`SudokuApp/utils/buildNotes.js` and the version in `app.json` both stop at
-`2.8.0`, dated May 2025 — the whole Fungiku epic landed without touching either,
-so `.cursorrules`' build-notes ritual is effectively retired. This step did not
-revive it unilaterally. Worth an explicit call from the operator: bring it back,
-or delete the instruction.
+**Answered, and the answer is that the ritual is live.** When Step 1 was written,
+`buildNotes.js` and `app.json` both stopped at `2.8.0` (May 2025) — the entire
+Fungiku epic had landed without touching either, so `.cursorrules`' build-notes
+instruction looked retired, and this plan said so rather than reviving it
+unilaterally. Fungiku's Step 13 then closed its epic by writing a `3.0.0` entry
+and renaming the app to Puzzle Box in `app.json`. So it was not retired; it is
+kept **per release, at the point an epic closes**, not per step.
+
+The cube follows that: `3.1.0`, a minor bump for a new mode rather than a major
+one, since the app's shape does not change — it gains a third card on a hub that
+already exists. **Later cube steps should extend the `3.1.0` entry rather than
+adding a version each**, and only bump again if the epic ships in more than one
+release. Keep `app.json`'s `expo.version` in step with whatever the newest key is.
+
+`expo.slug` and the iOS bundle identifier stay as they are, for the reasons
+`utils/appIdentity.js` gives: they are identity for EAS and the store, and
+changing them orphans the project and every install.

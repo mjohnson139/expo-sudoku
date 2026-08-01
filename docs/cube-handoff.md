@@ -42,14 +42,17 @@ questions forward.
 The cube lands on an epic branch, never straight to `main`:
 
 ```
-main ─── epic/fungiku ─── epic/cube ─── feature/cube-<step>   (PRs target epic/cube)
+main ─── epic/cube ─── feature/cube-<step>   (PRs target epic/cube)
 ```
 
-Branch from **`epic/cube`**, and open your PR **against `epic/cube`**. It is cut
-from `epic/fungiku` rather than `main` because the hub the cube's tile sits on
-only exists there — `main` has no `games/registry.js` yet (plan §"Branching").
-Once Fungiku's Step 13 merges that epic to `main`, rebase `epic/cube` onto `main`
-and the dependency is gone.
+Branch from **`epic/cube`**, and open your PR **against `epic/cube`**. The epic
+merges to `main` once the cube is worth shipping, so `main` never carries a
+half-built tool.
+
+`epic/cube` is cut from `main` and tracks it. (It was briefly cut from
+`epic/fungiku`, because the hub only existed there; Fungiku's Step 13 merged that
+epic to `main` on 2026-08-01 and this was rebased the same day. **No Fungiku
+dependency remains** — if you find a doc that says otherwise, it is stale.)
 
 Pushing `epic/cube` publishes an EAS Update branch of the same name, so the epic
 is always openable in Expo Go (project → Branches) even with no step PR open.
@@ -179,9 +182,10 @@ Step 2.
 
 ### Noted in passing, for a later step
 
-- `utils/buildNotes.js` and `app.json` both stop at `2.8.0` (May 2025). The whole
-  Fungiku epic landed without touching them. Either revive the ritual or delete
-  the instruction in `.cursorrules` — plan §12.
+- **Build notes are kept per release, not per step** (plan §12). Fungiku's Step 13
+  wrote `3.0.0`; the cube epic is `3.1.0`. **Extend that entry** as later steps
+  land rather than adding a version for each, and keep `app.json`'s
+  `expo.version` matching the newest key.
 - `CubeView` takes a `colors` prop already, so a colour-scheme setting is a
   screen-level change, not a renderer one.
 
