@@ -268,6 +268,11 @@ the turns so double speed hurries rather than stutters, and applying to single
 steps as much as to playback. It is transient, like the view angle: the save file
 holds algorithm text (§7).
 
+**Playing one phase is two calls into this, not a third path** (Step 6): `seek`
+to where the group starts, then `playTo` where it ends. The jump is the right
+half of it — "play just the second block" is not a request to watch the first one
+go past first — and the walk is the loop that was already there.
+
 ### Growing an algorithm, not replacing one (added in Step 3)
 
 `buildPlayback(alg, { from })` takes the cube move 1 starts on, because a solve
@@ -429,9 +434,11 @@ relitigating:
   natural key and is given one — minted by counting (`s1`, `s2`, one past the
   highest in the file) rather than by clock or dice, so the file and the tests
   stay deterministic.
-- **`phases` is in the file and nothing writes one.** It is §8.5's slot,
-  sanitized from the start, so the build that first writes a phase finds the
-  field already there.
+- **`phases` was in the file before anything wrote one.** It was §8.5's slot,
+  sanitized from the start, so the build that first wrote a phase found the field
+  already there — which is exactly what happened in Step 6, and it cost that step
+  no migration and no reshaping. `sanitizePhases` is now `clampPhases`, the same
+  function the screen applies live.
 - **`workspace` is the other half of "come back to what you left"** — which
   solve was open and whether solve mode was. Both are cross-checked against what
   survived sanitizing: an open solve has to exist and has to belong to the
@@ -455,11 +462,23 @@ the operator can open in Expo Go.
 | **3** | **Solve mode.** Enter moves and the cube turns — a move pad and a text field, on the scrambled cube | **shipped** |
 | **4** | **The workspace survives.** Nothing you wrote is lost to a backgrounded app; several named solves per scramble | **shipped** |
 | **5** | **Orientation.** Record how the cube is held before a solve starts — Roux's inspection step, "yellow up, blue left" | **shipped** (out of order, 2026-08-02) |
-| **6** | **Annotate the move groups.** "These moves solve first block, these solve second block" — labelled spans, per-phase move counts, and a transport that steps phase by phase | next |
-| **7** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
-| **8** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
+| **6** | **Annotate the move groups.** "These moves solve first block, these solve second block" — labelled spans, per-phase move counts, and a transport that plays one group | **shipped** |
+| **7** | **Edit a solve you have already written.** Fix a move in the middle without undoing back to it — the oldest live gap in the feature | next |
+| **8** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
+| **9** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
 
-Steps 3–6 are the operator's actual goal. Steps 4–6 are increments on Step 3:
+**Step 7 was inserted, and the two after it moved down** (2026-08-02, when Step 6
+landed). It is a re-ordering rather than new scope: "the text field appends, it
+cannot edit" has been written down as a known gap since Step 3, was recorded as
+*overdue* when Step 4 kept solves it could not fix a typo in, and Step 6 has now
+put **markers** on top of the same text — every month it waits, more of the
+feature is built on an edit path that only goes backwards. Hand-entering a cube
+is a different workflow (a cube off a table, rather than the drilling this epic
+is for) and loses nothing by waiting. **The operator can overrule this**; the
+brief for either one is a step's worth of work.
+
+**Steps 3–6 all shipped, and they were the operator's actual goal.** Steps 4–6
+are increments on Step 3:
 once you can enter moves, keeping several attempts is a list, holding the cube a
 certain way is a prefix of rotations, and naming the phases is a marker between
 two moves. **None of them need a solver**, which is the whole point of the
@@ -610,6 +629,32 @@ making in the plan rather than in the moment:
 
 This is why §7.1 says decide the save shape once: `phases` is a third field on a
 solve, and it should exist in the file before it exists in the UI.
+
+**Shipped 2026-08-02.** Three things it learned, all of them about the fact that
+a marker is an index into a list that is still being edited:
+
+- **Closing a group writes two markers, not one.** The name goes onto the
+  boundary the group *started* at, and a fresh unnamed boundary is opened where
+  it ended. The second one looks like bookkeeping and is not: without it the
+  named span runs to the end of the solve, and `First block · 8` quietly becomes
+  `First block · 12` as the second block is written. It is the same shape as the
+  counts rule — the moment a number is stored rather than derived, something has
+  to keep it honest.
+- **The rule for what an edit does to a marker has to be one function.** Undo
+  removes the last move; a marker at that index now points at nothing.
+  `clampPhases` is the single answer, called live by the screen on every edit to
+  the moves *and* by `sanitizeSolves` on the way out of the file. Two
+  implementations of one rule is a marker that survives a reload but not an undo,
+  or the reverse. Dropping is the honest answer rather than clamping: the move
+  that closed the group is gone, so the group is open again and its name is still
+  on it, counting up from where it was.
+- **A one-tap control needs a way to take the tap back**, and the cheapest one
+  turned out to be the same control. Naming a group whose boundary already
+  exists can only mean the group behind it, so a second tap on the flag
+  *renames*. The alternative — refusing, because there is nothing new to close —
+  is a dead end that a headless driver found within a minute of the bin being
+  added: remove a marker and the group it left behind could never be named again
+  without writing another move.
 
 ## 9. Open questions for the operator
 

@@ -7,11 +7,16 @@ import { MODIFIERS, PAD_COLUMNS, PAD_KEYS, describeToken, padToken } from './sol
 /**
  * The keyboard a solve gets written on (docs/cube-plan.md §8.2, Step 3).
  *
- * Twelve keys, two rows of six, and a row underneath for the two modifiers and
- * the two ways to take a move back. Which twelve is a Roux decision and is
- * argued in `solve.PAD_KEYS`; how many fit on a row is a phone decision — the
- * narrowest screen this app supports has 300 points, and the stage above is the
- * `flex: 1` that pays for every one of them.
+ * Twelve keys, two rows of six, and a row underneath for the two modifiers, the
+ * two ways to take a move back, the text field and the phase marker. Which
+ * twelve is a Roux decision and is argued in `solve.PAD_KEYS`; how many fit on a
+ * row is a phone decision — the narrowest screen this app supports has 300
+ * points, and the stage above is the `flex: 1` that pays for every one of them.
+ *
+ * The bottom row is the one place a sixth control could go, and Step 6 spent it
+ * on the flag: the rows above are six keys wide, so a sixth here costs the page
+ * no height at all. It is the *only* free slot on this screen — everything else
+ * would be another row, and another row comes out of the cube.
  *
  * ### The modifiers are armed, and the keys say so
  *
@@ -33,6 +38,7 @@ const CubeMovePad = ({
   modifier,
   canUndo,
   canClear,
+  canPhase,
   accent,
   theme,
   onKey,
@@ -40,6 +46,7 @@ const CubeMovePad = ({
   onUndo,
   onClear,
   onType,
+  onPhase,
 }) => {
   const titleColor = theme.colors.title;
   const surface = theme.colors.numberPad.background;
@@ -147,6 +154,17 @@ const CubeMovePad = ({
           onType,
           false
         )}
+        {/* The one that annotates. It is not only "end the phase here" — it is
+            also the list of the ones already marked, and the only way to delete
+            one, which is why it stays live once a solve has any markers even if
+            there is nothing new to close. */}
+        {tool(
+          'flag-outline',
+          'End the phase here',
+          'Names the group of moves since the last marker, and lists the ones already marked',
+          onPhase,
+          !canPhase
+        )}
       </View>
     </View>
   );
@@ -179,8 +197,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
-  // The modifier row is five controls where the rows above are six, so the two
-  // modifiers take the extra width. They are the keys that get hit in a hurry.
+  // The two modifiers keep a fifth more width than the four icons beside them:
+  // they are the keys that get hit in a hurry, and Roux is prime-heavy. The row
+  // is six controls now rather than five, so this is what pays for the flag —
+  // at 320 points a tool key comes out about 43 wide against the 46 of a move
+  // key above it, which is the honest cost of the sixth slot and was measured
+  // rather than assumed.
   modifier: {
     flex: 1.2,
   },
