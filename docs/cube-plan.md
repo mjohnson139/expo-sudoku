@@ -187,6 +187,13 @@ hold that together is a `tokenize` scan that returns the raw token strings, so a
 displayed token and the move it animates are the same element of two arrays built
 in one pass rather than two things hoped to line up.
 
+**Built in Step 3.** `scanAlg(text)` is the one pass and returns
+`{ tokens, moves }`; `parseAlg` and `tokenize` are its two projections, and
+`buildPlayback` carries both through to the screen. The scramble display was
+moved onto it at the same time, so nothing in the feature redisplays a canonical
+token any more. `algError(text)` is the same scan kept for its message, which is
+what lets the text field say *which* token it choked on.
+
 ## 5. The renderer — SVG, and why not WebGL
 
 `games/cube/geometry.js` builds the frame; `games/cube/CubeView.js` draws it.
@@ -261,6 +268,49 @@ the turns so double speed hurries rather than stutters, and applying to single
 steps as much as to playback. It is transient, like the view angle: the save file
 holds algorithm text (§7).
 
+### Growing an algorithm, not replacing one (added in Step 3)
+
+`buildPlayback(alg, { from })` takes the cube move 1 starts on, because a solve
+starts from the scrambled cube rather than a solved one. Everything else about
+playback is unchanged — **a solve is a list of moves like any other**, which is
+why entering one drives the same transport instead of growing a second.
+
+What did have to change is what a *changed algorithm* means. Loading a favorite
+and tapping `R` on the solve pad arrive identically — the string underneath the
+transport is different — and the right answer is opposite in the two cases:
+reset to the end for one, turn the new move for the other. Resetting when a move
+is appended applies it without ever showing it, which is the one thing the pad
+exists to do.
+
+**The starting cube is the identity, and it has to change when the subject
+does.** `from` is not only where move 1 begins — it is what says *this is a
+different algorithm now*. Scramble mode originally passed a constant, and the
+consequence was a bug worth remembering: the screen mounts with an **empty**
+scramble and fills it from storage, and position 0 of nothing vacuously extends
+into position 0 of anything, so the transport read the arriving scramble as
+growth and **played all twenty moves on every cold start** (which is what a
+backgrounded app does when the system evicts it). The fix is that the starting
+cube is rebuilt whenever the scramble is, so its identity changes with the
+subject rather than staying put.
+
+`extendsAlg(before, after, from)` is the pure predicate that tells them apart,
+and the `from` argument is the part worth not losing. Asked at the end of
+`before` it is the plain reading — *same algorithm, more on the end*. The
+transport asks it at **where the cube actually is**, which is the same question
+somewhere more useful: moves past that point have not been played, so whether
+they changed cannot matter. That is what makes *undo, then type a different
+move* animate rather than jump — by then the cube has turned back, and both
+algorithms agree everywhere it has been.
+
+**Undo is two things that cannot happen at once**: turn the move backwards, then
+drop it. Dropping first is a jump; turning first leaves the algorithm holding a
+move the operator has already taken back. So `retract(onDone)` owes the drop and
+*every* exit from the turn pays it — it lands, or something interrupts it. That
+matters more than it sounds: a second undo, or a key tapped inside the 260ms the
+turn takes, otherwise walks away from a removal that never happened and the
+solve silently keeps a move that was deleted. Both were real, and both were
+caught by driving the export rather than by a test.
+
 **The alternatives, and why not (yet):**
 
 - **`expo-gl` + three.js** would give real lighting, bevels and reflections. It
@@ -330,9 +380,9 @@ the operator can open in Expo Go.
 |---|---|---|
 | **1** | Scramble · 3D cube you can drag · favorites · hub tile | **shipped** |
 | **2** | **Play the scramble.** Animated layer turns and a move-by-move scrubber | **shipped** |
-| **3** | **Solve mode.** Enter moves and the cube turns — a move pad and a text field, on the scrambled cube | next |
-| **4** | **Several solves per scramble.** Name them, keep them, switch between them; the notebook the operator asked for | |
-| **5** | **Orientation.** Record how the cube is held before a solve starts — Roux's inspection step, "yellow up, blue left" | |
+| **3** | **Solve mode.** Enter moves and the cube turns — a move pad and a text field, on the scrambled cube | **shipped** |
+| **4** | **Several solves per scramble.** Name them, keep them, switch between them; the notebook the operator asked for | next |
+| **5** | **Orientation.** Record how the cube is held before a solve starts — Roux's inspection step, "yellow up, blue left" | **shipped** (out of order, 2026-08-02) |
 | **6** | **Phases.** Mark where first block / second block / CMLL / LSE begin and end inside a solve, and step phase by phase | |
 | **7** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
 | **8** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
@@ -372,6 +422,9 @@ A **solve** is what the operator writes down about one scramble:
   traditionally that is yellow on top and blue on the left. In notation this is a
   prefix of whole-cube rotations (`x`, `y`, `z`), which the model and renderer
   already handle and which cost nothing extra to store.
+
+  **Shipped ahead of Step 4** (operator, 2026-08-02), because typing rotations
+  turned out to be the wrong way to enter it. See §8.3.
 - **The moves** — the solve itself, in standard notation.
 - **A name**, eventually, so two attempts at the same scramble can be told apart.
 
@@ -382,6 +435,74 @@ there is something to try before the save-file shape has to be settled (§7).
 **Colour neutrality is explicitly out of scope** (operator, 2026-08-01) — solving
 from any starting colour is a real Roux topic and a real complication, and it is
 not what this epic is for yet.
+
+### 8.3 Inspection is a phase, and it is panning (Step 5)
+
+The operator's verdict after using Step 3: *"it's really hard to do that right
+now — we can pan the cube around and look at it and that's a lot easier than
+using the keyboard."* Picking a hold by typing `z2 y'` is asking someone to
+compute the answer to the question they are using the cube to answer.
+
+So the orientation is **read off the view angle**. Pan until the cube looks the
+way you want to hold it, tap **Set start**, and `games/cube/orientation.js`
+converts the angle into the rotations that get there.
+
+Three things about it are worth not rediscovering:
+
+- **The camera and the model are not interchangeable.** Panning moves the
+  camera; a hold moves the model. Leaving the camera somewhere and calling it
+  the orientation looks right and is wrong the moment a move is entered — `R`
+  would still turn the face the *model* calls R, not the one now on the right of
+  the screen. So the angle is converted to rotations, applied, and the camera
+  goes back to the default.
+- **The angle is thrown away and only the hold is kept.** There are 24 holds and
+  infinitely many angles to look at one from, so setting one is a visible jump
+  back to the standard three-quarter view — deliberately. Inspecting from
+  directly overhead is a fine way to decide "blue up, white front" and a bad way
+  to look at a cube you are about to solve.
+- **Front must be chosen among the faces perpendicular to up.** Taking "highest
+  on screen" and "nearest the camera" as two independent argmaxes returns the
+  *same face* for both when you look down a body diagonal — yaw 45°, pitch 45°,
+  one drag from the opening view — and that pair is not an orientation at all.
+
+The 24 orientations and the shortest rotations to each are found by breadth-first
+search at module load, not written out: a hand-written table of 24 rotation
+sequences is 24 chances to be wrong in a way no reviewer can see, which is the
+same argument §3 makes about facelet permutations.
+
+**Sixteen of the twenty-four holds are reachable, and that is a known limit.**
+The camera is yaw-then-pitch with **no roll** — a two-parameter family — so the
+holds it can land on are a surface through the 24, not all of them. Every hold
+with **white or yellow on top is reachable, all four fronts each**, and those
+are every hold this epic supports: colour neutrality is explicitly out of scope
+(§8.2, §9.9), so a solve starts from white or yellow up. The missing eight all
+have a *side* colour on top **and** a side colour in front — turning the cube
+onto its side is fine, spinning it about the axis you are then looking down is
+not. Reaching them means giving the camera a roll axis, which is the change to
+make **if and when colour neutrality lands**, and not before.
+
+**A hold is described in colours, never in rotations** — "yellow up · blue
+front", live under the cube as you pan. Nobody inspecting a cube thinks in `z2`,
+and reading colours off a 120-point cube is guesswork.
+
+Because the hold is baked into the model, **"the view I chose" and "the default
+view" become the same thing** — so the shortcut back to it is the reset that
+already existed, under the name it now deserves (`Start view`).
+
+**Locked once the solve has moves** (operator, 2026-08-02): re-orienting under
+moves already written would silently change what every one of them does.
+
+### 8.4 Swipe-to-turn, considered and declined
+
+Turning layers by swiping the cube directly was raised and **dropped as too
+complicated** (operator, 2026-08-02) — recorded so it is not re-proposed as new.
+The finding that made it plausible is still true and still written down, if it
+ever comes back: `buildScene` already returns screen-space polygons sorted
+back-to-front, and each tile's key is `x,y,z|nx,ny,nz`, so hit-testing a finger
+to a sticker is point-in-polygon with no raycasting. What stopped it is that the
+cube already claims every pan for orbit, so the two would have to be told apart
+by where the drag starts, and swipes cannot say `2`, wides, or rotations without
+more gestures on top.
 
 ## 9. Open questions for the operator
 
@@ -402,10 +523,16 @@ not what this epic is for yet.
    finger". Nobody has complained yet because nobody has used it yet.
 7. **Turn speed.** Answered and shipped in Step 2 — a chip cycling 1× → 2× → 0.5×.
    Not persisted; see §7 and the note under Step 3 in the handoff.
-8. **How a move gets entered.** Step 3 ships a pad with `'` and `2` as modifier
+8. **How a move gets entered.** Rotations came off the critical path in Step 5 —
+   the hold is panned to, not typed — but `x`/`y`/`z` **stay on the pad**
+   (operator, 2026-08-02) because a solve occasionally needs one mid-way. Step 3
+   ships a pad with `'` and `2` as modifier
    keys you arm before the face. Roux is prime-heavy, so that is two taps for a
    very common move, and it is the first thing to revisit once the operator has
    drilled a real solve on it. The alternatives are written up in the handoff.
+   What makes two taps bearable in the meantime is that **the pad relabels
+   itself** while a modifier is armed — every key reads `U'`, `R'`, `M'` — so
+   the second tap is aimed at a key that already says the move it will make.
 
 ## 10. Edge cases and things that are easy to get wrong
 
@@ -422,8 +549,19 @@ not what this epic is for yet.
 - **Stale closures in the pan responder.** `PanResponder.create` runs once, so a
   handler that closes over `yaw`/`pitch` freezes the opening angle into every
   drag. `CubeView` keeps them in a ref that is updated on each render.
-- **Pitch past the pole.** Clamped just short of ±90°, or the cube rolls over and
-  the drag direction inverts, which reads as the cube fighting you.
+- ~~**Pitch past the pole.**~~ **Reversed on 2026-08-02, and this is the
+  cautionary one.** Pitch was clamped just short of ±90° so the cube could never
+  roll over and invert the drag. The clamp was correct about the symptom and
+  quietly made **yellow-up impossible to pick** — D is only the highest face on
+  screen when `cos(pitch) < 0`, so the traditional Roux hold was unreachable *by
+  construction*, and it was the first thing the operator tried once inspection
+  shipped. The clamp is gone; the inversion is handled instead, by reversing the
+  *horizontal* drag when `geometry.isUpsideDown(pitch)`. Only the horizontal
+  needs it: increasing pitch applies its rotation directly in view space, so a
+  vertical drag reads the same at every angle, while increasing yaw spins about
+  the world's up-axis, which points down the screen once the cube is over.
+  **A constraint added to prevent a feeling can silently remove a capability**,
+  and nothing failed — there was simply a hold you could not name.
 - **`faceBasis` only spans an *axis-aligned* normal.** It is a lookup on which
   component is non-zero, which is fine for a still cube and wrong for every
   frame of a turn — a square built from a half-turned normal comes out

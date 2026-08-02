@@ -1,11 +1,15 @@
 import {
+  algError,
   axisOf,
   formatAlg,
   isValidAlg,
   moveCount,
   parseAlg,
   parseMove,
+  scanAlg,
+  tokenize,
   tryParseAlg,
+  tryTokenize,
 } from '../moves';
 import { AXIS } from '../geometry';
 
@@ -97,6 +101,53 @@ describe('parseAlg', () => {
     expect(tryParseAlg("R U R'")).toHaveLength(3);
     expect(isValidAlg('R Q U')).toBe(false);
     expect(isValidAlg("R U R'")).toBe(true);
+  });
+});
+
+describe('tokenize', () => {
+  it('keeps the spelling that was written, not the one the model uses', () => {
+    // The whole reason this exists (plan §4). A Roux notebook that echoes
+    // `Rw U Rw'` at someone who typed `r U r'` is correcting them in notation
+    // their own method does not use.
+    expect(tokenize("r U r'")).toEqual(['r', 'U', "r'"]);
+    expect(tokenize("Rw U Rw'")).toEqual(['Rw', 'U', "Rw'"]);
+    expect(tokenize('M2')).toEqual(['M2']);
+  });
+
+  it('splits an unspaced algorithm the same way a spaced one splits', () => {
+    expect(tokenize("RUR'U'")).toEqual(tokenize("R U R' U'"));
+  });
+
+  it('lines up one-for-one with the moves, from the same scan', () => {
+    // The property the screen leans on: `tokens[i]` is displayed and `moves[i]`
+    // is animated, so they cannot be two lists that drift.
+    const { tokens, moves } = scanAlg("r U R' M2 y");
+    expect(tokens).toHaveLength(moves.length);
+    expect(tokens).toEqual(['r', 'U', "R'", 'M2', 'y']);
+    expect(moves.map((move) => move.token)).toEqual(['Rw', 'U', "R'", 'M2', 'y']);
+  });
+
+  it('refuses the whole string when one token is bad, like parseAlg', () => {
+    expect(() => tokenize('R Q U')).toThrow();
+    expect(tryTokenize('R Q U')).toBeNull();
+    expect(tryTokenize("R U R'")).toEqual(['R', 'U', "R'"]);
+  });
+
+  it('is empty for the empty algorithm', () => {
+    expect(tokenize('')).toEqual([]);
+    expect(tokenize('   ')).toEqual([]);
+  });
+});
+
+describe('algError', () => {
+  it('names the token it choked on, so a field can say why', () => {
+    expect(algError('R Q U')).toMatch(/Q/);
+    expect(algError('Mw')).toMatch(/Mw/);
+  });
+
+  it('is null for notation it can read', () => {
+    expect(algError("R U R' U'")).toBeNull();
+    expect(algError('')).toBeNull();
   });
 });
 

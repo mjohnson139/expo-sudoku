@@ -17,8 +17,11 @@ import { announcePosition, describePosition, describeSpeed } from './player';
  * token cannot say: "one at a time" and "play it".
  *
  * Purely presentational. Everything it shows and everything it calls comes from
- * `useScramblePlayer`, so the screen can hand the same props to a solve
- * playback later without this knowing the difference.
+ * `useScramblePlayer`, so the same props drive a solve — which is what Step 3
+ * does. `noun` and `startLabel` are the only things that differ, because
+ * position 0 of a scramble is a solved cube and position 0 of a solve is the
+ * scrambled one, and a button that says the wrong one of those is worse than a
+ * button with no label at all.
  */
 const CubeScrubber = ({
   index,
@@ -27,6 +30,8 @@ const CubeScrubber = ({
   rate,
   accent,
   theme,
+  noun = 'scramble',
+  startLabel = 'Back to the solved cube',
   onPlayPause,
   onStepBack,
   onStepForward,
@@ -63,21 +68,21 @@ const CubeScrubber = ({
 
   return (
     <View style={styles.row}>
-      {button('skip-previous', 'Back to the solved cube', () => onSeek(0), atStart)}
+      {button('skip-previous', startLabel, () => onSeek(0), atStart)}
       {button('chevron-left', 'Previous move', onStepBack, atStart)}
       {button(
         playing ? 'pause' : 'play',
-        playing ? 'Pause' : 'Play the scramble',
+        playing ? 'Pause' : `Play the ${noun}`,
         onPlayPause,
         count === 0,
         true
       )}
       {button('chevron-right', 'Next move', onStepForward, atEnd)}
-      {button('skip-next', 'Jump to the end of the scramble', () => onSeek(count), atEnd)}
+      {button('skip-next', `Jump to the end of the ${noun}`, () => onSeek(count), atEnd)}
 
       <Text
         style={[styles.position, { color: titleColor }]}
-        accessibilityLabel={announcePosition(index, count)}
+        accessibilityLabel={announcePosition(index, count, noun)}
       >
         {describePosition(index, count)}
       </Text>

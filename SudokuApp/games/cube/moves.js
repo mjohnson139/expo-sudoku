@@ -109,7 +109,8 @@ export const parseMove = (token) => {
 };
 
 /**
- * A whole algorithm → moves.
+ * A whole algorithm → the tokens as they were written *and* the moves they mean,
+ * in one pass.
  *
  * Spaces are optional: `R U R' U'` and `RUR'U'` both parse, because the scanner
  * matches tokens rather than splitting on whitespace. Anything the scanner
@@ -117,13 +118,23 @@ export const parseMove = (token) => {
  * dropped a move it didn't understand would show a cube that is not the cube the
  * player is holding, which is the one thing this screen must never do.
  *
+ * ### Why both halves come back together
+ *
+ * `parseMove` normalizes — `r`, `Rw` and `rw` all become `{ token: 'Rw', … }` —
+ * which is right for the model and wrong for anything the operator reads back:
+ * Roux is written `r U r'`, and echoing `Rw U Rw'` corrects the person using the
+ * tool in notation their own method does not use (plan §4). So `tokens[i]` is
+ * exactly what was typed and `moves[i]` is what it does, built in the same loop
+ * rather than as two lists hoped to line up.
+ *
  * @param {string} text
- * @returns {Array<Object>} moves
+ * @returns {{tokens: string[], moves: Array<Object>}}
  * @throws {Error} on anything that isn't a well-formed algorithm
  */
-export const parseAlg = (text) => {
+export const scanAlg = (text) => {
   if (typeof text !== 'string') throw new Error('Algorithm must be a string');
 
+  const tokens = [];
   const moves = [];
   let consumed = 0;
 
@@ -132,6 +143,7 @@ export const parseAlg = (text) => {
   while (match !== null) {
     const move = parseMove(match[0]);
     if (!move) throw new Error(`Unrecognized move: ${match[0]}`);
+    tokens.push(match[0]);
     moves.push(move);
     consumed += match[0].length;
     match = SCAN_RE.exec(text);
@@ -142,15 +154,56 @@ export const parseAlg = (text) => {
   if (leftovers.length > 0) throw new Error(`Unrecognized notation: ${leftovers}`);
   if (consumed === 0 && text.trim().length > 0) throw new Error('No moves found');
 
-  return moves;
+  return { tokens, moves };
+};
+
+/**
+ * A whole algorithm → moves.
+ *
+ * @param {string} text
+ * @returns {Array<Object>} moves
+ * @throws {Error} on anything that isn't a well-formed algorithm
+ */
+export const parseAlg = (text) => scanAlg(text).moves;
+
+/**
+ * A whole algorithm → its tokens, spelled the way they were written.
+ *
+ * The counterpart of `parseAlg`, and the reason anything can be redisplayed
+ * without being silently rewritten. Validates exactly as strictly: a string with
+ * one bad token has no tokens at all.
+ */
+export const tokenize = (text) => scanAlg(text).tokens;
+
+/** `scanAlg` that answers null instead of throwing. */
+export const tryScanAlg = (text) => {
+  try {
+    return scanAlg(text);
+  } catch (error) {
+    return null;
+  }
 };
 
 /** `parseAlg` that answers null instead of throwing. */
 export const tryParseAlg = (text) => {
+  const scan = tryScanAlg(text);
+  return scan ? scan.moves : null;
+};
+
+/** `tokenize` that answers null instead of throwing. */
+export const tryTokenize = (text) => {
+  const scan = tryScanAlg(text);
+  return scan ? scan.tokens : null;
+};
+
+/** Why `text` was rejected, or null if it wasn't. The message names the offending
+ *  token, which is the only thing that makes a rejection actionable. */
+export const algError = (text) => {
   try {
-    return parseAlg(text);
-  } catch (error) {
+    scanAlg(text);
     return null;
+  } catch (error) {
+    return error.message;
   }
 };
 
@@ -174,4 +227,15 @@ export const moveCount = (text) => {
 /** Collapse a face to the axis it turns, so `U` and `D` compare equal. */
 export const axisOf = (face) => BASE_MOVES[face]?.axis ?? null;
 
-export default { parseMove, parseAlg, tryParseAlg, isValidAlg, formatAlg, moveCount };
+export default {
+  parseMove,
+  parseAlg,
+  scanAlg,
+  tokenize,
+  tryParseAlg,
+  tryTokenize,
+  isValidAlg,
+  algError,
+  formatAlg,
+  moveCount,
+};

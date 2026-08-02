@@ -19,12 +19,13 @@ import {
   describePosition,
   describeSpeed,
   ease,
+  extendsAlg,
   gapDuration,
   nextSpeed,
   turnDuration,
 } from '../player';
 import { faceletString, isSolved, cubeFromAlg } from '../cubeState';
-import { parseMove } from '../moves';
+import { moveCount, parseMove } from '../moves';
 
 describe('buildPlayback', () => {
   it('gives one more cube than there are moves', () => {
@@ -71,6 +72,131 @@ describe('buildPlayback', () => {
     const { moves, states } = buildPlayback('');
     expect(moves).toHaveLength(0);
     expect(isSolved(states[0])).toBe(true);
+  });
+
+  it('hands back the tokens as written alongside the moves they mean', () => {
+    // A solve typed `r U r'` reads back `r U r'`; the model still turns `Rw`.
+    const { tokens, moves } = buildPlayback("r U r'");
+    expect(tokens).toEqual(['r', 'U', "r'"]);
+    expect(moves.map((move) => move.token)).toEqual(['Rw', 'U', "Rw'"]);
+  });
+
+  it('starts from the cube it was given, which is what a solve needs', () => {
+    const scramble = "R U2 F' D L B'";
+    const from = cubeFromAlg(scramble);
+    const { states } = buildPlayback("r U r'", { from });
+
+    // Position 0 of a solve is the scrambled cube, not a solved one.
+    expect(faceletString(states[0])).toBe(faceletString(from));
+    expect(isSolved(states[0])).toBe(false);
+
+    // And the end is the scramble and the solve run one after the other, which
+    // is the property that makes "enter a move and the cube turns" true.
+    expect(faceletString(states[states.length - 1])).toBe(
+      faceletString(cubeFromAlg(`${scramble} r U r'`))
+    );
+  });
+
+  it('undoes a scramble when the solve is its inverse', () => {
+    const scramble = "R U R' U'";
+    const { states } = buildPlayback("U R U' R'", { from: cubeFromAlg(scramble) });
+    expect(isSolved(states[states.length - 1])).toBe(true);
+  });
+
+  it('is still solved-by-default when no starting cube is given', () => {
+    expect(isSolved(buildPlayback("R U R'").states[0])).toBe(true);
+    expect(isSolved(buildPlayback("R U R'", {}).states[0])).toBe(true);
+  });
+
+  it('leaves the cube it was handed alone', () => {
+    // States are shared by reference where a move does not touch them, so a
+    // starting cube that got mutated would rewrite the scramble the solve is
+    // being written against.
+    const from = cubeFromAlg('R U');
+    const before = faceletString(from);
+    buildPlayback("M2 U M2 r U r'", { from });
+    expect(faceletString(from)).toBe(before);
+  });
+});
+
+describe('extendsAlg', () => {
+  it('is true when moves were added to the end', () => {
+    expect(extendsAlg('R U', "R U R'")).toBe(true);
+    expect(extendsAlg('', 'R')).toBe(true);
+    expect(extendsAlg('R U', 'R U')).toBe(true);
+  });
+
+  it('is false when the algorithm was replaced, shortened or edited', () => {
+    // Undo, clear, and loading a favorite: three ways of saying "this is a
+    // different algorithm now", which is what makes the transport reset.
+    expect(extendsAlg("R U R'", 'R U')).toBe(false);
+    expect(extendsAlg('R U', '')).toBe(false);
+    expect(extendsAlg('R U', "R U' R")).toBe(false);
+    expect(extendsAlg('R U', 'U R F')).toBe(false);
+  });
+
+  it('compares the moves, not the spelling', () => {
+    // `r` and `Rw` are the same turn, so a solve respelled mid-write is still
+    // the same prefix — the cubes are identical either way, and that is what
+    // "walk forward from here" actually depends on.
+    expect(extendsAlg("r U", "Rw U R'")).toBe(true);
+    expect(extendsAlg("R2'", 'R2 U')).toBe(true);
+  });
+
+  it('is false for text either side cannot read', () => {
+    expect(extendsAlg('R banana', 'R banana U')).toBe(false);
+    expect(extendsAlg('R', 'R banana')).toBe(false);
+  });
+
+  it('treats null and undefined as the empty algorithm', () => {
+    expect(extendsAlg(null, 'R')).toBe(true);
+    expect(extendsAlg(undefined, '')).toBe(true);
+    expect(extendsAlg('R', null)).toBe(false);
+  });
+
+  describe('asked from where the cube actually is', () => {
+    it('ignores moves the cube has not reached yet', () => {
+      // Undo, then type a different move: the cube has already turned back to
+      // move 2, and both algorithms agree everywhere it has been — so the new
+      // move is walked to rather than applied behind your back.
+      expect(extendsAlg("R U F", "R U D", 2)).toBe(true);
+      expect(extendsAlg("R U F", "R U", 2)).toBe(true);
+    });
+
+    it('still refuses when the cube is standing somewhere that changed', () => {
+      expect(extendsAlg("R U F", "R D F", 2)).toBe(false);
+      expect(extendsAlg("R U F", "U R F", 1)).toBe(false);
+    });
+
+    it('refuses a position the new algorithm does not reach', () => {
+      // Clearing a solve, or undoing twice at once: there is nowhere to walk
+      // forward to from where the cube is standing.
+      expect(extendsAlg("R U F", 'R', 3)).toBe(false);
+      expect(extendsAlg("R U F", '', 1)).toBe(false);
+    });
+
+    it('is true from position 0 for anything at all', () => {
+      // The cube is on the starting position, which every algorithm shares —
+      // including the first key pressed into an empty solve.
+      expect(extendsAlg('', 'R', 0)).toBe(true);
+      expect(extendsAlg('R U F', "D2 L' B", 0)).toBe(true);
+    });
+
+    it('agrees with the two-argument form at the end of `before`', () => {
+      ["R U", '', "r U r'"].forEach((before) => {
+        ["R U R'", 'R U', 'F', ''].forEach((after) => {
+          expect(extendsAlg(before, after, moveCount(before))).toBe(
+            extendsAlg(before, after)
+          );
+        });
+      });
+    });
+
+    it('refuses a position that is not a position', () => {
+      [-1, 1.5, NaN, 'two', null].forEach((at) => {
+        expect(extendsAlg('R U F', 'R U F D', at)).toBe(false);
+      });
+    });
   });
 });
 
@@ -220,5 +346,14 @@ describe('announcePosition', () => {
     expect(announcePosition(7, 20)).toBe('After move 7 of 20');
     expect(announcePosition(20, 20)).toBe('End of the scramble, all 20 moves played');
     expect(announcePosition(0, 0)).toBe('No moves to play');
+  });
+
+  it('does not call the start of a solve a solved cube', () => {
+    // Position 0 of a solve is the *scrambled* cube. Saying "solved" there is a
+    // lie in the one place a screen reader user has nothing else to go on.
+    expect(announcePosition(0, 8, 'solve')).toBe('The scrambled cube, before move 1 of 8');
+    expect(announcePosition(8, 8, 'solve')).toBe('End of the solve, all 8 moves played');
+    expect(announcePosition(0, 0, 'solve')).toBe('No moves entered yet');
+    expect(announcePosition(3, 8, 'solve')).toBe('After move 3 of 8');
   });
 });

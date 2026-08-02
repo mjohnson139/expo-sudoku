@@ -159,8 +159,33 @@ export const orbit = (p, yaw, pitch) => {
 export const DEFAULT_YAW = (-30 * Math.PI) / 180;
 export const DEFAULT_PITCH = (25 * Math.PI) / 180;
 
-/** Past this the cube would roll past its own pole and the drag would invert. */
-export const MAX_PITCH = (89 * Math.PI) / 180;
+/**
+ * Fold an angle into (−π, π], so turning the cube all the way over and round
+ * again does not accumulate revolutions in the state.
+ */
+export const wrapAngle = (angle) => {
+  const turn = Math.PI * 2;
+  return (((angle + Math.PI) % turn) + turn) % turn - Math.PI;
+};
+
+/**
+ * Whether the cube is past upright — the thing the pitch clamp used to prevent
+ * and now merely has to cope with.
+ *
+ * **Pitch was clamped just short of ±90° until 2026-08-02**, so that a drag
+ * could never take the cube over its own pole and invert. That turned out to
+ * make **yellow-up unreachable** — D is only the highest face on screen when
+ * `cos(pitch) < 0` — and yellow-up is the traditional Roux hold, so it was the
+ * first thing the operator tried and could not do.
+ *
+ * The clamp is gone and the inversion is handled instead. Only the *horizontal*
+ * drag needs it: increasing pitch applies its rotation directly in view space,
+ * so a vertical drag reads the same at every angle, while increasing yaw spins
+ * about the world's up-axis, which points *down the screen* once the cube is
+ * over. Reversing the horizontal drag there keeps "push the surface under your
+ * finger" true all the way round.
+ */
+export const isUpsideDown = (pitch) => Math.cos(pitch) < 0;
 
 /** Radians of rotation per point of finger travel (≈ a half turn per 160pt). */
 export const RADIANS_PER_POINT = 0.011;

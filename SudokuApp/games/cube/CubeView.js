@@ -4,9 +4,10 @@ import Svg, { Polygon } from 'react-native-svg';
 import {
   DEFAULT_PITCH,
   DEFAULT_YAW,
-  MAX_PITCH,
   RADIANS_PER_POINT,
   buildScene,
+  isUpsideDown,
+  wrapAngle,
 } from './geometry';
 import { STICKER_COLORS } from './cubeState';
 
@@ -71,12 +72,24 @@ const CubeView = ({
         // Drag right and the cube turns right, bringing the left face round;
         // drag down and it tips its top toward you. Both are "push the surface
         // under your finger", which is the only mapping that needs no learning.
-        const nextYaw = grabbed.current.yaw + gesture.dx * RADIANS_PER_POINT;
+        //
+        // **The cube turns all the way over**, and that is load-bearing: pitch
+        // used to be clamped short of ±90° so it could never go past its pole,
+        // which quietly made yellow-up impossible to pick (see
+        // `geometry.isUpsideDown`). So the pole is crossed, and the horizontal
+        // drag is reversed on the far side of it to keep pushing the surface
+        // under the finger rather than away from it.
+        //
+        // The flip is read from the pitch this drag *started* at, not the live
+        // one: a drag that crosses the pole halfway through would otherwise
+        // reverse under the finger mid-gesture, which is a worse thing to feel
+        // than the slight horizontal drift it avoids.
+        const flip = isUpsideDown(grabbed.current.pitch) ? -1 : 1;
+
+        const nextYaw = grabbed.current.yaw + flip * gesture.dx * RADIANS_PER_POINT;
         const nextPitch = grabbed.current.pitch + gesture.dy * RADIANS_PER_POINT;
 
-        // Pitch is clamped just short of the pole. Past it the cube rolls over
-        // and the drag direction inverts, which reads as the cube fighting you.
-        handler(nextYaw, Math.max(-MAX_PITCH, Math.min(MAX_PITCH, nextPitch)));
+        handler(wrapAngle(nextYaw), wrapAngle(nextPitch));
       },
     })
   ).current;
