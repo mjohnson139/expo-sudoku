@@ -371,7 +371,7 @@ the operator can open in Expo Go.
 | **2** | **Play the scramble.** Animated layer turns and a move-by-move scrubber | **shipped** |
 | **3** | **Solve mode.** Enter moves and the cube turns — a move pad and a text field, on the scrambled cube | **shipped** |
 | **4** | **Several solves per scramble.** Name them, keep them, switch between them; the notebook the operator asked for | next |
-| **5** | **Orientation.** Record how the cube is held before a solve starts — Roux's inspection step, "yellow up, blue left" | |
+| **5** | **Orientation.** Record how the cube is held before a solve starts — Roux's inspection step, "yellow up, blue left" | **shipped** (out of order, 2026-08-02) |
 | **6** | **Phases.** Mark where first block / second block / CMLL / LSE begin and end inside a solve, and step phase by phase | |
 | **7** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
 | **8** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
@@ -411,6 +411,9 @@ A **solve** is what the operator writes down about one scramble:
   traditionally that is yellow on top and blue on the left. In notation this is a
   prefix of whole-cube rotations (`x`, `y`, `z`), which the model and renderer
   already handle and which cost nothing extra to store.
+
+  **Shipped ahead of Step 4** (operator, 2026-08-02), because typing rotations
+  turned out to be the wrong way to enter it. See §8.3.
 - **The moves** — the solve itself, in standard notation.
 - **A name**, eventually, so two attempts at the same scramble can be told apart.
 
@@ -421,6 +424,63 @@ there is something to try before the save-file shape has to be settled (§7).
 **Colour neutrality is explicitly out of scope** (operator, 2026-08-01) — solving
 from any starting colour is a real Roux topic and a real complication, and it is
 not what this epic is for yet.
+
+### 8.3 Inspection is a phase, and it is panning (Step 5)
+
+The operator's verdict after using Step 3: *"it's really hard to do that right
+now — we can pan the cube around and look at it and that's a lot easier than
+using the keyboard."* Picking a hold by typing `z2 y'` is asking someone to
+compute the answer to the question they are using the cube to answer.
+
+So the orientation is **read off the view angle**. Pan until the cube looks the
+way you want to hold it, tap **Set start**, and `games/cube/orientation.js`
+converts the angle into the rotations that get there.
+
+Three things about it are worth not rediscovering:
+
+- **The camera and the model are not interchangeable.** Panning moves the
+  camera; a hold moves the model. Leaving the camera somewhere and calling it
+  the orientation looks right and is wrong the moment a move is entered — `R`
+  would still turn the face the *model* calls R, not the one now on the right of
+  the screen. So the angle is converted to rotations, applied, and the camera
+  goes back to the default.
+- **The angle is thrown away and only the hold is kept.** There are 24 holds and
+  infinitely many angles to look at one from, so setting one is a visible jump
+  back to the standard three-quarter view — deliberately. Inspecting from
+  directly overhead is a fine way to decide "blue up, white front" and a bad way
+  to look at a cube you are about to solve.
+- **Front must be chosen among the faces perpendicular to up.** Taking "highest
+  on screen" and "nearest the camera" as two independent argmaxes returns the
+  *same face* for both when you look down a body diagonal — yaw 45°, pitch 45°,
+  one drag from the opening view — and that pair is not an orientation at all.
+
+The 24 orientations and the shortest rotations to each are found by breadth-first
+search at module load, not written out: a hand-written table of 24 rotation
+sequences is 24 chances to be wrong in a way no reviewer can see, which is the
+same argument §3 makes about facelet permutations.
+
+**A hold is described in colours, never in rotations** — "yellow up · blue
+front", live under the cube as you pan. Nobody inspecting a cube thinks in `z2`,
+and reading colours off a 120-point cube is guesswork.
+
+Because the hold is baked into the model, **"the view I chose" and "the default
+view" become the same thing** — so the shortcut back to it is the reset that
+already existed, under the name it now deserves (`Start view`).
+
+**Locked once the solve has moves** (operator, 2026-08-02): re-orienting under
+moves already written would silently change what every one of them does.
+
+### 8.4 Swipe-to-turn, considered and declined
+
+Turning layers by swiping the cube directly was raised and **dropped as too
+complicated** (operator, 2026-08-02) — recorded so it is not re-proposed as new.
+The finding that made it plausible is still true and still written down, if it
+ever comes back: `buildScene` already returns screen-space polygons sorted
+back-to-front, and each tile's key is `x,y,z|nx,ny,nz`, so hit-testing a finger
+to a sticker is point-in-polygon with no raycasting. What stopped it is that the
+cube already claims every pan for orbit, so the two would have to be told apart
+by where the drag starts, and swipes cannot say `2`, wides, or rotations without
+more gestures on top.
 
 ## 9. Open questions for the operator
 
@@ -441,7 +501,10 @@ not what this epic is for yet.
    finger". Nobody has complained yet because nobody has used it yet.
 7. **Turn speed.** Answered and shipped in Step 2 — a chip cycling 1× → 2× → 0.5×.
    Not persisted; see §7 and the note under Step 3 in the handoff.
-8. **How a move gets entered.** Step 3 ships a pad with `'` and `2` as modifier
+8. **How a move gets entered.** Rotations came off the critical path in Step 5 —
+   the hold is panned to, not typed — but `x`/`y`/`z` **stay on the pad**
+   (operator, 2026-08-02) because a solve occasionally needs one mid-way. Step 3
+   ships a pad with `'` and `2` as modifier
    keys you arm before the face. Roux is prime-heavy, so that is two taps for a
    very common move, and it is the first thing to revisit once the operator has
    drilled a real solve on it. The alternatives are written up in the handoff.
