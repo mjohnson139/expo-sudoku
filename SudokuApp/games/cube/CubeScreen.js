@@ -18,9 +18,14 @@ import CubeFavoritesModal from './CubeFavoritesModal';
 import CubeMovePad from './CubeMovePad';
 import CubeScrubber from './CubeScrubber';
 import { ALG_FONT } from './algText';
-import { cubeFromAlg, solvedCube } from './cubeState';
-import { DEFAULT_PITCH, DEFAULT_YAW } from './geometry';
+import { applyMoves, cubeFromAlg, solvedCube } from './cubeState';
+import { DEFAULT_PITCH, DEFAULT_YAW, wrapAngle } from './geometry';
 import { announcePosition } from './player';
+import {
+  describeOrientation,
+  describeOrientationSentence,
+  orientationAt,
+} from './orientation';
 import { randomScramble } from './scramble';
 import {
   appendAlg,
@@ -31,7 +36,7 @@ import {
   nextModifier,
   padToken,
 } from './solve';
-import { moveCount } from './moves';
+import { moveCount, parseAlg } from './moves';
 import { addFavorite, isFavorite, removeFavorite } from './favorites';
 import { loadCubeState, saveCubeState } from './storage';
 import useScramblePlayer from './useScramblePlayer';
@@ -94,6 +99,10 @@ const CubeScreen = ({ onExitToHub }) => {
 
   // Writing a solve rather than reading the scramble.
   const [solving, setSolving] = useState(false);
+  // How the cube is being held, as a prefix of whole-cube rotations (plan §8.2).
+  // `null` means it has not been picked yet, which is the inspection phase —
+  // the state this screen is in between tapping Solve and starting to write.
+  const [orientation, setOrientation] = useState(null);
   // The solve itself, as the operator wrote it — `r U r'` stays `r U r'`
   // (plan §4). Not persisted this step, on purpose.
   const [solve, setSolve] = useState('');
@@ -163,15 +172,46 @@ const CubeScreen = ({ onExitToHub }) => {
     }
   }, [scramble]);
 
+  // The scramble, turned the way the operator chose to hold it — the cube move 1
+  // of the solve starts on. A rotation moves the *model*, so after `z2` the
+  // move `R` turns the face that is now on the right, which is exactly what a
+  // Roux solve written after inspection means (plan §8.2).
+  //
+  // Memoized on both, because this object's identity is what
+  // `useScramblePlayer` reads as "a different algorithm entirely": re-orienting
+  // has to reset the transport, and it does so by changing this.
+  const orientedCube = useMemo(() => {
+    if (!orientation) return scrambledCube;
+    try {
+      return applyMoves(scrambledCube, parseAlg(orientation));
+    } catch (error) {
+      return scrambledCube;
+    }
+  }, [scrambledCube, orientation]);
+
   // Where in the algorithm the cube is, and the turn it is part-way through.
   // Deliberately *not* persisted (plan §7): the saved file holds algorithm text
   // only, and a position that outlived a relaunch would drop the player into the
   // middle of a scramble they thought they had whole. A new scramble, or one
   // loaded from favorites, opens fully applied.
-  const player = useScramblePlayer(
-    solving ? solve : scramble,
-    solving ? scrambledCube : undefined
+  /**
+   * The cube move 1 starts on — and, just as importantly, **the identity that
+   * tells a new algorithm from a growing one** (see `useScramblePlayer`).
+   *
+   * `scramble` is a dependency even though a solved cube does not depend on it,
+   * and that is the whole point. Without it, scramble mode passed the same
+   * starting cube forever, and the *empty* scramble this screen mounts with
+   * vacuously "extended" into the real one arriving from storage — position 0 of
+   * nothing is position 0 of everything. The transport read that as growth and
+   * dutifully **played the whole scramble** on every cold start, which is what a
+   * backgrounded app does when the system evicts it.
+   */
+  const startingCube = useMemo(
+    () => (solving ? orientedCube : solvedCube()),
+    [solving, orientedCube, scramble]
   );
+
+  const player = useScramblePlayer(solving ? solve : scramble, startingCube);
   const { pause, playTo, retract, seek } = player;
 
   const saved = isFavorite(favorites, scramble);
@@ -215,6 +255,7 @@ const CubeScreen = ({ onExitToHub }) => {
   useEffect(() => {
     setSolve('');
     setModifier('');
+    setOrientation(null);
   }, [scramble]);
 
   const startSolving = useCallback(() => {
@@ -228,6 +269,46 @@ const CubeScreen = ({ onExitToHub }) => {
     setModifier('');
     setSolving(false);
   }, [pause]);
+
+  /**
+   * Take the angle the cube is being looked at from and make it the hold.
+   *
+   * The conversion is `orientationAt`, and the reason it has to be a conversion
+   * at all is that panning moves the camera while a hold moves the model: after
+   * this, `R` turns the face that is now on the right.
+   *
+   * The view then goes back to the default angle, and **that is a visible jump,
+   * on purpose**. What was picked is a *hold* — which colour is up, which is in
+   * front — not a camera position, and there are 24 of those against every angle
+   * a finger can stop at. Inspecting from directly overhead is a perfectly good
+   * way to decide "blue up, white front"; it is a bad way to look at a cube you
+   * are about to solve. So the hold is kept and the angle is discarded, and what
+   * lands is the standard three-quarter view of the hold that was chosen — the
+   * same view `Start view` returns to for the rest of the solve.
+   */
+  const setStartingOrientation = useCallback(() => {
+    pause();
+    setOrientation(orientationAt(yaw, pitch));
+    setYaw(DEFAULT_YAW);
+    setPitch(DEFAULT_PITCH);
+  }, [pause, yaw, pitch]);
+
+  // Back to inspection. Only offered while the solve is empty: re-orienting
+  // under moves that are already written would silently change what every one
+  // of them does to the cube (operator, 2026-08-02).
+  const reorient = useCallback(() => {
+    pause();
+    setOrientation(null);
+  }, [pause]);
+
+  // The shortcut back to the hold you picked. Because the orientation is baked
+  // into the model rather than left in the camera, "the view I chose" and "the
+  // default view" are the same thing — so this is the reset that already
+  // existed, under the name it now deserves.
+  const startView = useCallback(() => {
+    setYaw(DEFAULT_YAW);
+    setPitch(DEFAULT_PITCH);
+  }, []);
 
   // A key is the armed modifier plus the letter, and the arming is spent — one
   // move, then back to plain. Holding it would mean a `'` left armed silently
@@ -288,8 +369,8 @@ const CubeScreen = ({ onExitToHub }) => {
   // Half a turn from wherever the player is, so the three faces they cannot see
   // are one tap away rather than a long drag.
   const showOtherSide = useCallback(() => {
-    setYaw((current) => current + Math.PI);
-    setPitch((current) => -current);
+    setYaw((current) => wrapAngle(current + Math.PI));
+    setPitch((current) => wrapAngle(-current));
   }, []);
 
   const titleColor = theme.colors.title;
@@ -304,6 +385,21 @@ const CubeScreen = ({ onExitToHub }) => {
   // What the transport is playing, for every label that has to name it.
   const noun = solving ? 'solve' : 'scramble';
   const solveCount = moveCount(solve);
+
+  // Solve mode has two phases, which is how the operator described it: **find
+  // the hold**, then **write the solve**. Inspecting is panning, so it gets the
+  // whole page — no pad, no transport, and a cube roughly twice the size. The
+  // pad only appears once there is something for it to write into.
+  const inspecting = solving && orientation === null;
+
+  // Live while inspecting — this updates under the finger as the cube is
+  // dragged, and it is the thing that makes picking a hold trustworthy. Reading
+  // colours off a 120-point cube is guesswork; reading "yellow up · blue front"
+  // is not.
+  const facingCube = inspecting
+    ? applyMoves(scrambledCube, parseAlg(orientationAt(yaw, pitch)))
+    : orientedCube;
+  const holdText = describeOrientation(facingCube);
 
   // Before the first layout there is nothing to measure, so fall back to the
   // window-share estimate — close enough that the cube does not visibly resize
@@ -358,13 +454,19 @@ const CubeScreen = ({ onExitToHub }) => {
         <Text
           style={[styles.scrambleText, { color: pendingColor }]}
           accessibilityLabel={
-            solving ? `Solve: ${solve || 'nothing yet'}` : `Scramble: ${scramble}`
+            inspecting
+              ? 'Turn the cube to how you want to hold it, then set it as the start'
+              : solving
+                ? `Solve: ${solve || 'nothing yet'}`
+                : `Scramble: ${scramble}`
           }
           selectable
         >
           {player.count === 0
             ? solving
-              ? 'Tap a key to begin'
+              ? inspecting
+                ? 'Turn the cube to how you want to hold it'
+                : 'Tap a key to begin'
               : scramble
             : player.tokens.map((token, i) => (
                 <Text
@@ -405,20 +507,54 @@ const CubeScreen = ({ onExitToHub }) => {
               <Text style={[styles.toolButtonText, { color: titleColor }]}>Scramble</Text>
             </TouchableOpacity>
 
-            {/* Icon-only, unlike the same two buttons in scramble mode. Their
-                labels wrap this row onto a second line at 320 points, and the
-                40 points that costs come out of the cube — which is the thing
-                you are solving. The pad below has already spent the page's
-                spare height. */}
-            <TouchableOpacity
-              style={[styles.toolButton, styles.iconOnly, { borderColor: border }]}
-              onPress={resetView}
-              accessibilityRole="button"
-              accessibilityLabel="Reset the view"
-            >
-              <MaterialCommunityIcons name="restore" size={18} color={titleColor} />
-            </TouchableOpacity>
+            {/* The middle control is whichever of the three things is actually
+                available, because there is only room for one of them:
 
+                  inspecting            → Set start  (the point of the phase)
+                  set, nothing written  → Re-orient  (change your mind, freely)
+                  set, moves written    → Start view (the hold is locked in)
+
+                Locking once moves exist is the operator's call (2026-08-02):
+                re-orienting under moves already written would silently change
+                what every one of them does to the cube. */}
+            {inspecting ? (
+              <TouchableOpacity
+                style={[styles.primaryButton, { backgroundColor: CUBE_ACCENT }]}
+                onPress={setStartingOrientation}
+                accessibilityRole="button"
+                accessibilityLabel={`Set the start as ${holdText}`}
+                accessibilityHint="Holds the cube this way round; every move you write is relative to it"
+              >
+                <MaterialCommunityIcons name="check" size={18} color="#ffffff" />
+                <Text style={styles.primaryButtonText}>Set start</Text>
+              </TouchableOpacity>
+            ) : solveCount === 0 ? (
+              <TouchableOpacity
+                style={[styles.toolButton, { borderColor: border }]}
+                onPress={reorient}
+                accessibilityRole="button"
+                accessibilityLabel="Pick the starting orientation again"
+                accessibilityHint="Goes back to turning the cube to how you want to hold it"
+              >
+                <MaterialCommunityIcons name="rotate-3d-variant" size={18} color={titleColor} />
+                <Text style={[styles.toolButtonText, { color: titleColor }]}>Re-orient</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.toolButton, { borderColor: border }]}
+                onPress={startView}
+                accessibilityRole="button"
+                accessibilityLabel="Back to the starting view"
+                accessibilityHint={`Looks at the cube from ${holdText} again`}
+              >
+                <MaterialCommunityIcons name="home-outline" size={18} color={titleColor} />
+                <Text style={[styles.toolButtonText, { color: titleColor }]}>Start view</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Icon-only: with a labelled button either side, labelling this one
+                too wraps the row onto a second line at 320 points, and the 40
+                points that costs come out of the cube. */}
             <TouchableOpacity
               style={[styles.toolButton, styles.iconOnly, { borderColor: border }]}
               onPress={showOtherSide}
@@ -501,23 +637,37 @@ const CubeScreen = ({ onExitToHub }) => {
         />
       </View>
 
-      <CubeScrubber
-        index={player.index}
-        count={player.count}
-        playing={player.playing}
-        rate={player.rate}
-        accent={CUBE_ACCENT}
-        theme={theme}
-        noun={noun}
-        startLabel={solving ? 'Back to the scrambled cube' : 'Back to the solved cube'}
-        onPlayPause={player.togglePlay}
-        onStepBack={player.stepBack}
-        onStepForward={player.stepForward}
-        onSeek={seek}
-        onCycleSpeed={player.cycleSpeed}
-      />
+      {/* Inspection has nothing to transport and nothing to write, so it gets
+          neither — which is most of the page back, and the cube roughly doubles.
+          Panning is the whole interaction of this phase, and a big cube is what
+          panning wants. */}
+      {!inspecting && (
+        <CubeScrubber
+          index={player.index}
+          count={player.count}
+          playing={player.playing}
+          rate={player.rate}
+          accent={CUBE_ACCENT}
+          theme={theme}
+          noun={noun}
+          startLabel={solving ? 'Back to the starting cube' : 'Back to the solved cube'}
+          onPlayPause={player.togglePlay}
+          onStepBack={player.stepBack}
+          onStepForward={player.stepForward}
+          onSeek={seek}
+          onCycleSpeed={player.cycleSpeed}
+        />
+      )}
 
-      {solving ? (
+      {inspecting ? (
+        <Text
+          style={[styles.hold, { color: CUBE_ACCENT }]}
+          accessibilityLiveRegion="polite"
+          accessibilityLabel={`Holding ${holdText}`}
+        >
+          {describeOrientationSentence(facingCube)}
+        </Text>
+      ) : solving ? (
         <>
           <CubeMovePad
             modifier={modifier}
@@ -532,8 +682,11 @@ const CubeScreen = ({ onExitToHub }) => {
             onType={() => setShowTyping(true)}
           />
 
-          <Text style={[styles.hint, styles.solveHint, { color: titleColor }]}>
-            {describeSolve(solve)} · not kept when you leave
+          <Text
+            style={[styles.hint, styles.solveHint, { color: titleColor }]}
+            accessibilityLabel={`Started from ${holdText}. ${describeSolve(solve)}.`}
+          >
+            {holdText} · {describeSolve(solve)}
           </Text>
         </>
       ) : (
@@ -717,6 +870,16 @@ const styles = StyleSheet.create({
   // under it is tight to it rather than floating.
   solveHint: {
     marginTop: 2,
+  },
+  // The live readout while inspecting. Bigger and accented than the other
+  // captions on this page because during that phase it is the *answer* — the
+  // one thing you are trying to get right — not a note about the screen.
+  hold: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginTop: 14,
+    marginBottom: 6,
+    textAlign: 'center',
   },
 });
 

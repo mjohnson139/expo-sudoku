@@ -14,11 +14,13 @@ import {
   DEFAULT_PITCH,
   DEFAULT_YAW,
   buildScene,
+  isUpsideDown,
   orbit,
   partialTurn,
   rotateQuarter,
   shortWay,
   turnAngle,
+  wrapAngle,
 } from '../geometry';
 import { STICKER_COLORS, applyMove, cubeFromAlg, solvedCube } from '../cubeState';
 import { parseMove } from '../moves';
@@ -518,5 +520,104 @@ describe('buildScene, part-way through a turn', () => {
     const move = parseMove('L2');
     expect(turning('L2', 1, scrambled)).toEqual(still(applyMove(scrambled, move)));
     expect(turning('L2', 0, scrambled)).toEqual(still(scrambled));
+  });
+});
+
+describe('wrapAngle', () => {
+  it('folds an angle into half a turn either way', () => {
+    expect(wrapAngle(0)).toBeCloseTo(0, 10);
+    expect(wrapAngle(Math.PI / 2)).toBeCloseTo(Math.PI / 2, 10);
+    expect(wrapAngle(-Math.PI / 2)).toBeCloseTo(-Math.PI / 2, 10);
+  });
+
+  it('keeps a cube turned over and over from accumulating revolutions', () => {
+    // Pitch is no longer clamped, so a finger can wind it up indefinitely.
+    [1, 5, 20, -37].forEach((turns) => {
+      const wound = 0.7 + turns * 2 * Math.PI;
+      expect(wrapAngle(wound)).toBeCloseTo(0.7, 8);
+      expect(Math.abs(wrapAngle(wound))).toBeLessThanOrEqual(Math.PI + 1e-9);
+    });
+  });
+
+  it('does not change where anything is drawn', () => {
+    // The whole point: wrapping is a no-op through cos/sin, so it can be
+    // applied to state without moving the cube.
+    [0.3, 2.9, -4.5, 12.7].forEach((angle) => {
+      expect(Math.cos(wrapAngle(angle))).toBeCloseTo(Math.cos(angle), 10);
+      expect(Math.sin(wrapAngle(angle))).toBeCloseTo(Math.sin(angle), 10);
+    });
+  });
+});
+
+describe('isUpsideDown', () => {
+  it('is false while the cube is upright, whatever the yaw', () => {
+    [0, 0.4, -0.4, Math.PI / 2 - 0.01].forEach((pitch) => {
+      expect(isUpsideDown(pitch)).toBe(false);
+    });
+  });
+
+  it('is true once the cube has gone over its pole', () => {
+    // Which is where yellow-up lives, and where a horizontal drag has to be
+    // reversed to keep pushing the surface under the finger.
+    [Math.PI / 2 + 0.01, Math.PI, -Math.PI, -2.5].forEach((pitch) => {
+      expect(isUpsideDown(pitch)).toBe(true);
+    });
+  });
+});
+
+describe('which way a horizontal drag has to go', () => {
+  // Why `isUpsideDown` exists, proved rather than asserted. "Push the surface
+  // under your finger" means the face you are looking at moves the way your
+  // finger does — and increasing yaw stops doing that once the cube is over.
+  //
+  // Measured on whichever of the four *side* faces is nearest the camera. They
+  // are the faces yaw actually moves: U and D sit on the yaw axis, so their
+  // centres do not drift at all however far the cube is spun, and picking "the
+  // nearest face of six" would silently measure one of them near the poles.
+  const SIDES = [
+    [0, 0, 1],
+    [0, 0, -1],
+    [1, 0, 0],
+    [-1, 0, 0],
+  ];
+
+  const centreAt = (normal, yaw, pitch) =>
+    orbit([normal[0] * 1.5, normal[1] * 1.5, normal[2] * 1.5], yaw, pitch);
+
+  const nearestSide = (yaw, pitch) =>
+    SIDES.reduce((best, normal) =>
+      !best || centreAt(normal, yaw, pitch)[2] > centreAt(best, yaw, pitch)[2] ? normal : best
+    , null);
+
+  /** How far the near side face slides across the screen for a nudge of yaw. */
+  const screenDriftOnYaw = (yaw, pitch) => {
+    const face = nearestSide(yaw, pitch);
+    return centreAt(face, yaw + 0.02, pitch)[0] - centreAt(face, yaw, pitch)[0];
+  };
+
+  it('moves the near surface right as yaw grows, while upright', () => {
+    [0, 0.3, -0.3, 1.2, -1.4].forEach((pitch) => {
+      expect(isUpsideDown(pitch)).toBe(false);
+      expect(screenDriftOnYaw(0.4, pitch)).toBeGreaterThan(0);
+    });
+  });
+
+  it('moves it left instead, once the cube is upside down', () => {
+    // The inversion the pitch clamp used to hide by making this unreachable.
+    // Without reversing the drag here, dragging right spins the cube left.
+    [Math.PI, 2.4, -2.4, -Math.PI, 1.9].forEach((pitch) => {
+      expect(isUpsideDown(pitch)).toBe(true);
+      expect(screenDriftOnYaw(0.4, pitch)).toBeLessThan(0);
+    });
+  });
+
+  it('agrees with isUpsideDown everywhere, which is what makes it one flag', () => {
+    for (let pitch = -3.1; pitch <= 3.1; pitch += 0.05) {
+      const drift = screenDriftOnYaw(0.4, pitch);
+      // At the poles the drift passes through zero; there is no direction to
+      // be right or wrong about in the flat spot.
+      if (Math.abs(drift) < 1e-6) continue;
+      expect(drift < 0).toBe(isUpsideDown(pitch));
+    }
   });
 });

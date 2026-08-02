@@ -120,6 +120,10 @@ you built, at every stage of the motion, not only at rest.
 
 ## Next step: **Step 4 — several solves per scramble**
 
+> **Note the order.** Step 5 (orientation) shipped *before* this one, because the
+> operator asked for it after using Step 3. So a solve already has a hold, and
+> whatever save-file shape you decide has to carry it. Plan §8.3 is the section.
+
 > **Read plan §8.1 and §8.2 before anything else.** The epic was replanned on
 > 2026-08-01 and there is no solver on the critical path. If you have context
 > that says this step computes anything, it is stale — the operator writes the
@@ -140,9 +144,10 @@ whole step.
    to a *scramble*, not to the app, so the natural home is on the favorite —
    but a solve can be written against a scramble that was never favorited, and
    forcing a star before you can keep a solve is a rule nobody asked for.
-   **Decide this deliberately and write the decision into plan §7**, because
-   Steps 5 and 6 both add fields to whatever you pick (an orientation, then
-   phase markers).
+   **Decide this deliberately and write the decision into plan §7.**
+   A solve is already **two** fields, not one — `{ orientation, alg }`, where
+   `orientation` is a rotation prefix that may be `''` — and Step 6 adds phase
+   markers to whatever you pick.
 2. **Name a solve.** Free text, defaulted to something useful rather than
    demanded up front — "Solve 2", or the date. Renaming is a text field you
    already have a pattern for (`CubeAlgInputModal`).
@@ -200,6 +205,19 @@ right now, not what you wrote down.
   a caption, and at 320×568 that leaves the cube about 120 points. A solve
   *picker* must not be another row — put it in the modal, or on the card, or
   swap it for something already there. Check at 320, do not assume.
+- **Eight holds are unreachable**, all with a side colour both up and in front,
+  because the camera has yaw and pitch but no roll (plan §8.3). Every hold with
+  white or yellow up works. This is the change to make if colour neutrality
+  (§9.9) ever lands, and not before.
+- **Solve mode has two phases now**, and the middle button of the action row is
+  already three-way (`Set start` / `Re-orient` / `Start view`) depending on which
+  one you are in and whether any moves exist. Switching *solves* is a fourth
+  thing that button might want to be. It cannot be — find it another home.
+- **Switching solves has to carry the hold with it.** A solve's starting cube is
+  `applyMoves(scrambledCube, parseAlg(orientation))`, and that object's identity
+  is what `useScramblePlayer` reads as "a different algorithm entirely". Load a
+  solve and you must set both, or the transport will animate its way from one
+  solve into the other.
 - **`describeCubeProgress` in `utils/gameProgress.js`** says `20 moves · 3
   favorites` on the hub. Once solves are kept, "come back to this" plausibly
   means something else. It is outside `games/cube/`, so say why in the PR if you
@@ -308,6 +326,61 @@ Step 4.
 ---
 
 ## Steps already done
+
+### **Step 5 — the starting orientation** ✅ *(shipped out of order, 2026-08-02)*
+
+Shipped: solve mode is now **two phases**, and the cube turns all the way over. Tap Solve and you are *inspecting* —
+no pad, no transport, a cube roughly twice the size, and a live readout under it
+saying **"yellow up · blue front"** as you drag. Tap **Set start** and that hold
+is baked into the model as a rotation prefix, so every move you then write is
+relative to it. `Start view` is the shortcut back to it; `Re-orient` goes back to
+inspecting, and is only offered while the solve is empty.
+
+Why it jumped the queue: the operator used Step 3 and found entering `x`/`y`/`z`
+by hand to be the wrong instrument — *"we can pan the cube around and look at it
+and that's a lot easier than using the keyboard."* Picking a hold by typing `z2`
+is asking someone to compute the answer to the question they are using the cube
+to answer. **`x`/`y`/`z` stay on the pad**, because a solve occasionally needs a
+rotation mid-way (operator, 2026-08-02).
+
+Three things this step learned, all now in plan §8.3:
+
+- **The camera and the model are not interchangeable.** Panning moves the
+  camera; a hold moves the model. Leaving the camera somewhere and calling it the
+  orientation looks right and is wrong the instant a move is entered.
+- **The angle is thrown away and only the hold is kept.** 24 holds, infinitely
+  many angles — so setting one is a deliberate jump back to the standard
+  three-quarter view. **The invariant is not "the picture is unchanged"**, which
+  is what this step first assumed and a driver disproved; it is "the hold you
+  were promised is the hold you get".
+- **Front must be picked among the faces perpendicular to up.** Two independent
+  argmaxes return the *same face* for both when you look down a body diagonal —
+  yaw 45°, pitch 45°, one drag from the opening view — and that pair is not an
+  orientation. A unit test pins it.
+- **A constraint added to prevent a feeling can silently remove a capability.**
+  Pitch had been clamped short of ±90° since Step 1 so a drag could never roll
+  the cube past its pole and invert. Correct about the symptom — and it made
+  **yellow-up unpickable**, because D is only the highest face on screen when
+  `cos(pitch) < 0`. That is the traditional Roux hold and the first thing the
+  operator tried. Nothing failed; there was just a hold you could not name. The
+  clamp is gone and the inversion is handled instead
+  (`geometry.isUpsideDown`). **Sixteen of the 24 holds are reachable** — every
+  one with white or yellow up — and the missing eight need a camera roll axis,
+  which belongs with colour neutrality if that ever lands (plan §8.3).
+
+Also recorded and **declined**: swipe-to-turn (plan §8.4), dropped as too
+complicated. The groundwork finding is kept in case it returns.
+
+Verified with `npm test` (669 across the app, 32 of them new across orientation
+and geometry — including a sweep of every yaw/pitch a finger can reach, a
+reachability census of the 24 holds, and a proof that the near surface really
+does reverse its screen direction past the pole), `npx expo-doctor` (18/18),
+`npx expo export --platform all`, and headless runs at 320×568 and 375×667
+driving both phases — pan, watch the readout follow, set, confirm the promised
+hold is the one delivered, enter a move, pan away, `Start view` back, clear,
+re-orient — plus a driver that turns the cube right over, lands on yellow-up,
+and walks all four of its fronts. Step 3's three drivers were re-run against it
+unchanged in intent, and all still pass.
 
 ### **Step 3 — solve mode** ✅
 
