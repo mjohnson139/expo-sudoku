@@ -98,10 +98,29 @@ describe('sanitizeFavorites', () => {
 });
 
 describe('readCubeSave', () => {
+  const SOLVE = {
+    id: 's1',
+    scramble: ALG,
+    name: 'First block',
+    orientation: 'z2',
+    alg: "r U r'",
+    phases: [],
+    savedAt: 7,
+  };
+
   it('reads a well-formed save', () => {
-    expect(readCubeSave({ scramble: ALG, favorites: [{ alg: OTHER, savedAt: 7 }] })).toEqual({
+    expect(
+      readCubeSave({
+        scramble: ALG,
+        favorites: [{ alg: OTHER, savedAt: 7 }],
+        solves: [SOLVE],
+        workspace: { solving: true, solveId: 's1' },
+      })
+    ).toEqual({
       scramble: ALG,
       favorites: [{ alg: OTHER, savedAt: 7 }],
+      solves: [SOLVE],
+      workspace: { solving: true, solveId: 's1' },
     });
   });
 
@@ -110,9 +129,64 @@ describe('readCubeSave', () => {
   });
 
   it('survives a missing, empty or corrupt blob', () => {
-    const empty = { scramble: '', favorites: [] };
+    const empty = {
+      scramble: '',
+      favorites: [],
+      solves: [],
+      workspace: { solving: false, solveId: null },
+    };
     expect(readCubeSave(null)).toEqual(empty);
     expect(readCubeSave('nope')).toEqual(empty);
     expect(readCubeSave({})).toEqual(empty);
+  });
+
+  /**
+   * Both directions of version skew, pinned — Step 4 changed the file's shape
+   * and this is the only place that has to know it.
+   */
+  describe('a file written by another build', () => {
+    it('reads a Step 5 save, which has no solves in it at all', () => {
+      const step5 = { _v: 1, scramble: ALG, favorites: [{ alg: ALG, savedAt: 3 }] };
+
+      expect(readCubeSave(step5)).toEqual({
+        scramble: ALG,
+        favorites: [{ alg: ALG, savedAt: 3 }],
+        solves: [],
+        workspace: { solving: false, solveId: null },
+      });
+    });
+
+    it('leaves a Step 4 save readable by a Step 5 build — the two old keys are untouched', () => {
+      const step4 = {
+        _v: 2,
+        scramble: ALG,
+        favorites: [{ alg: ALG, savedAt: 3 }],
+        solves: [SOLVE],
+        workspace: { solving: true, solveId: 's1' },
+      };
+      const read = readCubeSave(step4);
+
+      expect(read.scramble).toBe(ALG);
+      expect(read.favorites).toEqual([{ alg: ALG, savedAt: 3 }]);
+    });
+
+    it('will not open a solve that outlived the scramble it was written against', () => {
+      expect(
+        readCubeSave({
+          scramble: OTHER,
+          favorites: [],
+          solves: [SOLVE],
+          workspace: { solving: true, solveId: 's1' },
+        }).workspace
+      ).toEqual({ solving: false, solveId: null });
+    });
+
+    it('keeps a solve whose scramble was never favourited', () => {
+      // Forcing a star before you are allowed to keep work is a rule nobody
+      // asked for (plan §7.1).
+      expect(
+        readCubeSave({ scramble: ALG, favorites: [], solves: [SOLVE] }).solves
+      ).toEqual([SOLVE]);
+    });
   });
 });

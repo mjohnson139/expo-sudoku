@@ -215,6 +215,16 @@ export const isValidAlg = (text) => tryParseAlg(text) !== null;
 export const formatAlg = (moves) => moves.map((move) => move.token).join(' ');
 
 /**
+ * Collapse whitespace so `R  U` and `R U` are one algorithm, not two.
+ *
+ * Lives here rather than in `favorites.js` — where it started, and from where it
+ * is still re-exported — because more than one list is now keyed by algorithm
+ * text: a favorite by the scramble it is, and a solve by the scramble it hangs
+ * off. Two copies of this rule is two ways for those keys to disagree.
+ */
+export const normalizeAlg = (alg) => String(alg || '').trim().replace(/\s+/g, ' ');
+
+/**
  * How many moves an algorithm is, by the count speedcubers use: every turn
  * counts as one, half turns included (HTM). Invalid text counts as zero rather
  * than throwing — this is used for labels, and a label is never worth a crash.
@@ -238,4 +248,5 @@ export default {
   algError,
   formatAlg,
   moveCount,
+  normalizeAlg,
 };

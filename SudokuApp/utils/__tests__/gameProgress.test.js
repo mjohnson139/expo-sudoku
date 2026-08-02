@@ -165,4 +165,45 @@ describe('describeCubeProgress', () => {
     expect(describeCubeProgress({ scramble: '', favorites: [] })).toBeNull();
     expect(describeCubeProgress({ favorites: [] })).toBeNull();
   });
+
+  // Step 4: solves are kept now, so a half-written one against the scramble on
+  // the cube is what "come back to this" points at.
+  it('counts the solves for this scramble ahead of the favorites', () => {
+    expect(
+      describeCubeProgress({
+        scramble: SCRAMBLE,
+        favorites: [{ alg: SCRAMBLE, savedAt: 1 }],
+        solves: [
+          { id: 's1', scramble: SCRAMBLE, alg: "r U r'" },
+          { id: 's2', scramble: SCRAMBLE, alg: '' },
+        ],
+      })
+    ).toEqual({ label: '8 moves', detail: '2 solves' });
+  });
+
+  it('gets the singular right for a single solve', () => {
+    expect(
+      describeCubeProgress({
+        scramble: SCRAMBLE,
+        favorites: [],
+        solves: [{ id: 's1', scramble: SCRAMBLE, alg: '' }],
+      }).detail
+    ).toBe('1 solve');
+  });
+
+  it('ignores solves written against a different scramble', () => {
+    expect(
+      describeCubeProgress({
+        scramble: SCRAMBLE,
+        favorites: [{ alg: SCRAMBLE, savedAt: 1 }],
+        solves: [{ id: 's1', scramble: 'R U', alg: '' }],
+      }).detail
+    ).toBe('1 favorite');
+  });
+
+  it('reads a save with no solves key, which is every file older than Step 4', () => {
+    expect(describeCubeProgress({ scramble: SCRAMBLE, favorites: [] }).detail).toBe(
+      'tap to inspect'
+    );
+  });
 });

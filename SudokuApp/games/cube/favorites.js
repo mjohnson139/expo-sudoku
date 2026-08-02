@@ -12,14 +12,22 @@
  * through timestamps. It also makes every test deterministic.
  */
 
-import { isValidAlg } from './moves';
+import { isValidAlg, normalizeAlg } from './moves';
+import { sanitizeSolves, sanitizeWorkspace } from './solveList';
 
 /** Enough to keep a practice session's worth without the list becoming an
  *  archive nobody scrolls. Oldest fall off the end. */
 export const MAX_FAVORITES = 50;
 
-/** Collapse whitespace so `R  U` and `R U` are one scramble, not two. */
-export const normalizeAlg = (alg) => String(alg || '').trim().replace(/\s+/g, ' ');
+/**
+ * Collapse whitespace so `R  U` and `R U` are one scramble, not two.
+ *
+ * It now lives in `moves.js`, because the solves list keys off algorithm text
+ * too and two copies of this rule would be two ways for the two lists to
+ * disagree about what one scramble is. Re-exported because this is where every
+ * caller already looks for it.
+ */
+export { normalizeAlg };
 
 /** Is this algorithm already saved? */
 export const isFavorite = (favorites, alg) => {
@@ -83,6 +91,15 @@ export const sanitizeFavorites = (raw) => {
   return clean.slice(0, MAX_FAVORITES);
 };
 
+/** What the screen gets when there is nothing saved, or nothing readable. Four
+ *  fields rather than two since Step 4 — see `readCubeSave`. */
+const EMPTY_SAVE = () => ({
+  scramble: '',
+  favorites: [],
+  solves: [],
+  workspace: { solving: false, solveId: null },
+});
+
 /**
  * Bring a stored blob into the shape the screen expects, discarding anything
  * that no longer parses.
@@ -91,15 +108,36 @@ export const sanitizeFavorites = (raw) => {
  * imports AsyncStorage, and the test runner is a plain node environment. This is
  * the function that has to survive a save written by an older build, a newer
  * one, and a corrupt one, so it is exactly the part worth testing.
+ *
+ * ### The shape, decided once (plan §7.1)
+ *
+ * ```js
+ * { _v, scramble, favorites, solves, workspace }
+ * ```
+ *
+ * `solves` and `workspace` are Step 4's addition, and `solves[].phases` is
+ * Step 6's slot sitting empty in the file already — the alternative is
+ * reshaping the file twice and writing two migrations (plan §8.5).
+ *
+ * **Both directions of version skew work and neither needs a migration step.**
+ * A Step 5 file has no `solves` key, and `sanitizeSolves(undefined)` is the
+ * empty list — which is the truth, because that build could not keep a solve.
+ * A Step 4 file opened by a Step 5 build reads its `scramble` and `favorites`
+ * and ignores the rest.
  */
 export const readCubeSave = (raw) => {
-  if (!raw || typeof raw !== 'object') return { scramble: '', favorites: [] };
+  if (!raw || typeof raw !== 'object') return EMPTY_SAVE();
 
-  const scramble = normalizeAlg(raw.scramble);
+  const savedScramble = normalizeAlg(raw.scramble);
+  const scramble =
+    savedScramble.length > 0 && isValidAlg(savedScramble) ? savedScramble : '';
+  const solves = sanitizeSolves(raw.solves);
 
   return {
-    scramble: scramble.length > 0 && isValidAlg(scramble) ? scramble : '',
+    scramble,
     favorites: sanitizeFavorites(raw.favorites),
+    solves,
+    workspace: sanitizeWorkspace(raw.workspace, { solves, scramble }),
   };
 };
 
