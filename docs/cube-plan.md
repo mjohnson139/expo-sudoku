@@ -351,10 +351,11 @@ the critical path (§8.1).
 
 ## 7. Favorites and persistence
 
-One AsyncStorage key, `@CubeScramble`, holding both the scramble on screen and
-the list. They change together — saving a favorite is a tap on the scramble
-already showing — and splitting them would buy two round trips and a way for the
-two to disagree.
+One AsyncStorage key, `@CubeScramble`, holding the scramble on screen, the
+favorites list, every solve the operator has written, and which of them was
+open. They change together — saving a favorite is a tap on the scramble already
+showing — and splitting them would buy four round trips and four ways for them
+to disagree.
 
 **Only the algorithm text is stored, never the cube.** The cube is a pure
 function of the algorithm; storing it would be a second, staler copy of derived
@@ -398,6 +399,50 @@ and §8.5 adds a third (`phases`), so the file wants a slot for annotations from
 the start even if nothing writes one yet. The alternative is reshaping the save
 file twice and writing two migrations.
 
+### 7.2 The save file's shape (decided in Step 4, 2026-08-02)
+
+```js
+{
+  _v: 2,
+  scramble: "R U2 F' …",                       // the one on the cube
+  favorites: [{ alg, savedAt }],
+  solves:    [{ id, scramble, name, orientation, alg, phases, savedAt }],
+  workspace: { solving, solveId },
+}
+```
+
+`games/cube/solveList.js` owns the solves half of it — the list operations and
+the sanitizing — and `readCubeSave` in `favorites.js` stays the one boundary
+everything comes back in through. Four decisions in there are worth not
+relitigating:
+
+- **A solve names its scramble by that scramble's algorithm text**, which is
+  §7's rule for favorites applied one level down. It is also what makes a solve
+  independent of the star: **a solve does not need its scramble favourited**,
+  because forcing a star before you are allowed to keep work is a rule nobody
+  asked for. Loading a favorite brings its solves back because both key off the
+  same text, not because one points at the other.
+- **A solve has a generated `id`, and that is a departure from the rule above
+  rather than a lapse from it.** Two saves of the same scramble are the same
+  favorite, which is what a player means; two solves with the same moves are
+  **two solves**, which is the entire point of Duplicate. So a solve has no
+  natural key and is given one — minted by counting (`s1`, `s2`, one past the
+  highest in the file) rather than by clock or dice, so the file and the tests
+  stay deterministic.
+- **`phases` is in the file and nothing writes one.** It is §8.5's slot,
+  sanitized from the start, so the build that first writes a phase finds the
+  field already there.
+- **`workspace` is the other half of "come back to what you left"** — which
+  solve was open and whether solve mode was. Both are cross-checked against what
+  survived sanitizing: an open solve has to exist and has to belong to the
+  scramble on screen, and solve mode with nothing open is not a state the screen
+  has.
+
+**Neither direction of version skew needs a migration step.** A Step 5 file has
+no `solves` key and `sanitizeSolves(undefined)` is the empty list — which is the
+truth, because that build could not keep a solve. A Step 4 file opened by a
+Step 5 build still has `scramble` and `favorites` exactly where they were.
+
 ## 8. Delivery steps
 
 One branch per step, per `.github/dev-process.md`. Every step must ship something
@@ -408,9 +453,9 @@ the operator can open in Expo Go.
 | **1** | Scramble · 3D cube you can drag · favorites · hub tile | **shipped** |
 | **2** | **Play the scramble.** Animated layer turns and a move-by-move scrubber | **shipped** |
 | **3** | **Solve mode.** Enter moves and the cube turns — a move pad and a text field, on the scrambled cube | **shipped** |
-| **4** | **The workspace survives.** Nothing you wrote is lost to a backgrounded app; several named solves per scramble | next |
+| **4** | **The workspace survives.** Nothing you wrote is lost to a backgrounded app; several named solves per scramble | **shipped** |
 | **5** | **Orientation.** Record how the cube is held before a solve starts — Roux's inspection step, "yellow up, blue left" | **shipped** (out of order, 2026-08-02) |
-| **6** | **Annotate the move groups.** "These moves solve first block, these solve second block" — labelled spans, per-phase move counts, and a transport that steps phase by phase | |
+| **6** | **Annotate the move groups.** "These moves solve first block, these solve second block" — labelled spans, per-phase move counts, and a transport that steps phase by phase | next |
 | **7** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
 | **8** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
 
@@ -453,11 +498,16 @@ A **solve** is what the operator writes down about one scramble:
   **Shipped ahead of Step 4** (operator, 2026-08-02), because typing rotations
   turned out to be the wrong way to enter it. See §8.3.
 - **The moves** — the solve itself, in standard notation.
-- **A name**, eventually, so two attempts at the same scramble can be told apart.
+- **A name**, so two attempts at the same scramble can be told apart. **Shipped
+  in Step 4** — `Solve 1`, `Solve 2` by default, counting within the scramble,
+  and renamable.
 
 Several solves belong to one scramble, because trying it three ways is the
-practice. That is Step 4; Step 3 deliberately ships **one** unsaved solve so
-there is something to try before the save-file shape has to be settled (§7).
+practice. **That is Step 4, and it shipped on 2026-08-02** with new, duplicate,
+delete and a picker; Step 3 deliberately shipped **one** unsaved solve so there
+was something to try before the save-file shape had to be settled (§7.2).
+**Duplicate is the one that matters for drilling**: "same first block, try the
+second block differently" starts by keeping what you already had.
 
 **Colour neutrality is explicitly out of scope** (operator, 2026-08-01) — solving
 from any starting colour is a real Roux topic and a real complication, and it is
@@ -633,6 +683,15 @@ solve, and it should exist in the file before it exists in the UI.
   first changes as the square turns, so the comparison reports a 40-point jump
   where the picture moved four. Compare each corner to the *nearest* corner of
   the other polygon.
+- **An effect keyed on `scramble` fires during hydration, and hydration is not a
+  change of mind.** The screen mounts with an *empty* scramble and fills it from
+  storage, so `useEffect(…, [scramble])` runs once on the way in — which was
+  harmless when all it cleared was an in-memory scratchpad and became a bug the
+  moment there was a restored workspace for it to wipe. Changing the scramble is
+  something two buttons do (New, and loading a favorite), so it belongs in those
+  two callbacks, where hydration cannot reach it. This is the same shape as the
+  cold-start replay in §5: **the empty first render is a state, and anything
+  keyed on "it changed" sees it.**
 - **Sizing from the window.** A cube sized as a share of the window looked right
   on a 6" phone and pushed its own caption through the buttons on a 4" one,
   because the space left over depends on how many lines the header and scramble
