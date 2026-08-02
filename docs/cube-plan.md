@@ -187,6 +187,13 @@ hold that together is a `tokenize` scan that returns the raw token strings, so a
 displayed token and the move it animates are the same element of two arrays built
 in one pass rather than two things hoped to line up.
 
+**Built in Step 3.** `scanAlg(text)` is the one pass and returns
+`{ tokens, moves }`; `parseAlg` and `tokenize` are its two projections, and
+`buildPlayback` carries both through to the screen. The scramble display was
+moved onto it at the same time, so nothing in the feature redisplays a canonical
+token any more. `algError(text)` is the same scan kept for its message, which is
+what lets the text field say *which* token it choked on.
+
 ## 5. The renderer — SVG, and why not WebGL
 
 `games/cube/geometry.js` builds the frame; `games/cube/CubeView.js` draws it.
@@ -261,6 +268,38 @@ the turns so double speed hurries rather than stutters, and applying to single
 steps as much as to playback. It is transient, like the view angle: the save file
 holds algorithm text (§7).
 
+### Growing an algorithm, not replacing one (added in Step 3)
+
+`buildPlayback(alg, { from })` takes the cube move 1 starts on, because a solve
+starts from the scrambled cube rather than a solved one. Everything else about
+playback is unchanged — **a solve is a list of moves like any other**, which is
+why entering one drives the same transport instead of growing a second.
+
+What did have to change is what a *changed algorithm* means. Loading a favorite
+and tapping `R` on the solve pad arrive identically — the string underneath the
+transport is different — and the right answer is opposite in the two cases:
+reset to the end for one, turn the new move for the other. Resetting when a move
+is appended applies it without ever showing it, which is the one thing the pad
+exists to do.
+
+`extendsAlg(before, after, from)` is the pure predicate that tells them apart,
+and the `from` argument is the part worth not losing. Asked at the end of
+`before` it is the plain reading — *same algorithm, more on the end*. The
+transport asks it at **where the cube actually is**, which is the same question
+somewhere more useful: moves past that point have not been played, so whether
+they changed cannot matter. That is what makes *undo, then type a different
+move* animate rather than jump — by then the cube has turned back, and both
+algorithms agree everywhere it has been.
+
+**Undo is two things that cannot happen at once**: turn the move backwards, then
+drop it. Dropping first is a jump; turning first leaves the algorithm holding a
+move the operator has already taken back. So `retract(onDone)` owes the drop and
+*every* exit from the turn pays it — it lands, or something interrupts it. That
+matters more than it sounds: a second undo, or a key tapped inside the 260ms the
+turn takes, otherwise walks away from a removal that never happened and the
+solve silently keeps a move that was deleted. Both were real, and both were
+caught by driving the export rather than by a test.
+
 **The alternatives, and why not (yet):**
 
 - **`expo-gl` + three.js** would give real lighting, bevels and reflections. It
@@ -330,8 +369,8 @@ the operator can open in Expo Go.
 |---|---|---|
 | **1** | Scramble · 3D cube you can drag · favorites · hub tile | **shipped** |
 | **2** | **Play the scramble.** Animated layer turns and a move-by-move scrubber | **shipped** |
-| **3** | **Solve mode.** Enter moves and the cube turns — a move pad and a text field, on the scrambled cube | next |
-| **4** | **Several solves per scramble.** Name them, keep them, switch between them; the notebook the operator asked for | |
+| **3** | **Solve mode.** Enter moves and the cube turns — a move pad and a text field, on the scrambled cube | **shipped** |
+| **4** | **Several solves per scramble.** Name them, keep them, switch between them; the notebook the operator asked for | next |
 | **5** | **Orientation.** Record how the cube is held before a solve starts — Roux's inspection step, "yellow up, blue left" | |
 | **6** | **Phases.** Mark where first block / second block / CMLL / LSE begin and end inside a solve, and step phase by phase | |
 | **7** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
@@ -406,6 +445,9 @@ not what this epic is for yet.
    keys you arm before the face. Roux is prime-heavy, so that is two taps for a
    very common move, and it is the first thing to revisit once the operator has
    drilled a real solve on it. The alternatives are written up in the handoff.
+   What makes two taps bearable in the meantime is that **the pad relabels
+   itself** while a modifier is armed — every key reads `U'`, `R'`, `M'` — so
+   the second tap is aimed at a key that already says the move it will make.
 
 ## 10. Edge cases and things that are easy to get wrong
 

@@ -17,7 +17,7 @@
 
 import { applyMove, solvedCube } from './cubeState';
 import { shortWay } from './geometry';
-import { tryParseAlg } from './moves';
+import { tryScanAlg } from './moves';
 
 /** A quarter turn, in milliseconds. Slow enough to read as a turn rather than a
  *  cut, quick enough that twenty of them is not a wait. */
@@ -58,23 +58,81 @@ export const describeSpeed = (rate) => `${rate}×`;
 /**
  * Everything a scrubber needs for one algorithm.
  *
- * Unparseable text yields no moves and a single solved state rather than
+ * Unparseable text yields no moves and a single starting state rather than
  * throwing: this feeds a screen whose whole job is to show a cube, and every
  * algorithm that reaches it has already been validated twice over.
  *
+ * ### `from`, and why a solve needs it
+ *
+ * A scramble starts from a solved cube. A **solve** starts from the scrambled
+ * one — that is the cube you would be holding — so the starting position is an
+ * argument rather than a constant. Everything else about playback is the same:
+ * a solve is a list of moves like any other, which is why Step 3 drives this
+ * rather than growing a second transport (plan §8.2).
+ *
+ * `tokens[i]` is the token as it was *written* and `moves[i]` is what it does,
+ * so a screen can print `r` while the model turns `Rw` (plan §4).
+ *
  * @param {string} alg notation, e.g. `R U2 F' D`
- * @returns {{moves: Array<Object>, states: Array<{cubies: Array}>}}
+ * @param {{from?: {cubies: Array}}} [options] `from` is the cube move 1 starts on;
+ *   omitted means solved
+ * @returns {{moves: Array<Object>, tokens: string[], states: Array<{cubies: Array}>}}
  *   `states[i]` is the cube after `i` moves, so `states.length === moves.length + 1`
  */
-export const buildPlayback = (alg) => {
-  const moves = tryParseAlg(alg || '') || [];
-  const states = [solvedCube()];
+export const buildPlayback = (alg, { from } = {}) => {
+  const { tokens, moves } = tryScanAlg(alg || '') || { tokens: [], moves: [] };
+  const states = [from || solvedCube()];
 
   moves.forEach((move) => {
     states.push(applyMove(states[states.length - 1], move));
   });
 
-  return { moves, states };
+  return { moves, tokens, states };
+};
+
+/**
+ * Whether `after` is `before` with moves added after position `from`.
+ *
+ * The one question the transport has to answer when the algorithm underneath it
+ * changes. A scramble being *replaced* should reset the cube to the end of the
+ * new one; a solve being *added to* should turn the new moves, because appending
+ * a move you cannot see happen is the whole thing the solve pad exists to do.
+ * Told apart by this, and pure so it is testable rather than a feeling in an
+ * effect.
+ *
+ * `from` defaults to the whole of `before`, which is the plain reading: *is this
+ * the same algorithm with more on the end*. The transport passes **where the
+ * cube actually is** instead, which is the same question asked more usefully —
+ * the moves past that point have not been played yet, so whether they changed
+ * cannot matter. That is what makes undo-then-type animate: by the time the new
+ * move arrives the cube has already turned back, and the algorithm agrees with
+ * the old one everywhere the cube has been.
+ *
+ * Compared on the parsed moves rather than the raw text, so respelling `r` as
+ * `Rw` mid-solve is still the same prefix — the cubes are identical either way,
+ * which is what "walk forward from here" actually depends on. Text neither side
+ * can parse is not an extension of anything.
+ *
+ * @param {string} before the algorithm the cube is currently playing
+ * @param {string} after the one it is about to play
+ * @param {number} [from] how many moves in the cube is; defaults to all of
+ *   `before`
+ */
+export const extendsAlg = (before, after, from) => {
+  const first = tryScanAlg(before || '');
+  const second = tryScanAlg(after || '');
+  if (!first || !second) return false;
+
+  const at = from === undefined ? first.moves.length : from;
+  if (!Number.isInteger(at) || at < 0) return false;
+  // Past the end of either one there is nothing to agree about — and a cube
+  // sitting further in than the new algorithm reaches has nowhere to walk to.
+  if (at > first.moves.length || at > second.moves.length) return false;
+
+  for (let i = 0; i < at; i += 1) {
+    if (first.moves[i].token !== second.moves[i].token) return false;
+  }
+  return true;
 };
 
 /**
@@ -120,16 +178,29 @@ export const clampIndex = (index, count) => {
  *  words because it sits between two buttons. */
 export const describePosition = (index, count) => `${index} / ${count}`;
 
-/** The same thing said out loud, for a screen reader. */
-export const announcePosition = (index, count) => {
-  if (count === 0) return 'No moves to play';
-  if (index === 0) return `Solved cube, before move 1 of ${count}`;
-  if (index >= count) return `End of the scramble, all ${count} moves played`;
+/**
+ * The same thing said out loud, for a screen reader.
+ *
+ * `noun` is what is being played. It matters at position 0: the start of a
+ * scramble is a solved cube, and the start of a *solve* is the scrambled one —
+ * announcing "solved cube" there would be a lie in the one place a screen reader
+ * user has nothing else to go on.
+ */
+export const announcePosition = (index, count, noun = 'scramble') => {
+  const solve = noun === 'solve';
+  if (count === 0) return solve ? 'No moves entered yet' : 'No moves to play';
+  if (index === 0) {
+    return solve
+      ? `The scrambled cube, before move 1 of ${count}`
+      : `Solved cube, before move 1 of ${count}`;
+  }
+  if (index >= count) return `End of the ${noun}, all ${count} moves played`;
   return `After move ${index} of ${count}`;
 };
 
 export default {
   buildPlayback,
+  extendsAlg,
   turnDuration,
   gapDuration,
   nextSpeed,
