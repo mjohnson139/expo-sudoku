@@ -371,6 +371,33 @@ by an older build comes back in, so the list is filtered on the way out of it
 rather than trusted — a favorite that no longer parses would otherwise take the
 screen down when it was tapped.
 
+### 7.1 What has to survive, and what must not (revised 2026-08-02)
+
+Step 3 shipped the solve as a scratchpad and Step 5 added a hold to it, both
+deliberately in memory only. **That was the wrong call for real use**, and the
+operator found out the way these things are always found out: *"if I background
+the app and come back… my solve I was working on is gone."* A phone app is
+backgrounded constantly, and on a cold start every unsaved thing is gone. A
+notebook that loses the page is not a notebook.
+
+So the rule inverts. **Everything the operator authored is kept; everything
+about how they happen to be looking at it right now is not.**
+
+| Kept | Not kept |
+|---|---|
+| The scramble, and the favorites | The view angle |
+| Every solve: its hold, its moves, its name | The scrub position |
+| Which solve was being edited, and that solve mode was open | The turn speed |
+
+The right-hand column is unchanged and the reasoning still holds: those are
+where you are standing, not what you wrote. Restoring someone into the middle of
+a half-played scramble is worse than opening it whole.
+
+**Decide the shape once.** A solve is already two fields (`orientation`, `alg`)
+and §8.5 adds a third (`phases`), so the file wants a slot for annotations from
+the start even if nothing writes one yet. The alternative is reshaping the save
+file twice and writing two migrations.
+
 ## 8. Delivery steps
 
 One branch per step, per `.github/dev-process.md`. Every step must ship something
@@ -381,9 +408,9 @@ the operator can open in Expo Go.
 | **1** | Scramble · 3D cube you can drag · favorites · hub tile | **shipped** |
 | **2** | **Play the scramble.** Animated layer turns and a move-by-move scrubber | **shipped** |
 | **3** | **Solve mode.** Enter moves and the cube turns — a move pad and a text field, on the scrambled cube | **shipped** |
-| **4** | **Several solves per scramble.** Name them, keep them, switch between them; the notebook the operator asked for | next |
+| **4** | **The workspace survives.** Nothing you wrote is lost to a backgrounded app; several named solves per scramble | next |
 | **5** | **Orientation.** Record how the cube is held before a solve starts — Roux's inspection step, "yellow up, blue left" | **shipped** (out of order, 2026-08-02) |
-| **6** | **Phases.** Mark where first block / second block / CMLL / LSE begin and end inside a solve, and step phase by phase | |
+| **6** | **Annotate the move groups.** "These moves solve first block, these solve second block" — labelled spans, per-phase move counts, and a transport that steps phase by phase | |
 | **7** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
 | **8** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
 
@@ -503,6 +530,36 @@ to a sticker is point-in-polygon with no raycasting. What stopped it is that the
 cube already claims every pan for orbit, so the two would have to be told apart
 by where the drag starts, and swipes cannot say `2`, wides, or rotations without
 more gestures on top.
+
+### 8.5 Annotating the move groups (Step 6, specified 2026-08-02)
+
+The operator, thinking ahead: *"I want to be able to annotate the move groups.
+Like these moves solve first block. This set solves second block."*
+
+A solve is a flat list of moves; this gives it structure. Four decisions worth
+making in the plan rather than in the moment:
+
+- **Markers, not ranges.** A phase is `{ at, label }` — the move index it starts
+  at — and the spans fall out of consecutive markers. Storing start-and-end
+  invites the two to disagree, and every edit has to keep both honest.
+- **Mark as you go, not afterwards.** The flow is *finish the first block, say
+  so, carry on* — a single "end the phase here" control while writing, which
+  closes the current group at the current position. Selecting ranges after the
+  fact is a second interaction for the same information, and the moment you know
+  a block is done is the moment you finish it.
+- **Offer the method's own vocabulary.** Roux is First block · Second block ·
+  CMLL · LSE; CFOP is Cross · F2L · OLL · PLL. One tap on the name beats typing
+  it on a phone every time, and the names are the point — this is the operator's
+  method talking back to them. Free text stays as the escape hatch.
+- **Per-phase move counts fall out for free, and are half the value.** "First
+  block in 8" versus "first block in 12" is exactly what a Roux learner is
+  trying to improve, and once the spans exist the counts are a subtraction. The
+  transport gains the other half: **play just the second block**, jump to where
+  CMLL starts. Drilling one part of one solve is what the operator has been
+  doing by hand all along.
+
+This is why §7.1 says decide the save shape once: `phases` is a third field on a
+solve, and it should exist in the file before it exists in the UI.
 
 ## 9. Open questions for the operator
 
