@@ -194,10 +194,24 @@ const CubeScreen = ({ onExitToHub }) => {
   // only, and a position that outlived a relaunch would drop the player into the
   // middle of a scramble they thought they had whole. A new scramble, or one
   // loaded from favorites, opens fully applied.
-  const player = useScramblePlayer(
-    solving ? solve : scramble,
-    solving ? orientedCube : undefined
+  /**
+   * The cube move 1 starts on — and, just as importantly, **the identity that
+   * tells a new algorithm from a growing one** (see `useScramblePlayer`).
+   *
+   * `scramble` is a dependency even though a solved cube does not depend on it,
+   * and that is the whole point. Without it, scramble mode passed the same
+   * starting cube forever, and the *empty* scramble this screen mounts with
+   * vacuously "extended" into the real one arriving from storage — position 0 of
+   * nothing is position 0 of everything. The transport read that as growth and
+   * dutifully **played the whole scramble** on every cold start, which is what a
+   * backgrounded app does when the system evicts it.
+   */
+  const startingCube = useMemo(
+    () => (solving ? orientedCube : solvedCube()),
+    [solving, orientedCube, scramble]
   );
+
+  const player = useScramblePlayer(solving ? solve : scramble, startingCube);
   const { pause, playTo, retract, seek } = player;
 
   const saved = isFavorite(favorites, scramble);

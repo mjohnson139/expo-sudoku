@@ -282,6 +282,17 @@ reset to the end for one, turn the new move for the other. Resetting when a move
 is appended applies it without ever showing it, which is the one thing the pad
 exists to do.
 
+**The starting cube is the identity, and it has to change when the subject
+does.** `from` is not only where move 1 begins — it is what says *this is a
+different algorithm now*. Scramble mode originally passed a constant, and the
+consequence was a bug worth remembering: the screen mounts with an **empty**
+scramble and fills it from storage, and position 0 of nothing vacuously extends
+into position 0 of anything, so the transport read the arriving scramble as
+growth and **played all twenty moves on every cold start** (which is what a
+backgrounded app does when the system evicts it). The fix is that the starting
+cube is rebuilt whenever the scramble is, so its identity changes with the
+subject rather than staying put.
+
 `extendsAlg(before, after, from)` is the pure predicate that tells them apart,
 and the `from` argument is the part worth not losing. Asked at the end of
 `before` it is the plain reading — *same algorithm, more on the end*. The
