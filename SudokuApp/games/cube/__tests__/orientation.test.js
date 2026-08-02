@@ -24,7 +24,7 @@ import {
   isSolved,
   solvedCube,
 } from '../cubeState';
-import { DEFAULT_PITCH, DEFAULT_YAW, MAX_PITCH } from '../geometry';
+import { DEFAULT_PITCH, DEFAULT_YAW } from '../geometry';
 import { OPPOSITE_FACE, parseAlg } from '../moves';
 
 const RAD = (degrees) => (degrees * Math.PI) / 180;
@@ -129,15 +129,72 @@ describe('facingAt', () => {
   });
 
   it('never returns a pair that is not an orientation', () => {
-    // Swept across everywhere a finger can put the cube, including the poles.
+    // Swept across everywhere a finger can put the cube — all the way over,
+    // both ways, including the poles.
     for (let yaw = -360; yaw <= 360; yaw += 5) {
-      for (let pitch = -89; pitch <= 89; pitch += 5) {
+      for (let pitch = -180; pitch <= 180; pitch += 5) {
         const { up, front } = facingAt(RAD(yaw), RAD(pitch));
         expect(front).not.toBe(up);
         expect(front).not.toBe(OPPOSITE_FACE[up]);
         expect(algForFacing(up, front)).not.toBeNull();
       }
     }
+  });
+
+  it('can put yellow on top, which is how Roux is normally held', () => {
+    // The one the operator hit (2026-08-02). D can only be the highest face on
+    // screen when `cos(pitch) < 0` — the cube is past upright — so while pitch
+    // was clamped short of ±90° this was unreachable *by construction*, and
+    // yellow-up is the traditional Roux hold. Turning the cube all the way over
+    // has to be possible.
+    const { up } = facingAt(DEFAULT_YAW, RAD(180));
+    expect(up).toBe('D');
+    expect(facingColors(cubeFromAlg(orientationAt(DEFAULT_YAW, RAD(180)))).up).toBe('yellow');
+  });
+
+  it('reaches every hold with white or yellow on top — all sixteen', () => {
+    // The regression test for the above, and the honest statement of what
+    // panning can express.
+    //
+    // **Sixteen, not twenty-four**, and the missing eight are exactly those
+    // with a *side* colour on top AND a side colour in front. The camera is
+    // yaw-then-pitch with **no roll** — a two-parameter family — so the holds
+    // it can land on are a surface through the 24, not all of them. Turning
+    // the cube on its side is reachable; turning it on its side and then
+    // spinning it about the axis you are looking down is not.
+    //
+    // Every hold with white or yellow up is reachable, all four fronts each,
+    // and those are every hold this epic supports: colour neutrality is
+    // explicitly out of scope (plan §8.2), so a solve starts from white or
+    // yellow on top. Reaching the other eight means giving the camera a roll
+    // axis, and that is the change to make if colour neutrality ever lands.
+    const reached = new Set();
+    for (let yaw = -180; yaw <= 180; yaw += 1) {
+      for (let pitch = -180; pitch <= 180; pitch += 1) {
+        const { up, front } = facingAt(RAD(yaw), RAD(pitch));
+        reached.add(`${up}${front}`);
+      }
+    }
+
+    ['U', 'D'].forEach((top) => {
+      const fronts = FACE_ORDER.filter((f) => f !== top && f !== OPPOSITE_FACE[top]);
+      expect(fronts).toHaveLength(4);
+      fronts.forEach((front) => expect(reached.has(`${top}${front}`)).toBe(true));
+    });
+
+    // And a side face on top, viewed with white or yellow in front — the steep
+    // pitches — which is the other eight.
+    expect(reached.size).toBe(16);
+  });
+
+  it('puts every face on top from somewhere', () => {
+    const tops = new Set();
+    for (let yaw = -180; yaw <= 180; yaw += 5) {
+      for (let pitch = -180; pitch <= 180; pitch += 5) {
+        tops.add(facingAt(RAD(yaw), RAD(pitch)).up);
+      }
+    }
+    expect(tops).toEqual(new Set(FACE_ORDER));
   });
 
   it('survives the corner-on view, where up and nearest are the same face', () => {
@@ -177,9 +234,9 @@ describe('facingAt', () => {
     }
   });
 
-  it('holds at the pitch clamp rather than falling apart at the pole', () => {
-    [MAX_PITCH, -MAX_PITCH].forEach((pitch) => {
-      const { up, front } = facingAt(DEFAULT_YAW, pitch);
+  it('holds at the poles rather than falling apart on them', () => {
+    [90, -90, 180, -180, 270].forEach((degrees) => {
+      const { up, front } = facingAt(DEFAULT_YAW, RAD(degrees));
       expect(algForFacing(up, front)).not.toBeNull();
     });
   });

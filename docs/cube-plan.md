@@ -459,6 +459,17 @@ search at module load, not written out: a hand-written table of 24 rotation
 sequences is 24 chances to be wrong in a way no reviewer can see, which is the
 same argument §3 makes about facelet permutations.
 
+**Sixteen of the twenty-four holds are reachable, and that is a known limit.**
+The camera is yaw-then-pitch with **no roll** — a two-parameter family — so the
+holds it can land on are a surface through the 24, not all of them. Every hold
+with **white or yellow on top is reachable, all four fronts each**, and those
+are every hold this epic supports: colour neutrality is explicitly out of scope
+(§8.2, §9.9), so a solve starts from white or yellow up. The missing eight all
+have a *side* colour on top **and** a side colour in front — turning the cube
+onto its side is fine, spinning it about the axis you are then looking down is
+not. Reaching them means giving the camera a roll axis, which is the change to
+make **if and when colour neutrality lands**, and not before.
+
 **A hold is described in colours, never in rotations** — "yellow up · blue
 front", live under the cube as you pan. Nobody inspecting a cube thinks in `z2`,
 and reading colours off a 120-point cube is guesswork.
@@ -527,8 +538,19 @@ more gestures on top.
 - **Stale closures in the pan responder.** `PanResponder.create` runs once, so a
   handler that closes over `yaw`/`pitch` freezes the opening angle into every
   drag. `CubeView` keeps them in a ref that is updated on each render.
-- **Pitch past the pole.** Clamped just short of ±90°, or the cube rolls over and
-  the drag direction inverts, which reads as the cube fighting you.
+- ~~**Pitch past the pole.**~~ **Reversed on 2026-08-02, and this is the
+  cautionary one.** Pitch was clamped just short of ±90° so the cube could never
+  roll over and invert the drag. The clamp was correct about the symptom and
+  quietly made **yellow-up impossible to pick** — D is only the highest face on
+  screen when `cos(pitch) < 0`, so the traditional Roux hold was unreachable *by
+  construction*, and it was the first thing the operator tried once inspection
+  shipped. The clamp is gone; the inversion is handled instead, by reversing the
+  *horizontal* drag when `geometry.isUpsideDown(pitch)`. Only the horizontal
+  needs it: increasing pitch applies its rotation directly in view space, so a
+  vertical drag reads the same at every angle, while increasing yaw spins about
+  the world's up-axis, which points down the screen once the cube is over.
+  **A constraint added to prevent a feeling can silently remove a capability**,
+  and nothing failed — there was simply a hold you could not name.
 - **`faceBasis` only spans an *axis-aligned* normal.** It is a lookup on which
   component is non-zero, which is fine for a still cube and wrong for every
   frame of a turn — a square built from a half-turned normal comes out

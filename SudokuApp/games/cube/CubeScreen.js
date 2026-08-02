@@ -19,7 +19,7 @@ import CubeMovePad from './CubeMovePad';
 import CubeScrubber from './CubeScrubber';
 import { ALG_FONT } from './algText';
 import { applyMoves, cubeFromAlg, solvedCube } from './cubeState';
-import { DEFAULT_PITCH, DEFAULT_YAW } from './geometry';
+import { DEFAULT_PITCH, DEFAULT_YAW, wrapAngle } from './geometry';
 import { announcePosition } from './player';
 import {
   describeOrientation,
@@ -355,8 +355,8 @@ const CubeScreen = ({ onExitToHub }) => {
   // Half a turn from wherever the player is, so the three faces they cannot see
   // are one tap away rather than a long drag.
   const showOtherSide = useCallback(() => {
-    setYaw((current) => current + Math.PI);
-    setPitch((current) => -current);
+    setYaw((current) => wrapAngle(current + Math.PI));
+    setPitch((current) => wrapAngle(-current));
   }, []);
 
   const titleColor = theme.colors.title;

@@ -17,6 +17,7 @@ const BUILD_NOTES = {
       'Dragging the cube stops playback, so looking around never means losing your place',
       'Write a solve: tap Solve and inspect first — turn the cube to how you want to hold it',
       'A live readout names the hold in colours as you turn it: "yellow up · blue front"',
+      'The cube turns all the way over, so yellow-up — the usual Roux hold — is one drag away',
       'Set start locks that hold in, and every move you write is relative to it',
       'Start view is the shortcut back to the hold you picked, however far you have turned away',
       'Then the move pad opens, with the cube starting from the scramble in your chosen hold',
