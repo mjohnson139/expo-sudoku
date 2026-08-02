@@ -16,7 +16,9 @@ import CubeView from './CubeView';
 import CubeAlgInputModal from './CubeAlgInputModal';
 import CubeFavoritesModal from './CubeFavoritesModal';
 import CubeMovePad from './CubeMovePad';
+import CubeNameModal from './CubeNameModal';
 import CubeScrubber from './CubeScrubber';
+import CubeSolvesModal from './CubeSolvesModal';
 import { ALG_FONT } from './algText';
 import { applyMoves, cubeFromAlg, solvedCube } from './cubeState';
 import { DEFAULT_PITCH, DEFAULT_YAW, wrapAngle } from './geometry';
@@ -36,7 +38,16 @@ import {
   nextModifier,
   padToken,
 } from './solve';
-import { moveCount, parseAlg } from './moves';
+import {
+  createSolve,
+  duplicateSolve,
+  findSolve,
+  removeSolve,
+  renameSolve,
+  solvesFor,
+  updateSolve,
+} from './solveList';
+import { moveCount, normalizeAlg, parseAlg } from './moves';
 import { addFavorite, isFavorite, removeFavorite } from './favorites';
 import { loadCubeState, saveCubeState } from './storage';
 import useScramblePlayer from './useScramblePlayer';
@@ -80,9 +91,25 @@ const CUBE_HEIGHT_SHARE = 0.42;
  * other, and a second transport for it would be the same walk written twice and
  * would drift the first time one of them learned something.
  *
- * **The solve is a scratchpad** this step: one solve, held in memory, gone when
- * you leave (plan §7 — the save file holds algorithm text, and what else it
- * holds is Step 4's decision to make properly rather than in passing).
+ * ### The workspace survives (Step 4, plan §7.1)
+ *
+ * The solve used to be a scratchpad — one of them, in memory, gone the moment
+ * the system evicted the app. Real use answered that: *"if I background the app
+ * and come back… my solve I was working on is gone."* A notebook that loses the
+ * page is not a notebook.
+ *
+ * So **nothing authored lives in this component's state any more.** The solves
+ * are a persisted list, the open one is a persisted id, and solve mode itself is
+ * a persisted flag; the hold and the moves are *fields of a solve* rather than
+ * of the screen. What is still local, and deliberately so, is the view angle,
+ * the scrub position, the speed and the armed modifier — where the operator is
+ * standing rather than what they wrote.
+ *
+ * Restoring is therefore a second path into exactly the state tapping **Solve**
+ * reaches, and the two have to agree: which of the three middle buttons shows
+ * (`Set start` / `Re-orient` / `Start view`) is derived from the hold and the
+ * move count, never set, so there is nothing for the two paths to disagree
+ * about.
  */
 const CubeScreen = ({ onExitToHub }) => {
   const { theme } = useAppTheme();
@@ -97,16 +124,24 @@ const CubeScreen = ({ onExitToHub }) => {
   const [favorites, setFavorites] = useState([]);
   const [showFavorites, setShowFavorites] = useState(false);
 
-  // Writing a solve rather than reading the scramble.
+  // Every solve the operator has written, against every scramble — persisted,
+  // and the reason this step exists. The hold and the moves are fields of one of
+  // these rather than state of this screen (plan §7.1).
+  const [solves, setSolves] = useState([]);
+  // Which solve is open, by id. Persisted, so coming back opens the page you
+  // left rather than a blank one.
+  const [openId, setOpenId] = useState(null);
+  // Writing a solve rather than reading the scramble. Persisted too: the mode is
+  // part of where you were.
   const [solving, setSolving] = useState(false);
-  // How the cube is being held, as a prefix of whole-cube rotations (plan §8.2).
-  // `null` means it has not been picked yet, which is the inspection phase —
-  // the state this screen is in between tapping Solve and starting to write.
-  const [orientation, setOrientation] = useState(null);
-  // The solve itself, as the operator wrote it — `r U r'` stays `r U r'`
-  // (plan §4). Not persisted this step, on purpose.
-  const [solve, setSolve] = useState('');
-  // The modifier waiting for a key: `''`, `'` or `2`.
+
+  const [showSolves, setShowSolves] = useState(false);
+  // The solve being renamed, or null. The two modals are opened one at a time
+  // rather than stacked — a Modal presented on top of a Modal is reliable on
+  // web and finicky on iOS, and there is nothing to gain by finding out which.
+  const [renamingId, setRenamingId] = useState(null);
+  // The modifier waiting for a key: `''`, `'` or `2`. Not persisted: it is a
+  // half-finished tap, not a written move.
   const [modifier, setModifier] = useState('');
   const [showTyping, setShowTyping] = useState(false);
 
@@ -136,6 +171,12 @@ const CubeScreen = ({ onExitToHub }) => {
     loadCubeState().then((saved) => {
       if (cancelled) return;
       setFavorites(saved.favorites);
+      setSolves(saved.solves);
+      // `readCubeSave` has already checked that the open solve exists and
+      // belongs to the scramble being restored, so these two land together or
+      // not at all — the screen never has to hold a pointer to nothing.
+      setOpenId(saved.workspace.solveId);
+      setSolving(saved.workspace.solving);
       // First ever visit: there should be a cube to look at, not an empty screen
       // with a button on it.
       setScramble(saved.scramble || randomScramble());
@@ -148,11 +189,16 @@ const CubeScreen = ({ onExitToHub }) => {
   }, []);
 
   // Persist after hydration only — writing before the read lands would overwrite
-  // the player's favorites with the empty list this screen starts at.
+  // the player's solves with the empty list this screen starts at.
   useEffect(() => {
     if (!hydrated) return;
-    saveCubeState({ scramble, favorites });
-  }, [hydrated, scramble, favorites]);
+    saveCubeState({
+      scramble,
+      favorites,
+      solves,
+      workspace: { solving, solveId: openId },
+    });
+  }, [hydrated, scramble, favorites, solves, solving, openId]);
 
   // Leaving for the hub unmounts the screen, and a debounced write that has not
   // fired yet is a write that never happens.
@@ -171,6 +217,37 @@ const CubeScreen = ({ onExitToHub }) => {
       return solvedCube();
     }
   }, [scramble]);
+
+  // A solve names the scramble it belongs to by that scramble's algorithm text,
+  // the way a favorite names itself (plan §7) — so this is the key both lists
+  // agree on, and it is why a solve does not need its scramble to be favourited.
+  const scrambleKey = useMemo(() => normalizeAlg(scramble), [scramble]);
+
+  const mySolves = useMemo(() => solvesFor(solves, scrambleKey), [solves, scrambleKey]);
+
+  /**
+   * The solve on the cube, or null.
+   *
+   * Cross-checked against the scramble rather than trusted, because `openId`
+   * outlives the scramble it was chosen under: a favorite loaded from the list
+   * changes the scramble, and a pointer to somebody else's page is worse than no
+   * pointer at all.
+   */
+  const openSolve = useMemo(() => {
+    const found = findSolve(solves, openId);
+    return found && found.scramble === scrambleKey ? found : null;
+  }, [solves, openId, scrambleKey]);
+
+  // The mode, and the guarantee that goes with it: solve mode always has a solve
+  // under it. Everything below asks this rather than `solving`, so a workspace
+  // that half-restored — a flag without its page — falls back to the scramble
+  // instead of onto a pad with nowhere to write.
+  const writing = solving && openSolve !== null;
+
+  // The hold and the moves, read off the open solve. They were screen state
+  // until Step 4; they are fields of a page now.
+  const orientation = openSolve ? openSolve.orientation : null;
+  const solve = openSolve ? openSolve.alg : '';
 
   // The scramble, turned the way the operator chose to hold it — the cube move 1
   // of the solve starts on. A rotation moves the *model*, so after `z2` the
@@ -205,13 +282,20 @@ const CubeScreen = ({ onExitToHub }) => {
    * nothing is position 0 of everything. The transport read that as growth and
    * dutifully **played the whole scramble** on every cold start, which is what a
    * backgrounded app does when the system evicts it.
+   *
+   * `openId` is a dependency for the same reason and one level down. Two solves
+   * against one scramble can share a hold, so `orientedCube` need not change
+   * when you switch between them — and if the identity did not change, the
+   * transport would read the second solve as the first one having grown and
+   * **animate its way from one into the other**. Switching pages is a reset,
+   * always, so the identity changes with the page.
    */
   const startingCube = useMemo(
-    () => (solving ? orientedCube : solvedCube()),
-    [solving, orientedCube, scramble]
+    () => (writing ? orientedCube : solvedCube()),
+    [writing, orientedCube, scramble, openId]
   );
 
-  const player = useScramblePlayer(solving ? solve : scramble, startingCube);
+  const player = useScramblePlayer(writing ? solve : scramble, startingCube);
   const { pause, playTo, retract, seek } = player;
 
   const saved = isFavorite(favorites, scramble);
@@ -228,9 +312,34 @@ const CubeScreen = ({ onExitToHub }) => {
     [pause]
   );
 
+  /**
+   * Put a different scramble on the cube, and open whatever was last written
+   * against it.
+   *
+   * This used to be an effect on `scramble` that cleared the solve. It cannot be
+   * one any more, and that is the trap worth naming: the screen mounts with an
+   * empty scramble and fills it from storage, so an effect keyed on `scramble`
+   * fires once during **hydration** — and would wipe the workspace it had just
+   * restored. Changing the scramble is something two buttons do, so it is
+   * written where those buttons are and hydration never trips it.
+   */
+  const showScramble = useCallback(
+    (alg) => {
+      pause();
+      setModifier('');
+      setScramble(alg);
+      // The most recent solve for the scramble arriving, which is the page you
+      // were last on for it. Nothing there is not a problem: Solve starts one.
+      const mine = solvesFor(solves, alg);
+      setOpenId(mine.length > 0 ? mine[0].id : null);
+      setSolving(false);
+    },
+    [pause, solves]
+  );
+
   const newScramble = useCallback(() => {
-    setScramble(randomScramble());
-  }, []);
+    showScramble(randomScramble());
+  }, [showScramble]);
 
   const toggleSaved = useCallback(() => {
     setFavorites((current) =>
@@ -240,29 +349,52 @@ const CubeScreen = ({ onExitToHub }) => {
     );
   }, [scramble]);
 
-  const loadFavorite = useCallback((alg) => {
-    setScramble(alg);
-    setShowFavorites(false);
-  }, []);
+  const loadFavorite = useCallback(
+    (alg) => {
+      showScramble(alg);
+      setShowFavorites(false);
+    },
+    [showScramble]
+  );
 
   const removeSaved = useCallback((alg) => {
     setFavorites((current) => removeFavorite(current, alg));
   }, []);
 
-  // A new scramble is a new cube to solve, so whatever was written against the
-  // old one no longer describes anything. Cleared rather than carried over,
-  // which is also what keeps "the solve starts from the scramble" true.
-  useEffect(() => {
-    setSolve('');
-    setModifier('');
-    setOrientation(null);
-  }, [scramble]);
+  /**
+   * Change the open solve, keeping it in the list.
+   *
+   * Every edit on this screen — a key, an undo, a clear, a typed algorithm, the
+   * hold — goes through here, so there is one place where "what the operator
+   * wrote" becomes "what is in the file". `patch` is the fields to change or a
+   * function of the solve, and an id that no longer names anything is a no-op
+   * rather than a crash.
+   */
+  const editOpen = useCallback(
+    (patch) => {
+      setSolves((current) => updateSolve(current, openId, patch));
+    },
+    [openId]
+  );
 
+  /** Start a fresh page against the scramble on the cube, and open it. */
+  const beginSolve = useCallback(() => {
+    const { solves: grown, solve: made } = createSolve(solves, scrambleKey);
+    if (!made) return null;
+    setSolves(grown);
+    setOpenId(made.id);
+    return made;
+  }, [solves, scrambleKey]);
+
+  // Tapping Solve resumes the page you were on, and only starts a new one when
+  // there is nothing to resume. That is what makes the button the same button
+  // it was before solves were kept.
   const startSolving = useCallback(() => {
     pause();
     setModifier('');
+    if (!openSolve) beginSolve();
     setSolving(true);
-  }, [pause]);
+  }, [pause, openSolve, beginSolve]);
 
   const stopSolving = useCallback(() => {
     pause();
@@ -288,18 +420,97 @@ const CubeScreen = ({ onExitToHub }) => {
    */
   const setStartingOrientation = useCallback(() => {
     pause();
-    setOrientation(orientationAt(yaw, pitch));
+    editOpen({ orientation: orientationAt(yaw, pitch) });
     setYaw(DEFAULT_YAW);
     setPitch(DEFAULT_PITCH);
-  }, [pause, yaw, pitch]);
+  }, [pause, editOpen, yaw, pitch]);
 
   // Back to inspection. Only offered while the solve is empty: re-orienting
   // under moves that are already written would silently change what every one
   // of them does to the cube (operator, 2026-08-02).
   const reorient = useCallback(() => {
     pause();
-    setOrientation(null);
-  }, [pause]);
+    editOpen({ orientation: null });
+  }, [pause, editOpen]);
+
+  // ——— The picker (docs/cube-plan.md §7.1) ———————————————————————————————
+
+  /** Put a solve on the cube. Always lands in solve mode, because that is the
+   *  only reason to pick one. */
+  const openSolveById = useCallback(
+    (id) => {
+      pause();
+      setModifier('');
+      setOpenId(id);
+      setSolving(true);
+      setShowSolves(false);
+    },
+    [pause]
+  );
+
+  const startNewSolve = useCallback(() => {
+    pause();
+    setModifier('');
+    const made = beginSolve();
+    if (made) setSolving(true);
+    setShowSolves(false);
+  }, [pause, beginSolve]);
+
+  // Copy a solve and open the copy — "same first block, try the second block
+  // differently", which starts by keeping what you already had.
+  const copySolve = useCallback(
+    (id) => {
+      pause();
+      setModifier('');
+      const { solves: grown, solve: made } = duplicateSolve(solves, id);
+      if (!made) return;
+      setSolves(grown);
+      setOpenId(made.id);
+      setSolving(true);
+      setShowSolves(false);
+    },
+    [pause, solves]
+  );
+
+  /**
+   * Forget a solve.
+   *
+   * Deleting the one on the cube has to leave the screen somewhere, and the
+   * honest somewhere is the next most recent page for this scramble — or, if
+   * that was the last one, back at the scramble. Leaving `openId` pointing at a
+   * deleted solve would drop solve mode without saying why.
+   */
+  const deleteSolve = useCallback(
+    (id) => {
+      pause();
+      const grown = removeSolve(solves, id);
+      setSolves(grown);
+      if (id !== openId) return;
+
+      const remaining = solvesFor(grown, scrambleKey);
+      setOpenId(remaining.length > 0 ? remaining[0].id : null);
+      if (remaining.length === 0) setSolving(false);
+    },
+    [pause, solves, openId, scrambleKey]
+  );
+
+  const beginRename = useCallback((id) => {
+    setShowSolves(false);
+    setRenamingId(id);
+  }, []);
+
+  const endRename = useCallback(() => {
+    setRenamingId(null);
+    setShowSolves(true);
+  }, []);
+
+  const submitRename = useCallback(
+    (name) => {
+      setSolves((current) => renameSolve(current, renamingId, name));
+      endRename();
+    },
+    [renamingId, endRename]
+  );
 
   // The shortcut back to the hold you picked. Because the orientation is baked
   // into the model rather than left in the camera, "the view I chose" and "the
@@ -321,10 +532,10 @@ const CubeScreen = ({ onExitToHub }) => {
   const tapKey = useCallback(
     (key) => {
       pause();
-      setSolve((current) => appendToken(current, padToken(key, modifier)));
+      editOpen((current) => ({ alg: appendToken(current.alg, padToken(key, modifier)) }));
       setModifier('');
     },
-    [modifier, pause]
+    [modifier, pause, editOpen]
   );
 
   const tapModifier = useCallback((mark) => {
@@ -337,29 +548,32 @@ const CubeScreen = ({ onExitToHub }) => {
   // the other way.
   const undoMove = useCallback(() => {
     setModifier('');
-    retract(() => setSolve((current) => dropLastToken(current)));
-  }, [retract]);
+    retract(() => editOpen((current) => ({ alg: dropLastToken(current.alg) })));
+  }, [retract, editOpen]);
 
   const clearSolve = useCallback(() => {
     pause();
     setModifier('');
-    setSolve('');
-  }, [pause]);
+    editOpen({ alg: '' });
+  }, [pause, editOpen]);
 
-  const addTyped = useCallback((text) => {
-    pause();
-    setSolve((current) => {
-      try {
-        return appendAlg(current, text);
-      } catch (error) {
-        // The field validates with the same parser before it offers Add, so this
-        // is unreachable — and if it ever is reached, keeping the solve is
-        // better than replacing it with a half-parsed one.
-        return current;
-      }
-    });
-    setShowTyping(false);
-  }, [pause]);
+  const addTyped = useCallback(
+    (text) => {
+      pause();
+      editOpen((current) => {
+        try {
+          return { alg: appendAlg(current.alg, text) };
+        } catch (error) {
+          // The field validates with the same parser before it offers Add, so
+          // this is unreachable — and if it ever is reached, keeping the solve
+          // is better than replacing it with a half-parsed one.
+          return {};
+        }
+      });
+      setShowTyping(false);
+    },
+    [pause, editOpen]
+  );
 
   const resetView = useCallback(() => {
     setYaw(DEFAULT_YAW);
@@ -383,14 +597,14 @@ const CubeScreen = ({ onExitToHub }) => {
   const pendingColor = mix(titleColor, theme.colors.background, 0.55);
 
   // What the transport is playing, for every label that has to name it.
-  const noun = solving ? 'solve' : 'scramble';
+  const noun = writing ? 'solve' : 'scramble';
   const solveCount = moveCount(solve);
 
   // Solve mode has two phases, which is how the operator described it: **find
   // the hold**, then **write the solve**. Inspecting is panning, so it gets the
   // whole page — no pad, no transport, and a cube roughly twice the size. The
   // pad only appears once there is something for it to write into.
-  const inspecting = solving && orientation === null;
+  const inspecting = writing && orientation === null;
 
   // Live while inspecting — this updates under the finger as the cube is
   // dragged, and it is the thing that makes picking a hold trustworthy. Reading
@@ -400,6 +614,21 @@ const CubeScreen = ({ onExitToHub }) => {
     ? applyMoves(scrambledCube, parseAlg(orientationAt(yaw, pitch)))
     : orientedCube;
   const holdText = describeOrientation(facingCube);
+
+  // A stored hold, said in colours, for the picker's rows. An orientation is
+  // notation like any other and a row is never worth a crash, so text that no
+  // longer parses reads as the reference hold rather than taking the list down.
+  const describeHold = useCallback(
+    (held) => {
+      if (held === null || held === undefined) return 'no hold yet';
+      try {
+        return describeOrientation(applyMoves(scrambledCube, parseAlg(held)));
+      } catch (error) {
+        return describeOrientation(scrambledCube);
+      }
+    },
+    [scrambledCube]
+  );
 
   // Before the first layout there is nothing to measure, so fall back to the
   // window-share estimate — close enough that the cube does not visibly resize
@@ -429,7 +658,7 @@ const CubeScreen = ({ onExitToHub }) => {
           subject, so it drops to one muted line — it is still the thing being
           solved and it is still worth being able to read, but the card below it
           now belongs to the solve. */}
-      {solving && (
+      {writing && (
         <Text
           style={[styles.scrambleLine, { color: pendingColor }]}
           numberOfLines={1}
@@ -456,14 +685,14 @@ const CubeScreen = ({ onExitToHub }) => {
           accessibilityLabel={
             inspecting
               ? 'Turn the cube to how you want to hold it, then set it as the start'
-              : solving
+              : writing
                 ? `Solve: ${solve || 'nothing yet'}`
                 : `Scramble: ${scramble}`
           }
           selectable
         >
           {player.count === 0
-            ? solving
+            ? writing
               ? inspecting
                 ? 'Turn the cube to how you want to hold it'
                 : 'Tap a key to begin'
@@ -476,7 +705,7 @@ const CubeScreen = ({ onExitToHub }) => {
                   accessibilityRole="button"
                   accessibilityLabel={`Move ${i + 1}, ${describeToken(token)}`}
                   accessibilityHint={`Turns the cube to this point in the ${
-                    solving ? 'solve' : 'scramble'
+                    writing ? 'solve' : 'scramble'
                   }`}
                   style={
                     i === player.index - 1
@@ -494,7 +723,7 @@ const CubeScreen = ({ onExitToHub }) => {
       </View>
 
       <View style={styles.actionRow}>
-        {solving ? (
+        {writing ? (
           <>
             <TouchableOpacity
               style={[styles.toolButton, { borderColor: border }]}
@@ -650,7 +879,7 @@ const CubeScreen = ({ onExitToHub }) => {
           accent={CUBE_ACCENT}
           theme={theme}
           noun={noun}
-          startLabel={solving ? 'Back to the starting cube' : 'Back to the solved cube'}
+          startLabel={writing ? 'Back to the starting cube' : 'Back to the solved cube'}
           onPlayPause={player.togglePlay}
           onStepBack={player.stepBack}
           onStepForward={player.stepForward}
@@ -667,28 +896,19 @@ const CubeScreen = ({ onExitToHub }) => {
         >
           {describeOrientationSentence(facingCube)}
         </Text>
-      ) : solving ? (
-        <>
-          <CubeMovePad
-            modifier={modifier}
-            canUndo={solveCount > 0}
-            canClear={solveCount > 0}
-            accent={CUBE_ACCENT}
-            theme={theme}
-            onKey={tapKey}
-            onModifier={tapModifier}
-            onUndo={undoMove}
-            onClear={clearSolve}
-            onType={() => setShowTyping(true)}
-          />
-
-          <Text
-            style={[styles.hint, styles.solveHint, { color: titleColor }]}
-            accessibilityLabel={`Started from ${holdText}. ${describeSolve(solve)}.`}
-          >
-            {holdText} · {describeSolve(solve)}
-          </Text>
-        </>
+      ) : writing ? (
+        <CubeMovePad
+          modifier={modifier}
+          canUndo={solveCount > 0}
+          canClear={solveCount > 0}
+          accent={CUBE_ACCENT}
+          theme={theme}
+          onKey={tapKey}
+          onModifier={tapModifier}
+          onUndo={undoMove}
+          onClear={clearSolve}
+          onType={() => setShowTyping(true)}
+        />
       ) : (
         <>
           <Text style={[styles.hint, { color: titleColor }]}>
@@ -732,6 +952,75 @@ const CubeScreen = ({ onExitToHub }) => {
           </View>
         </>
       )}
+
+      {/* The bottom line of solve mode, in both its phases — and **the way into
+          the picker**, which is why it is a button rather than the caption it
+          used to be.
+
+          It has to be this and not a row of its own: solve mode is already
+          header · scramble line · solve card · a three-button row · stage ·
+          transport · three pad rows · this, and at 320×568 that leaves the cube
+          about 120 points. The action row's middle button is already three-way
+          and cannot become four. So the line that already said which hold and
+          how many moves says which *page* too, and tapping it opens the list.
+
+          Both phases get it, and that is not symmetry for its own sake:
+          inspecting a brand-new solve you have changed your mind about would
+          otherwise be a corner with no way out — the page is empty, so it is not
+          worth keeping, and the only control that could delete it is in the list
+          you could not reach. */}
+      {writing && (
+        <TouchableOpacity
+          style={[styles.solveBar, { borderColor: border }]}
+          onPress={() => setShowSolves(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`${openSolve.name}, ${describeSolve(solve)}${
+            inspecting ? '' : `, started from ${holdText}`
+          }`}
+          accessibilityHint="Opens the solves written for this scramble"
+        >
+          <MaterialCommunityIcons
+            name="notebook-outline"
+            size={13}
+            color={titleColor}
+            style={styles.solveBarIcon}
+          />
+          <Text
+            style={[styles.solveBarText, { color: titleColor }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {openSolve.name} · {inspecting ? '' : `${holdText} · `}
+            {describeSolve(solve)}
+          </Text>
+          <MaterialCommunityIcons name="chevron-up" size={14} color={titleColor} />
+        </TouchableOpacity>
+      )}
+
+      <CubeSolvesModal
+        visible={showSolves}
+        theme={theme}
+        accent={CUBE_ACCENT}
+        solves={mySolves}
+        currentId={openSolve ? openSolve.id : null}
+        describeHold={describeHold}
+        onOpen={openSolveById}
+        onNew={startNewSolve}
+        onDuplicate={copySolve}
+        onRename={beginRename}
+        onRemove={deleteSolve}
+        onClose={() => setShowSolves(false)}
+      />
+
+      <CubeNameModal
+        visible={renamingId !== null}
+        theme={theme}
+        accent={CUBE_ACCENT}
+        title="Name this solve"
+        name={(findSolve(solves, renamingId) || {}).name || ''}
+        onSubmit={submitRename}
+        onClose={endRename}
+      />
 
       <CubeFavoritesModal
         visible={showFavorites}
@@ -867,9 +1156,29 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   // The pad already ate the vertical the bottom row used to have, so the line
-  // under it is tight to it rather than floating.
-  solveHint: {
-    marginTop: 2,
+  // under it is tight to it rather than floating. It is a button now — the way
+  // into the solves list — so it takes a border and its icons, and still costs
+  // the cube nothing, because it is the line that was already there.
+  solveBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    maxWidth: '100%',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  solveBarIcon: {
+    marginRight: 5,
+  },
+  solveBarText: {
+    flexShrink: 1,
+    fontSize: 11,
+    opacity: 0.75,
+    marginRight: 4,
   },
   // The live readout while inspecting. Bigger and accented than the other
   // captions on this page because during that phase it is the *answer* — the
