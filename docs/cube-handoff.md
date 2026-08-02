@@ -49,7 +49,8 @@ Branch from **`epic/cube`**, and open your PR **against `epic/cube`**. The epic
 merges to `main` once the cube is worth shipping, so `main` never carries a
 half-built tool.
 
-`epic/cube` is cut from `main` and tracks it. (It was briefly cut from
+`epic/cube` carries Steps 1, 2, 3 and 5 as of 2026-08-02. It is cut from `main`
+and tracks it. (It was briefly cut from
 `epic/fungiku`, because the hub only existed there; Fungiku's Step 13 merged that
 epic to `main` on 2026-08-01 and this was rebased the same day. **No Fungiku
 dependency remains** — if you find a doc that says otherwise, it is stale.)
@@ -118,137 +119,124 @@ you built, at every stage of the motion, not only at rest.
 
 ---
 
-## Next step: **Step 4 — several solves per scramble**
+## Next step: **Step 4 — the workspace survives**
 
-> **Note the order.** Step 5 (orientation) shipped *before* this one, because the
-> operator asked for it after using Step 3. So a solve already has a hold, and
-> whatever save-file shape you decide has to carry it. Plan §8.3 is the section.
+> **Read plan §7.1 first.** It is new, it inverts a rule two earlier steps
+> shipped on purpose, and it is the reason this step exists.
 
-> **Read plan §8.1 and §8.2 before anything else.** The epic was replanned on
-> 2026-08-01 and there is no solver on the critical path. If you have context
-> that says this step computes anything, it is stale — the operator writes the
-> solves, this step keeps them.
+The operator, after drilling on Step 5: *"if I background the app and come back,
+the view resets to the scramble view… and even worse my solve I was working on
+is gone."*
 
-Step 3 shipped one solve, in memory, gone when you leave. **This is the step
-that makes it a notebook.** The operator drills the same scramble over and over,
-three ways; keeping only the last attempt is the thing standing between the tool
-and what it is for.
+Steps 3 and 5 kept the solve and its hold in memory on purpose — a scratchpad,
+so there was something to try before the save file's shape had to be settled.
+Real use answered that: a phone app is backgrounded constantly, a cold start
+takes everything unsaved with it, and **a notebook that loses the page is not a
+notebook.**
 
-**Several named solves, saved against the scramble they belong to.** That is the
-whole step.
+**Nothing the operator wrote is lost, and there can be more than one of it.**
+That is the step.
 
 ### Scope — ONLY this
 
-1. **The save file grows a shape for solves.** Today `@CubeScramble` holds
-   `{ scramble, favorites }` and only algorithm text (plan §7). A solve belongs
-   to a *scramble*, not to the app, so the natural home is on the favorite —
-   but a solve can be written against a scramble that was never favorited, and
-   forcing a star before you can keep a solve is a rule nobody asked for.
-   **Decide this deliberately and write the decision into plan §7.**
-   A solve is already **two** fields, not one — `{ orientation, alg }`, where
-   `orientation` is a rotation prefix that may be `''` — and Step 6 adds phase
-   markers to whatever you pick.
-2. **Name a solve.** Free text, defaulted to something useful rather than
-   demanded up front — "Solve 2", or the date. Renaming is a text field you
-   already have a pattern for (`CubeAlgInputModal`).
-3. **A list of the solves for this scramble**, and switching between them puts
-   that solve on the cube. A modal, like the favorites list, for the layout
-   reason plan §2 gives.
-4. **New solve / duplicate / delete.** Duplicate is the one that matters for
-   drilling: "the same first block, then try the second block differently" is
-   how the practice actually goes.
-
-**Not persisted before this step, and now due:** the solve itself. The speed
-chip and the view angle stay transient (plan §7) — they are how you are watching
-right now, not what you wrote down.
+1. **Decide the save file's shape, once, and write it into plan §7.** A solve is
+   already `{ orientation, alg }` and §8.5 adds `phases` in Step 6. **Put the
+   `phases` slot in the file now even though nothing writes one yet** — the
+   alternative is reshaping the file twice and writing two migrations. Give a
+   solve a `name` too.
+2. **Persist every solve, against the scramble it belongs to.** Plan §7 already
+   identifies a favorite by its algorithm rather than a generated id; follow
+   that rule for the scramble a solve hangs off, or replace it everywhere rather
+   than in one of two places. Note the real question the handoff has been
+   carrying: a solve can be written against a scramble that was never
+   favourited, and forcing a star before you can keep work is a rule nobody
+   asked for.
+3. **Restore the workspace, not just the data.** Coming back should put you
+   where you were: the same scramble, the same solve open, the same hold, and
+   still in solve mode if that is where you left. **The scrub position, the view
+   angle and the speed stay transient** (plan §7.1) — those are where you are
+   standing, not what you wrote.
+4. **Several named solves per scramble**, with new / duplicate / delete, and a
+   list to switch between them. **Duplicate is the one that matters for
+   drilling**: "same first block, try the second block differently" is how the
+   practice actually goes.
 
 ### Read first
 
-- `docs/cube-plan.md` §4, §5 (**the new "growing an algorithm" section** — it is
-  what makes entering a move animate, and switching solves is going to walk
-  straight into it), §7, §8 and §8.1–8.2
+- `docs/cube-plan.md` §7 and **§7.1** (what is kept and what is not), §8, §8.2,
+  **§8.5** (what Step 6 will add to a solve — build the slot for it now)
 - `games/cube/favorites.js` — `readCubeSave`, `sanitizeFavorites`, and **why the
   shape rules live here and not in `storage.js`**: the test runner is plain node
-  and `storage.js` imports AsyncStorage. Whatever shape you pick for solves gets
-  sanitized here, with tests, or it is not done.
-- `games/cube/solve.js` — the pure half of editing a solve. A named solve is
-  probably a `{ name, alg }` and the editing functions stay exactly as they are.
-- `games/cube/CubeScreen.js` — `solving`, `solve`, and the effect that clears the
-  solve when the scramble changes. That effect is the thing this step replaces.
+  and `storage.js` imports AsyncStorage. Whatever shape you pick gets sanitized
+  here, with tests, or it is not done.
+- `games/cube/storage.js` — the debounce and its `flush()` on unmount
+- `games/cube/solve.js` — the pure half of editing a solve; a named solve is
+  `{ name, orientation, alg }` and these functions stay exactly as they are
+- `games/cube/orientation.js` — a hold is a rotation prefix, and it is a *field
+  of a solve*, not of the screen
+- `games/cube/CubeScreen.js` — `solving`, `orientation`, `solve`, and the effect
+  that clears all three when the scramble changes. That effect is what this step
+  replaces.
 - `games/cube/CubeFavoritesModal.js` — the modal pattern, including the "on the
-  cube" marker on the current row.
-- `games/cube/useScramblePlayer.js` — `extendsAlg`, `retract`/`flushRetract`
+  cube" marker on the current row
 
 ### Behaviors that are easy to get wrong
 
-- **Switching solves is a *replacement*, not a growth.** `useScramblePlayer`
-  resets to the end when the algorithm changes and walks forward when it grows
-  (plan §5). Loading solve B over solve A is a replacement and should reset — but
-  if B happens to start with A's moves *and the cube is sitting inside that
-  prefix*, `extendsAlg` will say growth and the cube will turn its way there.
-  Between two attempts at the same first block that is not hypothetical, it is
-  the common case. The guard that already exists is the `from` identity check;
-  add the solve's identity to it, or pass a key through, but do not rely on the
-  text being different.
-- **A solve is meaningless without its scramble.** Storing them in one flat list
-  and matching by scramble text is the cheap version and it works, because plan
-  §7 already identifies a favorite by its algorithm rather than a generated id.
-  Follow that rule or replace it everywhere, not in one of two places.
-- **A file written by Step 3's build has no solves in it**, and one written by
+- **The starting cube is an identity, not just a cube.** `useScramblePlayer`
+  reads `from`'s object identity to tell "a different algorithm" from "the same
+  one, grown". This has already caused one shipped bug: scramble mode passed a
+  constant, so the **empty** scramble the screen mounts with vacuously extended
+  into the real one arriving from storage, and the transport **played all twenty
+  moves on every cold start** (plan §5). Loading a *solve* is the same trap one
+  level down — switch solves and you must change the starting cube's identity
+  too, or the transport will animate its way from one solve into the other.
+- **Restoring is a second path into the same state**, and every path has to
+  agree. Opening solve mode from a restore must land exactly where opening it by
+  tapping Solve lands, including which of the three middle buttons is showing
+  (`Set start` / `Re-orient` / `Start view`). Those are derived from
+  `orientation === null` and the move count — keep them derived.
+- **A file written by an older build has no solves in it**, and one written by
   this build has to survive being opened by an older one. `readCubeSave` is the
-  boundary where both of those are handled — filter on the way out, do not trust.
-- **Do not let a bad solve take the screen down.** `sanitizeFavorites` drops a
-  favorite that no longer parses for exactly this reason. A saved solve is more
-  text from a file and gets the same treatment.
-- **The screen is full, and Step 3 filled it further.** Solve mode is header ·
-  scramble line · solve card · a 3-button row · stage · transport · 3 pad rows ·
-  a caption, and at 320×568 that leaves the cube about 120 points. A solve
-  *picker* must not be another row — put it in the modal, or on the card, or
-  swap it for something already there. Check at 320, do not assume.
-- **Eight holds are unreachable**, all with a side colour both up and in front,
-  because the camera has yaw and pitch but no roll (plan §8.3). Every hold with
-  white or yellow up works. This is the change to make if colour neutrality
-  (§9.9) ever lands, and not before.
-- **Solve mode has two phases now**, and the middle button of the action row is
-  already three-way (`Set start` / `Re-orient` / `Start view`) depending on which
-  one you are in and whether any moves exist. Switching *solves* is a fourth
-  thing that button might want to be. It cannot be — find it another home.
-- **Switching solves has to carry the hold with it.** A solve's starting cube is
-  `applyMoves(scrambledCube, parseAlg(orientation))`, and that object's identity
-  is what `useScramblePlayer` reads as "a different algorithm entirely". Load a
-  solve and you must set both, or the transport will animate its way from one
-  solve into the other.
-- **`describeCubeProgress` in `utils/gameProgress.js`** says `20 moves · 3
+  boundary where both are handled — filter on the way out, do not trust. A saved
+  solve is more text from a file and gets the same treatment as a favorite that
+  no longer parses.
+- **Do not restore into a hold that no longer parses.** An orientation is
+  notation like any other; if it fails, the honest fallback is the reference
+  hold, not a crash.
+- **The screen is full.** Solve mode is header · scramble line · solve card · a
+  3-button row · stage · transport · 3 pad rows · a caption, and at 320×568 that
+  leaves the cube about 120 points. A solve *picker* must not be another row —
+  put it in a modal, or on the card, or replace something already there. The
+  action row's middle button is already three-way; it cannot become four. Check
+  at 320, do not assume.
+- **`describeCubeProgress` in `utils/gameProgress.js`** reads `20 moves · 3
   favorites` on the hub. Once solves are kept, "come back to this" plausibly
-  means something else. It is outside `games/cube/`, so say why in the PR if you
-  touch it.
+  means something else. It is outside `games/cube/`, so say why in the PR.
 
 ### Out of scope for this step
 
-An orientation prefix (Step 5), phase markers (Step 6), entering a cube by
-colour (Step 7), a solver or random-state scrambles (Step 8), colour neutrality
-(plan §9.9), a timer. Note what you spot; do not start it.
+Phase annotations (Step 6 — but leave the field), entering a cube by colour,
+a solver, random-state scrambles, colour neutrality, a timer. Note what you
+spot; do not start it.
 
 ### Visible in Expo Go when this lands
 
-Open Cube Scramble, write a solve, name it, write a second one, switch between
-them and watch the cube follow — then leave the app, come back, and they are
-both still there.
+Write a solve, name it, write a second one against the same scramble, switch
+between them — then **background the app, come back, and find exactly what you
+left**: same solve, same hold, same mode, nothing replayed at you.
 
 ### How to verify
 
-- `npm test` — the save-file shape, its sanitizing, and anything about naming
-  are pure and belong where the node runner can reach them. Pin a Step 3 file
-  round-tripping through the new reader.
+- `npm test` — the file's shape, its sanitizing, and the migration from a Step 5
+  file are all pure and belong where the node runner can reach them. Pin a Step 5
+  save round-tripping through the new reader.
 - `npx expo-doctor` and `npx expo export --platform all`.
-- Drive the web export headlessly at 320×568, 375×667 and 420×860 — and **look
-  at the screenshots**. Step 2 found a geometry bug that way that no assertion
-  about the ends could see; Step 3 found two state bugs that way that no test it
-  had written would have caught (a second undo inside 260ms silently kept the
-  move, and a key tapped mid-undo stranded the removal). Both were found by
-  driving the thing, not by reasoning about it. Serve `dist` and drive it with
-  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`; note that `npm install`
-  has to be run first, the repo does not ship `node_modules`.
+- Drive the web export headlessly at 320×568, 375×667 and 420×860, and **look at
+  the screenshots**. A reload is a cold start, so a driver can test restore
+  directly: write a solve, reload the page, and assert you land back on it.
+  `scratchpad/resume.js` in the Step 5 session did exactly this to catch the
+  replay-on-open bug — sample the position label over the first four seconds and
+  assert nothing animates.
 
 ---
 
@@ -281,7 +269,20 @@ Step 4.
    session, not an opinion.
 9. **Colour neutrality** — raised and deferred by the operator on 2026-08-01
    ("we're not gonna get into that right now"). Solves assume you pick a top and
-   a left colour and hold it that way.
+   a left colour and hold it that way. **It now has a concrete cost attached**:
+   eight of the 24 holds are unreachable until the camera gains a roll axis
+   (plan §8.3), and those eight are exactly the ones a colour-neutral solver
+   would want.
+10. ~~**Whether a solve is worth keeping.**~~ **Answered by use** (operator,
+    2026-08-02): yes, and losing one to a backgrounded app is the thing that
+    made it obvious. Plan §7.1 has the rule this settled — everything authored
+    is kept, everything about how you are currently looking at it is not.
+11. **How move groups get annotated** — new, and specified rather than open
+    (operator, 2026-08-02): *"these moves solve first block, this set solves
+    second block."* Plan §8.5 has the four decisions. What is still genuinely
+    open is **whether it should come before several-solves**: it is arguably
+    worth more for drilling one scramble, and the save-file shape supports
+    either order, which is the point of deciding that shape once.
 
 ### Noted in passing, for a later step
 
@@ -299,9 +300,9 @@ Step 4.
 - ~~**`useScramblePlayer` assumes a solved starting cube.**~~ **Done in Step 3**:
   `buildPlayback(alg, { from })` and `useScramblePlayer(alg, from)`.
 - **The text field appends; it cannot edit.** A typo in the middle of a solve is
-  fixed by undoing back to it, which is fine for a scratchpad and will stop
-  being fine once solves are kept. Editing a saved solve as text is a Step 4
-  question, not a parser one.
+  fixed by undoing back to it, which was fine for a scratchpad and stops being
+  fine the moment solves are kept — **which is Step 4, so this is now live.**
+  Editing a saved solve as text is a screen question, not a parser one.
 - **Solve mode has no "Favorites" button**, because the row it lived on is now
   the move pad. Getting to the list means tapping Scramble first. Nobody has
   complained because nobody has used it yet.
@@ -328,6 +329,8 @@ Step 4.
 ## Steps already done
 
 ### **Step 5 — the starting orientation** ✅ *(shipped out of order, 2026-08-02)*
+
+*Merged to `epic/cube` with Step 3 on 2026-08-02 (#87, #88).*
 
 Shipped: solve mode is now **two phases**, and the cube turns all the way over. Tap Solve and you are *inspecting* —
 no pad, no transport, a cube roughly twice the size, and a live readout under it
@@ -367,6 +370,14 @@ Three things this step learned, all now in plan §8.3:
   (`geometry.isUpsideDown`). **Sixteen of the 24 holds are reachable** — every
   one with white or yellow up — and the missing eight need a camera roll axis,
   which belongs with colour neutrality if that ever lands (plan §8.3).
+
+One more bug, found by the operator and fixed before the merge: **a cold start
+played the whole scramble** before settling on it. The screen mounts with an
+empty scramble and fills it from storage, and position 0 of nothing vacuously
+extends into position 0 of anything — so the transport called it growth and
+walked all twenty moves. The starting cube is an identity as well as a cube, and
+scramble mode was passing a constant one. Backgrounding the app is how an
+operator meets this, because the system evicts it and the next open is cold.
 
 Also recorded and **declined**: swipe-to-turn (plan §8.4), dropped as too
 complicated. The groundwork finding is kept in case it returns.
