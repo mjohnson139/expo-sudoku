@@ -3,9 +3,20 @@
 **A 3×3 Rubik's cube you can scramble, keep, and turn over in your hands.** The
 first step ships a random scramble, a cube rendered in 3D that you drag to
 inspect from any angle, and a favorites list. The epic it opens is a *cube
-workbench*: step through a scramble move by move, then step through a **solve**
-— CFOP, Roux, and whatever else the operator wants to teach — with the cube
-showing what each phase does.
+workbench*: step through a scramble move by move, then work out **how you would
+solve it** — in Roux, in CFOP, in whatever the operator is learning — with the
+cube showing what each move does.
+
+> **Replan note (2026-08-01), and it is the important one.** This document used
+> to say the epic ended in a **solver**: a two-phase search in JS that computes a
+> solution, then splits it into CFOP or Roux phases to display. That is not what
+> the operator wants, and the way they have actually been using the tool is what
+> revealed it — running the *same scramble over and over* to drill a Roux solve
+> by hand. What they need is a **notebook**: enter your own moves, watch the cube
+> follow, and keep several attempts at the same scramble side by side. The cube
+> is a place to write down and replay what *you* worked out, not an oracle that
+> tells you the answer. §8 is replanned around that, and the solver drops off the
+> critical path — see §8.1 for what changed and why.
 
 The reference the operator gave is **<https://scramble.cubing.net/>**: a
 scramble, a draggable 3D cube, and nothing else on the page. That restraint is
@@ -162,6 +173,20 @@ whole string** rather than being skipped: a scramble that silently dropped a mov
 would show a cube that is not the cube in the operator's hands, which is the one
 thing this screen must never do.
 
+### A move's canonical token is not always what was typed
+
+`parseMove` normalizes: `r`, `Rw` and `rw` all come back as `{ token: 'Rw', … }`.
+That is right for the *model* — one spelling, one comparison — and wrong for
+anything the operator reads back. Roux is written `r U r'` and `M2`, and a
+notebook that redisplays a solve as `Rw U Rw'` is quietly correcting the person
+using it in the notation their own method does not use.
+
+So from Step 3 on, **the text the operator entered is the text that is kept**,
+and the canonical token stays an implementation detail of the move. The way to
+hold that together is a `tokenize` scan that returns the raw token strings, so a
+displayed token and the move it animates are the same element of two arrays built
+in one pass rather than two things hoped to line up.
+
 ## 5. The renderer — SVG, and why not WebGL
 
 `games/cube/geometry.js` builds the frame; `games/cube/CubeView.js` draws it.
@@ -270,8 +295,9 @@ from the *allowed* faces rather than drawing and retrying — same distribution,
 but it terminates by construction instead of depending on the quality of its
 randomness.
 
-Upgrading to random-state is its own step (§8), and it is the same work that
-gives the epic a solver.
+Upgrading to random-state is its own step (§8, last row), and it is the same
+search a solver needs — which is why the two share a row now that neither is on
+the critical path (§8.1).
 
 ## 7. Favorites and persistence
 
@@ -304,19 +330,58 @@ the operator can open in Expo Go.
 |---|---|---|
 | **1** | Scramble · 3D cube you can drag · favorites · hub tile | **shipped** |
 | **2** | **Play the scramble.** Animated layer turns and a move-by-move scrubber | **shipped** |
-| **3** | **Enter a cube.** Paste or type a scramble, and/or set the colours by hand, so the cube on screen is the cube on the table | next |
-| **4** | **Solve it.** A two-phase solver in JS; play the solution back on the cube | |
-| **5** | **CFOP.** The solve split into cross / F2L / OLL / PLL, each phase named, its pieces highlighted, steppable | |
-| **6** | **Roux.** The same treatment for blocks / CMLL / LSE | |
-| **7** | **Random-state scrambles**, once the solver from Step 4 exists — WCA-legal, and the natural place to add other events | |
+| **3** | **Solve mode.** Enter moves and the cube turns — a move pad and a text field, on the scrambled cube | next |
+| **4** | **Several solves per scramble.** Name them, keep them, switch between them; the notebook the operator asked for | |
+| **5** | **Orientation.** Record how the cube is held before a solve starts — Roux's inspection step, "yellow up, blue left" | |
+| **6** | **Phases.** Mark where first block / second block / CMLL / LSE begin and end inside a solve, and step phase by phase | |
+| **7** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
+| **8** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
 
-Steps 5 and 6 are the operator's actual goal ("visualizing how to solve them in
-different methods"). Steps 2–4 are what they stand on: you cannot show a phase
-until you can animate a turn, cannot animate a solve until you can compute one,
-and cannot compute one for the cube in someone's hands until they can enter it.
+Steps 3–6 are the operator's actual goal. Steps 4–6 are increments on Step 3:
+once you can enter moves, keeping several attempts is a list, holding the cube a
+certain way is a prefix of rotations, and naming the phases is a marker between
+two moves. **None of them need a solver**, which is the whole point of the
+replan below.
 
-**Step 7 is deliberately last, not first.** Random-state scrambles need the same
-search Step 4 needs; doing it once, for the solver, gets both.
+### 8.1 Why the solver moved to the end
+
+The old plan had Step 4 compute a solution with a two-phase (Kociemba) search and
+Steps 5–6 chop it into CFOP and Roux phases. It was a coherent plan for a
+different product.
+
+What the operator is doing with the tool is drilling: same scramble, over and
+over, working out a Roux first block by hand and trying to remember what they
+did. A computed solution does not help with that — it is not their solution, it
+does not follow the method's logic (a shortest algorithm ignores what "first
+block" even is), and open question §9.5 was already circling the problem before
+the answer arrived from watching the thing be used.
+
+So the epic becomes a notebook. That is *less* code, not more: no search, no
+pruning tables, no megabyte of dependency, and every step from here is
+recognisably the same shape — moves on a cube that the model and renderer
+already animate. The solver stays in the table because random-state scrambles
+(§6) still want the same search and it would be a good thing to have; it is just
+no longer the thing everything else waits on.
+
+### 8.2 What a solve is
+
+A **solve** is what the operator writes down about one scramble:
+
+- **An orientation** — how you are holding the cube when you start. Roux begins
+  with inspection: find the pairs, pick a top colour and a left colour, and
+  traditionally that is yellow on top and blue on the left. In notation this is a
+  prefix of whole-cube rotations (`x`, `y`, `z`), which the model and renderer
+  already handle and which cost nothing extra to store.
+- **The moves** — the solve itself, in standard notation.
+- **A name**, eventually, so two attempts at the same scramble can be told apart.
+
+Several solves belong to one scramble, because trying it three ways is the
+practice. That is Step 4; Step 3 deliberately ships **one** unsaved solve so
+there is something to try before the save-file shape has to be settled (§7).
+
+**Colour neutrality is explicitly out of scope** (operator, 2026-08-01) — solving
+from any starting colour is a real Roux topic and a real complication, and it is
+not what this epic is for yet.
 
 ## 9. Open questions for the operator
 
@@ -329,13 +394,18 @@ search Step 4 needs; doing it once, for the solver, gets both.
    building one. Is a timer in scope for this epic, or is it a different feature?
 4. **Colour scheme.** Fixed to the standard one now. Worth a setting, or is
    "the scheme on your cube" close enough to universal?
-5. **Where a solve comes from.** Step 4's solver finds *a* short solution, which
-   is not how a human solves. For Steps 5–6 the phases are the point, so the
-   method's own logic (cross first, then pairs) matters more than move count —
-   worth confirming that is the intent before building a solver optimized for
-   the wrong thing.
+5. ~~**Where a solve comes from.**~~ **Answered, and it replanned the epic**
+   (operator, 2026-08-01): solves are **written by the operator**, not computed.
+   The question was whether a solver should optimize for move count or follow the
+   method's own logic; the real answer was that neither is wanted yet. See §8.1.
 6. **Left-handed drag.** The current mapping is "push the surface under your
    finger". Nobody has complained yet because nobody has used it yet.
+7. **Turn speed.** Answered and shipped in Step 2 — a chip cycling 1× → 2× → 0.5×.
+   Not persisted; see §7 and the note under Step 3 in the handoff.
+8. **How a move gets entered.** Step 3 ships a pad with `'` and `2` as modifier
+   keys you arm before the face. Roux is prime-heavy, so that is two taps for a
+   very common move, and it is the first thing to revisit once the operator has
+   drilled a real solve on it. The alternatives are written up in the handoff.
 
 ## 10. Edge cases and things that are easy to get wrong
 
@@ -380,9 +450,10 @@ search Step 4 needs; doing it once, for the solver, gets both.
   `<twisty-player>` element. Dual GPL/MPL; as a library it can be treated as
   MPL, which is file-level copyleft and fine to depend on. It is browser-first
   (Web Workers, WASM), so using it means the WebView route in §5.
-- **Kociemba's two-phase algorithm** is the standard basis for Step 4's solver.
-  There are permissively licensed JS ports; check the licence of whichever is
-  picked, and prefer one small enough to read.
+- **Kociemba's two-phase algorithm** is the standard basis for a solver, which is
+  now the last row of §8 rather than the middle of it (§8.1). There are
+  permissively licensed JS ports; check the licence of whichever is picked, and
+  prefer one small enough to read.
 - Nothing from either is vendored today. Step 1 has no third-party cube code in
   it at all — `react-native-svg` is the only dependency it added.
 
