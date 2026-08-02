@@ -107,82 +107,142 @@ you built, at every stage of the motion, not only at rest.
 
 ---
 
-## Next step: **Step 3 — enter a cube**
+## Next step: **Step 3 — solve mode**
 
-The cube on screen is always a cube this app made up. The operator's goal is a
-workbench for *the cube in their hands*, and every step after this one — the
-solver, CFOP, Roux — is worth nothing until the state being solved is theirs.
+> **Read plan §8.1 before anything else.** The epic was replanned on 2026-08-01
+> and the old Step 3 ("enter a cube") and Step 4 ("a two-phase solver") are gone
+> from the critical path. If you have context that says this step is a solver, it
+> is stale.
+
+The operator has been using the scrambler to drill: **the same scramble, over and
+over**, working out a Roux first block by hand and trying to remember what they
+did. What they need is somewhere to write it down and watch it back. Eventually
+that is several named solves per scramble, each with the orientation the cube was
+held in — this step is the one move that all of it stands on.
+
+**Enter a move, and the cube turns.** That is the whole step.
 
 ### Scope — ONLY this
 
-1. **Paste or type an algorithm.** A text field that takes notation, validates it
-   live, and applies it to the cube. `parseAlg` already accepts the whole set —
-   faces, slices, wides, rotations, curly apostrophes, optional spaces — and
-   already refuses anything it cannot read whole, so this is a screen, not a
-   parser. Show *why* it was rejected: `parseAlg` throws with the offending
-   token in the message.
-2. **Set the colours by hand.** Tap a facelet on the cube, tap a colour, and the
-   sticker changes. This is the half that makes a *scrambled physical cube*
-   enterable, since nobody knows the algorithm that produced the cube on their
-   table.
-3. **Say whether what was entered is a real cube.** A hand-entered facelet state
-   can be impossible — ten green stickers, a flipped edge, a twisted corner, two
-   identical corners. Report it in the UI, and do not let Step 4's solver be
-   handed a state it will search forever for.
+1. **A solve mode.** A button on the cube screen switches the screen from
+   *reading a scramble* to *writing a solve*. The cube starts from the scramble
+   fully applied — that is the cube you would be holding — and the moves you
+   enter go on top of it.
+2. **A move pad.** Twelve keys: `U D L R F B` · `M` · `r` · `l` · `x y z`, with
+   `'` and `2` as modifiers, plus undo and clear. This is the **Roux set**
+   (operator, 2026-08-01): first block is faces plus `M` and `r`, LSE is almost
+   entirely `M` and `U`, and `x`/`y` are how you turn the cube over during
+   inspection. Not the full parser set — `E`, `S` and the other three wides are
+   real notation nobody writes a Roux solve in, and eighteen keys on a phone is a
+   worse pad.
+3. **A text field**, alongside the pad, for typing or pasting a whole algorithm —
+   a CMLL alg, a sequence off a tutorial. The parser already does the work
+   (`parseAlg` takes the full set, spaces optional, curly apostrophes, and
+   refuses anything it cannot read *whole*), so this is a screen, not a parser.
+   Show why something was rejected: `parseAlg` throws with the offending token
+   in the message.
+4. **Each entered move animates**, using Step 2's machinery, and the transport
+   underneath scrubs the solve exactly as it scrubs a scramble.
+
+**The solve is a scratchpad this step** (operator, 2026-08-01) — one solve, held
+in memory, gone when you leave. Saving and naming several is Step 4, and that is
+where the save file's shape gets decided properly rather than in passing.
 
 ### Read first
 
-- `docs/cube-plan.md` §3 (model), §4 (notation), §7 (what is stored), §8
-- `games/cube/moves.js` — `parseAlg`, `tryParseAlg`, `isValidAlg`, `formatAlg`
-- `games/cube/cubeState.js` — `facelets`, `faceletString`, `FACE_READING`; the
-  reading order of D and B is the thing to get right (plan §10)
-- `games/cube/favorites.js` and `storage.js` — what a save is allowed to contain
-- `games/cube/CubeScreen.js` and `CubeScrubber.js` — where new furniture goes on
-  a screen that already fits exactly
+- `docs/cube-plan.md` §4 (notation, and the new note on canonical tokens), §5
+  (the renderer and the transport), §7 (what is stored), §8 and **§8.1–8.2**
+- `games/cube/moves.js` — `parseMove`, `parseAlg`, `tryParseAlg`; note
+  `BASE_MOVES`/`WIDE_MOVES` and that `TOKEN_SOURCE` is the scanner you will want
+  to expose
+- `games/cube/player.js` — `buildPlayback`, and the fact that it starts from
+  `solvedCube()`
+- `games/cube/useScramblePlayer.js` — `playTo`, `animate`, and the effect that
+  resets to the end when the algorithm changes
+- `games/cube/CubeScreen.js`, `CubeScrubber.js`, `CubeFavoritesModal.js` — the
+  screen, the transport, and this feature's modal pattern
+- `games/fungiku/FungikuMenuModal.js` — **the only `TextInput` in the app**, and
+  therefore the house pattern for one
 
 ### Behaviors that are easy to get wrong
 
-- **Storage holds algorithm text, not a cube** (plan §7). A hand-entered facelet
-  state is not algorithm text, so it needs an answer: either store a 54-character
-  facelet string alongside — a *second* shape that `readCubeSave` has to filter
-  and that every later reader has to handle — or do not persist hand-entered
-  states at all and say so. Decide it deliberately and write down which, because
-  it is the first time the save file has had two kinds of thing in it.
-- **The scrubber assumes a scramble** — `useScramblePlayer` builds its states by
-  applying moves to a solved cube. A cube entered by colour has no move list, so
-  the transport has nothing to walk. Decide what the scrubber shows then; a
-  scrubber that silently reads `0 / 0` and does nothing is worse than one that
-  is honestly absent.
-- **Validity is not "54 stickers, nine of each".** Permutation parity, corner
-  twist and edge flip are all separately checkable and all separately violable
-  by a single mis-tapped sticker. Getting this wrong ships a screen that says
-  "looks fine" and a Step 4 solver that never terminates.
+- **`parseMove` normalizes `r` to `Rw`** (plan §4). A Roux notebook that echoes
+  `Rw U Rw'` back at someone who tapped `r` is correcting them in notation their
+  method does not use. Keep the entered text as the source of truth and export a
+  `tokenize` from `moves.js` so the displayed token and the animated move are two
+  arrays built in one pass — not two things hoped to line up. Step 2's token
+  rendering in `CubeScreen` has the same latent problem and can be fixed by the
+  same export.
+- **Appending a move must *animate*, not jump.** `useScramblePlayer`'s effect
+  resets to the end whenever the algorithm changes, which is right for loading a
+  favorite and wrong for adding a move — you would never see the turn. The rule
+  that works: if the new algorithm *extends* the old one and the cube was sitting
+  at the old end, walk forward to the new end (`playTo`) instead of resetting.
+  Worth a pure `extendsAlg(before, after)` in `player.js` so it is testable.
+- **`buildPlayback` starts from a solved cube.** A solve starts from the
+  scrambled one, so it needs a starting cube — `buildPlayback(alg, { from })`.
+  This was flagged as coming in Step 2's handoff and is now due.
+- **Undo has to run the move backwards**, then drop it. Dropping it first and
+  letting the state reset is a jump, and it is the wrong direction of the same
+  bug as the point above. Step 2 already animates backwards for free: it is the
+  same move run from `t = 1` down to 0 on the cube before it.
+- **A whole-cube rotation changes the model, not the camera.** `x`/`y`/`z`
+  already animate correctly and open no seams — but after a `y`, `R` means a
+  different physical face. That is exactly right and exactly what Roux
+  inspection needs; just do not also move the camera, and do not expect the
+  scramble text above to still describe the orientation.
 - **A text field on a screen that does not scroll.** The keyboard covers the
-  bottom half of a phone, and this page is a fixed column by design (plan §2).
-  Editing probably belongs in a modal, like the favorites list does.
-- **Do not let the input clobber the current scramble mid-typing.** The cube
-  should follow a *valid* draft, not every keystroke of an invalid one.
+  bottom half of a phone and this page is a fixed column by design (plan §2).
+  The field probably belongs in a modal, like the favorites list.
+- **The screen is already full.** Step 2's transport came to about 284 points
+  against the 300 the narrowest supported phone has. A pad is another ~120
+  points of vertical, on a page where the stage is the `flex: 1` that absorbs
+  it — so the *cube* is what shrinks. Two rows of six plus a modifier row is the
+  budget that fits; check it, do not assume it.
+- **Do not persist the solve** this step (plan §7). Same reasoning as Step 2's
+  scrub position and speed.
+
+### The modifier question, which is genuinely unsettled
+
+`'` and `2` are **armed** — tap `'`, then `R`, and you get `R'`; the arming
+clears after one move. That is two taps for a move Roux uses constantly, and it
+is the first thing to revisit once the operator has drilled a real solve on it
+(plan §9.8). Two alternatives, neither obviously better:
+
+- **Modify the last move instead** — tap `R`, then `'`, and it becomes `R'`. One
+  fewer tap in the common case, but the cube has already turned `R`, so it has
+  to un-turn and re-turn, and the animation stops meaning "this is the move I
+  just made".
+- **Tap a key repeatedly to cycle** `R` → `R2` → `R'`. No modifier keys at all,
+  and it is what some cube apps do, but the intermediate animations are a cube
+  turning back and forth rather than a solve being written.
+
+Ship the armed modifiers, keep undo one tap away so a mis-entry is cheap, and
+let the operator's first real session decide.
 
 ### Out of scope for this step
 
-Solving, CFOP/Roux phases, other puzzle sizes, random-state scrambles, a timer.
-All of those are later rows in plan §8. The solver is Step 4 and it is the
-customer for this step's output — build for it, do not start it.
+Saving or naming solves, several solves per scramble, an orientation step,
+phase markers, entering a cube by colour, a solver, colour neutrality, a timer.
+Those are plan §8 rows 4–8, and §8.2 says what the first three are. Note what
+you spot for them; do not start them.
 
 ### Visible in Expo Go when this lands
 
-Open Cube Scramble, paste `R U R' U'`, and see that cube. Then set a few stickers
-by hand and see those. Enter something impossible and be told so.
+Open Cube Scramble, tap Solve, tap `R` — the cube turns `R`. Arm `'`, tap `U`
+— it turns `U'`. Tap undo and watch it come back. Type `R U R' U'` in the field
+and watch all four run.
 
 ### How to verify
 
-- `npm test` — the validity check is pure and belongs in a module the node
-  runner can import, tested against known-good and known-impossible states.
-- `npx expo-doctor` (18/18 — the two network-dependent checks may fail behind a
-  proxy; say so rather than reporting 16/18 as a regression) and
+- `npm test` — `tokenize`, `extendsAlg` and `buildPlayback({ from })` are all
+  pure and belong where the node runner can reach them. Pin the round trip: a
+  token entered as `r` comes back as `r` and animates as `Rw`.
+- `npx expo-doctor` (16/18 in a sandbox; see the note above) and
   `npx expo export --platform all`.
-- Drive the web export headlessly at 320×568, 375×667 and 420×860. Step 2's
-  driver is a good starting point: serve `dist` and drive it with
+- Drive the web export headlessly at 320×568, 375×667 and 420×860 — and look at
+  the screenshots, do not only assert on them. Step 2's drivers are a good
+  starting point: serve `dist`, drive it with
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`.
 
 ---
@@ -196,15 +256,23 @@ Step 3.
 2. Other puzzles — 2×2, 4×4, pyraminx, skewb?
 3. A timer — in this epic, or a separate feature?
 4. Colour scheme — a setting, or is the standard one enough?
-5. What a "solve" should be for Steps 5–6: the method's own logic, or the
-   shortest algorithm?
+5. ~~Where a solve comes from.~~ **Answered, and it replanned the epic**
+   (operator, 2026-08-01): solves are **written by the operator**, not computed.
+   See plan §8.1.
 6. Drag direction — currently "push the surface under your finger".
 7. ~~Turn speed.~~ **Answered** (operator, 2026-08-01): a speed control, and it
    is in — a chip cycling 1× → 2× → 0.5×, scaling the beat between moves as well
    as the turns, and applying to single steps as much as to playback. It is not
    persisted, for the same reason the view angle is not. If it should survive a
-   relaunch, that is a save-file change and belongs with Step 3's decision about
-   what else the file holds.
+   relaunch, that is a save-file change and belongs with **Step 4's** decision
+   about what else the file holds.
+8. **How a move gets entered** — new, and live. Step 3 ships armed `'` and `2`
+   modifier keys; Roux is prime-heavy, so that is two taps for a very common
+   move. The alternatives are written up under Step 3 above. This wants the
+   operator's first real drilling session, not an opinion.
+9. **Colour neutrality** — raised and deferred by the operator on 2026-08-01
+   ("we're not gonna get into that right now"). Solves assume you pick a top and
+   a left colour and hold it that way.
 
 ### Noted in passing, for a later step
 
@@ -220,9 +288,9 @@ Step 3.
   class of problem avoided rather than dodged, but a device pass is still the
   only evidence that counts for how it *feels*.
 - **`useScramblePlayer` assumes a solved starting cube.** It builds its states by
-  applying moves from `solvedCube()`. Playing a *solve* back (Step 4) starts from
-  a scrambled one, so it will want a starting cube as an argument — a small
-  change, worth making when there is a caller for it rather than now.
+  applying moves from `solvedCube()`. A solve starts from a scrambled one, so it
+  wants a starting cube as an argument. **Step 3 is the caller** — this is no
+  longer "later".
 - **The scrubber row is full.** Five buttons, `n / 20` and the speed chip come to
   about 284 points, and the narrowest phone this app supports has 300. It wraps
   rather than overflows, but a sixth control wants a rethink rather than another
