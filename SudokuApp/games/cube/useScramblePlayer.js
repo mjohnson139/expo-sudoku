@@ -4,6 +4,7 @@ import {
   buildPlayback,
   clampIndex,
   ease,
+  extendsAlg,
   gapDuration,
   nextSpeed,
   turnDuration,
@@ -39,10 +40,23 @@ import {
  * forever, and it is the same stale-closure trap `CubeView`'s pan handlers
  * already dodge.
  *
- * @param {string} alg the scramble
+ * ### Growing an algorithm is not replacing one
+ *
+ * Loading a favorite means "show me that cube", and the transport resets to the
+ * end of it. Tapping `R` on the solve pad means "turn R", and resetting to the
+ * end would apply the move without ever showing it — the one thing the pad
+ * exists to do. Both arrive here as the same thing, a changed `alg`, so they are
+ * told apart by `extendsAlg`, asked at **where the cube currently is**: if the
+ * new algorithm still says what the old one said everywhere the cube has been,
+ * the cube *walks* to its new end rather than jumping to it.
+ *
+ * @param {string} alg the algorithm to play — a scramble, or a solve
+ * @param {{cubies: Array}} [from] the cube move 1 starts on. A solve starts from
+ *   the scrambled cube; omitted means solved. Must be referentially stable — it
+ *   is what tells "same algorithm, new starting cube" from "growing".
  */
-const useScramblePlayer = (alg) => {
-  const { moves, states } = useMemo(() => buildPlayback(alg), [alg]);
+const useScramblePlayer = (alg, from) => {
+  const { moves, tokens, states } = useMemo(() => buildPlayback(alg, { from }), [alg, from]);
   const count = moves.length;
 
   // How many moves of the scramble are on the cube, and — while one is turning
@@ -67,6 +81,14 @@ const useScramblePlayer = (alg) => {
   const pendingRef = useRef(null);
   // Where the walk is heading. Only meaningful while `playing`.
   const goalRef = useRef(count);
+  // What the last render's algorithm was, so the effect below can tell a solve
+  // being added to from a scramble being replaced. `undefined` means "first
+  // render", which is never a growth.
+  const algRef = useRef(undefined);
+  const fromRef = useRef(from);
+  // The caller's half of an undo — dropping the move — held until the backwards
+  // turn has run. See `retract`.
+  const retractRef = useRef(null);
 
   movesRef.current = moves;
 
@@ -101,6 +123,26 @@ const useScramblePlayer = (alg) => {
   }, []);
 
   /**
+   * Run the caller's half of an undo, if one is owed.
+   *
+   * An undo is two things — turn the move backwards, then drop it — and they
+   * cannot happen at once: dropping first is a jump, and turning first means
+   * the algorithm still has a move in it that the operator has already taken
+   * back. So the drop is owed, and *every* way out of the turn pays it: it
+   * lands, or something interrupts it, and either way the move goes.
+   *
+   * Leaving it unpaid is the bug this exists to stop. A second undo, or a key
+   * tapped inside the 260ms the turn takes, would otherwise walk away from a
+   * removal that never happened and the solve would quietly keep a move the
+   * operator had already deleted.
+   */
+  const flushRetract = useCallback(() => {
+    const owed = retractRef.current;
+    retractRef.current = null;
+    if (owed) owed();
+  }, []);
+
+  /**
    * Stop, and land whatever was mid-air.
    *
    * A turn frozen half-way is a cube in a position no cube can be in, and the
@@ -112,11 +154,15 @@ const useScramblePlayer = (alg) => {
     stopClock();
     const pending = pendingRef.current;
     pendingRef.current = null;
-    if (!pending) return;
+    if (!pending) {
+      flushRetract();
+      return;
+    }
 
     setTurn(null);
     setIndex(pending.forward ? pending.at + 1 : pending.at);
-  }, [setIndex, stopClock]);
+    flushRetract();
+  }, [flushRetract, setIndex, stopClock]);
 
   /**
    * Animate move `at`, forwards or backwards.
@@ -247,6 +293,40 @@ const useScramblePlayer = (alg) => {
   }, [animate, pause]);
 
   /**
+   * Turn the last move backwards and then hand back, so the caller can drop it.
+   *
+   * Undo, from the solve pad. It has to run the move *backwards* before the
+   * algorithm loses it: dropping it first and letting the effect below reset
+   * would be a jump, and the wrong direction of exactly the bug the growth rule
+   * fixes. Stepping backwards is free (`animate` runs the same move from `t = 1`
+   * down to 0 on the cube before it), so this is `stepBack` with a callback and
+   * a guard.
+   *
+   * Only the *end* can be undone. Anywhere else, there is nothing to animate
+   * that matches what is about to be removed, so the caller is handed straight
+   * back and the reset does the work.
+   */
+  const retract = useCallback(
+    (onDone) => {
+      // Pays off any undo still in the air first, so hammering the button
+      // removes one move per tap rather than losing the ones that overlap.
+      pause();
+
+      const at = indexRef.current;
+      if (at <= 0 || at !== movesRef.current.length) {
+        if (onDone) onDone();
+        return;
+      }
+
+      animate(at - 1, false, flushRetract);
+      // After `animate`, never before: it settles on the way in, and settling
+      // is one of the things that pays this off.
+      retractRef.current = onDone;
+    },
+    [animate, flushRetract, pause]
+  );
+
+  /**
    * Jump straight to a position — no animation.
    *
    * This is what the two skip buttons do, and only them. "Back to the solved
@@ -265,14 +345,45 @@ const useScramblePlayer = (alg) => {
   // A new scramble — or a favorite loaded back — opens fully applied, which is
   // the cube this screen showed before it could play anything. Where you were
   // in the last scramble is not somewhere to be in this one.
+  //
+  // Unless the algorithm *grew*, which is what entering a move looks like from
+  // here: then the cube is already right up to the old last move and the new
+  // ones are turned rather than applied behind your back.
   useEffect(() => {
+    const previousAlg = algRef.current;
+    const previousFrom = fromRef.current;
+    algRef.current = alg;
+    fromRef.current = from;
+
+    // Where the cube is, or — mid-walk — where it is on its way to. A second tap
+    // on the pad while the first move is still turning is still an append, and
+    // reading the settled index alone would call it a replacement and jump.
+    const heading = playingRef.current ? goalRef.current : indexRef.current;
+
+    // The moves past where the cube has got to have not been played, so whether
+    // they changed cannot matter — what matters is that everywhere the cube has
+    // *been* still says the same thing. A different starting cube is always a
+    // different algorithm, whatever the text says, which is what keeps switching
+    // between the scramble and the solve a reset.
+    const growing =
+      previousAlg !== undefined &&
+      previousFrom === from &&
+      extendsAlg(previousAlg, alg, heading);
+
+    if (growing) {
+      // Settles the in-flight turn and walks on from there; if nothing was
+      // added after all, it is a no-op.
+      playTo(moves.length);
+      return;
+    }
+
     stopClock();
     pendingRef.current = null;
     goalRef.current = moves.length;
     setTurn(null);
     setPlaying(false);
     setIndex(moves.length);
-  }, [moves, setIndex, setPlaying, stopClock]);
+  }, [alg, from, moves, playTo, setIndex, setPlaying, stopClock]);
 
   // Leaving the screen mid-turn must not leave a frame loop running against an
   // unmounted component.
@@ -292,6 +403,7 @@ const useScramblePlayer = (alg) => {
 
   return {
     moves,
+    tokens,
     count,
     index,
     cube,
@@ -304,6 +416,7 @@ const useScramblePlayer = (alg) => {
     playTo,
     stepForward,
     stepBack,
+    retract,
     seek,
     cycleSpeed,
   };
