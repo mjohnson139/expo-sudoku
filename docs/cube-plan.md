@@ -474,8 +474,8 @@ the operator can open in Expo Go.
 | **4** | **The workspace survives.** Nothing you wrote is lost to a backgrounded app; several named solves per scramble | **shipped** |
 | **5** | **Orientation.** Record how the cube is held before a solve starts — Roux's inspection step, "yellow up, blue left" | **shipped** (out of order, 2026-08-02) |
 | **6** | **Annotate the move groups.** "These moves solve first block, these solve second block" — labelled spans, per-phase move counts, and a transport that plays one group | **shipped** |
-| **7** | **Give the page back to the cube.** The chrome takes two thirds of the screen and the biggest piece of it grows as you drill; cut it to a budget | next |
-| **8** | **Edit a solve you have already written.** Fix a move in the middle without undoing back to it — the oldest live gap in the feature | |
+| **7** | **Give the page back to the cube.** The chrome takes two thirds of the screen and the biggest piece of it grows as you drill; cut it to a budget | **shipped** |
+| **8** | **Edit a solve you have already written.** Fix a move in the middle without undoing back to it — the oldest live gap in the feature | next |
 | **9** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
 | **10** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
 
@@ -779,6 +779,54 @@ page to 58%**, and the drawn cube from 164 points to something over 300.
   (`onLayout`), and a track that changes height at the fourth move would resize
   the cube mid-solve. The whole point of a *fixed* two-line track is that the
   cube's box stops moving.
+
+#### Shipped 2026-08-03, and the measurement was worse than this section said
+
+The table above was read off the operator's screenshot. Driving the export and
+measuring every row found the case nobody had looked at: **at 320×568, on a
+42-move annotated solve, the cube was four points tall.** Not 114 — the 114 in
+these docs was measured on a shorter solve, and the move card is the row that
+grows. A solve long enough to be worth annotating was the solve that crushed the
+cube to nothing, which is to say the tool failed hardest exactly where it was
+being used hardest.
+
+| Solve mode, 42 moves, annotated | before | after |
+|---|---|---|
+| 320×568 | **4** | **210** |
+| 375×667 | 125 | 309 |
+| 393×852 | 318 | 373 (width-bound) |
+
+Scramble mode: 166 → 300 at 320×568. Inspection, which was already the good
+phase, went 247 → 300 and is now width-bound too at every size.
+
+**The sharp definition of done is met**: at 393 the binding term in `cubeSize`'s
+`Math.min` is the width rather than `stage.height`, at all three sizes for the
+scramble and inspection, and at 320 solve mode is within about 90 points of it
+with the pad, the transport and the phase strip all still on the page.
+
+Four things it learned:
+
+- **`flex: 0` is not "size to your content" on the web.** The dense header's two
+  end columns used it and react-native-web read it as `flex-basis: 0%` with
+  shrink still on, so both ends collapsed to their padding and their buttons hung
+  off the right edge of the screen. Spell out `flexGrow` / `flexShrink` /
+  `flexBasis`. Caught by the horizontal-overflow check the drivers have run since
+  Step 1 — which had never once fired before, and paid for itself here.
+- **A fixed-height track needs every child to be exactly one line tall.** The
+  phase divider is a bar glyph, which fills its em where a letter does not, so it
+  made its row a couple of points taller than `LINE` — and the auto-scroll, which
+  is computed from `LINE`, drifted a little further out of step on every row and
+  left a sliver of the previous line along the top edge. Fixed heights on every
+  child, and the glyph a size smaller.
+- **Neither of the two above is visible in anything but a screenshot.** No test
+  failed, no overflow check for height fired, `expo-doctor` was 18/18 throughout.
+  §10's entry — a wasteful page is not a failing one — turned out to describe the
+  step's own bugs as well as the problem it was fixing.
+- **The card had been drawing the open solve's phase markers across the
+  scramble.** A red divider, in the middle of a scramble, which has no phases and
+  cannot have any. It shipped in Step 6 and survived because you have to open a
+  scramble that already has an annotated solve behind it to see one — which the
+  driver's seeded save file does by construction. Fixed on the way past.
 
 ### 8.7 Editing a solve you have already written (Step 8)
 

@@ -49,7 +49,7 @@ Branch from **`epic/cube`**, and open your PR **against `epic/cube`**. The epic
 merges to `main` once the cube is worth shipping, so `main` never carries a
 half-built tool.
 
-`epic/cube` carries Steps 1, 2, 3, 4, 5 and 6 as of 2026-08-02. It is cut from `main`
+`epic/cube` carries Steps 1 through 7 as of 2026-08-03. It is cut from `main`
 and tracks it. (It was briefly cut from
 `epic/fungiku`, because the hub only existed there; Fungiku's Step 13 merged that
 epic to `main` on 2026-08-01 and this was rebased the same day. **No Fungiku
@@ -66,11 +66,11 @@ is always openable in Expo Go (project → Branches) even with no step PR open.
   `react-native-svg` — Step 2 touched only `utils/buildNotes.js`, because plan
   §12 says to, Step 4 touched those same two (the hub badge counts solves now),
   and Step 6 touched only the build notes. A step that needs to touch anything
-  else should say why in its PR. **Step 7 is the first one that has to**: the
-  header it wants to shrink is `components/ScreenHeader.js`, shared with
-  Fungiku. The way to do that without breaking the rule's intent is an opt-in
-  prop whose default is today's behaviour, plus opening the other callers to
-  check — and saying so in the PR.
+  else should say why in its PR. **Step 7 is the only one that has had to**, and
+  it is the pattern for the next time: the header it needed to shrink is
+  `components/ScreenHeader.js`, shared with Fungiku, so it added a `dense` prop
+  and an `actions` prop **whose absence is exactly today's header** — no existing
+  caller changed a pixel, and Fungiku was opened to prove it.
 - **The model owns the rules.** Import `solvedCube` / `applyMove` / `applyMoves`
   / `cubeFromAlg` / `facelets` / `isSolved` from `games/cube/cubeState.js`, and
   `parseAlg` / `parseMove` / `scanAlg` / `tokenize` / `algError` / `moveCount`
@@ -135,155 +135,138 @@ you built, at every stage of the motion, not only at rest.
 
 ---
 
-## Next step: **Step 7 — give the page back to the cube**
+## Next step: **Step 8 — edit a solve you have already written**
 
-> **The order changed on 2026-08-03 and plan §8 says why.** This step used to be
-> *edit a solve*; that is Step 8 now and its brief is kept in full in plan §8.7,
-> so nothing was lost. The operator looked at solve mode and said the chrome was
-> taking too much of the screen — and the old Step 7 brief was already designing
-> around that ("the screen is full… anything this step adds has to replace
-> something or live in a modal"), which is the wrong way round.
+**The text field appends; it cannot edit.** A typo in the middle of a solve is
+fixed by undoing back to it and retyping everything after. That was fine when the
+solve was a scratchpad (Step 3), stopped being fine the moment solves were kept
+(Step 4 — which recorded it and deliberately did not fix it), and Step 6 put
+**markers** on top of the same text. It is the oldest live gap in the feature and
+every step adds weight to it.
 
-**Two thirds of this screen is not the cube.** Measured on a 393×852 phone,
-mid-drill on a 42-move solve:
-
-| Row | pt | |
-|---|---|---|
-| Header | 75 | the title **wraps to two lines** |
-| Scramble line | 20 | |
-| Move card | 143 | five wrapped lines, **and it grows with the solve** |
-| Phase strip | 24 | |
-| Action row | 48 | |
-| **Cube stage** | **228** | **31% of the page** |
-| Scrubber | 39 | |
-| Move pad | 115 | three rows |
-| Solve bar | 21 | |
-
-485 points of chrome against 228 of cube, and at 320×568 the cube is down to
-114. The target is about **200 points back — stage 228 → ~430, i.e. 31% → 58%**.
-
-**The definition of done is sharper than a percentage: the cube should end up
-limited by the width of the phone, not by what is stacked above it.** Watch
-`cubeSize`'s `Math.min` in `CubeScreen.js` — when `stage.height` stops being the
-term that wins at 320 and 375 points wide, this step is done.
+> It was going to be Step 7. The operator looked at the screen first
+> (2026-08-03): the chrome had two thirds of the page, and this step's brief was
+> already being written around the squeeze — *"the screen is full… anything this
+> step adds has to replace something or live in a modal."* Step 7 shipped that
+> page back. **The line about there being nowhere to put an edit affordance is
+> no longer true**, so put it where it belongs.
 
 ### Scope — ONLY this
 
-1. **Cap the move card at two lines that scroll to follow the current move.**
-   ~143 → ~46, and it is the one row that **grows as the operator drills**. The
-   block does three jobs — read the solve, see where you are, tap a token to turn
-   there — and it is sized for the first, which is the job the cube is there to
-   do. Keep the other two exactly as they are: every token stays a tap target
-   that calls `playTo`, and the phase bars between tokens stay.
-2. **Halve the header.** ~75 → ~36. `ScreenHeader` gives the title a `flex: 2`
-   centre column — about 186 points at 393 — and "Cube Scramble" at 24pt bold
-   does not fit, so it wraps and has been two lines tall since Step 1. **This is
-   `components/ScreenHeader.js`, which is outside `games/cube/`** — see the
-   golden rule below.
-3. **Fold the action row away in solve mode.** ~48 → 0. `Scramble` is navigation
-   and belongs beside the home button; `Start view` / `Set start` / `Re-orient`
-   and the turn-around are view controls and belong with the view. The row's own
-   comment already admits the squeeze — one of the three is icon-only *because
-   labelling it wraps the row and the 40 points come out of the cube*.
-4. **Fold the scramble line away.** ~20 → 0. "Which scramble am I on" can ride
-   on the solve bar, which already carries the page's identity.
-5. **Do the same to scramble mode** (operator, 2026-08-03). It spends an action
-   row, a permanent hint line and a *second* button row — about 110 points for
-   six buttons and a tip. One consolidated control row, and
-   `Drag the cube · tap a move to turn to it` goes: it earns its 21 points on the
-   first visit and never again. Half-treating the two modes makes two screens out
-   of one.
+1. **Replace the solve's text, rather than appending to it.**
+   `CubeAlgInputModal` already validates a whole algorithm with the real parser
+   and says which token it choked on; the honest shape is that modal opened with
+   the solve **already in it**, replacing on Add. Appending stays — it is what
+   the field is for mid-write — so this is a second way in rather than a changed
+   one. The move track and the solve bar are both plausible homes for "edit";
+   the track is already a tap target for every token, so a *long press* on one is
+   worth considering over another control.
+2. **Keep the markers on the moves they were put on.** A phase is an index
+   (plan §8.5), and a wholesale text replacement moves every index after the
+   edit. `clampPhases` keeps them *legal*; it does not keep them *right* — insert
+   a move at position 3 and `First block · 8` should become `· 9`, not stay at 8
+   pointing one move short. **This is the hard half of the step and it is where
+   the thinking goes.** A diff between the old and new token lists is enough to
+   shift each marker by how much the text before it grew or shrank; a marker
+   inside a stretch that was rewritten wholesale has no honest answer and
+   probably wants dropping rather than guessing.
+3. **Do not let an edit replay the solve.** `useScramblePlayer` tells "grew" from
+   "replaced" with `extendsAlg` asked at where the cube is (plan §5). An edit in
+   the middle is genuinely a *replacement* and should land on the end without
+   animating — which is what already happens, but only if the starting cube's
+   identity is right. Check it; a cold-start-style replay is the bug this epic
+   has shipped twice.
 
 ### Read first
 
-- `docs/cube-plan.md` **§8.6** (this step in full, and the rule it establishes),
-  §2 (the no-scroll rule, and the amendment saying what it does and does not
-  cover), §8.5's note on what the phase strip costs, §10's sizing entries
-- `games/cube/CubeScreen.js` — the whole render, `measureStage`, `cubeSize`,
-  `MAX_CUBE` / `CUBE_HEIGHT_SHARE`, and every `styles` entry at the bottom.
-  **Read the comments before moving anything**: most rows on this page already
-  say what they cost and what was tried.
-- `games/cube/CubePhaseStrip.js` — the pattern for a bounded strip that scrolls
-  without stealing the pan, and the one that already priced itself at 24 points
-- `components/ScreenHeader.js` — and its two other callers
-- `games/cube/CubeMovePad.js`, `CubeScrubber.js` — the thumb targets that must
-  **not** shrink
+- `docs/cube-plan.md` §4 (**the text the operator entered is the text that is
+  kept** — an edit must not respell `r` as `Rw`), §5's growth rule, §8.5, §8.6
+  (the page you are working on now, and the budget rule that governs anything
+  you add to it), §10
+- `games/cube/solve.js` — `appendAlg`, `dropLastToken`, `solveError`. A
+  `replaceAlg` belongs here, next to them, and pure.
+- `games/cube/solveList.js` — `withMoves` is the funnel every move edit goes
+  through and `clampPhases` is what it calls. **A marker-shifting function
+  belongs here**, next to the rest of the shape rules and the tests that hold
+  them.
+- `games/cube/CubeAlgInputModal.js` — the field, its validation and its Add
+- `games/cube/CubeMoveTrack.js` — where the tokens are now, and each one's
+  `onPress`
+- `games/cube/CubeScreen.js` — `editOpen`, `addTyped`, `headerActions`
+- `games/cube/useScramblePlayer.js` / `player.js` — `extendsAlg`, and why the
+  starting cube is an identity
 
 ### Behaviors that are easy to get wrong
 
-- **Do not buy space by shrinking a target.** The pad's keys and the transport
-  are thumb targets; 44 points is the floor and the cube is not worth breaking
-  it. All ~200 points above come from text, padding and rows that duplicate each
-  other — none from a smaller button. If you find yourself trimming a key, stop.
-- **The cube must not resize while you type.** The stage measures itself, so a
-  moves track that is one line at move 3 and two lines at move 9 resizes the cube
-  mid-solve. Fix its height; that is the point of capping it.
-- **The scroll must not touch the pan.** Plan §2's rule is about the *page*
-  competing with the cube for a drag and it still stands — there is no
-  `ScrollView` the cube goes inside. A bounded strip clear of the cube's square
-  is fine, and `CubePhaseStrip` is the proof. Keep
-  `keyboardShouldPersistTaps="handled"` so a drag starting on a token still hits
-  it.
-- **Auto-scrolling the track is a transport concern, not a render concern.** It
-  follows `player.index`, which changes every frame of a turn. Scroll on the move
-  landing, not on every tick, or the strip judders through a playback.
-- **`ScreenHeader` is shared with Fungiku.** The golden rule is that cube work
-  stays in `games/cube/`; this step breaks it deliberately and narrowly. Add an
-  opt-in prop (`dense`, or whatever reads best) with **the current behaviour as
-  the default**, so no other screen changes, and open Fungiku and Sudoku to
-  confirm. Say so in the PR — that is what the golden rule asks for.
-- **A row that disappears is worse than a row that is short**, if what it said is
-  still needed. Every cut above either moves the information somewhere already on
-  screen or deletes something the operator no longer needs. `Favorites` in
-  particular has no other way in (see the note below about it being missing from
-  solve mode) — do not lose it.
-- **Inspection is the one phase that is already right.** It drops the pad and the
-  transport and the cube roughly doubles. Do not regress it, and do use it as the
-  reference for what this screen can look like.
+- **A replacement that happens to be an extension is still an extension.**
+  Opening the field, adding one move at the end and hitting Add must animate that
+  move, not jump. `extendsAlg` already answers this correctly; the trap is
+  bypassing it with a "this was an edit" flag.
+- **Never redisplay a canonical token.** Seeding the field is the obvious place
+  to leak `Rw` where the operator wrote `r`. Seed from the stored text.
+- **An empty replacement is a clear.** Decide whether that is allowed from the
+  field, and make it match what the clear key does to the markers (which is drop
+  them all — see `clearSolve`).
+- **The page has room again, and it is not free.** Step 7 took the chrome from
+  two thirds of the screen to about a third, and the way it did that was to put
+  every row on a budget justified against the cube (plan §8.6). A new row costs
+  the cube its height; the pad's bottom row is still six controls with no
+  seventh; the header's right-hand end is three icons at 320 points and that is
+  full. **Say what your addition costs the cube, in points, in the PR** — the
+  habit is what made this problem legible in the end.
+- **The move track is fixed at two lines and must stay fixed.** `TRACK_HEIGHT`
+  does not depend on how many moves there are, on purpose: the stage measures
+  itself, so a track that grew would resize the cube mid-solve. If an edit
+  affordance wants to live in the track, it cannot make the track taller.
+- **Every child of the track is exactly `LINE` tall, and the auto-scroll depends
+  on it.** Add an element to that row without a fixed height and the rows drift
+  out of step with `LINE`, and the scroll parks a few points off — which shows as
+  a sliver of the previous row along the top edge, and shows up nowhere else.
 
 ### Out of scope for this step
 
-Editing a solve (that is Step 8 — plan §8.7), a chrome-free / full-bleed mode
-(open question 14), entering a cube by colour, a solver, colour neutrality, a
-timer. **No behaviour changes at all**: every control that works today works the
-same way when this lands, from somewhere else on the page. Note what you spot;
-do not start it.
+Entering a cube by colour, a solver, random-state scrambles, colour neutrality,
+a timer, re-orienting under written moves, a chrome-free mode (open question 14).
+Note what you spot; do not start it.
 
 ### Visible in Expo Go when this lands
 
-Open a solve you have been drilling and the cube is obviously bigger — over 300
-points where it was 164 — with the moves in a two-line track that scrolls itself
-to wherever the transport is, and nothing lost from the page.
+Write a solve, notice that move 4 should have been `R'`, open the edit field with
+the whole solve in it, fix that one character, Add — and watch the cube land on
+the corrected solve with `First block · 8` still counting the first eight moves.
 
 ### How to verify
 
-- `npm test` — mostly unchanged, and that is the point: this step should break
-  very little. Anything pure it adds (a windowing helper, a budget constant)
-  belongs in a module the node runner can import.
+- `npm test` — the marker shifting is pure and belongs in `solveList.test.js`
+  next to `withMoves` and `clampPhases`. Pin what an insert, a delete and a
+  wholesale rewrite each do to a marker.
 - `npx expo-doctor` and `npx expo export --platform all`.
-- **This step's evidence is screenshots and a table, not assertions.** Drive the
-  web export headlessly at 320×568, 375×667 and 420×860 and, at each, capture
-  scramble mode, inspection, and solve mode with a 42-move annotated solve —
-  **before and after**. Measure the rows off the screenshots and put the two
-  budget tables in the PR. An overflow check cannot see this: wrapping is not an
-  error and a wasteful page is not a failing one (plan §10).
-- Assert the sharp version too: read `cubeSize` at each width and confirm the
-  binding term is the width, not `stage.height`.
-- Re-run Step 6's `phases.js` and Step 4's `resume.js` shapes unchanged in
-  intent — every control moved, so every driver that keys off `aria-label` is a
-  regression test for "it still works from its new home". Two things Step 6
-  learned about driving it: **the pad relabels every key while a modifier is
-  armed**, so the second tap of `R'` aims at `R prime`; and **a reload is a cold
-  start but not an unmount**, so the 400ms debounced save never flushes — wait it
-  out before reloading. A reload lands on the **hub**, so getting back to the
-  cube is one more tap.
+- Drive the web export headlessly at 320×568, 375×667 and 420×860, and **look at
+  the screenshots**. Step 7's two drivers are the pattern to copy (they live in
+  that session's scratchpad, like every step's, so write your own from the
+  description): `budget.js` seeds a save file straight into `localStorage` —
+  which is much faster than tapping a 42-move solve in, and is how it got a
+  worst-case screen to measure — then prints every row of the page with its
+  height, the cube's size and the overflow flags; `walk.js` clicks every control
+  by `aria-label` and asserts the behaviour behind it, then opens Fungiku to
+  prove the shared header is untouched.
+  **Seed the save file.** The shape is plan §7.2 and the key is `@CubeScramble`;
+  async-storage on web is plain `localStorage` with no prefix. Getting to a
+  42-move annotated solve by hand takes minutes and misses the case that matters.
+  Three things earlier steps learned about driving it: **the pad relabels every
+  key while a modifier is armed**, so the second tap of `R'` aims at `R prime`;
+  a key's label is what `describeToken` says, so `M` is `M slice`; and **a reload
+  is a cold start but not an unmount**, so the 400ms debounced save never flushes
+  — wait it out before reloading. A reload lands on the **hub**, so getting back
+  to the cube is one more tap.
 
 ---
 
 ## Open questions for the operator (carry these forward)
 
 These are plan §9, restated so a session does not have to go looking. None block
-Step 7 — except that 14 is the one it is deliberately not answering.
+Step 8. Number 14 is the live one: Step 7 shipped, and whether it went far enough
+is a question only the operator can answer.
 
 1. Scramble length — 20 moves. Leave it?
 2. Other puzzles — 2×2, 4×4, pyraminx, skewb?
@@ -337,16 +320,18 @@ Step 7 — except that 14 is the one it is deliberately not answering.
     view and not one anything asks for yet. It is a step, not a tweak, so it
     should wait for the operator to say they want it. **Step 7 changes what it
     would cost**: a comparison is another row, and rows are now on a budget.
-14. **Does the cube want a mode with no chrome at all?** New with Step 7
-    (operator, 2026-08-03: *"how much space all the chrome is taking"*). §8.6
-    gets the cube from 31% of the page to about 58% by cutting rows; the rest is
-    the pad, the transport and the moves, all of which are needed *while
-    writing*. But **inspection is already the proof that dropping the lot
-    works** — Step 5 gives the cube most of the page by taking the pad and the
-    transport away, and the operator liked it. A tap on the cube that hides
-    everything but the cube would extend that to reading a solve back. Step 7
-    deliberately does not build it: cutting chrome beats adding a way to hide it,
-    and if 58% is enough this answers itself.
+14. **Did Step 7 go far enough, and does the cube want a mode with no chrome at
+    all?** Raised by the operator on 2026-08-03 (*"how much space all the chrome
+    is taking"*) and half-answered by shipping: the cube went from a third of the
+    page to a bit over half in solve mode, and is now limited by the width of the
+    phone in scramble mode and inspection. What is left is the pad, the transport
+    and the moves, all of which are needed *while writing*. But **inspection is
+    already the proof that dropping the lot works** — Step 5 gives the cube most
+    of the page by taking the pad and the transport away, and the operator liked
+    it. A tap on the cube that hides everything but the cube would extend that to
+    reading a solve back. Step 7 deliberately did not build it: cutting chrome
+    beats adding a way to hide it. **This one wants a drilling session on the new
+    layout, not an opinion.**
 
 ### Noted in passing, for a later step
 
@@ -363,15 +348,14 @@ Step 7 — except that 14 is the one it is deliberately not answering.
   only evidence that counts for how it *feels*.
 - ~~**`useScramblePlayer` assumes a solved starting cube.**~~ **Done in Step 3**:
   `buildPlayback(alg, { from })` and `useScramblePlayer(alg, from)`.
-- **The text field appends; it cannot edit.** **Step 8**, and its brief is kept
-  in full in plan §8.7. It was going to be Step 7 until the operator looked at
-  how much of the screen was chrome (2026-08-03); it loses nothing by waiting one
-  step and gains a page to put its affordance on.
-- **Solve mode has no "Favorites" button**, because the row it lived on is now
-  the move pad. Getting to the list means tapping Scramble first. Nobody has
-  complained because nobody has used it yet. **Step 7 is rebuilding both control
-  rows**, so it is the natural moment to give it a home — but not at the cost of
-  a row.
+- ~~**The text field appends; it cannot edit.**~~ **It is the next step** — see
+  the brief above. It was going to be Step 7 until the operator looked at how
+  much of the screen was chrome (2026-08-03); it lost nothing by waiting one step
+  and gained a page to put its affordance on.
+- **Solve mode still has no "Favorites" button.** It is on the header in scramble
+  mode now, where the other three slots in solve mode are already spoken for, so
+  getting to the list from a solve is still Scramble first. Nobody has complained
+  because nobody has used it yet.
 - **The solves list is only reachable from solve mode.** The way in is the bar
   under the pad, so from the scramble it is two taps: Solve, then the bar. Solve
   resumes the page you were last on rather than making a new one, so that is
@@ -397,18 +381,27 @@ Step 7 — except that 14 is the one it is deliberately not answering.
   about 284 points, and the narrowest phone this app supports has 300. It wraps
   rather than overflows, but a sixth control wants a rethink rather than another
   chip.
-- **And so is the page, and so is the pad — which is what Step 7 is about.**
-  Step 3 spent the rest of the page: at 320×568 solve mode leaves the cube 138
-  points, which is why the two view buttons are icon-only and the scramble drops
-  to one line. Step 6 spent the last free *key*: the pad's bottom row was five
-  controls where the rows above are six, and the flag took the sixth. **There is
-  no seventh** — another key means another row, and a row comes out of the cube.
-  Step 6 also costs the cube 24 more points (138 → 114) whenever a solve has
-  markers on it. Every one of those sentences is a step making a decision to
-  protect a cube that was already too small, and the accounting is right while
-  the conclusion was wrong: **the cube was the only element on the page with no
-  floor**, so it absorbed every row anyone added. Plan §8.6 inverts it. Keep the
-  point-counting habit — it is what made the problem legible in the end.
+- ~~**And so is the page.**~~ **Step 7 fixed the page and the rule behind it.**
+  Steps 3–6 each recorded the squeeze honestly — 138 points at 320×568, the phase
+  strip costing 24 more, the pad's bottom row having no seventh slot — and each
+  responded by shrinking *itself*. The accounting was right and the conclusion was
+  backwards: **the cube was the only element with no floor**, so it absorbed every
+  row anyone added, all the way down to four points. Plan §8.6 inverts it and the
+  cube is now width-bound in five of the nine measured cases. **Keep the
+  point-counting habit** — say what a new row costs the cube, in the PR. It is
+  what made this legible in the end.
+- **The pad still has no seventh slot.** Six keys a row, three rows, and the
+  bottom one is full (`'` · `2` · undo · clear · type · flag). Step 7 did not
+  change the pad at all: it is 126 points and every key on it is a thumb target,
+  which is the one thing that step would not buy space from.
+- **The header's right-hand end is three icons at 320 points, and that is full.**
+  Solve mode uses all three (back · start view/re-orient · turn around); scramble
+  mode uses three as well (reset view · turn around · favorites). A fourth wants a
+  rethink, not a squeeze.
+- **A phase divider directly above the move track's window still paints a
+  hairline of red on the top edge.** The glyph is clipped to its line and sized
+  down; roughly two points of it survive on web. Cosmetic, and only when a marker
+  happens to sit on the row just out of view.
 - **A marker at exactly the end of a solve is invisible in the strip and visible
   in the modal.** It is the boundary the last "end the phase" opened, it has no
   moves in it yet, and the strip skips a zero-length unnamed span rather than
@@ -423,6 +416,69 @@ Step 7 — except that 14 is the one it is deliberately not answering.
 ---
 
 ## Steps already done
+
+### **Step 7 — give the page back to the cube** ✅ *(2026-08-03)*
+
+Shipped: **the cube is the biggest thing on the screen again.** The header is one
+line and carries the view controls, the moves are a fixed two-line track that
+scrolls itself to wherever the cube is, the action row is gone, and scramble mode
+lost a row and a caption. Solve mode on a 42-move annotated solve at 320×568:
+**the cube goes from 4 points to 210.**
+
+Four is not a typo, and finding it is the part worth keeping. The docs recorded
+114, measured on a shorter solve — but the move card was the row that *grew with
+the solve*, so a drill long enough to be worth annotating was the drill that
+crushed the cube to nothing. **The tool failed hardest exactly where it was being
+used hardest**, and no test, no overflow check and no doctor run had ever said a
+word, because a wasteful page is not a failing one.
+
+| Solve mode, 42 moves, annotated | before | after |
+|---|---|---|
+| 320×568 | **4** | **210** |
+| 375×667 | 125 | 309 |
+| 393×852 | 318 | 373 (width-bound) |
+
+Scramble mode 166 → 300 at 320×568; inspection 247 → 300, width-bound at every
+size. The rule the step establishes is plan §8.6's: **the cube is sized first and
+every other row is on a budget justified against it** — it had been the only
+element on the page with no floor, which is why six steps of careful,
+well-documented self-restraint still added up to a four-point cube.
+
+Four things it learned:
+
+- **`flex: 0` is not "size to your content" on the web.** The dense header's end
+  columns used it; react-native-web read it as `flex-basis: 0%` with shrink still
+  on, so both ends collapsed to their padding and their buttons hung off the
+  right edge of the screen. Spell `flexGrow` / `flexShrink` / `flexBasis` out.
+  The horizontal-overflow check the drivers have run since Step 1 had never once
+  fired before and caught this.
+- **A fixed-height track needs every child to be exactly one line tall.** The
+  phase divider is a bar glyph and fills its em where a letter does not, so its
+  row came out a couple of points taller than `LINE` — and the auto-scroll is
+  computed from `LINE`, so every scroll parked slightly off and left a sliver of
+  the previous row along the top edge.
+- **Neither of those is visible in anything but a screenshot.** 745 tests green
+  and 18/18 from doctor throughout both bugs.
+- **Step 6 had been drawing a solve's phase markers across the scramble** — a red
+  divider in the middle of something that has no phases and cannot have any. It
+  survived because you have to open a scramble with an annotated solve behind it
+  to see one, which a seeded save file does by construction. Fixed in passing.
+
+Also worth not rediscovering: **seed `localStorage` rather than tapping a solve
+in.** The save shape is plan §7.2 and async-storage on web is plain
+`localStorage` under `@CubeScramble`. Getting to a 42-move annotated solve by
+hand takes minutes, and it is the case that matters — the worst case was found by
+being able to reach it cheaply.
+
+Verified with `npm test` (745 across the app), `npx expo-doctor` (18/18), `npx
+expo export --platform all`, and two headless drivers at 320×568, 375×667 and
+393×852 with the screenshots read: `budget.js` seeds the worst case and prints
+every row of the page with its height, the cube's size and both overflow flags,
+before and after; `walk.js` clicks all 39 checks' worth of controls by
+`aria-label` — the header's view controls, a token in the track, the transport,
+inspection and Set start, the pad, an armed modifier, undo, the flag and the
+phase strip, and back out to the scramble — then opens Fungiku to prove the
+shared header is untouched. No overflow and no console errors at any size.
 
 ### **Step 6 — annotate the move groups** ✅ *(2026-08-02)*
 
