@@ -50,10 +50,10 @@ const ScreenHeader = ({
   const iconSize = dense ? DENSE_ICON_SIZE : ICON_SIZE;
 
   return (
-    <View style={[styles.header, dense && styles.headerDense]}>
-      <View style={[styles.leftSection, dense && styles.leftSectionDense]}>
+    <View style={dense ? styles.headerDense : styles.header}>
+      <View style={dense ? styles.leftSectionDense : styles.leftSection}>
         <TouchableOpacity
-          style={[styles.iconButton, dense && styles.iconButtonDense, { borderColor: titleColor }]}
+          style={[dense ? styles.iconButtonDense : styles.iconButton, { borderColor: titleColor }]}
           onPress={onHomePress}
           accessibilityLabel="Back to games"
           accessibilityRole="button"
@@ -63,11 +63,11 @@ const ScreenHeader = ({
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.centerSection, dense && styles.centerSectionDense]}>
+      <View style={dense ? styles.centerSectionDense : styles.centerSection}>
         {/* One line, by construction, when dense — the whole point of the
             variant is that this row's height is known rather than discovered. */}
         <Text
-          style={[styles.title, dense && styles.titleDense, { color: titleColor }]}
+          style={[dense ? styles.titleDense : styles.title, { color: titleColor }]}
           numberOfLines={dense ? 1 : undefined}
         >
           {title}
@@ -83,11 +83,11 @@ const ScreenHeader = ({
           stays even with no menu button in it. (When dense the title is
           left-aligned against the home button instead, because a row with
           controls on the right has no centre to be optical about.) */}
-      <View style={[styles.rightSection, dense && styles.rightSectionDense]}>
+      <View style={dense ? styles.rightSectionDense : styles.rightSection}>
         {actions}
         {onMenuPress && (
           <TouchableOpacity
-            style={[styles.iconButton, dense && styles.iconButtonDense, { borderColor: titleColor }]}
+            style={[dense ? styles.iconButtonDense : styles.iconButton, { borderColor: titleColor }]}
             onPress={onMenuPress}
             accessibilityLabel="Game menu"
             accessibilityRole="button"
@@ -109,7 +109,25 @@ const styles = StyleSheet.create({
     minHeight: 48,
     marginBottom: 10,
   },
+  // ——— The dense row ————————————————————————————————————————————————
+  //
+  // **These are whole styles, not overrides layered on the ones above, and that
+  // is load-bearing.** Written as `[styles.leftSection, dense && ...]` the
+  // flattened result carries *both* the base `flex: 1` and this variant's
+  // `flexGrow` / `flexShrink` / `flexBasis`, and which of the two wins is not
+  // something the two platforms agree on: react-native-web resolved one way and
+  // Yoga the other, so the header laid out correctly in the browser and, on a
+  // real phone, collapsed the home button to a sliver and pushed the view
+  // controls off the right-hand edge of the screen. There is nothing to disagree
+  // about if only one of them is ever passed.
+  //
+  // The three columns also stop being thirds: the two ends take what they need
+  // and the title takes what is left, which is what lets the right-hand end hold
+  // three controls without squeezing the title into a wrap.
   headerDense: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
     minHeight: 34,
     marginBottom: 4,
   },
@@ -118,20 +136,16 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingLeft: 8,
   },
-  // The three columns stop being thirds: the title takes what is left after the
-  // two ends have taken what they need, which is what lets the right-hand end
-  // hold three controls without squeezing the title into a wrap.
-  //
-  // **Spelled out rather than `flex: 0`**, and that is not style. `flex: 0` here
-  // means "size to your content", but react-native-web reads it as
-  // `flex-basis: 0%` with shrink still on — so both ends collapsed to their
-  // padding and their buttons hung off the right edge of the screen. Caught by
-  // the horizontal-overflow check in Step 7's driver, which is the check this
-  // repo has run since Step 1 and the reason it is still worth running.
+  // `flexBasis: 'auto'` with no shrink is "size to your content". Spelled out
+  // rather than written `flex: 0`, which means that in CSS and does *not* mean
+  // it in react-native-web — there it is `flex-basis: 0%` with shrink still on,
+  // which collapses this column to its padding. Both spellings were wrong once,
+  // in different directions, on different platforms.
   leftSectionDense: {
     flexGrow: 0,
     flexShrink: 0,
     flexBasis: 'auto',
+    alignItems: 'flex-start',
     paddingLeft: 4,
   },
   centerSection: {
@@ -139,7 +153,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   centerSectionDense: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: 0,
     alignItems: 'flex-start',
     paddingLeft: 8,
   },
@@ -162,6 +179,7 @@ const styles = StyleSheet.create({
   },
   titleDense: {
     fontSize: 17,
+    fontWeight: 'bold',
   },
   subtitle: {
     fontSize: 12,
@@ -181,6 +199,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     paddingHorizontal: 6,
     borderRadius: 8,
+    borderWidth: 1,
   },
 });
 

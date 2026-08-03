@@ -43,6 +43,7 @@ const BUILD_NOTES = {
       'The scramble you were looking at, and everything you saved, survive closing the app',
       'The cube is much bigger: the screen was two thirds buttons and text, and now it is not',
       'Moves sit in a two-line track that scrolls itself to wherever the cube is, however long the solve gets',
+      'Pull the handle under the moves and the whole solve opens out over the cube; tap it to put it away',
       'The view controls moved up beside the title, so a whole row of the page went back to the cube',
       'Sudoku and Fungiku are unchanged',
     ]

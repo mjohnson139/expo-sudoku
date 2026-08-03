@@ -739,6 +739,28 @@ page to 58%**, and the drawn cube from 164 points to something over 300.
   strip, which already scrolls sideways for the same reason (§8.5) — and Step 6
   shipped it without the pan ever noticing.
 
+  **Two lines is the right resting size and the wrong size for reading a solve
+  back**, which the operator said as soon as they had one in their hands: *"the
+  solve display could be a drawer with a handle. Or a way to view the whole
+  thing."* So it is a drawer. A 16-point grab bar under the moves; pull it down
+  or tap it and the panel opens to **exactly** the height the whole solve needs,
+  capped by what the stage can lend.
+
+  Three things about it are the point:
+
+  - **It opens over the cube rather than pushing it.** The panel is positioned
+    out of the flow from a wrapper that keeps the closed height, so the stage
+    never re-measures and `cubeSize` never changes. A drawer that resized the
+    cube each time it was opened would be this step's own bug arriving by
+    another door.
+  - **The open height is measured, not estimated.** How many tokens fit on a
+    line depends on the width of the phone and on how many of them are `M2`
+    rather than `U`. The first cut guessed eight per line and opened onto a band
+    of empty space.
+  - **It costs the closed page 16 points** — the handle — and that is the honest
+    price. Solve mode at 320×568 goes 210 → 194 rather than staying at 210. Say
+    what a row costs; this one is worth it.
+
 - **The header, halved.** ~75 → ~36. `ScreenHeader` gives the title a `flex: 2`
   centre column, which at 393 points is about 186 — and *"Cube Scramble"* at 24pt
   bold does not fit, so the title wraps and the header is two lines tall to say
@@ -792,19 +814,22 @@ being used hardest.
 
 | Solve mode, 42 moves, annotated | before | after |
 |---|---|---|
-| 320×568 | **4** | **210** |
-| 375×667 | 125 | 309 |
+| 320×568 | **4** | **194** |
+| 375×667 | 125 | 293 |
 | 393×852 | 318 | 373 (width-bound) |
 
 Scramble mode: 166 → 300 at 320×568. Inspection, which was already the good
 phase, went 247 → 300 and is now width-bound too at every size.
+
+(Those numbers are 16 points off the first cut's — 210 / 309 — because the
+drawer's handle came after them. The trade is stated where the drawer is.)
 
 **The sharp definition of done is met**: at 393 the binding term in `cubeSize`'s
 `Math.min` is the width rather than `stage.height`, at all three sizes for the
 scramble and inspection, and at 320 solve mode is within about 90 points of it
 with the pad, the transport and the phase strip all still on the page.
 
-Four things it learned:
+Five things it learned:
 
 - **`flex: 0` is not "size to your content" on the web.** The dense header's two
   end columns used it and react-native-web read it as `flex-basis: 0%` with
@@ -812,6 +837,18 @@ Four things it learned:
   off the right edge of the screen. Spell out `flexGrow` / `flexShrink` /
   `flexBasis`. Caught by the horizontal-overflow check the drivers have run since
   Step 1 — which had never once fired before, and paid for itself here.
+- **A style variant has to be a whole style, not an override layered on the
+  base one — and this is the cautionary one, because it only broke on the
+  phone.** Written `[styles.leftSection, dense && styles.leftSectionDense]`, the
+  flattened result carries *both* the base `flex: 1` and the variant's
+  `flexGrow` / `flexShrink` / `flexBasis`, and **the two platforms do not agree
+  on which wins**. Every browser check passed at three widths; on a real iPhone
+  the home button was a sliver and the view controls were off the right of the
+  screen, and the operator found it in the first screenshot they took. Pass one
+  object or the other (`dense ? a : b`) and there is nothing to disagree about.
+  The general lesson is older than this bug: **`expo export --platform all`
+  proves it bundles, not that it lays out.** Only a device does that, which is
+  why plan §8 has required a device pass since Fungiku.
 - **A fixed-height track needs every child to be exactly one line tall.** The
   phase divider is a bar glyph, which fills its em where a letter does not, so it
   made its row a couple of points taller than `LINE` — and the auto-scroll, which

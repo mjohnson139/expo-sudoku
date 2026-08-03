@@ -1,21 +1,22 @@
-import React, { useCallback, useEffect, useRef } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Animated,
+  PanResponder,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ALG_FONT } from './algText';
 import { describeToken } from './solve';
+import { HANDLE, LINE, PAD, TRACK_HEIGHT, drawerHeight, followScrollTop } from './trackLayout';
 
-/** One line of moves. */
-const LINE = 20;
+export { TRACK_HEIGHT };
 
-/** How many of them are on screen at once. */
-const LINES = 2;
-
-const PAD = 5;
-
-/**
- * The height this costs the page, and it is a constant on purpose — see below.
- * Exported so the screen can talk about its own budget (docs/cube-plan.md §8.6).
- */
-export const TRACK_HEIGHT = LINES * LINE + PAD * 2;
+/** Past this much of a drag, let go and the drawer goes the way you were pulling. */
+const SNAP = 24;
 
 /**
  * The moves — the scramble, or the solve being written — as a **fixed** two-line
@@ -70,6 +71,11 @@ const CubeMoveTrack = ({
   pendingColor,
   label,
   noun = 'scramble',
+  // How far down the drawer may be pulled: the stage's measured height, which
+  // is the room between the track and the transport. Passed in because only the
+  // screen knows it, and it is a *maximum* — a short solve opens to its own
+  // height rather than to a panel of empty space.
+  room = 0,
   onSeek,
 }) => {
   const titleColor = theme.colors.title;
@@ -99,7 +105,7 @@ const CubeMoveTrack = ({
     // themselves and the rows drift a point or two apart, the offset drifts with
     // them, and each scroll leaves a sliver of the previous row showing along
     // the top edge. Visible in a screenshot and in nothing else.
-    scroll.current.scrollTo({ y: Math.max(0, y - LINE), animated: true });
+    scroll.current.scrollTo({ y: followScrollTop(y), animated: true });
   }, [index, tokens]);
 
   // A different algorithm is a different track, and last week's scroll offset is
@@ -108,16 +114,88 @@ const CubeMoveTrack = ({
     tops.current = {};
   }, [tokens]);
 
+  // ——— The drawer ————————————————————————————————————————————————————
+  //
+  // Two lines is the right *resting* size and the wrong size for reading a solve
+  // back, which is the operator's own verdict on the two-line track: *"the solve
+  // display could be a drawer with a handle. Or a way to view the whole thing."*
+  // So it is both — two lines while you write, the whole solve when you pull it
+  // down.
+  //
+  // **It opens over the cube rather than pushing it.** The panel is positioned
+  // absolutely out of a wrapper that keeps the track's height in the layout, so
+  // the stage below never re-measures and `cubeSize` never changes. A drawer
+  // that resized the cube every time it was opened would be the bug this whole
+  // step exists to kill, arriving by another door.
+  const [open, setOpen] = useState(false);
+  const openRef = useRef(false);
+  openRef.current = open;
+
+  // How tall the whole solve wants to be, **measured rather than estimated** —
+  // how many tokens fit on a line depends on the width of the phone and on how
+  // many of them are `M2` rather than `U`, and a guess opens the drawer onto a
+  // band of empty space. Capped by what the stage can lend, so a four-move solve
+  // opens to one line and a hundred-move one stops at the cube.
+  const [content, setContent] = useState(0);
+  const openHeight = drawerHeight({ open: true, content, room });
+
+  const height = useRef(new Animated.Value(TRACK_HEIGHT)).current;
+  const settle = useCallback(
+    (next) => {
+      setOpen(next);
+      Animated.timing(height, {
+        toValue: next ? openHeight : drawerHeight({ open: false }),
+        duration: 180,
+        // A height cannot be driven natively, and there is no cube in here to
+        // stutter — the panel is text over a stage that is not re-rendering.
+        useNativeDriver: false,
+      }).start();
+    },
+    [height, openHeight]
+  );
+
+  // Keep an open drawer the right size when the solve grows under it.
+  useEffect(() => {
+    if (openRef.current) height.setValue(openHeight);
+  }, [height, openHeight]);
+
+  // Drag the handle, or tap it. The handle is well clear of the cube's square,
+  // so this takes no gesture away from the pan that turns it (plan §2).
+  const drag = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 4,
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > SNAP) settleRef.current(true);
+        else if (g.dy < -SNAP) settleRef.current(false);
+        else settleRef.current(!openRef.current);
+      },
+    })
+  ).current;
+  // The responder is created once, so it cannot close over a `settle` that
+  // changes with `openHeight` — the same stale-closure trap `CubeView` hits with
+  // yaw and pitch (plan §10).
+  const settleRef = useRef(settle);
+  settleRef.current = settle;
+
   return (
-    <View
-      style={[styles.track, { backgroundColor: surface, borderColor: border }]}
-      accessibilityLabel={label}
-    >
+    // Holds the *closed* height in the layout whatever the drawer is doing, so
+    // the stage below it is measured once and stays measured. The zIndex is what
+    // puts the open panel over the cube rather than under it.
+    <View style={styles.wrap}>
+      <Animated.View
+        style={[styles.track, { height, backgroundColor: surface, borderColor: border }]}
+        accessibilityLabel={label}
+      >
       <ScrollView
         ref={scroll}
         style={styles.scroll}
         contentContainerStyle={styles.body}
+        onContentSizeChange={(_, h) => setContent(h)}
         showsVerticalScrollIndicator={false}
+        // Open, the whole solve is the point and it may be taller than the
+        // panel; closed, the two lines are driven by the transport.
+        scrollEnabled={open}
         // The tokens are the subject here, not a page to be scrolled — so a drag
         // that starts on one still hits it.
         keyboardShouldPersistTaps="handled"
@@ -160,21 +238,71 @@ const CubeMoveTrack = ({
           ))
         )}
       </ScrollView>
+
+      {/* The handle. Drag it down for the whole solve, up to put it away — or
+          tap it, because a 16-point grab bar is a big ask of a thumb that only
+          wants to toggle something. */}
+      <View
+        {...drag.panHandlers}
+        style={styles.handle}
+        accessibilityRole="button"
+        accessibilityLabel={open ? 'Collapse the moves' : 'Show the whole thing'}
+        accessibilityHint={
+          open
+            ? 'Puts the moves back to two lines'
+            : 'Opens the moves out over the cube so the whole algorithm is visible'
+        }
+        accessibilityState={{ expanded: open }}
+      >
+        <View style={[styles.grip, { backgroundColor: border }]} />
+        <MaterialCommunityIcons
+          name={open ? 'chevron-up' : 'chevron-down'}
+          size={13}
+          color={pendingColor}
+          style={styles.chevron}
+        />
+      </View>
+      </Animated.View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  track: {
+  // Reserves the closed height, always. The panel inside it grows out of the
+  // flow, so nothing below ever moves.
+  wrap: {
     alignSelf: 'stretch',
-    marginHorizontal: 4,
     height: TRACK_HEIGHT + 2, // the border
+    zIndex: 10,
+  },
+  // Full width when open, so nothing behind it — the phase strip in particular —
+  // peeks out down the side of the panel.
+  track: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
     borderWidth: 1,
     borderRadius: 10,
     overflow: 'hidden',
   },
   scroll: {
     flex: 1,
+  },
+  handle: {
+    height: HANDLE,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  grip: {
+    width: 28,
+    height: 3,
+    borderRadius: 2,
+    marginRight: 5,
+  },
+  chevron: {
+    opacity: 0.8,
   },
   body: {
     flexDirection: 'row',

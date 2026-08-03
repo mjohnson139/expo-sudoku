@@ -894,6 +894,10 @@ const CubeScreen = ({ onExitToHub }) => {
           pendingColor={pendingColor}
           noun={noun}
           label={writing ? `Solve: ${solve || 'nothing yet'}` : `Scramble: ${scramble}`}
+          // How far the drawer may be pulled down: the room the stage is
+          // holding. It opens *over* the cube and never resizes it — the
+          // measurement it is given is a limit, not a claim.
+          room={stage ? stage.height : 0}
           onSeek={playTo}
         />
       )}

@@ -398,6 +398,9 @@ is a question only the operator can answer.
   Solve mode uses all three (back · start view/re-orient · turn around); scramble
   mode uses three as well (reset view · turn around · favorites). A fourth wants a
   rethink, not a squeeze.
+- **The drawer is a tap or a drag, and the drag is deliberately forgiving** —
+  24 points either way, and anything shorter counts as a tap, because a
+  16-point grab bar is a big ask of a thumb that only wants to toggle something.
 - **A phase divider directly above the move track's window still paints a
   hairline of red on the top edge.** The glyph is clipped to its line and sized
   down; roughly two points of it survive on web. Cosmetic, and only when a marker
@@ -434,8 +437,8 @@ word, because a wasteful page is not a failing one.
 
 | Solve mode, 42 moves, annotated | before | after |
 |---|---|---|
-| 320×568 | **4** | **210** |
-| 375×667 | 125 | 309 |
+| 320×568 | **4** | **194** |
+| 375×667 | 125 | 293 |
 | 393×852 | 318 | 373 (width-bound) |
 
 Scramble mode 166 → 300 at 320×568; inspection 247 → 300, width-bound at every
@@ -444,7 +447,14 @@ every other row is on a budget justified against it** — it had been the only
 element on the page with no floor, which is why six steps of careful,
 well-documented self-restraint still added up to a four-point cube.
 
-Four things it learned:
+The moves are also a **drawer**: a grab bar under them opens the panel out over
+the cube to show the whole solve, and shuts it again. It was the operator's own
+call on the two-line track — *"a drawer with a handle, or a way to view the whole
+thing"* — and it opens *over* the stage rather than pushing it, so the cube never
+resizes. It costs the closed page the handle's 16 points, which is why the
+numbers above are 16 short of the first cut's.
+
+Five things it learned:
 
 - **`flex: 0` is not "size to your content" on the web.** The dense header's end
   columns used it; react-native-web read it as `flex-basis: 0%` with shrink still
@@ -452,6 +462,16 @@ Four things it learned:
   right edge of the screen. Spell `flexGrow` / `flexShrink` / `flexBasis` out.
   The horizontal-overflow check the drivers have run since Step 1 had never once
   fired before and caught this.
+- **A style variant must be a whole style, not an override layered on the base
+  one — and this one only broke on the phone.** `[styles.leftSection, dense &&
+  styles.leftSectionDense]` flattens to an object carrying both the base
+  `flex: 1` and the variant's `flexGrow`/`flexShrink`/`flexBasis`, and **web and
+  Yoga disagree about which wins**. Three viewport widths in a browser all
+  passed; on a real iPhone the home button was a sliver and the view controls
+  were off the right edge, and the operator hit it in the first screenshot they
+  took. Pass `dense ? a : b` and there is nothing to disagree about. **`expo
+  export --platform all` proves it bundles, not that it lays out** — only a
+  device does that.
 - **A fixed-height track needs every child to be exactly one line tall.** The
   phase divider is a bar glyph and fills its em where a letter does not, so its
   row came out a couple of points taller than `LINE` — and the auto-scroll is
@@ -470,15 +490,22 @@ in.** The save shape is plan §7.2 and async-storage on web is plain
 hand takes minutes, and it is the case that matters — the worst case was found by
 being able to reach it cheaply.
 
-Verified with `npm test` (745 across the app), `npx expo-doctor` (18/18), `npx
-expo export --platform all`, and two headless drivers at 320×568, 375×667 and
-393×852 with the screenshots read: `budget.js` seeds the worst case and prints
-every row of the page with its height, the cube's size and both overflow flags,
-before and after; `walk.js` clicks all 39 checks' worth of controls by
-`aria-label` — the header's view controls, a token in the track, the transport,
-inspection and Set start, the pad, an armed modifier, undo, the flag and the
-phase strip, and back out to the scramble — then opens Fungiku to prove the
-shared header is untouched. No overflow and no console errors at any size.
+Verified with `npm test` (752 across the app, 7 of them new on the track's
+geometry), `npx expo-doctor` (18/18), `npx expo export --platform all`, and three
+headless drivers at 320×568, 375×667 and 393×852 with the screenshots read:
+`budget.js` seeds the worst case straight into `localStorage` and prints every
+row of the page with its height, the cube's size and both overflow flags, before
+and after; `walk.js` clicks 39 checks' worth of controls by `aria-label` — the
+header's view controls, a token in the track, the transport, inspection and Set
+start, the pad, an armed modifier, undo, the flag and the phase strip, and back
+out to the scramble — then opens Fungiku to prove the shared header is
+untouched; `drawer.js` opens and shuts the drawer and asserts **the cube is the
+same size before, during and after**, which is the one thing the drawer must
+never touch.
+
+**And then a real phone found what none of that could** — the style-variant bug
+above. The browser is where this step's evidence lives, and it is not where the
+step's worst bug was. Look at it on a device.
 
 ### **Step 6 — annotate the move groups** ✅ *(2026-08-02)*
 
