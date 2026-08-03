@@ -106,6 +106,17 @@ already lost once on Fungiku's board (`docs/fungiku-plan.md` §2). So the page i
 a fixed column, the cube is sized from its measured stage rather than from a
 share of the window, and the one list in the feature lives in a modal.
 
+**The rule is about the page, not about every pixel on it.** A bounded strip
+well clear of the cube's square may scroll inside itself — the phase strip has
+done so sideways since Step 6, and Step 7 gives the moves the same treatment
+vertically (§8.5, §8.6). What must never exist is a `ScrollView` the cube is
+*inside*.
+
+**What the fixed column does not mean is that the cube takes what is left.** It
+was allowed to for six steps, and by Step 6 the chrome had two thirds of the
+page. §8.6 inverts that: the cube is sized first and every other row is on a
+budget.
+
 ## 3. The cube model — cubies, not facelets
 
 `games/cube/cubeState.js`.
@@ -463,19 +474,27 @@ the operator can open in Expo Go.
 | **4** | **The workspace survives.** Nothing you wrote is lost to a backgrounded app; several named solves per scramble | **shipped** |
 | **5** | **Orientation.** Record how the cube is held before a solve starts — Roux's inspection step, "yellow up, blue left" | **shipped** (out of order, 2026-08-02) |
 | **6** | **Annotate the move groups.** "These moves solve first block, these solve second block" — labelled spans, per-phase move counts, and a transport that plays one group | **shipped** |
-| **7** | **Edit a solve you have already written.** Fix a move in the middle without undoing back to it — the oldest live gap in the feature | next |
-| **8** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
-| **9** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
+| **7** | **Give the page back to the cube.** The chrome takes two thirds of the screen and the biggest piece of it grows as you drill; cut it to a budget | next |
+| **8** | **Edit a solve you have already written.** Fix a move in the middle without undoing back to it — the oldest live gap in the feature | |
+| **9** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
+| **10** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
 
-**Step 7 was inserted, and the two after it moved down** (2026-08-02, when Step 6
-landed). It is a re-ordering rather than new scope: "the text field appends, it
-cannot edit" has been written down as a known gap since Step 3, was recorded as
-*overdue* when Step 4 kept solves it could not fix a typo in, and Step 6 has now
-put **markers** on top of the same text — every month it waits, more of the
-feature is built on an edit path that only goes backwards. Hand-entering a cube
-is a different workflow (a cube off a table, rather than the drilling this epic
-is for) and loses nothing by waiting. **The operator can overrule this**; the
-brief for either one is a step's worth of work.
+**The table has now been re-ordered twice, and both were re-orderings rather
+than new scope.** Step 6 landing (2026-08-02) moved *edit a solve* ahead of
+*enter a cube by hand*: "the text field appends, it cannot edit" has been a known
+gap since Step 3, was recorded as *overdue* when Step 4 kept solves it could not
+fix a typo in, and Step 6 put **markers** on top of the same text.
+
+Then the operator looked at the screen (2026-08-03): *"how much space all the
+chrome is taking — I want more space for the cube."* So **layout goes first and
+edit becomes Step 8**, and the ordering is doing real work rather than deferring
+one annoyance for another. The Step 7 brief as written was already fighting the
+page — *"the screen is full and Step 6 spent the last free slot… anything this
+step adds has to replace something or live in a modal"* — which is a step being
+designed around a budget instead of against the feature. Reclaiming the page
+first means the edit affordance gets put where it belongs rather than where
+there is room. §8.6 is the layout step; §8.7 keeps the edit brief so it is not
+lost in the shuffle.
 
 **Steps 3–6 all shipped, and they were the operator's actual goal.** Steps 4–6
 are increments on Step 3:
@@ -656,6 +675,142 @@ a marker is an index into a list that is still being edited:
   added: remove a marker and the group it left behind could never be named again
   without writing another move.
 
+### 8.6 Give the page back to the cube (Step 7, specified 2026-08-03)
+
+The operator, looking at solve mode on a 393×852 phone: *"something that is
+bothering me is how much space all the chrome is taking — I want to make more
+space for the cube."*
+
+They are right, and the measurement is worse than it looks. Here is that screen,
+mid-drill on a 42-move solve:
+
+| Row | pt | |
+|---|---|---|
+| Header | 75 | the title **wraps to two lines** |
+| Scramble line | 20 | |
+| Move card | 143 | five wrapped lines, **and it grows with the solve** |
+| Phase strip | 24 | |
+| Action row | 48 | |
+| **Cube stage** | **228** | **31% of the page** |
+| Scrubber | 39 | |
+| Move pad | 115 | three rows |
+| Solve bar | 21 | |
+
+**485 points of chrome against 228 of cube.** The narrow case is already written
+down and is worse: at 320×568 the cube gets 114–138.
+
+#### The rule this step establishes
+
+**The cube is the subject of this screen and it should be sized first, not
+last.** Today every other row takes its natural height and `stage: { flex: 1 }`
+gets the remainder — so the cube is the one element on the page with no floor,
+and every row added since Step 2 has come out of it. That is exactly backwards
+for a tool whose entire interaction is looking at and turning a cube.
+
+So: **every row is on a budget, and the budget is justified against the cube.**
+The doc discipline for this already exists and is good — §8.5 records that the
+phase strip costs the cube 24 points, and the handoff records 138 → 114. Keep
+that accounting; this step just makes the cube's share the number that has to
+hold rather than the one that absorbs.
+
+**Definition of done, and it is a sharp one: the cube should be limited by the
+width of the phone, not by what is stacked above it.** At 320 points wide the
+cube's square is about 300 and today it gets 114 — so the page is costing it more
+than half of what the device could give. When `stage.height` stops being the
+binding constraint in `cubeSize`'s `Math.min`, the chrome is no longer the
+problem.
+
+#### What gets cut, and why each one is honest
+
+Roughly 200 points, which takes the stage from 228 to about 430 — **31% of the
+page to 58%**, and the drawn cube from 164 points to something over 300.
+
+- **The move card, capped at two lines that scroll.** ~143 → ~46, and this is
+  the one that matters most because it is the only row that **grows as the
+  operator drills**. A 42-move solve is five lines; a longer one is six. The
+  block is doing three jobs — read the whole solve, see where you are, tap a
+  token to turn there — and it is sized for the first, which is the job the
+  *cube* is there to do. Windowing it to a fixed two-line track that scrolls to
+  follow the current move keeps the other two intact.
+
+  **This does not reopen §2's "the screen does not scroll" rule.** That rule is
+  about the *page* competing with the cube for the same drag, and it stands. A
+  bounded strip well clear of the cube's square is the same shape as the phase
+  strip, which already scrolls sideways for the same reason (§8.5) — and Step 6
+  shipped it without the pan ever noticing.
+
+- **The header, halved.** ~75 → ~36. `ScreenHeader` gives the title a `flex: 2`
+  centre column, which at 393 points is about 186 — and *"Cube Scramble"* at 24pt
+  bold does not fit, so the title wraps and the header is two lines tall to say
+  something the operator knew before they tapped the tile. A dense variant is the
+  fix. **This is shared-component code** (`components/ScreenHeader.js`), which is
+  a departure from the golden rule that cube work stays in `games/cube/` — so it
+  wants an opt-in prop with the current behaviour as the default, and Fungiku's
+  screen checked rather than assumed.
+
+- **The action row, folded away in solve mode.** ~48 → 0. `Scramble` /
+  `Start view` / turn-around are three buttons on a row of their own; the first
+  is navigation that belongs beside the home button, and the other two are view
+  controls that belong with the view. The row's own comment already admits the
+  squeeze — one of the three is icon-only *because labelling it wraps the row and
+  the 40 points come out of the cube*.
+
+- **The scramble line, folded into what is already there.** ~20 → 0. While
+  writing, "which scramble am I on" is one muted line above the card; the solve
+  bar at the bottom already carries the page's identity and can carry this too.
+
+- **Scramble mode gets the same treatment** (operator, 2026-08-03). It currently
+  spends an action row, a permanent hint line and a *second* button row — about
+  110 points for six buttons and a tip. One consolidated control row, and the
+  hint goes: *"Drag the cube · tap a move to turn to it"* is a sentence that
+  earns its 21 points on the first visit and never again. Doing both modes is not
+  symmetry for its own sake — half-treating them makes two screens out of one.
+
+#### Three things to get right
+
+- **Do not buy the space by making the controls harder to hit.** The pad's keys
+  and the transport are thumb targets on a phone; 44 points is the floor and the
+  cube is not worth breaking it for. All ~200 points above come from text,
+  padding and rows that duplicate each other, and none from a shrunk target.
+- **A row that disappears is worse than a row that is short**, if what it said
+  is still needed. Every cut above either moves the information somewhere that
+  was already on screen or deletes information the operator no longer needs.
+- **The cube must not resize as you type.** The stage is measured
+  (`onLayout`), and a track that changes height at the fourth move would resize
+  the cube mid-solve. The whole point of a *fixed* two-line track is that the
+  cube's box stops moving.
+
+### 8.7 Editing a solve you have already written (Step 8)
+
+Written up when it was Step 7 and kept here intact, because it is the oldest live
+gap in the feature and only the ordering changed (§8, 2026-08-03).
+
+**The text field appends; it cannot edit.** A typo in the middle of a solve is
+fixed by undoing back to it and retyping everything after. Fine when the solve
+was a scratchpad (Step 3), not fine once solves were kept (Step 4), and Step 6
+put markers on top of the same text.
+
+- **Replace the text rather than appending to it.** `CubeAlgInputModal` already
+  validates a whole algorithm and says which token it choked on; the honest shape
+  is that modal opened with the solve already in it. Appending stays — it is what
+  the field is for mid-write.
+- **Keep the markers on the moves they were put on.** A phase is an index
+  (§8.5), and a wholesale replacement moves every index after the edit.
+  `clampPhases` keeps them *legal*, not *right*: insert a move at position 3 and
+  `First block · 8` should read `· 9`. A diff between the old and new token lists
+  shifts each marker by how much the text before it grew or shrank; a marker
+  inside a stretch rewritten wholesale has no honest answer and probably wants
+  dropping. **This is the hard half of the step.**
+- **An edit must not replay the solve.** `extendsAlg` asked at where the cube is
+  (§5) already tells "grew" from "replaced" — the trap is bypassing it with a
+  "this was an edit" flag, and a replacement that happens to be an extension is
+  still an extension.
+
+**Step 7 changes where its affordance goes, and that is the point of doing them
+in this order.** The brief used to say the screen was full and an edit control
+had to replace something or live in a modal; after §8.6 there is a page to put it
+on.
+
 ## 9. Open questions for the operator
 
 1. **Scramble length.** 20 moves, matching what a WCA 3×3 scramble comes out at.
@@ -685,6 +840,16 @@ a marker is an index into a list that is still being edited:
    What makes two taps bearable in the meantime is that **the pad relabels
    itself** while a modifier is armed — every key reads `U'`, `R'`, `M'` — so
    the second tap is aimed at a key that already says the move it will make.
+9. **Does the cube want a mode with no chrome at all?** New with Step 7
+   (2026-08-03). §8.6 gets the cube from 31% of the page to about 58% by cutting
+   rows; the remaining 42% is the pad, the transport and the moves, and every one
+   of them is needed *while writing*. But **inspecting is already proof that
+   dropping the lot works** — Step 5 gives the cube most of the page by taking
+   the transport and the pad away, and the operator liked it. A tap on the cube
+   that hides everything but the cube would extend that to reading a solve back.
+   Step 7 deliberately does not build it: cutting the chrome that is there beats
+   adding a way to hide it, and if 58% turns out to be enough this question
+   answers itself.
 
 ## 10. Edge cases and things that are easy to get wrong
 
@@ -741,6 +906,14 @@ a marker is an index into a list that is still being edited:
   on a 6" phone and pushed its own caption through the buttons on a 4" one,
   because the space left over depends on how many lines the header and scramble
   took. The stage measures itself.
+- **A row that wraps is a row that doubled, and nothing reports it.** The header
+  has been two lines tall on a 393-point phone since Step 1 — `ScreenHeader`
+  gives its title a `flex: 2` centre and "Cube Scramble" does not fit in it — and
+  no test, no overflow check and no doctor run has ever mentioned it, because
+  wrapping is not an error. The overflow checks the headless drivers run catch a
+  page that is too *tall*; they cannot catch a page that is merely wasteful. The
+  only instrument for that is looking at a screenshot and adding the rows up,
+  which is what §8.6's table is.
 
 ## 11. Prior art and licensing
 
