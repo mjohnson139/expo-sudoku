@@ -49,7 +49,7 @@ Branch from **`epic/cube`**, and open your PR **against `epic/cube`**. The epic
 merges to `main` once the cube is worth shipping, so `main` never carries a
 half-built tool.
 
-`epic/cube` carries Steps 1, 2, 3, 4 and 5 as of 2026-08-02. It is cut from `main`
+`epic/cube` carries Steps 1, 2, 3, 4, 5 and 6 as of 2026-08-02. It is cut from `main`
 and tracks it. (It was briefly cut from
 `epic/fungiku`, because the hub only existed there; Fungiku's Step 13 merged that
 epic to `main` on 2026-08-01 and this was rebased the same day. **No Fungiku
@@ -64,8 +64,9 @@ is always openable in Expo Go (project → Branches) even with no step PR open.
   exactly as they do. Outside that directory Step 1 touched three things — a
   registry entry, `describeCubeProgress` in `utils/gameProgress.js`, and adding
   `react-native-svg` — Step 2 touched only `utils/buildNotes.js`, because plan
-  §12 says to, and Step 4 touched those same two (the hub badge counts solves
-  now). A step that needs to touch anything else should say why in its PR.
+  §12 says to, Step 4 touched those same two (the hub badge counts solves now),
+  and Step 6 touched only the build notes. A step that needs to touch anything
+  else should say why in its PR.
 - **The model owns the rules.** Import `solvedCube` / `applyMove` / `applyMoves`
   / `cubeFromAlg` / `facelets` / `isSolved` from `games/cube/cubeState.js`, and
   `parseAlg` / `parseMove` / `scanAlg` / `tokenize` / `algError` / `moveCount`
@@ -83,10 +84,15 @@ is always openable in Expo Go (project → Branches) even with no step PR open.
   `favorites.js` and not in `storage.js`, and why the whole solves list lives in
   `solveList.js`. **`solve.js` is one page and `solveList.js` is the book**: the
   first is the text of a single solve and every way of editing it, the second is
-  the list, the save shape and the sanitizing.
+  the list, the save shape, the phases and the sanitizing.
 - **The save file's shape is settled and should not be reopened.** Plan §7.2 has
-  it in full, `phases` slot and all. Step 6 writes into a field that is already
-  there and already sanitized.
+  it in full. Every field in it is now written and read by something; Step 6 was
+  the last one to fill an empty slot.
+- **One rule, one function.** Every edit to a solve's moves goes through
+  `withMoves`, which is also what keeps the markers honest — and the clamping it
+  does is literally the same `clampPhases` that `sanitizeSolves` runs on the way
+  out of the file. Two implementations of one rule is how "it survived the reload
+  but not the undo" gets shipped.
 - **Stay in scope.** Note what you spot for a later step rather than fixing it
   now, and say so in your PR.
 
@@ -125,114 +131,116 @@ you built, at every stage of the motion, not only at rest.
 
 ---
 
-## Next step: **Step 6 — annotate the move groups**
+## Next step: **Step 7 — edit a solve you have already written**
 
-> **Read plan §8.5 first.** It is a specification, not an open question — the
-> operator made the four decisions in it on 2026-08-02. Then read §7.2, because
-> the field you are writing into is **already in the save file and already
-> sanitized**; Step 4 put it there so you would not have to reshape anything.
+> **This step was moved to the front of the queue, and plan §8's table says so
+> and why.** It used to be "enter a cube by hand"; that is Step 8 now. If the
+> operator would rather have the cube entry next, take that row instead — this is
+> a re-ordering, not new scope, and either brief is a step's worth of work.
 
-The operator, thinking ahead: *"I want to be able to annotate the move groups.
-Like these moves solve first block. This set solves second block."*
-
-A solve is a flat list of moves. This gives it structure — and the half of the
-value that is not the labels is the **counts**: "first block in 8" versus "first
-block in 12" is exactly what a Roux learner is trying to improve, and once the
-spans exist the counts are a subtraction.
+**The text field appends; it cannot edit.** A typo in the middle of a solve is
+fixed by undoing back to it and retyping everything after. That was fine when the
+solve was a scratchpad (Step 3), stopped being fine the moment solves were kept
+(Step 4 — which recorded it and deliberately did not fix it), and Step 6 has now
+put **markers** on top of the same text. It is the oldest live gap in the
+feature and every step adds weight to it.
 
 ### Scope — ONLY this
 
-1. **Write phases into the solve.** `phases` is `[{ at, label }]` on a solve,
-   already in the file, already sanitized, and **nothing writes one yet**. It is
-   markers, not ranges (§8.5): a phase starts at move index `at`, and the spans
-   fall out of consecutive markers. `sanitizeSolves` already drops a marker past
-   the end of the solve, which is the invariant to keep true when moves are
-   removed.
-2. **Mark as you go, not afterwards.** One control while writing — "end the
-   phase here" — that closes the current group at the current position. The
-   moment you know a block is done is the moment you finish it; selecting ranges
-   after the fact is a second interaction for the same information.
-3. **Offer the method's own vocabulary.** Roux is First block · Second block ·
-   CMLL · LSE; CFOP is Cross · F2L · OLL · PLL. One tap on the name beats typing
-   it on a phone, and the names are the point. Free text is the escape hatch —
-   `CubeNameModal` is already a small "type a short label" modal and is the
-   obvious thing to reuse or copy.
-4. **Show the spans and their counts**, on the solve card or under it, and give
-   the transport the other half: **play just the second block**, jump to where
-   CMLL starts.
+1. **Replace the solve's text, rather than appending to it.**
+   `CubeAlgInputModal` already validates a whole algorithm with the real parser
+   and says which token it choked on; the honest shape is that modal opened with
+   the solve **already in it**, replacing on Add. Appending stays — it is what
+   the field is for mid-write — so this is a second way in rather than a changed
+   one. "Edit" belongs on the solve card or the solve bar, next to what it edits.
+2. **Keep the markers on the moves they were put on.** A phase is an index
+   (plan §8.5), and a wholesale text replacement moves every index after the
+   edit. `clampPhases` keeps them *legal*; it does not keep them *right* — insert
+   a move at position 3 and `First block · 8` should become `· 9`, not stay at 8
+   pointing one move short. **This is the hard half of the step and it is where
+   the thinking goes.** A diff between the old and new token lists is enough to
+   shift each marker by how much the text before it grew or shrank; a marker
+   inside a stretch that was rewritten wholesale has no honest answer and
+   probably wants dropping rather than guessing.
+3. **Do not let an edit replay the solve.** `useScramblePlayer` tells "grew" from
+   "replaced" with `extendsAlg` asked at where the cube is (plan §5). An edit in
+   the middle is genuinely a *replacement* and should land on the end without
+   animating — which is what already happens, but only if the starting cube's
+   identity is right. Check it; a cold-start-style replay is the bug this epic
+   has shipped twice.
 
 ### Read first
 
-- `docs/cube-plan.md` **§8.5** (the four decisions), **§7.2** (the field, and
-  why it is already there), §5's transport notes, §10
-- `games/cube/solveList.js` — `sanitizeSolves`/`sanitizePhases`, `updateSolve`,
-  and the `MAX_PHASES` cap. **This is where a phase edit belongs**: pure, node-
-  testable, and the same place the shape rules live.
-- `games/cube/solve.js` — editing one solve's text. `dropLastToken` is the one
-  that will need a companion: undoing a move under a marker has to move or drop
-  the marker with it.
-- `games/cube/CubeScreen.js` — `editOpen` is the single funnel every edit goes
-  through, and a phase edit is one more caller of it
-- `games/cube/player.js` / `useScramblePlayer.js` — `playTo(target)` already
-  animates to any index, so "play the second block" is two calls, not a new loop
-- `games/cube/CubeSolvesModal.js`, `CubeNameModal.js` — the picker and the
-  short-text modal, both new in Step 4
+- `docs/cube-plan.md` §8's table (the re-order and its reasons), §4 (**the text
+  the operator entered is the text that is kept** — an edit must not respell
+  `r` as `Rw`), §5's growth rule, §8.5, §10
+- `games/cube/solve.js` — `appendAlg`, `dropLastToken`, `solveError`. A
+  `replaceAlg` belongs here, next to them, and pure.
+- `games/cube/solveList.js` — `withMoves` is the funnel every move edit goes
+  through and `clampPhases` is what it calls. **A marker-shifting function
+  belongs here**, next to the rest of the shape rules and the tests that hold
+  them.
+- `games/cube/CubeAlgInputModal.js` — the field, its validation and its Add
+- `games/cube/CubeScreen.js` — `editOpen`, `addTyped`, and the card
+- `games/cube/useScramblePlayer.js` / `player.js` — `extendsAlg`, and why the
+  starting cube is an identity
 
 ### Behaviors that are easy to get wrong
 
-- **A marker is an index into a list that is still being edited.** Undo removes
-  the last move; clear removes all of them; the text field adds several at once.
-  A marker at `at` that is now past the end is a marker pointing at nothing.
-  `sanitizeSolves` handles it on the way *out of the file* — but the screen has
-  to handle it live, and the two answers must agree.
-- **`at` is a move index, not a token index — except that they are the same
-  number and only by luck.** `scanAlg` returns `tokens` and `moves` in one pass
-  and they are the same length. Keep reading both from `player.tokens` /
-  `player.moves` rather than re-tokenizing, for plan §4's reason.
-- **Never redisplay a canonical token**, including inside a phase's label row.
-- **The screen is full, and Step 4 spent the last of it.** Solve mode is now
-  header · scramble line · solve card · a 3-button row · stage · transport ·
-  3 pad rows · **the solve bar**, and at 320×568 that leaves the cube about 120
-  points. The bar is a button and it is the way into the picker; it cannot also
-  be the way into phases. The pad's bottom row (`'` · `2` · undo · clear · type)
-  has five keys and is the same width as the twelve-key rows, so **there is
-  room for a sixth key there** — that is the likeliest home for "end the phase".
-  Check at 320, do not assume.
-- **Per-phase counts are a subtraction and must stay one.** Storing a count
-  alongside a marker is the same mistake as storing a range: two things to keep
-  honest on every edit.
+- **A replacement that happens to be an extension is still an extension.**
+  Opening the field, adding one move at the end and hitting Add must animate that
+  move, not jump. `extendsAlg` already answers this correctly; the trap is
+  bypassing it with a "this was an edit" flag.
+- **Never redisplay a canonical token.** Seeding the field is the obvious place
+  to leak `Rw` where the operator wrote `r`. Seed from the stored text.
+- **The screen is full and Step 6 spent the last free slot.** The pad's bottom
+  row is now six controls (`'` · `2` · undo · clear · type · flag) and the rows
+  above it are six wide, so there is **no seventh**. The phase strip costs the
+  cube 24 points when a solve has markers — 138 → 114 at 320×568. Anything this
+  step adds has to replace something or live in a modal. The solve card itself is
+  a plausible home for an edit affordance, since it is already a tap target for
+  every token.
+- **An empty replacement is a clear.** Decide whether that is allowed from the
+  field, and make it match what the clear key does to the markers (which is drop
+  them all — see `clearSolve`).
 
 ### Out of scope for this step
 
 Entering a cube by colour, a solver, random-state scrambles, colour neutrality,
-a timer, editing a solve's text in the middle (see the note below — it is now
-overdue and still not this step). Note what you spot; do not start it.
+a timer, re-orienting under written moves. Note what you spot; do not start it.
 
 ### Visible in Expo Go when this lands
 
-Write a first block, tap **First block** to close it, carry on into the second,
-and read `First block · 8` back off the card — then tap the second block's label
-and watch just those moves play.
+Write a solve, notice that move 4 should have been `R'`, open the edit field with
+the whole solve in it, fix that one character, Add — and watch the cube land on
+the corrected solve with `First block · 8` still counting the first eight moves.
 
 ### How to verify
 
-- `npm test` — phases are pure and belong in `solveList.test.js` next to the
-  sanitizing that already covers them. Pin what an undo does to a marker.
+- `npm test` — the marker shifting is pure and belongs in `solveList.test.js`
+  next to `withMoves` and `clampPhases`. Pin what an insert, a delete and a
+  wholesale rewrite each do to a marker.
 - `npx expo-doctor` and `npx expo export --platform all`.
 - Drive the web export headlessly at 320×568, 375×667 and 420×860, and **look at
-  the screenshots**. The Step 4 session's drivers are the pattern: `resume.js`
-  writes a solve and reloads the page (a reload is a cold start) to prove what
-  survives; `lifecycle.js` walks new / delete / new scramble / load a favorite.
-  Both key off `aria-label`, which is how this app names its controls — and note
-  that **the pad relabels every key while a modifier is armed**, so the second
-  tap of `R'` aims at `R prime`, not at `R`.
+  the screenshots**. Step 6's two drivers are the pattern (they live in the
+  session's scratchpad, like every step's, so write your own from the
+  description): `phases.js` writes a solve, marks two groups, plays one, and
+  undoes back across a boundary; `tidy.js` walks the free-text name, the bin,
+  duplicate and clear. Both key off `aria-label`, which is how this app names its
+  controls.
+  Two things Step 6 learned about driving it: **the pad relabels every key while
+  a modifier is armed**, so the second tap of `R'` aims at `R prime`; and
+  **a reload is a cold start but not an unmount**, so the 400ms debounced save
+  never flushes — wait it out before reloading or you will test the state before
+  your last edit. A reload lands on the **hub**, so getting back to the cube is
+  one more tap.
 
 ---
 
 ## Open questions for the operator (carry these forward)
 
 These are plan §9, restated so a session does not have to go looking. None block
-Step 4.
+Step 7.
 
 1. Scramble length — 20 moves. Leave it?
 2. Other puzzles — 2×2, 4×4, pyraminx, skewb?
@@ -267,18 +275,24 @@ Step 4.
     2026-08-02): yes, and losing one to a backgrounded app is the thing that
     made it obvious. Plan §7.1 has the rule this settled — everything authored
     is kept, everything about how you are currently looking at it is not.
-11. **How move groups get annotated** — specified rather than open (operator,
-    2026-08-02): *"these moves solve first block, this set solves second
-    block."* Plan §8.5 has the four decisions, and **it is the next step**. The
-    question of whether it should have come *before* several-solves is closed by
-    events: Step 4 went first because losing a solve to a backgrounded app was
-    the live complaint, and the save-file shape it settled (§7.2) already carries
-    the `phases` field, which is the point of deciding that shape once.
+11. ~~**How move groups get annotated**~~ — **specified by the operator and
+    shipped in Step 6** (2026-08-02): *"these moves solve first block, this set
+    solves second block."* Plan §8.5 has the four decisions and what building
+    them taught. What is genuinely still open is smaller and wants use rather
+    than an opinion: **are Roux and CFOP the right eight names**, and is the flag
+    on the pad where a thumb expects it mid-solve?
 12. **What a solve is worth naming** — new, and only the operator can answer it.
     Step 4 defaults a solve to `Solve 1`, `Solve 2` counting within the
     scramble, and offers a rename. Whether the useful default is instead the
     hold (`yellow up`), the date, or the first block's move count is a question
-    that wants one real drilling session, not an opinion.
+    that wants one real drilling session, not an opinion. **Step 6 gives it a
+    concrete candidate**: `First block · 8` is now known, and it is the number
+    the operator said they were trying to improve.
+13. **Whether the counts are worth comparing across solves** — new with Step 6,
+    and the obvious next thing to want. The screen shows one solve's phases at a
+    time; "my first block over five attempts at this scramble" is a different
+    view and not one anything asks for yet. It is a step, not a tweak, so it
+    should wait for the operator to say they want it.
 
 ### Noted in passing, for a later step
 
@@ -295,14 +309,9 @@ Step 4.
   only evidence that counts for how it *feels*.
 - ~~**`useScramblePlayer` assumes a solved starting cube.**~~ **Done in Step 3**:
   `buildPlayback(alg, { from })` and `useScramblePlayer(alg, from)`.
-- **The text field appends; it cannot edit.** A typo in the middle of a solve is
-  fixed by undoing back to it, which was fine for a scratchpad and stops being
-  fine the moment solves are kept. **Step 4 kept the solves and did not fix
-  this**, deliberately — it was out of that step's scope and it is now the
-  oldest live gap in the feature. Editing a saved solve as text is a screen
-  question, not a parser one; the honest shape is probably the existing
-  `CubeAlgInputModal` opened with the solve already in it, replacing rather than
-  appending.
+- ~~**The text field appends; it cannot edit.**~~ **It is the next step** — see
+  the brief above. Step 6 added markers on top of the same text, which is what
+  finally moved it up the queue.
 - **Solve mode has no "Favorites" button**, because the row it lived on is now
   the move pad. Getting to the list means tapping Scramble first. Nobody has
   complained because nobody has used it yet.
@@ -331,11 +340,21 @@ Step 4.
   about 284 points, and the narrowest phone this app supports has 300. It wraps
   rather than overflows, but a sixth control wants a rethink rather than another
   chip.
-- **And so is the page.** Step 3 spent the rest of it: at 320×568 solve mode
-  leaves the cube about 120 points. That is why the two view buttons are
-  icon-only in solve mode and the scramble drops to one line — both were
-  measured, and labelling either one wraps the row and costs the cube 40 more
-  points.
+- **And so is the page, and so is the pad.** Step 3 spent the rest of the page:
+  at 320×568 solve mode leaves the cube 138 points, which is why the two view
+  buttons are icon-only and the scramble drops to one line. Step 6 spent the last
+  free *key*: the pad's bottom row was five controls where the rows above are
+  six, and the flag took the sixth. **There is no seventh** — another key means
+  another row, and a row comes out of the cube. Step 6 also costs the cube 24
+  more points (138 → 114) whenever a solve has markers on it, which is the price
+  of the phase strip and is only paid by an annotated solve.
+- **A marker at exactly the end of a solve is invisible in the strip and visible
+  in the modal.** It is the boundary the last "end the phase" opened, it has no
+  moves in it yet, and the strip skips a zero-length unnamed span rather than
+  showing `In progress · 0`. The modal lists it, with a bin, because it is a real
+  boundary and removing it is sometimes what you want. If that ever reads as
+  clutter, the strip is the one that is right.
+- **The phase counts are per solve and nothing compares them.** Open question 13.
 - **Half turns animate clockwise.** `shortWay(2)` is 2, not −2; both land in the
   same place and nothing prefers one. If a solve tutorial ever wants `R2` to go
   the way a particular fingertrick goes, that is the line to change.
@@ -343,6 +362,62 @@ Step 4.
 ---
 
 ## Steps already done
+
+### **Step 6 — annotate the move groups** ✅ *(2026-08-02)*
+
+Shipped: **a solve has structure, and the structure has counts.** Finish your
+first block, tap the flag on the pad, tap **First block**, and carry on — the
+group is closed and named, the next one opens where you are, and a strip under
+the solve reads `First block · 8` `Second block · 12` back at you. Tap one and
+the cube jumps to where it starts and plays just that group. Roux and CFOP name
+their own phases a tap each; free text is the escape hatch. 743 tests across the
+app, 24 of them new.
+
+The shape is plan §8.5's, unchanged: **markers, not ranges**. A phase is
+`{ at, label }` — the move index a group starts at — and the spans and their
+counts fall out by subtraction. Nothing stores a count, and nothing stores an
+end.
+
+Three things this step learned:
+
+- **Closing a group writes two markers.** The name goes onto the boundary the
+  group started at; a fresh unnamed boundary opens where it ended. The second
+  looks like bookkeeping and is load-bearing: without it the named span runs to
+  the end of the solve and `First block · 8` quietly becomes `First block · 12`
+  as the second block is written.
+- **"What an edit does to a marker" has to be exactly one function.** A marker is
+  an index into a list still being written, and undo removes the move it points
+  at. `clampPhases` is the answer, and `withMoves` — the funnel every edit to a
+  solve's moves now goes through — calls the same one `sanitizeSolves` calls on
+  the way out of the file. Two implementations of one rule is a marker that
+  survives a reload but not an undo. Dropping is the honest answer rather than
+  clamping, and the name stays on the group, which reopens and counts up again.
+- **A one-tap control needs a way to take the tap back, and the cheapest one is
+  the same control.** Naming a group whose boundary already exists can only mean
+  the group behind it, so a second tap on the flag *renames*. The first
+  implementation refused instead — nothing new to close — and **a headless
+  driver found the dead end within a minute of the bin being added**: remove a
+  marker and the group it left behind could never be named again without writing
+  another move. The modal now says which of the two it is about to do rather than
+  leaving the operator to infer it from where the transport is parked.
+
+Also worth not rediscovering: **the pad's bottom row was the last free slot on
+this screen.** It was five controls where the rows above are six, so the flag
+cost the page no height at all; there is no seventh. The phase strip does cost
+24 points (the cube goes 138 → 114 at 320×568), and only when a solve has
+markers on it.
+
+Verified with `npm test` (743 across the app), `npx expo-doctor` (18/18), `npx
+expo export --platform all`, and two headless drivers run at 320×568, 375×667
+and 420×860 with the screenshots read: `phases.js` writes eight moves, marks
+First block, writes four more and marks Second block, checks the first block's
+count does *not* grow while the second is written, plays one group and asserts it
+jumps to the start and stops at the end, then undoes back across a boundary and
+through it, and reloads the page — a cold start — to prove the markers come
+back and nothing replays; `tidy.js` walks the disabled flag on an empty solve, a
+free-text name, the rename-by-naming-again, the bin, duplicate carrying its
+phases, and clear taking them away. No overflow and no console errors at any
+size.
 
 ### **Step 4 — the workspace survives** ✅ *(2026-08-02)*
 

@@ -17,6 +17,8 @@ import CubeAlgInputModal from './CubeAlgInputModal';
 import CubeFavoritesModal from './CubeFavoritesModal';
 import CubeMovePad from './CubeMovePad';
 import CubeNameModal from './CubeNameModal';
+import CubePhaseModal from './CubePhaseModal';
+import CubePhaseStrip from './CubePhaseStrip';
 import CubeScrubber from './CubeScrubber';
 import CubeSolvesModal from './CubeSolvesModal';
 import { ALG_FONT } from './algText';
@@ -41,11 +43,17 @@ import {
 import {
   createSolve,
   duplicateSolve,
+  endPhase,
   findSolve,
+  isPhaseBoundary,
+  openPhaseStart,
+  phaseSpans,
+  removePhase,
   removeSolve,
   renameSolve,
   solvesFor,
   updateSolve,
+  withMoves,
 } from './solveList';
 import { moveCount, normalizeAlg, parseAlg } from './moves';
 import { addFavorite, isFavorite, removeFavorite } from './favorites';
@@ -64,6 +72,11 @@ const MAX_CUBE = 440;
 
 /** Share of the window height the cube may take. */
 const CUBE_HEIGHT_SHARE = 0.42;
+
+/** The markers of a solve that is not open. A shared constant rather than a
+ *  fresh `[]`, so the memos below it are not rebuilt on every render of the
+ *  scramble. */
+const NO_PHASES = [];
 
 /**
  * Cube Scramble — get a scramble, save it, and turn the cube to inspect it
@@ -144,6 +157,7 @@ const CubeScreen = ({ onExitToHub }) => {
   // half-finished tap, not a written move.
   const [modifier, setModifier] = useState('');
   const [showTyping, setShowTyping] = useState(false);
+  const [showPhases, setShowPhases] = useState(false);
 
   // The box the cube gets, measured rather than estimated. A cube sized from a
   // share of the *window* looked right on a 6" phone and pushed its own caption
@@ -532,7 +546,9 @@ const CubeScreen = ({ onExitToHub }) => {
   const tapKey = useCallback(
     (key) => {
       pause();
-      editOpen((current) => ({ alg: appendToken(current.alg, padToken(key, modifier)) }));
+      editOpen((current) =>
+        withMoves(current, appendToken(current.alg, padToken(key, modifier)))
+      );
       setModifier('');
     },
     [modifier, pause, editOpen]
@@ -546,15 +562,22 @@ const CubeScreen = ({ onExitToHub }) => {
   // reset would put the cube where it belongs without ever showing it get there,
   // which is the same bug as a move appearing without turning — just pointing
   // the other way.
+  //
+  // The drop goes through `withMoves`, as every edit to the moves now does:
+  // a phase is an index into the list being edited, and undo is the edit that
+  // can leave one pointing past the end of it (plan §8.5).
   const undoMove = useCallback(() => {
     setModifier('');
-    retract(() => editOpen((current) => ({ alg: dropLastToken(current.alg) })));
+    retract(() => editOpen((current) => withMoves(current, dropLastToken(current.alg))));
   }, [retract, editOpen]);
 
+  // The one edit that does *not* go through `withMoves`: clearing is "remove
+  // every move", and a marker at 0 would survive the clamp and leave a label
+  // hanging off a solve with nothing in it.
   const clearSolve = useCallback(() => {
     pause();
     setModifier('');
-    editOpen({ alg: '' });
+    editOpen({ alg: '', phases: [] });
   }, [pause, editOpen]);
 
   const addTyped = useCallback(
@@ -562,7 +585,7 @@ const CubeScreen = ({ onExitToHub }) => {
       pause();
       editOpen((current) => {
         try {
-          return { alg: appendAlg(current.alg, text) };
+          return withMoves(current, appendAlg(current.alg, text));
         } catch (error) {
           // The field validates with the same parser before it offers Add, so
           // this is unreachable — and if it ever is reached, keeping the solve
@@ -573,6 +596,66 @@ const CubeScreen = ({ onExitToHub }) => {
       setShowTyping(false);
     },
     [pause, editOpen]
+  );
+
+  // ——— Phases (docs/cube-plan.md §8.5) —————————————————————————————————————
+
+  /**
+   * Open the flag.
+   *
+   * `pause` first, and it matters more here than anywhere else on this screen:
+   * **the position is the argument.** A marker is written at where the cube is,
+   * so a turn still in flight is a boundary about to land one move away from
+   * where the operator is looking.
+   */
+  const openPhases = useCallback(() => {
+    pause();
+    setModifier('');
+    setShowPhases(true);
+  }, [pause]);
+
+  /**
+   * Close the group of moves the operator has just written, and name it.
+   *
+   * "Here" is **where the cube is**, not the end of the solve. While writing
+   * they are the same place — every entered move animates to the end — and when
+   * they are not, scrubbing back to where the first block finished and marking
+   * it there is the obvious thing to want, rather than a second range-selecting
+   * interaction that plan §8.5 rules out.
+   */
+  const endPhaseHere = useCallback(
+    (label) => {
+      editOpen((current) => ({
+        phases: endPhase(current.phases, player.index, label, moveCount(current.alg)),
+      }));
+      setShowPhases(false);
+    },
+    [editOpen, player.index]
+  );
+
+  // Stays open: a mis-tapped name is usually one of several things being tidied
+  // up, and the list is where the tidying happens.
+  const dropPhase = useCallback(
+    (at) => {
+      editOpen((current) => ({ phases: removePhase(current.phases, at) }));
+    },
+    [editOpen]
+  );
+
+  /**
+   * Play one group of moves.
+   *
+   * The other half of annotating (plan §8.5), and two calls rather than a second
+   * transport: jump to where the group starts, then walk to where it ends. The
+   * jump is deliberate — "play just the second block" is not a request to watch
+   * the first one go past first.
+   */
+  const playPhase = useCallback(
+    (span) => {
+      seek(span.at);
+      if (span.end > span.at) playTo(span.end);
+    },
+    [seek, playTo]
   );
 
   const resetView = useCallback(() => {
@@ -599,6 +682,29 @@ const CubeScreen = ({ onExitToHub }) => {
   // What the transport is playing, for every label that has to name it.
   const noun = writing ? 'solve' : 'scramble';
   const solveCount = moveCount(solve);
+
+  // The move groups (plan §8.5). Markers are stored; **the spans and their
+  // counts are derived every render**, because "first block in 8" has to be a
+  // subtraction over the boundaries rather than a number kept alongside them —
+  // a stored count is a second thing to keep honest on every edit.
+  const phases = openSolve ? openSolve.phases : NO_PHASES;
+  const spans = useMemo(() => phaseSpans(phases, solveCount), [phases, solveCount]);
+
+  // The group of moves that ends where the cube is, and therefore whether there
+  // is anything to name at all. Derived from the same list the flag edits, so
+  // the pad and the modal cannot disagree about it.
+  //
+  // `renaming` is the case where a boundary is already sitting here: the last
+  // "end the phase" put it there, so there is nothing new to close and a name
+  // can only mean the group behind it. Saying which of the two it is beats
+  // leaving the operator to work it out from where the transport is parked.
+  const openStart = openPhaseStart(phases, player.index);
+  const openMoves = Math.max(0, player.index - openStart);
+  const renamingPhase = isPhaseBoundary(phases, player.index);
+
+  // The boundaries, for the divider in the solve card. A set, because the card
+  // asks this once per token.
+  const marks = useMemo(() => new Set(phases.map((phase) => phase.at)), [phases]);
 
   // Solve mode has two phases, which is how the operator described it: **find
   // the hold**, then **write the solve**. Inspecting is panning, so it gets the
@@ -697,30 +803,64 @@ const CubeScreen = ({ onExitToHub }) => {
                 ? 'Turn the cube to how you want to hold it'
                 : 'Tap a key to begin'
               : scramble
-            : player.tokens.map((token, i) => (
-                <Text
-                  key={`${token}-${i}`}
-                  onPress={() => playTo(i + 1)}
-                  suppressHighlighting
-                  accessibilityRole="button"
-                  accessibilityLabel={`Move ${i + 1}, ${describeToken(token)}`}
-                  accessibilityHint={`Turns the cube to this point in the ${
-                    writing ? 'solve' : 'scramble'
-                  }`}
-                  style={
-                    i === player.index - 1
-                      ? [styles.currentToken, { color: CUBE_ACCENT }]
-                      : i < player.index
-                        ? { color: titleColor }
-                        : null
-                  }
-                >
-                  {i > 0 ? '  ' : ''}
-                  {token}
-                </Text>
-              ))}
+            : player.tokens.flatMap((token, i) => {
+                // The gap between two tokens is where a phase boundary shows,
+                // and it is its own element rather than part of the token: the
+                // token is a tap target that turns the cube, and a divider is
+                // not a move you can turn to. It is a separate span rather than
+                // a bar drawn under the group because the card wraps — a group
+                // can start mid-line and end two lines later.
+                const gap =
+                  i === 0 ? null : (
+                    <Text
+                      key={`gap-${i}`}
+                      style={marks.has(i) ? [styles.phaseMark, { color: CUBE_ACCENT }] : null}
+                    >
+                      {marks.has(i) ? '  |  ' : '  '}
+                    </Text>
+                  );
+
+                const move = (
+                  <Text
+                    key={`${token}-${i}`}
+                    onPress={() => playTo(i + 1)}
+                    suppressHighlighting
+                    accessibilityRole="button"
+                    accessibilityLabel={`Move ${i + 1}, ${describeToken(token)}`}
+                    accessibilityHint={`Turns the cube to this point in the ${
+                      writing ? 'solve' : 'scramble'
+                    }`}
+                    style={
+                      i === player.index - 1
+                        ? [styles.currentToken, { color: CUBE_ACCENT }]
+                        : i < player.index
+                          ? { color: titleColor }
+                          : null
+                    }
+                  >
+                    {token}
+                  </Text>
+                );
+
+                return gap ? [gap, move] : [move];
+              })}
         </Text>
       </View>
+
+      {/* Directly under the moves it is describing, and only once there is
+          something to describe — a solve with no markers costs the cube
+          nothing. Above the action row rather than below the pad because it is
+          about the *moves*, and the eye should not have to cross the cube to
+          get from `First block · 8` to the eight moves it counted. */}
+      {writing && !inspecting && spans.length > 0 && (
+        <CubePhaseStrip
+          spans={spans}
+          index={player.index}
+          accent={CUBE_ACCENT}
+          theme={theme}
+          onPlay={playPhase}
+        />
+      )}
 
       <View style={styles.actionRow}>
         {writing ? (
@@ -901,6 +1041,10 @@ const CubeScreen = ({ onExitToHub }) => {
           modifier={modifier}
           canUndo={solveCount > 0}
           canClear={solveCount > 0}
+          // Live once there is anything to say about — moves to name, or
+          // markers to take back off. Only a solve with neither has nothing for
+          // the flag to do.
+          canPhase={solveCount > 0 || phases.length > 0}
           accent={CUBE_ACCENT}
           theme={theme}
           onKey={tapKey}
@@ -908,6 +1052,7 @@ const CubeScreen = ({ onExitToHub }) => {
           onUndo={undoMove}
           onClear={clearSolve}
           onType={() => setShowTyping(true)}
+          onPhase={openPhases}
         />
       ) : (
         <>
@@ -1033,6 +1178,19 @@ const CubeScreen = ({ onExitToHub }) => {
         onClose={() => setShowFavorites(false)}
       />
 
+      <CubePhaseModal
+        visible={showPhases}
+        theme={theme}
+        accent={CUBE_ACCENT}
+        at={player.index}
+        openCount={openMoves}
+        renaming={renamingPhase}
+        spans={spans}
+        onEnd={endPhaseHere}
+        onRemove={dropPhase}
+        onClose={() => setShowPhases(false)}
+      />
+
       <CubeAlgInputModal
         visible={showTyping}
         theme={theme}
@@ -1094,6 +1252,13 @@ const styles = StyleSheet.create({
   // twenty-token block at a glance, and on a monospaced face weight is the
   // difference that survives a small screen.
   currentToken: {
+    fontWeight: '700',
+  },
+  // A phase boundary, in the moves themselves. An ASCII bar rather than a box
+  // drawing character: this is set in whatever the platform calls "monospace",
+  // and the one glyph that is certainly in all three of them is the one on the
+  // keyboard.
+  phaseMark: {
     fontWeight: '700',
   },
   actionRow: {

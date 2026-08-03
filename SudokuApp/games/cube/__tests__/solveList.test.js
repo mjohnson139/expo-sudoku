@@ -1,19 +1,30 @@
 import {
+  MAX_PHASES,
   MAX_SOLVES,
   MAX_SOLVE_NAME,
+  announcePhaseSpan,
+  clampPhases,
   createSolve,
+  currentSpan,
   defaultSolveName,
+  describePhaseSpan,
   describeSolveSize,
   duplicateSolve,
+  endPhase,
   findSolve,
+  isPhaseBoundary,
   nextSolveId,
   normalizeName,
+  openPhaseStart,
+  phaseSpans,
+  removePhase,
   removeSolve,
   renameSolve,
   sanitizeSolves,
   sanitizeWorkspace,
   solvesFor,
   updateSolve,
+  withMoves,
 } from '../solveList';
 
 const SCRAMBLE = "R U2 F' D L B2 R' U";
@@ -327,6 +338,260 @@ describe('sanitizeSolves', () => {
 
   it('gives a solve with no phases key the empty slot', () => {
     expect(sanitizeSolves([{ ...stored, phases: undefined }])[0].phases).toEqual([]);
+  });
+});
+
+describe('clampPhases', () => {
+  it('drops a marker the solve no longer reaches, and keeps the one at the very end', () => {
+    const phases = [{ at: 0, label: 'First block' }, { at: 8, label: '' }];
+    expect(clampPhases(phases, 8)).toEqual(phases);
+    expect(clampPhases(phases, 7)).toEqual([{ at: 0, label: 'First block' }]);
+  });
+
+  it('sorts, so consecutive markers really do bound consecutive spans', () => {
+    expect(clampPhases([{ at: 8, label: 'b' }, { at: 0, label: 'a' }], 10)).toEqual([
+      { at: 0, label: 'a' },
+      { at: 8, label: 'b' },
+    ]);
+  });
+
+  it('merges two markers at one index, because that is one boundary', () => {
+    expect(clampPhases([{ at: 3, label: 'first' }, { at: 3, label: 'second' }], 5)).toEqual([
+      { at: 3, label: 'first' },
+    ]);
+  });
+
+  it('normalizes the labels and refuses anything that is not a marker', () => {
+    expect(
+      clampPhases(
+        [
+          { at: 0, label: '  First   block ' },
+          { at: -1, label: 'before the start' },
+          { at: 1.5, label: 'between moves' },
+          { at: 2 },
+          'nope',
+          null,
+        ],
+        4
+      )
+    ).toEqual([
+      { at: 0, label: 'First block' },
+      { at: 2, label: '' },
+    ]);
+  });
+
+  it('survives a missing list and a nonsense count', () => {
+    expect(clampPhases(undefined, 4)).toEqual([]);
+    expect(clampPhases([{ at: 0, label: 'x' }], undefined)).toEqual([{ at: 0, label: 'x' }]);
+    expect(clampPhases([{ at: 1, label: 'x' }], undefined)).toEqual([]);
+  });
+
+  it('caps the list', () => {
+    const many = Array.from({ length: MAX_PHASES + 5 }, (_, at) => ({ at, label: `p${at}` }));
+    expect(clampPhases(many, many.length)).toHaveLength(MAX_PHASES);
+  });
+});
+
+describe('openPhaseStart', () => {
+  it('is the last boundary before here, or the start of the solve', () => {
+    const phases = [{ at: 0, label: 'First block' }, { at: 8, label: '' }];
+    expect(openPhaseStart(phases, 12)).toBe(8);
+    // Standing on the boundary the last "end the phase" left: the group that
+    // ends here is the one behind it, which is what makes naming again a
+    // rename rather than a dead end.
+    expect(openPhaseStart(phases, 8)).toBe(0);
+    expect(openPhaseStart(phases, 3)).toBe(0);
+    expect(openPhaseStart([], 5)).toBe(0);
+  });
+
+  it('says whether a boundary is already here, so the screen can name what it is doing', () => {
+    const phases = [{ at: 0, label: 'First block' }, { at: 8, label: '' }];
+    expect(isPhaseBoundary(phases, 8)).toBe(true);
+    expect(isPhaseBoundary(phases, 7)).toBe(false);
+    expect(isPhaseBoundary([], 0)).toBe(false);
+  });
+});
+
+describe('endPhase', () => {
+  it('names the group that just ended and opens the next one', () => {
+    // Without the second marker "First block · 8" would quietly become
+    // "First block · 12" as the second block was written.
+    expect(endPhase([], 8, 'First block', 8)).toEqual([
+      { at: 0, label: 'First block' },
+      { at: 8, label: '' },
+    ]);
+  });
+
+  it('walks a Roux solve the way it is actually written', () => {
+    const first = endPhase([], 8, 'First block', 8);
+    const second = endPhase(first, 20, 'Second block', 20);
+    const cmll = endPhase(second, 31, 'CMLL', 31);
+
+    expect(cmll).toEqual([
+      { at: 0, label: 'First block' },
+      { at: 8, label: 'Second block' },
+      { at: 20, label: 'CMLL' },
+      { at: 31, label: '' },
+    ]);
+    expect(phaseSpans(cmll, 31).map((span) => describePhaseSpan(span))).toEqual([
+      'First block · 8',
+      'Second block · 12',
+      'CMLL · 11',
+      'In progress · 0',
+    ]);
+  });
+
+  it('takes free text as readily as a method name', () => {
+    expect(endPhase([], 4, '  M   first ', 4)[0].label).toBe('M first');
+  });
+
+  it('renames the group when the boundary is already there', () => {
+    // A second tap on the flag with nothing new written can only mean the group
+    // behind it — and it is the way out of a mis-tapped name. Refusing instead
+    // dead-ends: bin a marker and the group it left could never be named again
+    // without writing another move.
+    const marked = endPhase([], 8, 'First block', 8);
+    expect(endPhase(marked, 8, 'Second block', 8)).toEqual([
+      { at: 0, label: 'Second block' },
+      { at: 8, label: '' },
+    ]);
+  });
+
+  it('refuses a group with no moves in it — which is only ever the start', () => {
+    // Every other position has at least one move behind it, because the group
+    // that ends there begins at the last boundary *before* it.
+    expect(endPhase([], 0, 'First block', 8)).toEqual([]);
+    expect(endPhase([{ at: 0, label: 'a' }], 0, 'b', 8)).toEqual([{ at: 0, label: 'a' }]);
+  });
+
+  it('refuses a position the solve does not reach, and a name that is not one', () => {
+    expect(endPhase([], 9, 'First block', 8)).toEqual([]);
+    expect(endPhase([], 4, '   ', 8)).toEqual([]);
+    expect(endPhase([], 1.5, 'First block', 8)).toEqual([]);
+  });
+
+  it('marks in the middle when the operator scrubbed back to say so', () => {
+    // Not the flow §8.5 designs for, but the one that happens when someone
+    // forgets to mark and steps back to where the block finished.
+    const marked = endPhase([], 20, 'Whole thing', 20);
+    expect(endPhase(marked, 8, 'First block', 20)).toEqual([
+      { at: 0, label: 'First block' },
+      { at: 8, label: '' },
+      { at: 20, label: '' },
+    ]);
+  });
+
+  it('stops at the cap rather than dropping a marker to make room', () => {
+    const full = Array.from({ length: MAX_PHASES }, (_, at) => ({ at, label: `p${at}` }));
+    expect(endPhase(full, MAX_PHASES + 1, 'One more', MAX_PHASES + 1)).toHaveLength(
+      MAX_PHASES
+    );
+  });
+});
+
+describe('phaseSpans', () => {
+  it('is empty for a solve nobody has annotated', () => {
+    expect(phaseSpans([], 12)).toEqual([]);
+    expect(phaseSpans(undefined, 12)).toEqual([]);
+  });
+
+  it('derives the counts by subtraction, and runs the last span to the end', () => {
+    expect(phaseSpans([{ at: 0, label: 'First block' }, { at: 8, label: 'LSE' }], 14)).toEqual([
+      { at: 0, end: 8, label: 'First block', count: 8 },
+      { at: 8, end: 14, label: 'LSE', count: 6 },
+    ]);
+  });
+
+  it('puts an unnamed span in front of a file whose first marker is not at 0', () => {
+    expect(phaseSpans([{ at: 3, label: 'Second block' }], 9)).toEqual([
+      { at: 0, end: 3, label: '', count: 3 },
+      { at: 3, end: 9, label: 'Second block', count: 6 },
+    ]);
+  });
+});
+
+describe('currentSpan', () => {
+  const spans = phaseSpans([{ at: 0, label: 'a' }, { at: 8, label: 'b' }], 14);
+
+  it('picks the span the move just played belongs to', () => {
+    expect(currentSpan(spans, 0)).toBe(0);
+    expect(currentSpan(spans, 8)).toBe(0);
+    expect(currentSpan(spans, 9)).toBe(1);
+    expect(currentSpan(spans, 14)).toBe(1);
+    expect(currentSpan([], 3)).toBe(-1);
+  });
+});
+
+describe('describePhaseSpan / announcePhaseSpan', () => {
+  it('says the name and the count, and names a group nobody has closed', () => {
+    expect(describePhaseSpan({ at: 0, end: 8, label: 'First block', count: 8 })).toBe(
+      'First block · 8'
+    );
+    expect(describePhaseSpan({ at: 8, end: 11, label: '', count: 3 })).toBe('In progress · 3');
+  });
+
+  it('says the moves out loud, which is what the chip has no room for', () => {
+    expect(announcePhaseSpan({ at: 0, end: 8, label: 'First block', count: 8 })).toBe(
+      'First block, 8 moves, 1 to 8'
+    );
+    expect(announcePhaseSpan({ at: 8, end: 9, label: 'LSE', count: 1 })).toBe(
+      'LSE, 1 move, move 9'
+    );
+    expect(announcePhaseSpan({ at: 8, end: 8, label: 'LSE', count: 0 })).toBe(
+      'LSE, no moves yet'
+    );
+  });
+});
+
+describe('withMoves', () => {
+  const EIGHT = "R U R' U' R U R' U'";
+
+  it('leaves the markers alone when the solve grows', () => {
+    const solve = {
+      alg: EIGHT,
+      phases: [{ at: 0, label: 'First block' }, { at: 8, label: '' }],
+    };
+    expect(withMoves(solve, `${EIGHT} M2`)).toEqual({
+      alg: `${EIGHT} M2`,
+      phases: solve.phases,
+    });
+  });
+
+  it('drops the marker an undo just removed the move from under', () => {
+    // The move that ended the first block is gone, so the group is open again —
+    // and this has to be the *same* answer `sanitizeSolves` gives, or a marker
+    // survives a reload that did not survive the edit.
+    const solve = {
+      alg: EIGHT,
+      phases: [{ at: 0, label: 'First block' }, { at: 8, label: '' }],
+    };
+    const undone = withMoves(solve, "R U R' U' R U R'");
+    expect(undone.phases).toEqual([{ at: 0, label: 'First block' }]);
+
+    const reloaded = sanitizeSolves([
+      {
+        id: 's1',
+        scramble: SCRAMBLE,
+        name: 'Solve 1',
+        orientation: '',
+        alg: undone.alg,
+        phases: solve.phases,
+        savedAt: 1,
+      },
+    ]);
+    expect(reloaded[0].phases).toEqual(undone.phases);
+  });
+
+  it('re-marking after the undo lands back where it was', () => {
+    const solve = { alg: EIGHT, phases: [{ at: 0, label: 'First block' }, { at: 8, label: '' }] };
+    const undone = withMoves(solve, "R U R' U' R U R'");
+    const regrown = withMoves({ ...solve, phases: undone.phases }, EIGHT);
+    expect(endPhase(regrown.phases, 8, 'First block', 8)).toEqual(solve.phases);
+  });
+
+  it('survives a solve with no markers at all', () => {
+    expect(withMoves({ alg: '', phases: [] }, 'R')).toEqual({ alg: 'R', phases: [] });
+    expect(withMoves(null, 'R')).toEqual({ alg: 'R', phases: [] });
   });
 });
 
