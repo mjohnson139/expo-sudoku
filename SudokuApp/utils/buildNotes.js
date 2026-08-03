@@ -20,6 +20,7 @@ const BUILD_NOTES = {
       'The cube turns all the way over, so yellow-up — the usual Roux hold — is one drag away',
       'Set start locks that hold in, and every move you write is relative to it',
       'Start view is the shortcut back to the hold you picked, however far you have turned away',
+      'Set start no longer moves the cube: it stays exactly where you turned it to',
       'Then the move pad opens, with the cube starting from the scramble in your chosen hold',
       'Twelve keys — U D L R F B, M, r, l, x y z — with ’ and 2 armed before the move they apply to',
       'Every move you enter turns the cube as you enter it, at whatever speed the chip is set to',

@@ -570,11 +570,44 @@ Three things about it are worth not rediscovering:
   would still turn the face the *model* calls R, not the one now on the right of
   the screen. So the angle is converted to rotations, applied, and the camera
   goes back to the default.
-- **The angle is thrown away and only the hold is kept.** There are 24 holds and
-  infinitely many angles to look at one from, so setting one is a visible jump
-  back to the standard three-quarter view — deliberately. Inspecting from
-  directly overhead is a fine way to decide "blue up, white front" and a bad way
-  to look at a cube you are about to solve.
+- ~~**The angle is thrown away and only the hold is kept.**~~ **Half reversed on
+  2026-08-03, and it is the second time a Step 5 judgement has not survived use.**
+  There are 24 holds and infinitely many angles to look at one from, so only the
+  hold is *stored* — that part stands, and the angle is still not in the save
+  file. What did not stand is the **jump**: setting a hold sent the camera back
+  to the standard three-quarter view, deliberately, on the grounds that
+  inspecting from directly overhead is a fine way to decide "blue up, white
+  front" and a bad way to look at a cube you are about to solve. The operator's
+  verdict after using it: *"when locking it in, can we remember the exact
+  position of the cube. It currently repositions."*
+
+  They are right, and the reasoning was subtly wrong rather than merely
+  unpopular. **The angle you turned the cube to is information** — it is the
+  view you decided you wanted to solve from, arrived at by hand — and throwing
+  all of it away to avoid the bad part threw away the good part with it.
+
+  `orientation.viewAfterHold` keeps the picture instead. Baking the hold is a
+  rotation `R` on the model, so a camera `C` showing `C(M)` becomes `C · R⁻¹` to
+  show the same picture of `R(M)`. `C` is yaw-then-pitch with no roll, so
+  `C · R⁻¹` is not always in reach — **but it is far more often than you would
+  guess.** Over a 15° sweep of every angle a finger can reach, more than half
+  come back *pixel-exact*, and the camera is never left further from the picture
+  than the old jump left it. Every ordinary inspection angle tried is exact,
+  including turning the cube right over for the traditional yellow-up Roux hold,
+  which is the angle the old behaviour moved furthest.
+
+  When it cannot be exact, what is lost is the **roll** — the component that
+  would have left the cube sitting at a tilt. That is the one part of an
+  inspection angle worth discarding, so the approximation fails in the right
+  direction, and the original argument survives inside the fix. A camera roll
+  axis would make it exact everywhere and is still the change to make if colour
+  neutrality lands; it is not needed for this.
+
+  **`Start view` had to change with it.** It used to be the plain reset, because
+  the view you chose and the default view were the same thing. They are not any
+  more, so it returns to the angle Set start left the cube at — held in screen
+  state, tagged with the solve it belongs to, and falling back to the default
+  after a cold start, because the angle is still not in the file.
 - **Front must be chosen among the faces perpendicular to up.** Taking "highest
   on screen" and "nearest the camera" as two independent argmaxes returns the
   *same face* for both when you look down a body diagonal — yaw 45°, pitch 45°,
@@ -600,9 +633,12 @@ make **if and when colour neutrality lands**, and not before.
 front", live under the cube as you pan. Nobody inspecting a cube thinks in `z2`,
 and reading colours off a 120-point cube is guesswork.
 
-Because the hold is baked into the model, **"the view I chose" and "the default
-view" become the same thing** — so the shortcut back to it is the reset that
-already existed, under the name it now deserves (`Start view`).
+~~Because the hold is baked into the model, "the view I chose" and "the default
+view" become the same thing.~~ **Not since 2026-08-03**: the camera stays where
+you left it, so `Start view` goes back to the angle you set from rather than to
+the opening one. It is no longer the same button as `Reset view`, and the two
+now differ in solve mode by exactly the amount the operator panned before
+tapping Set start.
 
 **Locked once the solve has moves** (operator, 2026-08-02): re-orienting under
 moves already written would silently change what every one of them does.

@@ -507,6 +507,53 @@ never touch.
 above. The browser is where this step's evidence lives, and it is not where the
 step's worst bug was. Look at it on a device.
 
+### **Step 7a — the hold stops moving the cube** ✅ *(2026-08-03)*
+
+A follow-on to Step 7, from the operator using it: *"when setting the
+orientation, when locking it in, can we remember the exact position of the cube.
+It currently repositions."*
+
+Step 5 sent the camera back to the opening angle on **Set start**, on the
+grounds that there are 24 holds and infinitely many angles to look at one from,
+and inspecting from directly overhead is a bad way to look at a cube you are
+about to solve. Sound, and it threw away the good part with the bad: **the angle
+you turned the cube to is information** — it is the view you decided you wanted
+to solve from, arrived at by hand.
+
+`orientation.viewAfterHold(yaw, pitch)` keeps the picture. Baking the hold is a
+rotation `R` on the model, so a camera `C` becomes `C · R⁻¹` to show the same
+picture of `R(M)`. The camera is yaw-then-pitch with no roll so that is not
+always reachable — **but more than half of every angle a finger can reach comes
+back pixel-exact, the camera is never left further from the picture than the old
+jump left it, and every ordinary inspection angle tried is exact**, including
+turning the cube right over for the yellow-up Roux hold, which is the one the old
+behaviour moved furthest. What is lost when it cannot be exact is the *roll* —
+the component that would leave the cube at a tilt, which is the one part worth
+discarding. Plan §8.3 has the whole argument.
+
+**`Start view` changed with it.** It used to be the plain reset, because the view
+you chose and the default view were the same thing. Now it returns to the angle
+Set start left the cube at, held in screen state and tagged with the solve it
+belongs to — so switching pages cannot send it to another solve's angle — and
+falling back to the default after a cold start, because the angle is still not in
+the save file (plan §7.1 is unchanged: the hold is authored, the angle is not).
+
+Two things worth not rediscovering:
+
+- **The hold matrix is read off the pair, not parsed back out of the notation.**
+  A rotation is fixed by where three orthogonal axes go, so "up's normal goes to
+  +y, front's to +z" *is* the rotation, and the third row is `up × front`.
+- **`Start view` is not offered while the solve is empty** — the header shows
+  Re-orient there instead, which is the right control while the hold can still
+  be changed. A driver has to write a move before it can test the button.
+
+Verified with `npm test` (756, 4 of them new: exact at the opening view, exact at
+eight real inspection angles, and a sweep proving the new camera is never further
+from the picture than the old jump), plus a `hold.js` driver that drags the cube
+to four real angles, reads **every polygon the renderer emitted** before and
+after Set start, and measures how far the picture moved: three of four are 0.0pt,
+the fourth is 35.8pt against a snap that used to be most of a face.
+
 ### **Step 6 — annotate the move groups** ✅ *(2026-08-02)*
 
 Shipped: **a solve has structure, and the structure has counts.** Finish your

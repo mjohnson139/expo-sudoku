@@ -30,6 +30,7 @@ import {
   describeOrientation,
   describeOrientationSentence,
   orientationAt,
+  viewAfterHold,
 } from './orientation';
 import { randomScramble } from './scramble';
 import {
@@ -178,6 +179,21 @@ const CubeScreen = ({ onExitToHub }) => {
   // new scramble nor coming back tomorrow means they wanted to move.
   const [yaw, setYaw] = useState(DEFAULT_YAW);
   const [pitch, setPitch] = useState(DEFAULT_PITCH);
+
+  /**
+   * The angle **Set start** left the cube at, and which solve it was set for.
+   *
+   * Transient, like the angle itself (plan §7.1) — what is *authored* is the
+   * hold, and the hold is stored. This only has to survive until the operator
+   * pans away and taps `Start view`, so that the button goes back to the view
+   * they chose rather than to a default they never asked for.
+   *
+   * Tagged with the solve's id rather than reset by every callback that could
+   * invalidate it: switching pages, loading a favorite and starting a new solve
+   * would each have to remember to clear it, and the one that forgot would send
+   * `Start view` to another solve's angle.
+   */
+  const [chosenView, setChosenView] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -435,9 +451,16 @@ const CubeScreen = ({ onExitToHub }) => {
   const setStartingOrientation = useCallback(() => {
     pause();
     editOpen({ orientation: orientationAt(yaw, pitch) });
-    setYaw(DEFAULT_YAW);
-    setPitch(DEFAULT_PITCH);
-  }, [pause, editOpen, yaw, pitch]);
+    // Where the camera has to stand to keep showing what it is showing, now
+    // that the hold has been turned into the model underneath it. Usually that
+    // is exactly the angle the operator was already at, and the picture does not
+    // move at all; see `viewAfterHold` for when it cannot be, and why the part
+    // it gives up is the part worth giving up.
+    const view = viewAfterHold(yaw, pitch);
+    setYaw(view.yaw);
+    setPitch(view.pitch);
+    setChosenView({ id: openId, ...view });
+  }, [pause, editOpen, yaw, pitch, openId]);
 
   // Back to inspection. Only offered while the solve is empty: re-orienting
   // under moves that are already written would silently change what every one
@@ -526,14 +549,24 @@ const CubeScreen = ({ onExitToHub }) => {
     [renamingId, endRename]
   );
 
-  // The shortcut back to the hold you picked. Because the orientation is baked
-  // into the model rather than left in the camera, "the view I chose" and "the
-  // default view" are the same thing — so this is the reset that already
-  // existed, under the name it now deserves.
+  /**
+   * The shortcut back to the hold you picked — and, since 2026-08-03, back to
+   * the *angle* you picked it from.
+   *
+   * Step 5 could make this the plain reset, because setting a hold sent the
+   * camera to the default and so "the view I chose" and "the default view" were
+   * the same thing. They are not any more: Set start leaves the camera where it
+   * was, so this has to go back there rather than to the opening angle.
+   *
+   * Falling back to the default is the honest answer when there is nothing
+   * remembered — after a cold start, the hold comes back from the file and the
+   * angle deliberately does not.
+   */
   const startView = useCallback(() => {
-    setYaw(DEFAULT_YAW);
-    setPitch(DEFAULT_PITCH);
-  }, []);
+    const chosen = chosenView && chosenView.id === openId ? chosenView : null;
+    setYaw(chosen ? chosen.yaw : DEFAULT_YAW);
+    setPitch(chosen ? chosen.pitch : DEFAULT_PITCH);
+  }, [chosenView, openId]);
 
   // A key is the armed modifier plus the letter, and the arming is spent — one
   // move, then back to plain. Holding it would mean a `'` left armed silently
