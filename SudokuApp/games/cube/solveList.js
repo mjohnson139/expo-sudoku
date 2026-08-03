@@ -31,9 +31,26 @@
  *   by clock or dice, so the file is deterministic and so are the tests.
  * - **`orientation`** is the hold, as a rotation prefix — `null` while it is
  *   still being inspected, `''` for the reference hold, otherwise notation.
- * - **`phases`** is Step 6's slot (plan §8.5), and **nothing writes one yet**.
- *   It is in the file now because the alternative is reshaping the file twice
- *   and writing two migrations.
+ * - **`phases`** is the annotation on the move groups (plan §8.5) — *"these
+ *   moves solve first block, this set solves second block"*. Step 4 put the
+ *   field in the file and Step 6 filled it in, which is the whole point of
+ *   deciding the shape once.
+ *
+ * ### Phases are markers, not ranges (plan §8.5)
+ *
+ * A phase is `{ at, label }` — **the move index the group starts at** — and the
+ * spans fall out of consecutive markers. Storing a start *and* an end invites
+ * the two to disagree, and every edit would have to keep both honest; storing a
+ * count alongside would be the same mistake, which is why `phaseSpans` derives
+ * one by subtraction and nothing writes one down.
+ *
+ * The one invariant is that **a marker points at a move index the solve
+ * actually reaches**. Moves are still being written while markers exist — undo
+ * takes one away, clear takes them all — so `clampPhases` is the single answer
+ * to "what happens to the markers when the moves change", and both the screen
+ * (live, via `withMoves`) and storage (on the way back in, via `sanitizeSolves`)
+ * go through it. Two answers to that question is two ways for the file and the
+ * screen to disagree.
  */
 
 import { isValidAlg, moveCount, normalizeAlg } from './moves';
@@ -50,8 +67,9 @@ export const MAX_SOLVES = 100;
 export const MAX_SOLVE_NAME = 40;
 
 /** Ceiling on the annotations a single solve may carry, so a corrupt file cannot
- *  hand Step 6 an unbounded list. */
-const MAX_PHASES = 40;
+ *  hand the screen an unbounded list. A solve with forty groups in it is not a
+ *  solve anyone is annotating. */
+export const MAX_PHASES = 40;
 
 /** A name, as it is kept: single-spaced, trimmed, and bounded. */
 export const normalizeName = (name) =>
@@ -225,29 +243,216 @@ export const renameSolve = (solves, id, name) => {
   return updateSolve(list, id, { name: uniqueName(wanted, taken) });
 };
 
+// ——— Phases: annotating the move groups (plan §8.5) ————————————————————————
+
+/**
+ * The method's own vocabulary, offered a tap at a time.
+ *
+ * *"These moves solve first block. This set solves second block."* Those are the
+ * names, and typing them on a phone is the thing that would stop anyone doing
+ * it — so the two methods this app is likely to see are spelled out and a label
+ * is one tap. Free text is the escape hatch, not the primary route.
+ *
+ * Roux comes first because it is what the operator is drilling (plan §8.2).
+ */
+export const PHASE_METHODS = [
+  { name: 'Roux', labels: ['First block', 'Second block', 'CMLL', 'LSE'] },
+  { name: 'CFOP', labels: ['Cross', 'F2L', 'OLL', 'PLL'] },
+];
+
+/** What a group with no name yet is called — the moves written since the last
+ *  marker, which is a real span with a real count and simply has not been
+ *  closed. */
+export const UNNAMED_PHASE = 'In progress';
+
+/**
+ * Markers, brought into shape against a solve of `count` moves.
+ *
+ * **The one place the invariant lives.** A marker past the end of the solve
+ * points at nothing, so it goes; two markers at one index are one boundary, so
+ * they merge; and the list comes back sorted, because every reader downstream
+ * assumes consecutive markers bound consecutive spans.
+ *
+ * Undo is what makes this a live concern rather than a storage one: the marker
+ * that closed the first block sits at the index of a move that an undo has just
+ * removed. Dropping it is the honest answer — the move that ended the group is
+ * gone, so the group is open again — and it is the same answer the file gives
+ * when it is read back, which is the point of there being one function.
+ */
+export const clampPhases = (phases, count) => {
+  const limit = Number.isInteger(count) && count > 0 ? count : 0;
+  const byIndex = new Map();
+
+  (phases || []).forEach((phase) => {
+    if (!phase || typeof phase !== 'object') return;
+    if (!Number.isInteger(phase.at) || phase.at < 0 || phase.at > limit) return;
+    if (byIndex.has(phase.at)) return;
+    byIndex.set(phase.at, { at: phase.at, label: normalizeName(phase.label) });
+  });
+
+  return [...byIndex.values()].sort((a, b) => a.at - b.at).slice(0, MAX_PHASES);
+};
+
+/**
+ * Where the group of moves that *ends* at `at` begins.
+ *
+ * The last boundary strictly before `at`, or the start of the solve. This is
+ * what makes "end the phase here" a one-control interaction: the start is
+ * already known, so all the operator supplies is the name.
+ *
+ * **Strictly before, and that is what makes a mis-tap fixable.** With a boundary
+ * already sitting exactly where the cube is — the one the last "end the phase"
+ * left — this still answers with the group behind it, so naming again *renames*
+ * that group rather than refusing. The alternative reading dead-ends: bin a
+ * marker, and the group it left behind could never be named again without
+ * writing another move.
+ */
+export const openPhaseStart = (phases, at) => {
+  let start = 0;
+  (phases || []).forEach((phase) => {
+    if (phase && Number.isInteger(phase.at) && phase.at < at && phase.at > start) {
+      start = phase.at;
+    }
+  });
+  return start;
+};
+
+/** Whether a boundary already sits at `at` — so naming is a rename of the group
+ *  ending there rather than the closing of a new one. The screen says which of
+ *  the two it is doing rather than leaving the operator to infer it. */
+export const isPhaseBoundary = (phases, at) =>
+  (phases || []).some((phase) => phase && phase.at === at);
+
+/**
+ * Close the group that ends at `at`, and name it.
+ *
+ * **Mark as you go** (plan §8.5): the moment you know the first block is done is
+ * the moment you say so, and selecting a range afterwards is a second
+ * interaction for the same information. So this writes *two* markers — the name
+ * onto the boundary the group started at, and a fresh unnamed boundary at `at`
+ * where the next group begins.
+ *
+ * The second one is not bookkeeping that could be left out. Without it the
+ * named group's span would run to the end of the solve, and "First block · 8"
+ * would quietly become "First block · 12" as the second block was written.
+ *
+ * **Naming a group that is already closed renames it**, because the boundary at
+ * `at` is already there and only the label is left to write. That is the way out
+ * of a mis-tapped name, and it is why the group ending at `at` is found by
+ * looking strictly before it.
+ *
+ * Returns the markers unchanged when there is nothing to name — no moves in the
+ * group, no name, or a position the solve does not reach. Unchanged in value
+ * rather than in identity: what comes back is always the clamped list, because a
+ * refusal is not a reason to hand back a marker that points at nothing.
+ */
+export const endPhase = (phases, at, label, count) => {
+  const list = clampPhases(phases, count);
+  const name = normalizeName(label);
+  const total = Number.isInteger(count) && count > 0 ? count : 0;
+
+  if (name.length === 0) return list;
+  if (!Number.isInteger(at) || at <= 0 || at > total) return list;
+  if (list.length >= MAX_PHASES) return list;
+
+  const start = openPhaseStart(list, at);
+  if (start === at) return list;
+
+  const named = [...list.filter((phase) => phase.at !== start), { at: start, label: name }];
+  const closed = named.some((phase) => phase.at === at)
+    ? named
+    : [...named, { at, label: '' }];
+
+  return clampPhases(closed, total);
+};
+
+/**
+ * Forget one marker.
+ *
+ * The two groups either side of it become one, which is what removing a boundary
+ * means — and it is the way out of a mis-tapped name, since the alternative
+ * would be clearing a solve to fix its annotation.
+ */
+export const removePhase = (phases, at) => {
+  const list = phases || [];
+  const next = list.filter((phase) => phase.at !== at);
+  return next.length === list.length ? list : next;
+};
+
+/**
+ * The spans the markers describe: `[{ at, end, label, count }]`.
+ *
+ * **The counts are a subtraction and must stay one** (plan §8.5) — "first block
+ * in 8" versus "first block in 12" is exactly what a Roux learner is trying to
+ * improve, and a count stored next to a marker would be a second thing to keep
+ * honest on every edit.
+ *
+ * `end` is exclusive, so a span covers moves `at + 1` through `end` as the
+ * operator counts them, and the last span runs to the end of the solve. A file
+ * whose first marker is not at 0 gets an unnamed span in front of it rather than
+ * a hole; nothing this screen writes can produce one, and a hole would be a
+ * missing move count.
+ */
+export const phaseSpans = (phases, count) => {
+  const total = Number.isInteger(count) && count > 0 ? count : 0;
+  const marks = clampPhases(phases, total);
+  if (marks.length === 0) return [];
+
+  const starts = marks[0].at === 0 ? marks : [{ at: 0, label: '' }, ...marks];
+
+  return starts.map((mark, i) => {
+    const end = i + 1 < starts.length ? starts[i + 1].at : total;
+    return { at: mark.at, end, label: mark.label, count: end - mark.at };
+  });
+};
+
+/** Which span the cube is standing in, by index — the move just played belongs
+ *  to it. `-1` when there are no spans. Position 0 is the first one: you are at
+ *  the start of it rather than before everything. */
+export const currentSpan = (spans, index) => {
+  if (!spans || spans.length === 0) return -1;
+  if (index <= 0) return 0;
+  const found = spans.findIndex((span) => index > span.at && index <= span.end);
+  return found === -1 ? spans.length - 1 : found;
+};
+
+/** `"First block · 8"` — a span on a chip. */
+export const describePhaseSpan = (span) =>
+  `${(span && span.label) || UNNAMED_PHASE} · ${(span && span.count) || 0}`;
+
+/** The same span said out loud, with the moves it covers — which is the part a
+ *  chip has no room for and a screen reader has all the room in the world for. */
+export const announcePhaseSpan = (span) => {
+  const name = (span && span.label) || UNNAMED_PHASE;
+  const count = (span && span.count) || 0;
+  if (count === 0) return `${name}, no moves yet`;
+  if (count === 1) return `${name}, 1 move, move ${span.at + 1}`;
+  return `${name}, ${count} moves, ${span.at + 1} to ${span.end}`;
+};
+
+/**
+ * The patch that changes a solve's moves — **and the only way the screen should
+ * change them.**
+ *
+ * Every edit to the text is also an edit to the markers, because a marker is an
+ * index into the list being edited. Routing both through one patch is what keeps
+ * the screen's answer and `sanitizeSolves`' answer the same answer.
+ */
+export const withMoves = (solve, alg) => ({
+  alg,
+  phases: clampPhases(solve && solve.phases, moveCount(alg)),
+});
+
 /**
  * A stored phase list, brought into shape (plan §8.5).
  *
- * Nothing writes one yet, and it is sanitized anyway: the slot exists precisely
- * so that the first build which *does* write phases finds the field already
- * there, and the first build to read one written by a later version has to
- * survive it.
+ * Storage is the boundary where a file written by an older build — or a newer
+ * one, or a corrupt one — comes back in, and this is `clampPhases` doing exactly
+ * what it does live on the screen. Deliberately the same function: "the marker
+ * survived the reload but not the undo" is the class of bug two implementations
+ * of one rule produce.
  */
-const sanitizePhases = (raw, count) => {
-  if (!Array.isArray(raw)) return [];
-
-  return raw
-    .filter(
-      (phase) =>
-        phase &&
-        typeof phase === 'object' &&
-        Number.isInteger(phase.at) &&
-        phase.at >= 0 &&
-        phase.at <= count
-    )
-    .map((phase) => ({ at: phase.at, label: normalizeName(phase.label) }))
-    .slice(0, MAX_PHASES);
-};
+const sanitizePhases = (raw, count) => (Array.isArray(raw) ? clampPhases(raw, count) : []);
 
 /**
  * A hold, brought into shape.
@@ -354,6 +559,8 @@ export const describeSolveSize = (solve) => {
 
 export default {
   MAX_SOLVES,
+  MAX_PHASES,
+  PHASE_METHODS,
   createSolve,
   duplicateSolve,
   removeSolve,
@@ -364,4 +571,14 @@ export default {
   sanitizeSolves,
   sanitizeWorkspace,
   describeSolveSize,
+  clampPhases,
+  openPhaseStart,
+  isPhaseBoundary,
+  endPhase,
+  removePhase,
+  phaseSpans,
+  currentSpan,
+  describePhaseSpan,
+  announcePhaseSpan,
+  withMoves,
 };
