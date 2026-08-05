@@ -50,7 +50,7 @@ const BUILD_NOTES = {
       'Holding fills a line across the key so you can see the prime coming; let go early, or slide off, and nothing is written',
       'The ’ key lights up the moment a hold turns into a prime, so you can see it even with your thumb on the key',
       'Tap ’ and the whole pad relabels itself — every key reads R’, U’, M’ — so you can see what the next tap will do',
-      'Tap the same key twice for a half turn: R then R is one R2, never two moves',
+      'Tap the same key twice for a half turn: R then R is one R2, never two moves — and the cube keeps turning through the second quarter rather than jumping to it',
       'E and S are on the pad at last, in the room the ’ and 2 keys used to take up',
       'Four colours group the keys — faces, slices, wide turns, rotations — and the flag is the one key in red',
       'The five transport buttons are redrawn as one family, with play the only round one',

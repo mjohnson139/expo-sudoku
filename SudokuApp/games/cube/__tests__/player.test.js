@@ -20,6 +20,7 @@ import {
   describeSpeed,
   ease,
   extendsAlg,
+  promotedTurn,
   gapDuration,
   nextSpeed,
   turnDuration,
@@ -355,5 +356,67 @@ describe('announcePosition', () => {
     expect(announcePosition(8, 8, 'solve')).toBe('End of the solve, all 8 moves played');
     expect(announcePosition(0, 0, 'solve')).toBe('No moves entered yet');
     expect(announcePosition(3, 8, 'solve')).toBe('After move 3 of 8');
+  });
+});
+
+describe('promotedTurn', () => {
+  // The pad's second tap: `R` becomes `R2` in place, and the cube is already a
+  // quarter of the way through the half turn it has just become.
+  it('spots the last move growing from a quarter to a half turn', () => {
+    expect(promotedTurn('R U R', 'R U R2', 3)).toEqual({ at: 2, turns: 2 });
+  });
+
+  it('is null for an ordinary append', () => {
+    expect(promotedTurn('R U', 'R U F', 2)).toBeNull();
+  });
+
+  it('is null when an earlier move changed', () => {
+    // Everything the cube has already been through has to be untouched, or
+    // carrying on from here would be carrying on from the wrong cube.
+    expect(promotedTurn('R U R', 'R D R2', 3)).toBeNull();
+  });
+
+  it('is null for a different face, even at the right place', () => {
+    expect(promotedTurn('R U R', 'R U F2', 3)).toBeNull();
+  });
+
+  it('is null when the move was already a half turn', () => {
+    expect(promotedTurn('R U R2', 'R U R2', 3)).toBeNull();
+  });
+
+  it('carries on from a prime too, which is what makes it a rule and not a case', () => {
+    // The pad cannot reach this — `promoteLastToken` only promotes a bare `R` —
+    // but the geometry is the same question and has the same answer: `R'` sits
+    // at −90°, so the sweep continues anticlockwise to −180°, which is where
+    // `R2` lands. Step 9 edits a solve's text directly and will meet it.
+    expect(promotedTurn("R U R'", 'R U R2', 3)).toEqual({ at: 2, turns: -2 });
+  });
+
+  it('does not confuse a wide turn with its face', () => {
+    expect(promotedTurn('r', 'R2', 1)).toBeNull();
+    expect(promotedTurn('r', 'r2', 1)).toEqual({ at: 0, turns: 2 });
+  });
+
+  it('carries on the way the first quarter went', () => {
+    // **The whole reason the sweep is signed.** `D` carries `amount: 3` and
+    // turns anticlockwise; `D2` carries `2` and would animate clockwise, so a
+    // naive continuation would snap the layer 180° and then turn.
+    expect(promotedTurn('D', 'D2', 1)).toEqual({ at: 0, turns: -2 });
+    expect(promotedTurn('L', 'L2', 1)).toEqual({ at: 0, turns: -2 });
+    expect(promotedTurn('B', 'B2', 1)).toEqual({ at: 0, turns: -2 });
+    expect(promotedTurn('U', 'U2', 1)).toEqual({ at: 0, turns: 2 });
+  });
+
+  it('ignores moves past where the cube is standing', () => {
+    // They have not been played, so whether they changed cannot matter.
+    expect(promotedTurn('R U F', 'R2 U F', 1)).toEqual({ at: 0, turns: 2 });
+  });
+
+  it('has nothing to say about text it cannot read', () => {
+    expect(promotedTurn('not notation', 'R2', 1)).toBeNull();
+  });
+
+  it('is null at the start of an algorithm, where there is no last move', () => {
+    expect(promotedTurn('', 'R2', 0)).toBeNull();
   });
 });

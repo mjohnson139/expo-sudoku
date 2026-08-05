@@ -251,6 +251,89 @@ describe('turnAngle', () => {
   it('is exactly zero before a turn starts', () => {
     expect(turnAngle(3, 0)).toBe(0);
   });
+
+  describe('with a signed sweep, for a promotion carrying on mid-turn', () => {
+    // `R` then `R` on the pad grows the token to `R2` while the cube is already
+    // a quarter of the way through it. The continuation is only seamless if the
+    // half turn travels the way the quarter turn went — see `promotedTurn`.
+    it('starts the second half exactly where the first quarter finished', () => {
+      // `R`: amount 1, and `+2` sweeps the same way.
+      expect(turnAngle(2, 0.5, 2)).toBeCloseTo(turnAngle(1, 1), 12);
+      // `D`: amount 3, turning the other way — `-2` is what keeps it seamless,
+      // and the default `+2` is a 180° jump away from where the cube is.
+      expect(turnAngle(2, 0.5, -2)).toBeCloseTo(turnAngle(3, 1), 12);
+      expect(turnAngle(2, 0.5)).not.toBeCloseTo(turnAngle(3, 1), 6);
+    });
+
+    it('lands a half turn either way round', () => {
+      // ±180° are the same permutation, so the sign changes the journey and
+      // never the destination.
+      expect(Math.abs(turnAngle(2, 1, 2))).toBeCloseTo(Math.PI, 12);
+      expect(Math.abs(turnAngle(2, 1, -2))).toBeCloseTo(Math.PI, 12);
+    });
+
+    it('is the plain short way when no sweep is given', () => {
+      expect(turnAngle(3, 0.4)).toBe(turnAngle(3, 0.4, undefined));
+      expect(turnAngle(3, 0.4)).toBeCloseTo(turnAngle(3, 0.4, shortWay(3)), 12);
+    });
+  });
+});
+
+describe('a promotion carrying on mid-turn', () => {
+  // **The invariant, stated exactly.** Halfway through a half turn swept the
+  // way its quarter turn went, every point is where the quarter turn left it.
+  // This is what makes the second quarter of an `R2` a continuation rather than
+  // a snap, and it is worth pinning here rather than sampling in a browser: the
+  // continuation lasts about 130ms, which is shorter than it takes to ask a
+  // headless page what it is drawing.
+  const CORNERS = [
+    [1, 1, 1],
+    [1, -1, 1],
+    [-1, 1, 1],
+    [1, 1, -1],
+    [0, 1, 1],
+    [1, 0, -1],
+  ];
+
+  // Every quarter turn the pad can promote, on each axis, both directions —
+  // `R`/`U`/`F` carry 1 and `D`/`L`/`B` carry 3.
+  const QUARTERS = [
+    ['R', AXIS.x, 1],
+    ['L', AXIS.x, 3],
+    ['U', AXIS.y, 1],
+    ['D', AXIS.y, 3],
+    ['F', AXIS.z, 1],
+    ['B', AXIS.z, 3],
+  ];
+
+  it.each(QUARTERS)('starts %s2 exactly where %s left the cube', (name, axis, amount) => {
+    const turns = 2 * shortWay(amount);
+    CORNERS.forEach((v) => {
+      const halfway = partialTurn(v, axis, 2, 0.5, turns);
+      const quarter = rotateQuarter(v, axis, amount);
+      halfway.forEach((coord, i) => expect(coord).toBeCloseTo(quarter[i], 10));
+    });
+  });
+
+  it.each(QUARTERS)('and still lands %s2 exactly where the model puts it', (name, axis) => {
+    CORNERS.forEach((v) => {
+      const turns = 2 * shortWay(1);
+      // `t = 1` hands off to the integer path, so the sign cannot move the
+      // landing — only the journey.
+      expect(partialTurn(v, axis, 2, 1, turns)).toEqual(rotateQuarter(v, axis, 2));
+      expect(partialTurn(v, axis, 2, 1, -turns)).toEqual(rotateQuarter(v, axis, 2));
+    });
+  });
+
+  it('would snap without the signed sweep, which is the bug it fixes', () => {
+    // The default `+2` sweep put a `D2` on the opposite side of the cube from
+    // the `D` it grew from — 180° away — so the layer jumped before it turned.
+    const v = [1, 1, 1];
+    const naive = partialTurn(v, AXIS.y, 2, 0.5);
+    const whereTheCubeIs = rotateQuarter(v, AXIS.y, 3);
+    const apart = Math.hypot(...naive.map((c, i) => c - whereTheCubeIs[i]));
+    expect(apart).toBeGreaterThan(1);
+  });
 });
 
 describe('partialTurn', () => {

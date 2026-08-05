@@ -7,6 +7,7 @@ import {
   extendsAlg,
   gapDuration,
   nextSpeed,
+  promotedTurn,
   turnDuration,
 } from './player';
 
@@ -49,6 +50,15 @@ import {
  * told apart by `extendsAlg`, asked at **where the cube currently is**: if the
  * new algorithm still says what the old one said everywhere the cube has been,
  * the cube *walks* to its new end rather than jumping to it.
+ *
+ * ### And there is a third kind: growing a move already on the cube
+ *
+ * The pad's second tap turns `R` into `R2` **in place**. That is neither a
+ * growth nor a replacement — the token the cube is standing on is the one that
+ * changed — so `extendsAlg` correctly says "replaced" and the reset made the
+ * second quarter of every half turn *appear* rather than turn (operator,
+ * 2026-08-05). `promotedTurn` spots it, and the cube carries on round the rest
+ * of the sweep it is already half-way through instead of snapping to the end.
  *
  * @param {string} alg the algorithm to play — a scramble, or a solve
  * @param {{cubies: Array}} [from] the cube move 1 starts on. A solve starts from
@@ -170,9 +180,16 @@ const useScramblePlayer = (alg, from) => {
    * Backwards is the same move run from `t = 1` down to 0 on the cube *before*
    * it — no inverse move, no second code path, and the frame it lands on is the
    * one the still cube would draw.
+   *
+   * `options.from` starts the sweep part-way through instead of at an end, and
+   * `options.turns` overrides which way round it travels. Both exist for the
+   * **promotion** — the pad's second tap growing `R` into `R2` while the cube is
+   * already a quarter of the way through it — and they are options on this
+   * function rather than a second walk beside it, because a partial turn is
+   * still a turn and one loop is the rule this hook is built on.
    */
   const animate = useCallback(
-    (at, forward, onDone) => {
+    (at, forward, onDone, options) => {
       const move = movesRef.current[at];
       if (!move) {
         if (onDone) onDone();
@@ -181,15 +198,24 @@ const useScramblePlayer = (alg, from) => {
 
       settle();
 
-      const ms = turnDuration(move, rateRef.current);
+      const start = options && Number.isFinite(options.from)
+        ? Math.max(0, Math.min(1, options.from))
+        : forward
+          ? 0
+          : 1;
+      const turns = options ? options.turns : undefined;
+      // Only the part of the sweep still to travel is paid for, or the second
+      // quarter of a half turn would take as long as the whole thing.
+      const span = forward ? 1 - start : start;
+      const ms = Math.max(1, Math.round(turnDuration(move, rateRef.current) * span));
       const started = Date.now();
       pendingRef.current = { at, forward };
-      setTurn({ at, t: forward ? 0 : 1 });
+      setTurn({ at, t: start, turns });
 
       const tick = () => {
         const progress = Math.min(1, (Date.now() - started) / ms);
         const eased = ease(progress);
-        setTurn({ at, t: forward ? eased : 1 - eased });
+        setTurn({ at, t: forward ? start + span * eased : start - span * eased, turns });
 
         if (progress < 1) {
           frameRef.current = requestAnimationFrame(tick);
@@ -377,13 +403,30 @@ const useScramblePlayer = (alg, from) => {
       return;
     }
 
+    // **A promotion is the third thing an algorithm change can be**, and it
+    // looks like a replacement to `extendsAlg` because the token the cube is
+    // standing on is the one that changed. Resetting to it is what made the
+    // second quarter of an `R2` appear rather than turn. Instead, carry the
+    // layer round the rest of the sweep it is already half-way through.
+    const carry =
+      previousAlg !== undefined && previousFrom === from
+        ? promotedTurn(previousAlg, alg, heading)
+        : null;
+
+    if (carry) {
+      goalRef.current = moves.length;
+      setPlaying(false);
+      animate(carry.at, true, undefined, { from: 0.5, turns: carry.turns });
+      return;
+    }
+
     stopClock();
     pendingRef.current = null;
     goalRef.current = moves.length;
     setTurn(null);
     setPlaying(false);
     setIndex(moves.length);
-  }, [alg, from, moves, playTo, setIndex, setPlaying, stopClock]);
+  }, [alg, from, moves, animate, playTo, setIndex, setPlaying, stopClock]);
 
   // Leaving the screen mid-turn must not leave a frame loop running against an
   // unmounted component.

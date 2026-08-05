@@ -465,6 +465,15 @@ in the same session.
   every transition that invalidates one invalidates the other. A new path that
   changes the moves and forgets to call it leaves a `2` or a `′` pointing at
   something that is gone.
+- **A `2` in a solve still plays back as one 180° sweep**, not two quarter turns,
+  and that is deliberate: a half turn is one motion of the hand. Only the
+  *promotion* is split, because there the cube is genuinely already half-way
+  through. If a drill mode ever wants every `R2` shown as two turns, that is a
+  playback decision and belongs in `stepToward`, not in the promotion.
+- **`turnAngle` and `partialTurn` take an optional signed sweep**, and exactly
+  one caller passes it. If a second one appears, check it against the same
+  invariant: the frame it starts on must be the frame the cube is already
+  showing.
 - **The phase counts are per solve and nothing compares them.** Open question 13.
 - **Half turns animate clockwise.** `shortWay(2)` is 2, not −2; both land in the
   same place and nothing prefers one. If a solve tutorial ever wants `R2` to go
@@ -513,6 +522,22 @@ and sent back two corrections, both of the kind only a hand finds:
 pending promotion (arming is a *statement*), a hold does not (a hold is a
 *duration*, and a finger resting a moment too long on the second tap should do
 the harmless thing — `R2'` is `R2`).
+
+**And the promotion never animated its second quarter** — *"the second one
+doesn't seem animated"* — which turned out to be structural. Plan §5 says an
+algorithm change is a growth or a replacement; a promotion is **neither**, because
+it rewrites the token the cube is standing on, so `extendsAlg` correctly called it
+a replacement and the transport reset. Sampling the renderer showed **one
+distinct frame** against seventeen for an ordinary tap. `promotedTurn` is the
+third case and the cube now carries on round the rest of the sweep.
+
+**The sweep is signed, and that is the part to keep.** `shortWay(2)` is `+2`
+whichever way you came, but `D` turns anticlockwise — so continuing a `D2`
+naively puts the layer 180° from where the cube is and it snaps across before
+turning. `turnAngle`/`partialTurn` take an optional signed quarter count for this
+one caller. **None of it shows from the ends**, so it is pinned as exact
+arithmetic in `geometry.test.js`, with a test that the unsigned version lands a
+unit away.
 
 Five things it learned:
 

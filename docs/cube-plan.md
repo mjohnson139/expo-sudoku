@@ -1070,6 +1070,42 @@ the harmless thing (`R2'` is `R2`). That asymmetry is in `applyPadPress`.
 
 So the designed screen costs the cube **49 points**, not 71.
 
+#### A third thing an algorithm change can be (2026-08-05)
+
+**The promotion never animated its second quarter**, and the operator caught it
+the same day: *"the second one doesn't seem animated."* Exactly right, and it is
+worth writing down because the cause is structural rather than careless.
+
+Plan §5 says an algorithm change is one of two things — a **growth** (the pad
+appending, so the cube turns) or a **replacement** (a favorite loading, so the
+cube resets). A promotion is neither: it rewrites the token the cube is
+*standing on*. `extendsAlg` compares tokens up to where the cube is, sees
+`R` become `R2` at that very position, and correctly calls it a replacement — so
+the transport reset, and the cube appeared in its new position. Sampling the
+renderer confirmed it: **one distinct frame across the whole window**, against
+seventeen for an ordinary tap.
+
+`promotedTurn` is the third case, and the fix is to *carry on* rather than reset:
+the cube is already a quarter of the way through the half turn the token just
+became, so the animation runs the back half of that sweep.
+
+**The sweep has to be signed, and that is the part worth not rediscovering.** A
+half turn has no direction of its own — `shortWay(2)` is `+2` whichever way you
+came — but this one does. `D` carries `amount: 3` and turns anticlockwise, while
+`D2` would animate clockwise, so continuing it naively puts the layer 180° from
+where the cube actually is: it would **snap across the cube and then turn**. So
+`turnAngle` and `partialTurn` take an optional signed quarter-turn count, and the
+promotion asks for two quarters *in the direction the first one went*. Landing is
+untouched — ±2 quarter turns are the same permutation, and `t = 1` still hands
+off to the exact integer path.
+
+**None of that is visible from the ends**, which is Step 2's lesson again: `t = 0`
+and `t = 1` are identical whichever way round the sweep goes. It is pinned in
+`geometry.test.js` as exact arithmetic — halfway through the signed sweep equals
+where the quarter turn left the cube, for all six faces — including a test that
+the *unsigned* version lands more than a unit away, so the bug cannot come back
+unnoticed.
+
 #### What building it settled (2026-08-05)
 
 **It shipped as specified**, including the four reconciliations above: the fixed
