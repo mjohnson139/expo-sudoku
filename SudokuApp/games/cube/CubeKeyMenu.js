@@ -2,12 +2,19 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { ALG_FONT } from './algText';
 
-/** The two things a modifier can be. Order is left-to-right on the menu. */
-export const MENU_OPTIONS = ["'", '2'];
+/**
+ * What the menu offers, left to right. **The plain move is the first of them**,
+ * and that is the accent picker's own rule rather than a flourish: hold `e` on
+ * an iOS keyboard and `e` itself is in the popup, selected, so the thing you
+ * will get if you let go now is always the thing that is lit. Without it a hold
+ * shows you two options, neither highlighted, and gives you a third token you
+ * were never shown.
+ */
+export const MENU_OPTIONS = ['', "'", '2'];
 
 /** How the menu is drawn. Exported so the pad can hit-test against it without
  *  either file guessing at the other's numbers. */
-export const OPTION_WIDTH = 52;
+export const OPTION_WIDTH = 50;
 export const OPTION_HEIGHT = 44;
 export const MENU_PADDING = 4;
 export const MENU_HEIGHT = OPTION_HEIGHT + MENU_PADDING * 2;
@@ -37,7 +44,7 @@ export const MENU_LIFT = 8;
  * Purely presentational: where it sits and what is under the finger are the
  * pad's business, because the pad owns the gesture.
  */
-const CubeKeyMenu = ({ left, top, active, accent, palette }) => (
+const CubeKeyMenu = ({ left, top, active, label, accent, palette }) => (
   <View
     pointerEvents="none"
     style={[
@@ -53,20 +60,19 @@ const CubeKeyMenu = ({ left, top, active, accent, palette }) => (
     {MENU_OPTIONS.map((option, i) => {
       const live = i === active;
       return (
-        <View
-          key={option}
-          style={[
-            styles.option,
-            live && { backgroundColor: accent },
-          ]}
-        >
+        <View key={option || 'plain'} style={[styles.option, live && { backgroundColor: accent }]}>
           <Text
             style={[
               styles.optionText,
+              // The plain move is the key's own letter, so the menu reads
+              // `R  R′  R2` rather than asking anyone to hold three glyphs and
+              // a key in their head at once.
+              option === '' && styles.plainText,
               { color: live ? '#ffffff' : palette.tone('face').ink },
             ]}
+            numberOfLines={1}
           >
-            {option === "'" ? '′' : option}
+            {option === '' ? label : `${label}${option === "'" ? '′' : option}`}
           </Text>
         </View>
       );
@@ -101,8 +107,11 @@ const styles = StyleSheet.create({
   },
   optionText: {
     fontFamily: ALG_FONT,
-    fontSize: 24,
+    fontSize: 19,
     fontWeight: '700',
+  },
+  plainText: {
+    fontSize: 19,
   },
 });
 

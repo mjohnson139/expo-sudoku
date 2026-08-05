@@ -10,9 +10,19 @@ Branch: `claude/cube-accessory-menu-experiment`, cut from
 ## What it does
 
 **Tap a key** for the plain move. **Press and hold** and a small menu opens
-*above* the key with `′` and `2`; slide onto one and release to write it. Release
-anywhere else — including without moving — and you get the plain move, so a hold
-you thought better of still writes what a tap would have.
+*above* the key reading `R  R′  R2`; slide onto one and release to write it.
+
+It is the iOS keyboard's accent picker, down to the detail that matters most:
+**the plain move is in the menu and lit from the moment it opens.** Hold `e` on a
+phone and `e` itself is in the popup, selected — so the thing you get by letting
+go now is always the thing that is highlighted. The first cut left nothing lit
+until you slid onto a modifier, which meant a hold showed you two options and
+gave you a third token you were never shown. Sliding off the menu returns the
+highlight to the plain move rather than to a separate unlit path that happens to
+agree with it.
+
+The options spell whole tokens — `R′`, not a bare `′` — so nothing asks you to
+hold a glyph and a key in your head at once.
 
 That is the whole interaction. One gesture, both modifiers.
 
@@ -45,7 +55,8 @@ being somewhere else on the pad.
    threshold, and a menu appearing may want longer than a prime committing.
 3. **Does the menu land where your thumb expects it?** It is centred over the
    key and clamped to the pad, so on the first and last columns it sits off to
-   one side.
+   one side. The real accent picker also *reorders* its options at the edges;
+   this does not.
 4. **The top row opens over the scrubber.** There is nowhere else for it to go,
    and it currently covers the jump-to-start button while it is open. Acceptable?
 5. **Is losing the second-tap promotion a loss?** `R` `R` → `R2` was quick once

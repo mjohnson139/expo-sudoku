@@ -75,7 +75,10 @@ const CubeMovePad = ({ canUndo, canPhase, accent, theme, onKey, onUndo, onType, 
   // The key the menu belongs to, or null. Separate from `pressed` because the
   // finger leaves the key as soon as it slides up onto the menu.
   const [menuKey, setMenuKey] = useState(null);
-  const [option, setOption] = useState(-1);
+  // Which menu option is lit. **0 — the plain move — not −1**, because the
+  // accent picker always has something selected and it starts on the base
+  // character. There is no "nothing chosen" state to fall out of.
+  const [option, setOption] = useState(0);
 
   // Where every cell is, in the pad's own coordinates. Filled by `onLayout` and
   // read by the hit test, so nothing here assumes a key width — the pad is
@@ -100,7 +103,7 @@ const CubeMovePad = ({ canUndo, canPhase, accent, theme, onKey, onUndo, onType, 
   const repeatTick = useRef(null);
   // The gesture's own copy of what the render is showing. The responder
   // callbacks outlive the render that created them, so they cannot read state.
-  const live = useRef({ cell: null, menu: false, option: -1 });
+  const live = useRef({ cell: null, menu: false, option: 0 });
 
   const clearTimers = useCallback(() => {
     if (holdTimer.current) clearTimeout(holdTimer.current);
@@ -115,11 +118,11 @@ const CubeMovePad = ({ canUndo, canPhase, accent, theme, onKey, onUndo, onType, 
 
   const reset = useCallback(() => {
     clearTimers();
-    live.current = { cell: null, menu: false, option: -1 };
+    live.current = { cell: null, menu: false, option: 0 };
     menuRect.current = null;
     setPressed(null);
     setMenuKey(null);
-    setOption(-1);
+    setOption(0);
   }, [clearTimers]);
 
   /** A cell's box in the pad's own coordinates, or null. */
@@ -143,13 +146,20 @@ const CubeMovePad = ({ canUndo, canPhase, accent, theme, onKey, onUndo, onType, 
     [boxOf]
   );
 
-  /** Which menu option is under a point, or −1. */
+  /**
+   * Which menu option is under a point.
+   *
+   * **Falls back to 0 — the plain move — rather than to "none".** Sliding off
+   * the menu and letting go is the accent picker's way of changing your mind,
+   * and it should land on the same token the lit cell is showing rather than on
+   * a separate unlit path that happens to agree with it.
+   */
   const optionAt = useCallback((x, y) => {
     const rect = menuRect.current;
-    if (!rect) return -1;
-    if (y < rect.y - SLOP || y > rect.y + rect.h + SLOP) return -1;
+    if (!rect) return 0;
+    if (y < rect.y - SLOP || y > rect.y + rect.h + SLOP) return 0;
     const inset = x - (rect.x + MENU_PADDING);
-    if (inset < 0 || inset > OPTION_WIDTH * MENU_OPTIONS.length) return -1;
+    if (inset < 0 || inset > OPTION_WIDTH * MENU_OPTIONS.length) return 0;
     return Math.min(MENU_OPTIONS.length - 1, Math.floor(inset / OPTION_WIDTH));
   }, []);
 
@@ -168,9 +178,9 @@ const CubeMovePad = ({ canUndo, canPhase, accent, theme, onKey, onUndo, onType, 
       const top = box.y - MENU_HEIGHT - MENU_LIFT;
       menuRect.current = { x: left, y: top, w: MENU_WIDTH, h: MENU_HEIGHT };
 
-      live.current = { ...live.current, menu: true, option: -1 };
+      live.current = { ...live.current, menu: true, option: 0 };
       setMenuKey(id);
-      setOption(-1);
+      setOption(0);
       if (Platform.OS !== 'web') {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       }
@@ -200,7 +210,7 @@ const CubeMovePad = ({ canUndo, canPhase, accent, theme, onKey, onUndo, onType, 
           const id = cellAt(gesture.x0 - padPage.current.x, gesture.y0 - padPage.current.y);
           if (!id) return;
 
-          live.current = { cell: id, menu: false, option: -1 };
+          live.current = { cell: id, menu: false, option: 0 };
           setPressed(id);
 
           if (id === 'backspace') {
@@ -254,10 +264,10 @@ const CubeMovePad = ({ canUndo, canPhase, accent, theme, onKey, onUndo, onType, 
 
           const box = boxOf(cell);
           if (box && box.isKey) {
-            // On an option → that token. Anywhere else, menu open or not → the
-            // plain move, so a hold you thought better of still writes what a
-            // tap would have.
-            const modifier = menu && chosen >= 0 ? MENU_OPTIONS[chosen] : '';
+            // Whatever the menu had lit — and option 0 is the plain move, so a
+            // tap, a hold released on the base, and a hold slid off the menu
+            // all arrive here by the same route.
+            const modifier = menu ? MENU_OPTIONS[chosen] || '' : '';
             onKey(cell, { modifier });
           } else if (box && !menu) {
             fireTool(cell);
@@ -400,6 +410,7 @@ const CubeMovePad = ({ canUndo, canPhase, accent, theme, onKey, onUndo, onType, 
           left={menuRect.current.x}
           top={menuRect.current.y}
           active={option}
+          label={menuKey}
           accent={accent}
           palette={palette}
         />
