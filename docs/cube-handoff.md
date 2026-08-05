@@ -408,12 +408,13 @@ in the same session.
   what made this legible in the end.
 - ~~**The pad still has no seventh slot.**~~ **Step 8 rebuilt the pad** and the
   constraint went with it: `'` and `2` are no longer keys, `E` and `S` are, and
-  the grid is a 6 × 3 spatial cross with one deliberately empty cell that must
-  stay empty — it is what makes the cross read as a cross. Clear came off
-  entirely. What has not changed: **every key on it is a thumb target**, and at
-  320 that is 43 × 44pt, which is the one thing this screen will not buy space
-  from. `PAD_LAYOUT` in `solve.js` owns which key goes where, and
-  `padPalette.js` owns what colour it is.
+  the grid is a 6 × 3 spatial cross. Clear came off entirely. **The cross's one
+  empty cell did not survive the day** — the design wanted it empty and the
+  operator wanted a prime key, and use won; it is column 3 row 1, directly above
+  `R`. So the pad is full again and there is no spare cell at all. What has not
+  changed: **every key on it is a thumb target**, and at 320 that is 43 × 44pt,
+  which is the one thing this screen will not buy space from. `PAD_LAYOUT` in
+  `solve.js` owns which key goes where, and `padPalette.js` owns what colour.
 - **The design bundle is read with the `DesignSync` MCP**, project
   `2acc14f2-7f7e-434f-a29d-e0fe29fa876a`, and it needs a design authorization
   (`/design-login`). `design_handoff_cube_move_pad/README.md` is the document
@@ -438,14 +439,12 @@ in the same session.
   showing `In progress · 0`. The modal lists it, with a bin, because it is a real
   boundary and removing it is sometimes what you want. If that ever reads as
   clutter, the strip is the one that is right.
-- **The tick track is a readout, not a slider.** The design describes a
-  drag-to-scrub on it ("snapping to the nearest tick"); Step 8's scope was the
-  track as a *display* and it was built that way. Scrubbing already has two
-  better instruments — every token in the track above turns the cube to it, and a
-  phase chip plays a whole group — and at 42 moves a tick is 6 points wide on a
-  375pt phone, which is not a drag target. If it is ever wanted, the thing to
-  build is a drag on **the whole band** that maps x to an index, not a hit test
-  on the ticks.
+- ~~**The tick track.**~~ **Built in Step 8 and removed the same day** at the
+  operator's request. Kept here as a warning rather than a to-do: at 42 moves a
+  tick is six points wide, so it drew a row of identical dashes and restated a
+  number `42 / 42` was already saying — for 22 points of cube. If anything like
+  it is ever proposed again, the question to ask first is *what does this say
+  that the counter and the phase chips do not.*
 - **`expo-haptics` is in `package.json` and fires exactly once**, at the hold
   threshold, guarded by `Platform.OS !== 'web'`. Every headless check this epic
   runs therefore runs with it off, and it is the one part of the pad that only a
@@ -458,6 +457,14 @@ in the same session.
 - **The `far` tag on `B` is the only key that carries one**, because the back
   face is the one a cube net cannot show in place. If a later step adds a key
   that needs a corner mark, `PAD_LAYOUT` already takes a `tag`.
+- **The armed `′` and the hold are two routes to one token, and they disagree on
+  one rule on purpose.** An armed prime beats a pending promotion; a hold does
+  not. Arming is a statement, a hold is a duration. If a later step adds a third
+  route, decide which of those two it is before writing it.
+- **`resetGesture` is the one place half-finished gestures are dropped**, and
+  every transition that invalidates one invalidates the other. A new path that
+  changes the moves and forgets to call it leaves a `2` or a `′` pointing at
+  something that is gone.
 - **The phase counts are per solve and nothing compares them.** Open question 13.
 - **Half turns animate clockwise.** `shortWay(2)` is 2, not −2; both land in the
   same place and nothing prefers one. If a solve tutorial ever wants `R2` to go
@@ -478,6 +485,30 @@ scrubber is a card with a **phase-split tick track**, and its five transport
 glyphs are redrawn as one family. 812 tests across the app, 56 of them new.
 
 This closes **open question 8**, the epic's longest-running, open since Step 3.
+
+**Two things use changed, the same day it shipped.** The operator drilled on it
+and sent back two corrections, both of the kind only a hand finds:
+
+- ~~**The tick track.**~~ **Removed** — *"let's remove the red segments above the
+  scrub controls."* At 42 moves each tick is six points wide, so the picture of
+  the solve is a row of identical dashes, and the position it encodes is said
+  exactly by `42 / 42` an inch below. It cost **22 points of cube to restate a
+  number.** The phase chips keep the part that was earning its keep.
+  `tickTrack.js` and its tests went with it.
+- **Prime became two gestures** — *"it's hard to see the prime symbols when your
+  finger is on the button and holding."* The hold's whole confirmation is drawn
+  on the key being held, i.e. **under the thumb causing it**, and that is the one
+  thing three viewport widths in a browser cannot show you: the browser has no
+  thumb. So the armed `′` came back in the cell the design left empty, as a
+  *second route*. While it is armed every move key relabels to `R'`, `U'`, `M'` —
+  Step 3's one good idea about modifiers — and the `′` key is the only thing that
+  fills accent. Filling all fourteen was tried first and erases both the four
+  tints and the flag's status as the sole accent key.
+
+**The two routes differ on one rule, deliberately:** an armed prime beats a
+pending promotion (arming is a *statement*), a hold does not (a hold is a
+*duration*, and a finger resting a moment too long on the second tap should do
+the harmless thing — `R2'` is `R2`).
 
 Five things it learned:
 
@@ -510,16 +541,16 @@ Five things it learned:
 
 **What it cost the cube**, on a 42-move annotated solve:
 
-| Solve mode, 42 moves, annotated | Step 7 | Step 8 |
-|---|---|---|
-| 320×568 | 194 | **123** |
-| 375×667 | 293 | **222** |
-| 393×852 | 373 | **373** (width-bound) |
+| Solve mode, 42 moves, annotated | Step 7 | as designed | as shipped |
+|---|---|---|---|
+| 320×568 | 194 | 123 | **145** |
+| 375×667 | 293 | 222 | **244** |
+| 393×852 | 373 | 373 | **373** (width-bound) |
 
-−71 at the two smaller sizes, nothing at the largest. The chrome grew ~100: the
-scrubber card 42 → 81 and the pad 126 → 152, both of which are the design. **Whether
-that is the right trade is the operator's call and is the live question this step
-hands over** — see open question 14.
+**−49**, once the tick track came out and gave 22 back. The chrome that remains is
+the pad at 126 → 152 and the scrubber card at 42 → 59, both of which are the
+design. Whether −49 is the right trade is still the operator's call — see open
+question 14 — but it is a different question from the −71 the first cut asked.
 
 Also worth not rediscovering: **Clear left the pad** ("nothing that edits the
 solve wears a move colour") and went to the solves list next to Delete, because
@@ -539,7 +570,9 @@ tapped; `race.mjs` presses a key *inside* an undo's 260ms and proves nothing is
 resurrected, and that the promotion still works and still lapses; `walk.mjs`
 clicks the transport, a token, the phase chip, the text field, the flag and Clear
 by `aria-label` and checks the scramble gets one undivided tick group;
-`states.mjs` photographs the pad mid-hold at 95ms and past the threshold.
+`states.mjs` photographs the pad mid-hold at 95ms and past the threshold; and
+`prime.mjs` walks the armed route — arm, relabel, spend, cancel, beat a
+promotion, and confirm an undo disarms it.
 
 **The haptic is the one thing none of that can see.** It is a `Platform.OS !==
 'web'` call, so every check above ran with it switched off. Look at it on a

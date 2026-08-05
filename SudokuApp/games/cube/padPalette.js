@@ -108,8 +108,7 @@ export const padPalette = (theme, accent) => {
     pressedBorder: dark ? mix(surface, '#ffffff', 0.28) : '#b9c0cb',
     // The hairline the hold fills across, under the accent that fills it.
     holdTrack: dark ? mix(surface, '#ffffff', 0.22) : 'rgba(31,36,48,0.14)',
-    // The tick track's unplayed ticks, and the legend's label.
-    trackEmpty: dark ? mix(surface, '#ffffff', 0.24) : '#dbdfe6',
+    // The legend's label, the `far` tag, and the speed chip at 1×.
     faint: dark ? mix(title, surface, 0.45) : '#8b91a1',
     ink: dark ? title : '#3d4450',
   };

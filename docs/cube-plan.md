@@ -1014,6 +1014,52 @@ transport glyphs that differ only in chevron count with play as the only filled
 glyph and only circle. **Backspace removes a token whole** — `R2` goes to nothing
 in one press, not to `R`.
 
+#### Two things use changed, the same day (2026-08-05)
+
+**The operator drilled on it and sent back two corrections.** Both are the kind
+only a hand finds, and both are recorded here because the reasoning is worth more
+than the diff.
+
+- ~~**The phase-split tick track.**~~ **Removed.** *"Let's remove the red
+  segments above the scrub controls."* It was a reasonable thing to try and it
+  was wrong: at 42 moves each tick is about six points wide, so the "picture of
+  the solve" is a row of identical dashes, and the position it encodes is said
+  exactly by `42 / 42` an inch below it. **It cost 22 points of cube to restate a
+  number.** The phase *chips* above the cube already carry the part that was
+  earning its keep — the counts, and tapping one to play that block.
+  `tickTrack.js` and its tests went with it.
+- **Prime is now two gestures, not one.** *"It's hard to see the prime symbols
+  when your finger is on the button and holding."* Exactly right, and it is the
+  one thing three viewport widths in a browser cannot show you: **the hold's
+  entire confirmation — the fill, the ring, the `′` — is drawn on the key being
+  held, which is the key under the thumb.** The browser has no thumb. So the
+  armed `′` is back, in the cell the design left empty, as a *second route*
+  rather than a replacement: tap `′`, then the key. Its feedback is everywhere
+  the hand is not.
+
+The armed route brings back **Step 3's one genuinely good idea about modifiers**:
+while `′` is armed every move key relabels itself to `R'`, `U'`, `M'` … so the
+second tap is aimed at a key that already reads the move it will make. What is
+*not* brought back is filling those keys accent — that was tried and it erases
+the four tints and the flag's status as the only accent fill. The relabelling
+plus one lit key is enough, and it keeps the pad readable.
+
+**The two routes differ on one rule, deliberately.** An armed prime beats a
+pending promotion, because arming is a statement: you tapped `′` and then `R`,
+and that can only mean `R'`. A *hold* still loses to a promotion, because a hold
+is a duration and a finger resting a moment too long on the second tap should do
+the harmless thing (`R2'` is `R2`). That asymmetry is in `applyPadPress`.
+
+**The cube got the tick track's 22 points back:**
+
+| Solve mode, 42 moves, annotated | Step 7 | Step 8 as designed | Step 8 as shipped |
+|---|---|---|---|
+| 320×568 | 194 | 123 | **145** |
+| 375×667 | 293 | 222 | **244** |
+| 393×852 | 373 | 373 | **373** (width-bound) |
+
+So the designed screen costs the cube **49 points**, not 71.
+
 #### What building it settled (2026-08-05)
 
 **It shipped as specified**, including the four reconciliations above: the fixed
@@ -1048,9 +1094,10 @@ palette instead of into a `StyleSheet`. Four things are worth not rediscovering.
   last token that is exactly the key, so the race is closed by construction
   rather than by the disarm-on-undo that also happens.
 
-**What it cost the cube**, measured on a 42-move annotated solve, against Step 7:
+**What it cost the cube as first built**, on a 42-move annotated solve — see the
+table above for what it cost once the tick track came out:
 
-| Solve mode, 42 moves, annotated | Step 7 | Step 8 |
+| Solve mode, 42 moves, annotated | Step 7 | Step 8 as designed |
 |---|---|---|
 | 320×568 | 194 | **123** |
 | 375×667 | 293 | **222** |
@@ -1063,9 +1110,10 @@ cube is already limited by the width of the phone rather than by the page
 (`LEGEND_MIN_HEIGHT`), which is §8.6's budget rule made executable. Without that
 the 320 case was a 94-point cube, which would have undone a third of Step 7.
 
-**Whether −71 is the right trade is the operator's call**, and it is the live
-question this step hands over. What was bought for it: a tap saved on every
-prime, `E` and `S` on the pad, and a tick track that shows the shape of a solve.
+**The operator answered it the same day**, and the answer was "not like that":
+the tick track came out and the cube took its 22 points back, leaving the real
+cost at **49**. What was bought for it: two routes to a prime rather than two
+taps, and `E` and `S` on the pad.
 
 ### 8.7 Editing a solve you have already written (Step 9)
 

@@ -23,24 +23,35 @@ import { algError, moveCount, tokenize, tryTokenize } from './moves';
  * `L` and `R` either side of `F`. Then the slices in column 4, the wides in
  * column 5 and the rotations in column 6.
  *
- * **Column 3 row 1 is a real gap**, not an invisible key: it is what makes the
- * cross read as a cross, and it is the one cell on this pad that is deliberately
- * not a target.
- *
- * ### Why there is room for `E` and `S` now
+ * ### Why there is room for `E` and `S`
  *
  * Step 3's pad was twelve keys and two of the eighteen cells went on the armed
- * `'` and `2`. Prime is a hold and a half turn is a second tap (below), so both
- * modifier keys are gone and the notation nobody could fit — `E` and `S` — takes
+ * `'` and `2`. A half turn is a second tap now and prime is a hold, so both
+ * modifier keys came off and the notation nobody could fit — `E` and `S` — took
  * their place. The Roux argument for leaving them off was always a space
  * argument rather than a notation one.
+ *
+ * ### Column 3 row 1 was the cross's gap, and now it is the prime key
+ *
+ * The design left that cell **deliberately empty** — "it is what makes the cross
+ * read as a cross" — and shipping it that way is what found the problem. From
+ * the operator, using it on a phone (2026-08-05): *"it's hard to see the prime
+ * symbols when your finger is on the button and holding."* Which is exactly
+ * right, and is the one thing a browser at three viewport widths cannot show
+ * you — **the finger is part of the interface and the screenshots do not have
+ * one.** The hold's confirmation is drawn under the thumb that is causing it.
+ *
+ * So prime is now **both**: hold a key, or tap `′` and then the key. The hold is
+ * untouched for the people it already suits; the tap is a second route whose
+ * feedback is somewhere the hand is not. It sits directly above `R`, which is
+ * the cell the gap was in and the most prime-heavy key on a Roux pad.
  *
  * Row-major, six to a row, so the screen can slice it without knowing the shape.
  */
 export const PAD_LAYOUT = [
   { key: 'B', tone: 'face', tag: 'far' },
   { key: 'U', tone: 'face' },
-  { gap: true },
+  { tool: 'prime', tone: 'tool' },
   { key: 'M', tone: 'slice' },
   { key: 'l', tone: 'wide' },
   { key: 'x', tone: 'rot' },
@@ -182,16 +193,31 @@ export const promoteLastToken = (alg, key) => {
  *
  * @param {string} alg the solve as it stands
  * @param {string} key the key that was pressed
- * @param {{held?: boolean, repeat?: boolean}} gesture `held` is "past the
- *   threshold at touch-up"; `repeat` is "this was the last key pressed, recently
+ * @param {{held?: boolean, repeat?: boolean, primed?: boolean}} gesture `held` is
+ *   "past the hold threshold at touch-up"; `primed` is "the `′` key was armed
+ *   before this press"; `repeat` is "this was the last key pressed, recently
  *   enough to count"
  * @returns {string} the solve after the press
  *
- * **A held promoting tap is a plain promotion.** `R2'` is `R2`, so the hold is
- * ignored rather than treated as an error — which is why `repeat` is tested
- * first and `held` only reaches the append.
+ * ### The three cases are ordered, and the order is the rule
+ *
+ * **An armed prime beats a promotion**, because arming is a deliberate act: you
+ * tapped `′` and then this key, and the only thing that can mean is `R'`.
+ *
+ * **A hold does not.** `R2'` is `R2`, so a hold landing on a promoting tap is
+ * treated as a plain promotion rather than an error — a finger resting a moment
+ * too long on the second tap is the likeliest way to reach this, and it should
+ * do the harmless thing.
+ *
+ * That asymmetry is the whole difference between the two routes to a prime: one
+ * is a statement, the other is a duration.
  */
-export const applyPadPress = (alg, key, { held = false, repeat = false } = {}) => {
+export const applyPadPress = (
+  alg,
+  key,
+  { held = false, repeat = false, primed = false } = {}
+) => {
+  if (primed) return appendToken(alg, `${key}'`);
   if (repeat) {
     const promoted = promoteLastToken(alg, key);
     if (promoted !== null) return promoted;

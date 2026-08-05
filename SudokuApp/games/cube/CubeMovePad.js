@@ -36,29 +36,35 @@ const REPEAT_AFTER_MS = 400;
  * `PAD_LAYOUT` owns which key goes where — this file owns what a press means and
  * what it looks like while it is happening.
  *
- * ### Prime is a hold, and the key says so from 0ms
+ * ### Two routes to a prime, because a finger hides one of them
  *
- * Step 3's `'` and `2` were **armed before the key**, which cost two taps for a
- * move Roux uses constantly and spent two of the eighteen cells on modifiers.
- * Both are gone. Tap a key and you get `R`; hold it past 180ms and you get `R'`;
- * tap it a second time and the `R` you just wrote becomes `R2` (that rule is
- * `applyPadPress`, in `solve.js`, where it can be tested).
+ * **Hold a key** past 180ms, or **tap `′` and then the key**. Tap it a second
+ * time and the `R` you just wrote becomes `R2`. Every rule about what a press
+ * *means* is `applyPadPress`, in `solve.js`, where it can be tested.
  *
- * Two things about the gesture are load-bearing rather than decorative:
+ * The hold shipped alone and the operator found the hole in it on a phone:
+ * *"it's hard to see the prime symbols when your finger is on the button and
+ * holding."* The fill, the ring and the `′` are all drawn on the key being
+ * pressed — **under the thumb pressing it.** Three viewport widths in a browser
+ * cannot show that, because the browser has no thumb. So the armed `′` is back
+ * as a *second* route rather than a replacement: its feedback is on a key you
+ * are not touching, and it relabels the rest of the pad besides.
  *
- * - **It fires on touch-up.** `onPress`, not `onPressIn` — which is also what
- *   makes sliding off a key cancel it, because React Native only calls `onPress`
- *   for a touch released *on* the target. Firing on touch-down would make every
- *   prime a double entry, and there would be no way to abandon one.
+ * Three things about the gestures are load-bearing rather than decorative:
+ *
+ * - **The hold fires on touch-up.** `onPress`, not `onPressIn` — which is also
+ *   what makes sliding off a key cancel it, because React Native only calls
+ *   `onPress` for a touch released *on* the target. Firing on touch-down would
+ *   make every prime a double entry, and there would be no way to abandon one.
  * - **The fill starts at 0ms.** A hold with no feedback until it completes is a
- *   hidden gesture, and strictly worse than the two taps it replaces. The
- *   hairline across the key's foot means the key is telling you what will happen
- *   *before* it happens; the ring, the `'` and the haptic at the threshold are
- *   the confirmation, not the first news.
- *
- * The armed styling is deliberately the loudest thing on the pad: the key fills
- * accent and rings, because at that moment it is about to turn the cube the
- * opposite way to the one written on it.
+ *   hidden gesture. The hairline across the key's foot means the key is telling
+ *   you what will happen *before* it happens; the ring, the `′` and the haptic
+ *   at the threshold are the confirmation, not the first news.
+ * - **While `′` is armed, every move key relabels itself** to `R'`, `U'`, `M'` …
+ *   so the second of the two taps is aimed at a key that already reads the move
+ *   it will make. This is Step 3's one genuinely good idea about armed
+ *   modifiers, and it is what makes the state impossible to miss: the whole pad
+ *   changes, not one corner of one key.
  */
 const CubeMovePad = ({
   canUndo,
@@ -68,9 +74,12 @@ const CubeMovePad = ({
   // design's fourth hold state: the pad says "again and this becomes R2" rather
   // than leaving it to be discovered.
   promoteKey,
+  // The `′` key is armed: the next move key writes a prime.
+  primed,
   accent,
   theme,
   onKey,
+  onPrime,
   onUndo,
   onType,
   onPhase,
@@ -161,8 +170,18 @@ const CubeMovePad = ({
     const { key, tag } = cell;
     const group = palette.tone(cell.tone);
     const down = pressed === key;
+    // **The accent fill belongs to the hold alone.** Filling all fourteen keys
+    // while `′` is armed was tried and is too much: the four tints — a whole
+    // feature, with a legend under the pad explaining them — vanish under one
+    // wash of red, and the flag stops being the one accent key. The armed state
+    // is already unmissable from the relabelling below plus the `′` key itself
+    // lighting up, which is one key rather than the whole board.
     const live = down && armed;
-    const promoting = !down && promoteKey === key;
+    // A promotion cannot happen while `′` is armed: the press is going to write
+    // `R'`, so promising `R2` would be a lie.
+    const promoting = !down && !primed && promoteKey === key;
+    // What this key will actually write, which is what it should say.
+    const token = primed ? `${key}'` : key;
 
     // Whole styles rather than a base with overrides layered on it: Step 7
     // shipped a header where `[base, variant]` flattened to an object carrying
@@ -182,7 +201,9 @@ const CubeMovePad = ({
         onPressOut={pressOut}
         onPress={() => press(key)}
         accessibilityRole="button"
-        accessibilityLabel={describeToken(key)}
+        // Reads the move it will *make*, not the letter printed on it — so with
+        // `′` armed a screen reader says "R prime" like the key does.
+        accessibilityLabel={describeToken(token)}
         accessibilityHint="Tap to add this move; hold for prime; tap again for a half turn"
       >
         <Text
@@ -190,7 +211,7 @@ const CubeMovePad = ({
           numberOfLines={1}
           adjustsFontSizeToFit
         >
-          {key}
+          {token}
         </Text>
 
         {/* `B` is the face a net cannot show in place, so it is the one key that
@@ -199,8 +220,11 @@ const CubeMovePad = ({
           <Text style={[styles.tag, { color: palette.faint }]}>{tag}</Text>
         )}
 
-        {/* The prime mark, at the moment the key means the prime. */}
-        {live && <Text style={[styles.tag, styles.tagArmed]}>′</Text>}
+        {/* The corner mark is the hold's, and only the hold's. With `′` armed
+            the label already ends in one, and a second prime mark in the corner
+            would read as `R''`. */}
+        {live && !primed && <Text style={[styles.tag, styles.tagArmed]}>′</Text>}
+
 
         {/* "Again and this becomes R2." */}
         {promoting && <Text style={[styles.tag, { color: accent }]}>2</Text>}
@@ -224,8 +248,12 @@ const CubeMovePad = ({
         )}
 
         {/* The ring, and the soft halo outside it. Two views because React
-            Native has no spread shadow to put a 3pt glow on a border. */}
-        {live && (
+            Native has no spread shadow to put a 3pt glow on a border.
+
+            **The hold's, and only the hold's.** It marks the one key crossing
+            the threshold; ringing all fourteen while `′` is armed would be a
+            pad of alarm bells saying something the labels already say. */}
+        {down && armed && (
           <>
             <View style={[styles.halo, { borderColor: 'rgba(198,40,40,0.16)' }]} pointerEvents="none" />
             <View style={[styles.ring, { borderColor: accent }]} pointerEvents="none" />
@@ -238,7 +266,11 @@ const CubeMovePad = ({
   const toolKey = (cell) => {
     const { tool } = cell;
     const isFlag = tool === 'flag';
-    const group = isFlag ? palette.accent : palette.tone('tool');
+    const isPrime = tool === 'prime';
+    // The flag is the design's one accent fill *at rest*. The prime key borrows
+    // it only while armed, which is a state rather than a resting style — and
+    // being the loud thing on the pad is the entire job it was added to do.
+    const group = isFlag || (isPrime && primed) ? palette.accent : palette.tone('tool');
     const disabled = tool === 'backspace' ? !canUndo : isFlag ? !canPhase : false;
 
     const config = {
@@ -256,6 +288,13 @@ const CubeMovePad = ({
         label: 'End the phase here',
         hint: 'Names the group of moves since the last marker, and lists the ones already marked',
         onPress: onPhase,
+      },
+      prime: {
+        label: primed ? 'Prime, armed' : 'Prime',
+        hint: primed
+          ? 'The next move you tap will be a prime. Tap again to cancel'
+          : 'Arms a prime for the next move you tap. Holding a move key does the same thing',
+        onPress: onPrime,
       },
     }[tool];
 
@@ -284,9 +323,15 @@ const CubeMovePad = ({
         accessibilityRole="button"
         accessibilityLabel={config.label}
         accessibilityHint={config.hint}
-        accessibilityState={{ disabled }}
+        accessibilityState={{ disabled, selected: isPrime ? !!primed : undefined }}
       >
-        <CubeGlyph name={tool} size={tool === 'keyboard' ? 20 : 19} color={group.ink} />
+        {isPrime ? (
+          // A glyph would be a 1.9pt stroke of an apostrophe. The notation is
+          // the icon.
+          <Text style={[styles.primeText, { color: group.ink }]}>′</Text>
+        ) : (
+          <CubeGlyph name={tool} size={tool === 'keyboard' ? 20 : 19} color={group.ink} />
+        )}
       </Pressable>
     );
   };
@@ -349,6 +394,20 @@ const styles = StyleSheet.create({
     fontFamily: ALG_FONT,
     fontSize: 17,
     fontWeight: '700',
+  },
+  // Much larger than a move label, because `′` is a small mark in a big empty
+  // em and at 17pt it reads as a speck next to `R`. The key has to be as
+  // findable as its neighbours — being findable is the entire reason it exists.
+  //
+  // The glyph also sits at cap height rather than on the centre line, so
+  // centring the *box* leaves the ink high. The nudge puts the mark itself on
+  // the middle of the key; it is a transform rather than a `lineHeight` because
+  // line box maths differs between web and Yoga and this only has to move ink.
+  primeText: {
+    fontFamily: ALG_FONT,
+    fontSize: 32,
+    fontWeight: '700',
+    transform: [{ translateY: 5 }],
   },
   tag: {
     position: 'absolute',

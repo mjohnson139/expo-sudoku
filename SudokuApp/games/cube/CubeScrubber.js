@@ -4,16 +4,9 @@ import { ALG_FONT } from './algText';
 import CubeGlyph from './CubeGlyph';
 import { padPalette } from './padPalette';
 import { announcePosition, describePosition, describeSpeed } from './player';
-import { CURRENT, PENDING, tickGroups } from './tickTrack';
-
-/** The band the ticks stand in, and the height of the tallest one. */
-export const TICK_BAND = 12;
-/** How short a tick is when it is not the current move. */
-const TICK_SHORT = 5;
 
 /**
- * The transport under the cube, and **where you are in the solve** (plan §8.8,
- * Step 8).
+ * The transport under the cube (plan §8.8, Step 8).
  *
  * ### The five glyphs are one family now
  *
@@ -25,20 +18,20 @@ const TICK_SHORT = 5;
  * only filled glyph and the only circle**, which is what makes it findable
  * without looking at it.
  *
- * ### The tick track
+ * ### The tick track was here, and the operator removed it
  *
- * One tick per move, grouped into the phases the operator marked, each group
- * `flex`ed to its move count, the current move the only full-height tick. It
- * turns "17 / 21" into a picture: how far through, how far through *this block*,
- * and how big the blocks are next to each other — which is the comparison
- * open question 13 keeps asking for and the closest this screen has come to
- * answering it.
+ * Step 8 shipped a phase-split tick track above this row — one tick per move,
+ * grouped by the marked phases, the current move the only full-height one. It
+ * came out after one session with it (operator, 2026-08-05: *"let's remove the
+ * red segments above the scrub controls"*).
  *
- * It is a **readout, not a slider**. Scrubbing already has two instruments that
- * are better at it: every token in the track above is a tap target that turns
- * the cube to it, and the phase chips play a whole group. A drag here would be a
- * third, at 15pt a move on a 375pt phone — see the note in `docs/cube-handoff.md`
- * about what it would take to be worth adding.
+ * Worth recording *why* it was a reasonable thing to try and still wrong: on a
+ * 42-move solve every tick is about six points wide, so the "picture of the
+ * solve" it was supposed to draw is a row of identical dashes, and the position
+ * it encodes is already said exactly by `39 / 42` an inch below it. It cost 22
+ * points of cube to restate a number. The phase *chips* above the cube keep the
+ * part that was carrying its weight — the counts, and tapping one to play that
+ * block. `tickTrack.js` and its tests went with it.
  */
 const CubeScrubber = ({
   index,
@@ -47,9 +40,6 @@ const CubeScrubber = ({
   rate,
   accent,
   theme,
-  // The solve's phase spans, or nothing — the scramble has no phases and cannot
-  // have any, so it gets one undivided group.
-  spans,
   noun = 'scramble',
   startLabel = 'Back to the solved cube',
   onPlayPause,
@@ -64,8 +54,6 @@ const CubeScrubber = ({
 
   const atStart = index <= 0;
   const atEnd = index >= count;
-
-  const groups = tickGroups(spans, count, index);
 
   const button = (name, label, onPress, disabled, primary) => (
     <Pressable
@@ -98,42 +86,6 @@ const CubeScrubber = ({
 
   return (
     <View style={[styles.card, { backgroundColor: surface, borderColor: border }]}>
-      <View
-        style={styles.track}
-        accessible
-        accessibilityRole="progressbar"
-        accessibilityLabel={announcePosition(index, count, noun)}
-      >
-        {groups.map((group, gi) => (
-          <View
-            key={`${group.at}-${gi}`}
-            style={[
-              styles.group,
-              { flexGrow: group.count, flexShrink: 1, flexBasis: 0 },
-              gi > 0 && styles.groupGap,
-            ]}
-          >
-            {group.ticks.map((state, ti) => (
-              <View
-                key={ti}
-                style={[
-                  styles.tick,
-                  state === CURRENT ? styles.tickCurrent : styles.tickShort,
-                  {
-                    backgroundColor:
-                      state === CURRENT
-                        ? accent
-                        : state === PENDING
-                          ? palette.trackEmpty
-                          : 'rgba(198,40,40,0.42)',
-                  },
-                ]}
-              />
-            ))}
-          </View>
-        ))}
-      </View>
-
       <View style={styles.row}>
         <Text
           style={[styles.counter, { color: palette.ink }]}
@@ -193,35 +145,6 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderWidth: 1,
     borderRadius: 12,
-    gap: 10,
-  },
-  track: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    height: TICK_BAND,
-  },
-  group: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    height: TICK_BAND,
-    gap: 2,
-  },
-  // The gap between phases, and the whole reason the track is worth splitting:
-  // it is what makes "the second block" a place on the bar.
-  groupGap: {
-    marginLeft: 9,
-  },
-  tick: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-    borderRadius: 3,
-  },
-  tickShort: {
-    height: TICK_SHORT,
-  },
-  tickCurrent: {
-    height: TICK_BAND,
   },
   row: {
     flexDirection: 'row',
