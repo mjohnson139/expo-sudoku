@@ -475,9 +475,10 @@ the operator can open in Expo Go.
 | **5** | **Orientation.** Record how the cube is held before a solve starts — Roux's inspection step, "yellow up, blue left" | **shipped** (out of order, 2026-08-02) |
 | **6** | **Annotate the move groups.** "These moves solve first block, these solve second block" — labelled spans, per-phase move counts, and a transport that plays one group | **shipped** |
 | **7** | **Give the page back to the cube.** The chrome takes two thirds of the screen and the biggest piece of it grows as you drill; cut it to a budget | **shipped** |
-| **8** | **Edit a solve you have already written.** Fix a move in the middle without undoing back to it — the oldest live gap in the feature | next |
-| **9** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
-| **10** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
+| **8** | **The designed solve screen.** A spatial cross pad, hold-for-prime, and a phase-split tick scrubber — from a settled design bundle, and the answer to §9.8 | next |
+| **9** | **Edit a solve you have already written.** Fix a move in the middle without undoing back to it — the oldest live gap in the feature | |
+| **10** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
+| **11** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
 
 **The table has now been re-ordered twice, and both were re-orderings rather
 than new scope.** Step 6 landing (2026-08-02) moved *edit a solve* ahead of
@@ -901,10 +902,123 @@ Five things it learned:
   scramble that already has an annotated solve behind it to see one — which the
   driver's seeded save file does by construction. Fixed on the way past.
 
-### 8.7 Editing a solve you have already written (Step 8)
+### 8.8 The designed solve screen (Step 8, specified 2026-08-04)
 
-Written up when it was Step 7 and kept here intact, because it is the oldest live
-gap in the feature and only the ordering changed (§8, 2026-08-03).
+A settled design bundle, made in Claude Design and reachable from
+**`claude.ai/design/p/2acc14f2-7f7e-434f-a29d-e0fe29fa876a`**. Read it with the
+`DesignSync` MCP (`get_file`), which needs a design authorization (`/design-login`
+in an interactive session).
+
+| Path in the project | What it is |
+|---|---|
+| `Cube Solve Screen.dc.html` | **the spec** — the screen at 375pt, the four hold states drawn out, the tint table, the transport glyphs large |
+| `design_handoff_cube_move_pad/README.md` | **read this first** — every measurement, colour, timing and interaction, written as a handoff |
+| `design-decisions.md` | the platform-level decisions, with a settled "Cube move pad" section |
+| `Cube Solve Screen - prime options.dc.html` | the **rejected** prime treatments, kept so they are not re-proposed |
+| `support.js` | the design-doc runtime. Nothing to port — it renders the mock in a browser |
+
+**The mock is not code to copy.** It is HTML/CSS in a browser, shares nothing
+with the app, and its cube is a flat CSS isometric fake standing in for the real
+renderer. The job is to rebuild it in React Native against the app's theme and
+`StyleSheet`s, in the shape `CubeMovePad.js` / `CubeScrubber.js` /
+`CubePhaseStrip.js` already have.
+
+#### What it actually changes
+
+Two things are the point, and the rest is dressing:
+
+- **Prime is a press-and-hold**, not an armed modifier. Tap fires on *touch-up*
+  and appends `R`; hold past **180ms** appends `R'`, with a 3pt hairline filling
+  across the key's foot from 0ms, an accent ring and a `'` mark at the threshold,
+  a haptic tick, and slide-off to cancel.
+- **A second tap on the same key promotes the token already written** — `R` then
+  `R` is one `R2`, never two `R`s. A third tap starts a fresh `R`.
+
+Everything else follows from having the whole key face back: the pad becomes a
+**spatial cross** where the faces sit where they are on a cube net, six columns
+by three rows of 55.6 × 44pt keys, with `E` and `S` joining the slices and
+column 3 row 1 deliberately **empty** — the gap is what makes the cross read as a
+cross. Four tints group the keys (neutral faces, cool slices, green wides, sand
+rotations); tools stay outlined; the flag is the only accent fill. The scrubber
+gains a **phase-split tick track** — one tick per move, grouped by Roux phase, the
+current move the only full-height one — and five transport glyphs redrawn as one
+family at stroke 1.9 in a 24pt box.
+
+#### This answers §9.8, which has been open since Step 3
+
+*"How a move gets entered"* has been the epic's live question since the armed
+modifier shipped, and the plan said it wanted a real drilling session rather than
+an opinion. It got one. The design's rejected column is the same shortlist §9.8
+wrote down, decided: **a standalone `'` key** works and costs two taps, and is
+the fallback if hold tests badly; **swipe up** is unreliable in a dense grid;
+**a 20pt prime strip per key** leaves 35.6pt for the letter at six columns, which
+is under a thumb's contact patch — and a mis-hit there turns the cube *the wrong
+way* rather than doing nothing. That last argument is the good one and it is why
+the strip lost.
+
+#### Where the design and this plan disagree, and who wins
+
+**The design was drawn against the screen as it was before Step 7**, and four of
+its decisions run into §8.6's budget rule. None of them is a reason not to build
+it; all of them need deciding rather than discovering.
+
+- **The cube's height.** The bundle budgets the cube **118pt** and says in the
+  same breath *"the pad is fixed; the cube flexes"* and *"verify this against the
+  real stack"* — which is §8.6's rule in the design's own words, so there is no
+  real conflict, only arithmetic. But the new chrome is **heavier**: the scrubber
+  card goes 42 → 86, the pad 126 → 142, a legend strip adds 34, and the phase
+  chips gain padding. That is about **+95pt off the cube**, which at 375×667
+  takes it from 293 back to roughly 200. **Step 7's rule holds: say what it
+  costs, in points, in the PR.** If the legend is what pushes it over, the legend
+  is the thing to question — four tints that need a permanent key may be four
+  tints too many, and the key is the first row a returning operator stops
+  reading.
+- **The solve card.** The design draws it as an auto-height card with every token
+  wrapped — which is *exactly* the card Step 7 removed, for the reason that it is
+  the only row that grows as you drill, and at 42 moves and 320pt wide it had left
+  the cube four points. **Keep the fixed two-line track and its drawer**, and take
+  the design's token *styling* — 12pt mono, radius 4, played `#333`, unplayed
+  `#a8adb8`, current white on accent at weight 700. The design was drawn at 21
+  moves; the operator's real solves are twice that.
+- **Clear, and the solves list.** The design removes Clear from the pad — *"nothing
+  that edits the solve wears a move colour"* and clearing does not belong under a
+  thumb — and puts it in a header settings control. Agreed, but note what else is
+  homeless: the bottom **solve bar** is not in the design, and it is currently the
+  **only** way into the solves list. Whatever the settings control becomes has to
+  carry both, or the picker has to keep its bar.
+- **The method chip.** Roux ↔ CFOP in the header, which the bundle says *"rewrites
+  the pad's slice/wide complement and the phase grouping of the tick track"*.
+  **That is a feature, not a chip.** CFOP is not in this epic yet and §8.5 only
+  ships Roux and CFOP *names*. Build the chip if it reads as a label for the
+  method already in use; do not build the switch.
+
+Two smaller ones worth catching before they are built:
+
+- **The keyboard key means something different in each.** On the pad today it
+  opens the text field for a whole algorithm; the design describes it as a toggle
+  that *"collapses the pad and gives the height to the cube"*. That second thing
+  is a good idea and is most of open question 14 — but it is not the same button,
+  and losing the way to paste an algorithm would be a regression.
+- **The design is a set of light-mode hexes.** This screen is themed
+  (`useAppTheme`), and `design-decisions.md` says the platform is heading for
+  semantic tokens but is not there yet. Map onto `theme.colors` where a token
+  exists, and where one does not, add it in the cube's own palette rather than
+  hardcoding `#ffffff` into a screen that has a dark theme.
+
+#### The parts to take unchanged
+
+The measurements, the timings and the glyph family are the settled work and are
+worth following to the point: 44pt rows, 5pt gaps, radius 10 keys, the four tint
+triples, 180ms with a 120–320 range, backspace repeat at 120ms, and five
+transport glyphs that differ only in chevron count with play as the only filled
+glyph and only circle. **Backspace removes a token whole** — `R2` goes to nothing
+in one press, not to `R`.
+
+### 8.7 Editing a solve you have already written (Step 9)
+
+Written up when it was Step 7, moved to 8 by the layout work and to **9** by the
+design bundle (§8.8, 2026-08-04). Kept here intact each time, because it is the
+oldest live gap in the feature and only the ordering has ever changed.
 
 **The text field appends; it cannot edit.** A typo in the middle of a solve is
 fixed by undoing back to it and retyping everything after. Fine when the solve
@@ -927,10 +1041,14 @@ put markers on top of the same text.
   "this was an edit" flag, and a replacement that happens to be an extension is
   still an extension.
 
-**Step 7 changes where its affordance goes, and that is the point of doing them
-in this order.** The brief used to say the screen was full and an edit control
-had to replace something or live in a modal; after §8.6 there is a page to put it
-on.
+**Each re-order has made this step easier rather than staler.** Step 7's brief
+used to say the screen was full and an edit control had to replace something or
+live in a modal; §8.6 gave it a page to sit on. Then the design bundle (§8.8)
+**put the affordance somewhere specific**: an `Edit` link on the solve card's
+caption row, 10pt weight 600 in the accent, opposite `Solve 2 · 21 moves`. So
+whoever takes this step no longer has to design its way in — that argument is
+settled and the work is the marker arithmetic, which is where it always
+belonged.
 
 ## 9. Open questions for the operator
 
@@ -951,16 +1069,26 @@ on.
    finger". Nobody has complained yet because nobody has used it yet.
 7. **Turn speed.** Answered and shipped in Step 2 — a chip cycling 1× → 2× → 0.5×.
    Not persisted; see §7 and the note under Step 3 in the handoff.
-8. **How a move gets entered.** Rotations came off the critical path in Step 5 —
-   the hold is panned to, not typed — but `x`/`y`/`z` **stay on the pad**
-   (operator, 2026-08-02) because a solve occasionally needs one mid-way. Step 3
-   ships a pad with `'` and `2` as modifier
-   keys you arm before the face. Roux is prime-heavy, so that is two taps for a
-   very common move, and it is the first thing to revisit once the operator has
-   drilled a real solve on it. The alternatives are written up in the handoff.
-   What makes two taps bearable in the meantime is that **the pad relabels
-   itself** while a modifier is armed — every key reads `U'`, `R'`, `M'` — so
-   the second tap is aimed at a key that already says the move it will make.
+8. ~~**How a move gets entered.**~~ **Answered by a design round** (2026-08-04),
+   and it was the epic's longest-running question — open since Step 3 shipped the
+   armed modifier. The answer is **press-and-hold for prime, second tap for a
+   half turn**, and it is Step 8 (§8.8). The three alternatives this question
+   listed are all decided in the bundle's rejected column: a standalone `'` key
+   works, costs two taps, and is the fallback if hold tests badly; swipe-up is
+   unreliable in a dense grid; and a per-key prime strip leaves 35.6pt for the
+   letter at six columns — under a thumb's contact patch, where a mis-hit turns
+   the cube *the wrong way* rather than doing nothing.
+
+   What the armed modifier got right and should be carried forward: **the pad
+   showed the arming**, relabelling every key to `U'`, `R'`, `M'`, so the second
+   tap aimed at a key that already read the move it would make. Hold-for-prime
+   keeps that promise differently — the fill starts at 0ms, so the key is telling
+   you what will happen before it happens. A hidden gesture with no fill would be
+   worse than the two taps it replaces.
+
+   Still true and unchanged: `x`/`y`/`z` **stay on the pad** (operator,
+   2026-08-02), because a solve occasionally needs a rotation mid-way, even
+   though the hold is panned to rather than typed since Step 5.
 9. **Does the cube want a mode with no chrome at all?** New with Step 7
    (2026-08-03). §8.6 gets the cube from 31% of the page to about 58% by cutting
    rows; the remaining 42% is the pad, the transport and the moves, and every one
