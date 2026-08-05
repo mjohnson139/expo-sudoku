@@ -48,6 +48,7 @@ const BUILD_NOTES = {
       'The move pad is a cross now: the faces sit where they are on a cube, with the slices, wide turns and rotations in columns of their own',
       'Two ways to write a prime: hold the key, or tap ’ first — whichever suits your hands',
       'Holding fills a line across the key so you can see the prime coming; let go early, or slide off, and nothing is written',
+      'The ’ key lights up the moment a hold turns into a prime, so you can see it even with your thumb on the key',
       'Tap ’ and the whole pad relabels itself — every key reads R’, U’, M’ — so you can see what the next tap will do',
       'Tap the same key twice for a half turn: R then R is one R2, never two moves',
       'E and S are on the pad at last, in the room the ’ and 2 keys used to take up',

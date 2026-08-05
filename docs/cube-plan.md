@@ -1044,6 +1044,16 @@ second tap is aimed at a key that already reads the move it will make. What is
 the four tints and the flag's status as the only accent fill. The relabelling
 plus one lit key is enough, and it keeps the pad readable.
 
+**And the `′` key lights for the hold as well**, not only for its own tap
+(operator, 2026-08-05). That is the same fix applied a second time and it is
+worth stating as a rule: *the pad must always say "a prime is coming" somewhere
+the hand is not.* A hold past the threshold says so on the held key — the fill,
+the ring, the mark — and every one of those is under the thumb causing it. The
+`′` key is the one place on this pad guaranteed to be visible mid-gesture, so it
+answers for both routes. `armed` can only be true while a **move** key is down —
+the arm timer starts in `pressIn`, which tools never call — so there is no state
+where it lights for a hold on a tool.
+
 **The two routes differ on one rule, deliberately.** An armed prime beats a
 pending promotion, because arming is a statement: you tapped `′` and then `R`,
 and that can only mean `R'`. A *hold* still loses to a promotion, because a hold

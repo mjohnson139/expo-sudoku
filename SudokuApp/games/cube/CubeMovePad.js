@@ -267,10 +267,27 @@ const CubeMovePad = ({
     const { tool } = cell;
     const isFlag = tool === 'flag';
     const isPrime = tool === 'prime';
+
+    /**
+     * The prime key lights for **either** route (operator, 2026-08-05).
+     *
+     * `primed` is the key having been tapped. `armed` is a *hold* having crossed
+     * the threshold — and lighting this key for that is the same fix as adding
+     * the key in the first place: everything the hold says about itself is drawn
+     * on the key being held, which is the key under the thumb. This is the one
+     * place on the pad that says "you are about to write a prime" and is
+     * guaranteed not to be the thing your finger is covering.
+     *
+     * `armed` can only be true while a *move* key is down — the arm timer is
+     * started in `pressIn`, which tools do not call — so there is no state where
+     * this lights for a hold on a tool.
+     */
+    const primeLive = isPrime && (primed || armed);
+
     // The flag is the design's one accent fill *at rest*. The prime key borrows
-    // it only while armed, which is a state rather than a resting style — and
+    // it only while live, which is a state rather than a resting style — and
     // being the loud thing on the pad is the entire job it was added to do.
-    const group = isFlag || (isPrime && primed) ? palette.accent : palette.tone('tool');
+    const group = isFlag || primeLive ? palette.accent : palette.tone('tool');
     const disabled = tool === 'backspace' ? !canUndo : isFlag ? !canPhase : false;
 
     const config = {
@@ -290,7 +307,10 @@ const CubeMovePad = ({
         onPress: onPhase,
       },
       prime: {
-        label: primed ? 'Prime, armed' : 'Prime',
+        // Reads what it looks like. A hold past the threshold really has armed
+        // a prime, so saying otherwise while the key is filled accent would be
+        // the label and the pixels disagreeing.
+        label: primeLive ? 'Prime, armed' : 'Prime',
         hint: primed
           ? 'The next move you tap will be a prime. Tap again to cancel'
           : 'Arms a prime for the next move you tap. Holding a move key does the same thing',
@@ -323,7 +343,7 @@ const CubeMovePad = ({
         accessibilityRole="button"
         accessibilityLabel={config.label}
         accessibilityHint={config.hint}
-        accessibilityState={{ disabled, selected: isPrime ? !!primed : undefined }}
+        accessibilityState={{ disabled, selected: isPrime ? primeLive : undefined }}
       >
         {isPrime ? (
           // A glyph would be a 1.9pt stroke of an apostrophe. The notation is

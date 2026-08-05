@@ -504,6 +504,10 @@ and sent back two corrections, both of the kind only a hand finds:
   Step 3's one good idea about modifiers — and the `′` key is the only thing that
   fills accent. Filling all fourteen was tried first and erases both the four
   tints and the flag's status as the sole accent key.
+- **Then the `′` key was made to light for the hold too**, not only for its own
+  tap. Same fix, second application, and it generalises into a rule worth
+  keeping: **the pad must always say "a prime is coming" somewhere the hand is
+  not.** Everything a hold says about itself is drawn on the key being held.
 
 **The two routes differ on one rule, deliberately:** an armed prime beats a
 pending promotion (arming is a *statement*), a hold does not (a hold is a
