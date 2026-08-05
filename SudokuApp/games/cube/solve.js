@@ -31,27 +31,23 @@ import { algError, moveCount, tokenize, tryTokenize } from './moves';
  * their place. The Roux argument for leaving them off was always a space
  * argument rather than a notation one.
  *
- * ### Column 3 row 1 was the cross's gap, and now it is the prime key
+ * ### Column 3 row 1 is the cross's gap again — **this is the experiment branch**
  *
- * The design left that cell **deliberately empty** — "it is what makes the cross
- * read as a cross" — and shipping it that way is what found the problem. From
- * the operator, using it on a phone (2026-08-05): *"it's hard to see the prime
- * symbols when your finger is on the button and holding."* Which is exactly
- * right, and is the one thing a browser at three viewport widths cannot show
- * you — **the finger is part of the interface and the screenshots do not have
- * one.** The hold's confirmation is drawn under the thumb that is causing it.
+ * The design left that cell deliberately empty, "it is what makes the cross read
+ * as a cross"; the shipped branch spent it on an armed `′` key. **This branch is
+ * trying something else entirely** (operator, 2026-08-05): press and hold a move
+ * key and an accessory menu opens above it, and you slide onto `′` or `2`.
  *
- * So prime is now **both**: hold a key, or tap `′` and then the key. The hold is
- * untouched for the people it already suits; the tap is a second route whose
- * feedback is somewhere the hand is not. It sits directly above `R`, which is
- * the cell the gap was in and the most prime-heavy key on a Roux pad.
+ * One gesture reaches both modifiers, so all three of the shipped routes — the
+ * hold-for-prime, the second-tap promotion, and the armed key — come off, and
+ * the cell they cost goes back to being the gap. See `CubeKeyMenu`.
  *
  * Row-major, six to a row, so the screen can slice it without knowing the shape.
  */
 export const PAD_LAYOUT = [
   { key: 'B', tone: 'face', tag: 'far' },
   { key: 'U', tone: 'face' },
-  { tool: 'prime', tone: 'tool' },
+  { gap: true },
   { key: 'M', tone: 'slice' },
   { key: 'l', tone: 'wide' },
   { key: 'x', tone: 'rot' },
@@ -215,8 +211,13 @@ export const promoteLastToken = (alg, key) => {
 export const applyPadPress = (
   alg,
   key,
-  { held = false, repeat = false, primed = false } = {}
+  { held = false, repeat = false, primed = false, modifier = '' } = {}
 ) => {
+  // **The experiment's route, and it beats everything.** A modifier picked off
+  // the accessory menu is the most deliberate statement the pad can carry — the
+  // operator held the key, watched a menu open, and slid onto a specific
+  // token — so nothing else gets a say.
+  if (modifier) return appendToken(alg, `${key}${modifier}`);
   if (primed) return appendToken(alg, `${key}'`);
   if (repeat) {
     const promoted = promoteLastToken(alg, key);

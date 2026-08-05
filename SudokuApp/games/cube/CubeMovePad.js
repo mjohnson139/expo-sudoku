@@ -1,8 +1,16 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { PanResponder, Platform, StyleSheet, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { ALG_FONT } from './algText';
 import CubeGlyph from './CubeGlyph';
+import CubeKeyMenu, {
+  MENU_HEIGHT,
+  MENU_LIFT,
+  MENU_OPTIONS,
+  MENU_PADDING,
+  MENU_WIDTH,
+  OPTION_WIDTH,
+} from './CubeKeyMenu';
 import { padPalette } from './padPalette';
 import {
   BACKSPACE_REPEAT_MS,
@@ -10,14 +18,11 @@ import {
   PAD_COLUMNS,
   PAD_LAYOUT,
   describeToken,
-  isHold,
 } from './solve';
 
 /**
  * The pad's fixed geometry (plan §8.8): three 44pt rows, two 5pt gaps, 10pt of
- * top padding. **Fixed is the point** — plan §8.6 sizes the cube first and puts
- * every other row on a budget, and a pad whose height depended on anything would
- * resize the cube while it was being used.
+ * top padding.
  */
 export const KEY_HEIGHT = 44;
 export const KEY_GAP = 5;
@@ -26,303 +31,318 @@ export const PAD_TOP = 10;
 /** How long a backspace waits before it starts repeating. */
 const REPEAT_AFTER_MS = 400;
 
+/** How far a finger may stray from a key before the press is abandoned. */
+const SLOP = 16;
+
 /**
- * The keyboard a solve gets written on — **the spatial cross** (plan §8.8,
- * Step 8).
+ * The keyboard a solve gets written on — **with the accessory menu, on the
+ * experiment branch** (operator, 2026-08-05).
  *
- * Six columns by three rows. The left three are a cube net, so `U` `F` `D` run
- * down the spine with `L` and `R` beside `F` and `B` marked *far* in the corner
- * the net cannot place; then slices, wides and rotations in their own columns.
- * `PAD_LAYOUT` owns which key goes where — this file owns what a press means and
- * what it looks like while it is happening.
+ * Tap a key for the plain move. **Press and hold and a menu opens above it**
+ * with `′` and `2`; slide onto one and release to write it, release anywhere
+ * else and you get the plain move. One gesture, both modifiers, and nothing to
+ * remember between two taps.
  *
- * ### Two routes to a prime, because a finger hides one of them
+ * ### What this replaces, and why it is worth trying
  *
- * **Hold a key** past 180ms, or **tap `′` and then the key**. Tap it a second
- * time and the `R` you just wrote becomes `R2`. Every rule about what a press
- * *means* is `applyPadPress`, in `solve.js`, where it can be tested.
+ * The shipped branch reaches the same two tokens by **three** routes: hold for
+ * prime, tap the same key again for a half turn, and an armed `′` key for the
+ * people the hold does not suit. Each was a good answer to the problem in front
+ * of it and together they are three things to remember for two modifiers — which
+ * is what the operator was second-guessing. All three come off here.
  *
- * The hold shipped alone and the operator found the hole in it on a phone:
- * *"it's hard to see the prime symbols when your finger is on the button and
- * holding."* The fill, the ring and the `′` are all drawn on the key being
- * pressed — **under the thumb pressing it.** Three viewport widths in a browser
- * cannot show that, because the browser has no thumb. So the armed `′` is back
- * as a *second* route rather than a replacement: its feedback is on a key you
- * are not touching, and it relabels the rest of the pad besides.
+ * It also puts the feedback where the hand is not, which is the thing the armed
+ * `′` key was added to fix: **the menu opens clear of the fingertip**, so the
+ * target and the confirmation are the same object.
  *
- * Three things about the gestures are load-bearing rather than decorative:
+ * ### Why the gesture lives on the pad and not on the keys
  *
- * - **The hold fires on touch-up.** `onPress`, not `onPressIn` — which is also
- *   what makes sliding off a key cancel it, because React Native only calls
- *   `onPress` for a touch released *on* the target. Firing on touch-down would
- *   make every prime a double entry, and there would be no way to abandon one.
- * - **The fill starts at 0ms.** A hold with no feedback until it completes is a
- *   hidden gesture. The hairline across the key's foot means the key is telling
- *   you what will happen *before* it happens; the ring, the `′` and the haptic
- *   at the threshold are the confirmation, not the first news.
- * - **While `′` is armed, every move key relabels itself** to `R'`, `U'`, `M'` …
- *   so the second of the two taps is aimed at a key that already reads the move
- *   it will make. This is Step 3's one genuinely good idea about armed
- *   modifiers, and it is what makes the state impossible to miss: the whole pad
- *   changes, not one corner of one key.
+ * Sliding from a key onto a menu that overlaps its neighbours is one continuous
+ * touch that crosses several views, and a `Pressable` per key cannot see a
+ * finger that has left it. So the pad owns one `PanResponder`, hit-tests the
+ * touch against the geometry every cell reports through `onLayout`, and the keys
+ * are plain views that draw what the pad tells them.
+ *
+ * The cost is that keys are no longer `Pressable`s, so **VoiceOver cannot open
+ * the menu**. `accessibilityActions` carry the two modifiers instead — the
+ * standard equivalent of a long-press menu — and that is the accessible route to
+ * a prime here. Worth checking with a screen reader before this ever ships.
  */
-const CubeMovePad = ({
-  canUndo,
-  canPhase,
-  // The key a second tap would promote — `R` when the solve ends `… R` and `R`
-  // was the last key pressed. Drawn as a `2` in the corner, which is the
-  // design's fourth hold state: the pad says "again and this becomes R2" rather
-  // than leaving it to be discovered.
-  promoteKey,
-  // The `′` key is armed: the next move key writes a prime.
-  primed,
-  accent,
-  theme,
-  onKey,
-  onPrime,
-  onUndo,
-  onType,
-  onPhase,
-}) => {
+const CubeMovePad = ({ canUndo, canPhase, accent, theme, onKey, onUndo, onType, onPhase }) => {
   const palette = padPalette(theme, accent);
 
-  // Only one key can be down at a time, so one press's worth of state lives
-  // here rather than in eighteen children.
   const [pressed, setPressed] = useState(null);
-  const [armed, setArmed] = useState(false);
-  const fill = useRef(new Animated.Value(0)).current;
-  const startedAt = useRef(0);
-  const armTimer = useRef(null);
+  // The key the menu belongs to, or null. Separate from `pressed` because the
+  // finger leaves the key as soon as it slides up onto the menu.
+  const [menuKey, setMenuKey] = useState(null);
+  const [option, setOption] = useState(-1);
+
+  // Where every cell is, in the pad's own coordinates. Filled by `onLayout` and
+  // read by the hit test, so nothing here assumes a key width — the pad is
+  // `flex`ed and its keys are 43pt on the narrowest phone and 56 on the widest.
+  const cells = useRef({});
+  const rows = useRef({});
+  const padRef = useRef(null);
+  // **Where the pad is on the screen**, measured rather than inferred.
+  //
+  // The obvious shortcut is `locationX`/`locationY` off the grant event, and it
+  // is wrong: react-native-web reports those relative to the element the touch
+  // *landed on* — a key — not to the view holding the responder. Every key then
+  // reports roughly the same local point, which lands in whichever cell happens
+  // to sit at the pad's top-left. Page coordinates are the only frame both the
+  // gesture and the layout agree on.
+  const padPage = useRef({ x: 0, y: 0 });
+  const menuRect = useRef(null);
+  const padWidthRef = useRef(0);
+
+  const holdTimer = useRef(null);
   const repeatTimer = useRef(null);
   const repeatTick = useRef(null);
+  // The gesture's own copy of what the render is showing. The responder
+  // callbacks outlive the render that created them, so they cannot read state.
+  const live = useRef({ cell: null, menu: false, option: -1 });
 
   const clearTimers = useCallback(() => {
-    if (armTimer.current) clearTimeout(armTimer.current);
+    if (holdTimer.current) clearTimeout(holdTimer.current);
     if (repeatTimer.current) clearTimeout(repeatTimer.current);
     if (repeatTick.current) clearInterval(repeatTick.current);
-    armTimer.current = null;
+    holdTimer.current = null;
     repeatTimer.current = null;
     repeatTick.current = null;
   }, []);
 
-  // A pad that unmounts mid-press — switching to the scramble, or the solve
-  // being deleted under it — must not leave a timer holding a haptic.
   useEffect(() => clearTimers, [clearTimers]);
 
-  const pressIn = useCallback(
-    (key) => {
-      startedAt.current = Date.now();
-      setPressed(key);
-      setArmed(false);
-      fill.setValue(0);
-      Animated.timing(fill, {
-        toValue: 1,
-        duration: HOLD_MS,
-        easing: Easing.linear,
-        // Width, so it cannot go on the native driver.
-        useNativeDriver: false,
-      }).start();
-      armTimer.current = setTimeout(() => {
-        setArmed(true);
-        // The confirmation you get without looking. Web has no haptics and
-        // throws nothing — `impactAsync` resolves to a no-op there.
-        if (Platform.OS !== 'web') {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-        }
-      }, HOLD_MS);
-    },
-    [fill]
-  );
-
-  const pressOut = useCallback(() => {
+  const reset = useCallback(() => {
     clearTimers();
-    fill.stopAnimation();
-    fill.setValue(0);
+    live.current = { cell: null, menu: false, option: -1 };
+    menuRect.current = null;
     setPressed(null);
-    setArmed(false);
-  }, [clearTimers, fill]);
+    setMenuKey(null);
+    setOption(-1);
+  }, [clearTimers]);
 
-  // Touch-up **on the key**. `onPressOut` has already run and cleared the
-  // visual state, so the gesture is read off the clock rather than off `armed`,
-  // which is gone by now.
-  const press = useCallback(
-    (key) => {
-      onKey(key, { held: isHold(Date.now() - startedAt.current) });
+  /** A cell's box in the pad's own coordinates, or null. */
+  const boxOf = useCallback((id) => {
+    const cell = cells.current[id];
+    if (!cell) return null;
+    const row = rows.current[cell.row];
+    if (!row) return null;
+    return { x: row.x + cell.x, y: row.y, w: cell.w, h: cell.h, isKey: cell.isKey };
+  }, []);
+
+  /** Which cell is under a point in pad coordinates, or null. */
+  const cellAt = useCallback(
+    (x, y) => {
+      const found = Object.keys(cells.current).find((id) => {
+        const box = boxOf(id);
+        return box && x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h;
+      });
+      return found || null;
     },
-    [onKey]
+    [boxOf]
   );
 
-  // Backspace is the one key that repeats: holding it deletes back through the
-  // solve at 120ms a token, after a pause long enough that a single tap is
-  // never two.
-  const holdBackspace = useCallback(() => {
-    repeatTimer.current = setTimeout(() => {
-      repeatTick.current = setInterval(onUndo, BACKSPACE_REPEAT_MS);
-    }, REPEAT_AFTER_MS);
-  }, [onUndo]);
+  /** Which menu option is under a point, or −1. */
+  const optionAt = useCallback((x, y) => {
+    const rect = menuRect.current;
+    if (!rect) return -1;
+    if (y < rect.y - SLOP || y > rect.y + rect.h + SLOP) return -1;
+    const inset = x - (rect.x + MENU_PADDING);
+    if (inset < 0 || inset > OPTION_WIDTH * MENU_OPTIONS.length) return -1;
+    return Math.min(MENU_OPTIONS.length - 1, Math.floor(inset / OPTION_WIDTH));
+  }, []);
 
-  const rows = [];
+  const openMenu = useCallback(
+    (id) => {
+      const box = boxOf(id);
+      if (!box) return;
+
+      // Centred over the key and lifted clear of it, then clamped so a menu on
+      // the first or last column stays on the pad.
+      const width = padWidthRef.current || 0;
+      const left = Math.max(
+        0,
+        Math.min(width - MENU_WIDTH, box.x + box.w / 2 - MENU_WIDTH / 2)
+      );
+      const top = box.y - MENU_HEIGHT - MENU_LIFT;
+      menuRect.current = { x: left, y: top, w: MENU_WIDTH, h: MENU_HEIGHT };
+
+      live.current = { ...live.current, menu: true, option: -1 };
+      setMenuKey(id);
+      setOption(-1);
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      }
+    },
+    [boxOf]
+  );
+
+  const fireTool = useCallback(
+    (tool) => {
+      if (tool === 'backspace') {
+        if (canUndo) onUndo();
+        return;
+      }
+      if (tool === 'keyboard') onType();
+      if (tool === 'flag' && canPhase) onPhase();
+    },
+    [canUndo, canPhase, onUndo, onType, onPhase]
+  );
+
+  const responder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+
+        onPanResponderGrant: (evt, gesture) => {
+          const id = cellAt(gesture.x0 - padPage.current.x, gesture.y0 - padPage.current.y);
+          if (!id) return;
+
+          live.current = { cell: id, menu: false, option: -1 };
+          setPressed(id);
+
+          if (id === 'backspace') {
+            repeatTimer.current = setTimeout(() => {
+              repeatTick.current = setInterval(() => {
+                if (canUndo) onUndo();
+              }, BACKSPACE_REPEAT_MS);
+            }, REPEAT_AFTER_MS);
+            return;
+          }
+
+          // Only move keys have modifiers to offer.
+          if (cells.current[id] && cells.current[id].isKey) {
+            holdTimer.current = setTimeout(() => openMenu(id), HOLD_MS);
+          }
+        },
+
+        onPanResponderMove: (evt, gesture) => {
+          const x = gesture.moveX - padPage.current.x;
+          const y = gesture.moveY - padPage.current.y;
+          const state = live.current;
+          if (!state.cell) return;
+
+          if (state.menu) {
+            const next = optionAt(x, y);
+            if (next !== state.option) {
+              live.current = { ...state, option: next };
+              setOption(next);
+            }
+            return;
+          }
+
+          // Before the menu opens, straying off the key abandons the press —
+          // the same escape the hold has always had.
+          const box = boxOf(state.cell);
+          if (
+            box &&
+            (x < box.x - SLOP || x > box.x + box.w + SLOP ||
+              y < box.y - SLOP || y > box.y + box.h + SLOP)
+          ) {
+            reset();
+          }
+        },
+
+        onPanResponderRelease: () => {
+          const { cell, menu, option: chosen } = live.current;
+          if (!cell) {
+            reset();
+            return;
+          }
+
+          const box = boxOf(cell);
+          if (box && box.isKey) {
+            // On an option → that token. Anywhere else, menu open or not → the
+            // plain move, so a hold you thought better of still writes what a
+            // tap would have.
+            const modifier = menu && chosen >= 0 ? MENU_OPTIONS[chosen] : '';
+            onKey(cell, { modifier });
+          } else if (box && !menu) {
+            fireTool(cell);
+          }
+          reset();
+        },
+
+        onPanResponderTerminate: reset,
+      }),
+    [cellAt, boxOf, optionAt, openMenu, onKey, fireTool, reset, canUndo, onUndo]
+  );
+
+  // A cell's `onLayout` is relative to its **row**, so the row's own offset has
+  // to be added to get pad coordinates. It is added **at hit-test time, not
+  // here**: `onLayout` runs children before parents, so a cell that folded in
+  // `rows.current[rowIndex]` as it was measured would fold in a zero — which is
+  // exactly the bug that made every key below the first row unhittable while
+  // the top row worked perfectly.
+  const noteCell = (id, isKey, rowIndex) => ({ nativeEvent }) => {
+    const { x, width, height } = nativeEvent.layout;
+    cells.current[id] = { x, w: width, h: height, row: rowIndex, isKey };
+  };
+
+  const grid = [];
   for (let i = 0; i < PAD_LAYOUT.length; i += PAD_COLUMNS) {
-    rows.push(PAD_LAYOUT.slice(i, i + PAD_COLUMNS));
+    grid.push(PAD_LAYOUT.slice(i, i + PAD_COLUMNS));
   }
 
-  const moveKey = (cell) => {
+  const moveKey = (cell, rowIndex) => {
     const { key, tag } = cell;
     const group = palette.tone(cell.tone);
-    const down = pressed === key;
-    // **The accent fill belongs to the hold alone.** Filling all fourteen keys
-    // while `′` is armed was tried and is too much: the four tints — a whole
-    // feature, with a legend under the pad explaining them — vanish under one
-    // wash of red, and the flag stops being the one accent key. The armed state
-    // is already unmissable from the relabelling below plus the `′` key itself
-    // lighting up, which is one key rather than the whole board.
-    const live = down && armed;
-    // A promotion cannot happen while `′` is armed: the press is going to write
-    // `R'`, so promising `R2` would be a lie.
-    const promoting = !down && !primed && promoteKey === key;
-    // What this key will actually write, which is what it should say.
-    const token = primed ? `${key}'` : key;
+    const down = pressed === key || menuKey === key;
 
-    // Whole styles rather than a base with overrides layered on it: Step 7
-    // shipped a header where `[base, variant]` flattened to an object carrying
-    // both `flex: 1` and a `flexBasis`, and web and Yoga disagreed about which
-    // won. Nothing here sets a layout property twice.
-    const face = live
-      ? { backgroundColor: accent, borderColor: accent }
-      : down
-        ? { backgroundColor: palette.pressed, borderColor: palette.pressedBorder }
-        : { backgroundColor: group.bg, borderColor: group.border };
+    const face = down
+      ? { backgroundColor: palette.pressed, borderColor: palette.pressedBorder }
+      : { backgroundColor: group.bg, borderColor: group.border };
 
     return (
-      <Pressable
+      <View
         key={key}
+        onLayout={noteCell(key, true, rowIndex)}
         style={[styles.cell, styles.key, face, down && styles.keyDown, styles.keyShadow]}
-        onPressIn={() => pressIn(key)}
-        onPressOut={pressOut}
-        onPress={() => press(key)}
         accessibilityRole="button"
-        // Reads the move it will *make*, not the letter printed on it — so with
-        // `′` armed a screen reader says "R prime" like the key does.
-        accessibilityLabel={describeToken(token)}
-        accessibilityHint="Tap to add this move; hold for prime; tap again for a half turn"
+        accessibilityLabel={describeToken(key)}
+        accessibilityHint="Tap to add this move; hold for prime or a half turn"
+        // The accessible equivalent of the hold: VoiceOver cannot slide onto a
+        // menu, so the two modifiers are offered as actions on the key.
+        accessibilityActions={[
+          { name: 'prime', label: 'Prime' },
+          { name: 'double', label: 'Half turn' },
+        ]}
+        onAccessibilityAction={({ nativeEvent }) => {
+          if (nativeEvent.actionName === 'prime') onKey(key, { modifier: "'" });
+          if (nativeEvent.actionName === 'double') onKey(key, { modifier: '2' });
+        }}
       >
         <Text
-          style={[styles.keyText, { color: live ? '#ffffff' : group.ink }]}
+          style={[styles.keyText, { color: group.ink }]}
           numberOfLines={1}
           adjustsFontSizeToFit
         >
-          {token}
+          {key}
         </Text>
 
-        {/* `B` is the face a net cannot show in place, so it is the one key that
-            has to say where it is. */}
-        {!!tag && !live && !promoting && (
-          <Text style={[styles.tag, { color: palette.faint }]}>{tag}</Text>
-        )}
-
-        {/* The corner mark is the hold's, and only the hold's. With `′` armed
-            the label already ends in one, and a second prime mark in the corner
-            would read as `R''`. */}
-        {live && !primed && <Text style={[styles.tag, styles.tagArmed]}>′</Text>}
-
-
-        {/* "Again and this becomes R2." */}
-        {promoting && <Text style={[styles.tag, { color: accent }]}>2</Text>}
-
-        {/* The hold, drawn from 0ms. */}
-        {down && (
-          <View style={[styles.holdTrack, { backgroundColor: palette.holdTrack }]}>
-            <Animated.View
-              style={[
-                styles.holdFill,
-                {
-                  backgroundColor: live ? '#ffffff' : accent,
-                  width: fill.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ['0%', '100%'],
-                  }),
-                },
-              ]}
-            />
-          </View>
-        )}
-
-        {/* The ring, and the soft halo outside it. Two views because React
-            Native has no spread shadow to put a 3pt glow on a border.
-
-            **The hold's, and only the hold's.** It marks the one key crossing
-            the threshold; ringing all fourteen while `′` is armed would be a
-            pad of alarm bells saying something the labels already say. */}
-        {down && armed && (
-          <>
-            <View style={[styles.halo, { borderColor: 'rgba(198,40,40,0.16)' }]} pointerEvents="none" />
-            <View style={[styles.ring, { borderColor: accent }]} pointerEvents="none" />
-          </>
-        )}
-      </Pressable>
+        {!!tag && <Text style={[styles.tag, { color: palette.faint }]}>{tag}</Text>}
+      </View>
     );
   };
 
-  const toolKey = (cell) => {
+  const toolKey = (cell, rowIndex) => {
     const { tool } = cell;
     const isFlag = tool === 'flag';
-    const isPrime = tool === 'prime';
-
-    /**
-     * The prime key lights for **either** route (operator, 2026-08-05).
-     *
-     * `primed` is the key having been tapped. `armed` is a *hold* having crossed
-     * the threshold — and lighting this key for that is the same fix as adding
-     * the key in the first place: everything the hold says about itself is drawn
-     * on the key being held, which is the key under the thumb. This is the one
-     * place on the pad that says "you are about to write a prime" and is
-     * guaranteed not to be the thing your finger is covering.
-     *
-     * `armed` can only be true while a *move* key is down — the arm timer is
-     * started in `pressIn`, which tools do not call — so there is no state where
-     * this lights for a hold on a tool.
-     */
-    const primeLive = isPrime && (primed || armed);
-
-    // The flag is the design's one accent fill *at rest*. The prime key borrows
-    // it only while live, which is a state rather than a resting style — and
-    // being the loud thing on the pad is the entire job it was added to do.
-    const group = isFlag || primeLive ? palette.accent : palette.tone('tool');
+    const group = isFlag ? palette.accent : palette.tone('tool');
     const disabled = tool === 'backspace' ? !canUndo : isFlag ? !canPhase : false;
-
-    const config = {
-      backspace: {
-        label: 'Undo the last move',
-        hint: 'Removes the last move whole, and turns it back. Hold to keep deleting',
-        onPress: onUndo,
-      },
-      keyboard: {
-        label: 'Type an algorithm',
-        hint: 'Opens a field for typing or pasting a whole sequence',
-        onPress: onType,
-      },
-      flag: {
-        label: 'End the phase here',
-        hint: 'Names the group of moves since the last marker, and lists the ones already marked',
-        onPress: onPhase,
-      },
-      prime: {
-        // Reads what it looks like. A hold past the threshold really has armed
-        // a prime, so saying otherwise while the key is filled accent would be
-        // the label and the pixels disagreeing.
-        label: primeLive ? 'Prime, armed' : 'Prime',
-        hint: primed
-          ? 'The next move you tap will be a prime. Tap again to cancel'
-          : 'Arms a prime for the next move you tap. Holding a move key does the same thing',
-        onPress: onPrime,
-      },
+    const label = {
+      backspace: 'Undo the last move',
+      keyboard: 'Type an algorithm',
+      flag: 'End the phase here',
     }[tool];
-
     const down = pressed === tool;
 
     return (
-      <Pressable
+      <View
         key={tool}
+        onLayout={noteCell(tool, false, rowIndex)}
         style={[
           styles.cell,
           styles.key,
@@ -330,44 +350,60 @@ const CubeMovePad = ({
           down && styles.keyDown,
           disabled && styles.disabled,
         ]}
-        onPressIn={() => {
-          setPressed(tool);
-          if (tool === 'backspace') holdBackspace();
-        }}
-        onPressOut={() => {
-          clearTimers();
-          setPressed(null);
-        }}
-        onPress={config.onPress}
-        disabled={disabled}
         accessibilityRole="button"
-        accessibilityLabel={config.label}
-        accessibilityHint={config.hint}
-        accessibilityState={{ disabled, selected: isPrime ? primeLive : undefined }}
+        accessibilityLabel={label}
+        accessibilityState={{ disabled }}
+        // A plain `View` does not carry a `disabled` prop the way the `Pressable`
+        // this replaced did, and `accessibilityState` alone does not reach the
+        // DOM — so a dimmed backspace announced as available. Spelled out.
+        aria-disabled={disabled || undefined}
       >
-        {isPrime ? (
-          // A glyph would be a 1.9pt stroke of an apostrophe. The notation is
-          // the icon.
-          <Text style={[styles.primeText, { color: group.ink }]}>′</Text>
-        ) : (
-          <CubeGlyph name={tool} size={tool === 'keyboard' ? 20 : 19} color={group.ink} />
-        )}
-      </Pressable>
+        <CubeGlyph name={tool} size={tool === 'keyboard' ? 20 : 19} color={group.ink} />
+      </View>
     );
   };
 
   return (
-    <View style={styles.pad}>
-      {rows.map((row, rowIndex) => (
-        <View key={`row-${rowIndex}`} style={styles.row}>
+    <View
+      ref={padRef}
+      style={styles.pad}
+      onLayout={({ nativeEvent }) => {
+        padWidthRef.current = nativeEvent.layout.width;
+        // Re-measured on every layout, so a rotation or a keyboard appearing
+        // cannot leave the hit test pointing at where the pad used to be.
+        if (padRef.current && padRef.current.measureInWindow) {
+          padRef.current.measureInWindow((x, y) => {
+            padPage.current = { x, y };
+          });
+        }
+      }}
+      {...responder.panHandlers}
+    >
+      {grid.map((row, rowIndex) => (
+        <View
+          key={`row-${rowIndex}`}
+          style={styles.row}
+          onLayout={({ nativeEvent }) => {
+            const { x, y } = nativeEvent.layout;
+            rows.current[rowIndex] = { x, y };
+          }}
+        >
           {row.map((cell, cellIndex) => {
-            // The cross's one deliberate hole. A real cell holding real width,
-            // and not a target — it is what makes the cross read as a cross.
             if (cell.gap) return <View key={`gap-${cellIndex}`} style={styles.cell} />;
-            return cell.tool ? toolKey(cell) : moveKey(cell);
+            return cell.tool ? toolKey(cell, rowIndex) : moveKey(cell, rowIndex);
           })}
         </View>
       ))}
+
+      {menuKey && menuRect.current && (
+        <CubeKeyMenu
+          left={menuRect.current.x}
+          top={menuRect.current.y}
+          active={option}
+          accent={accent}
+          palette={palette}
+        />
+      )}
     </View>
   );
 };
@@ -384,10 +420,6 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     gap: KEY_GAP,
   },
-  // Spelled out rather than `flex: 1`. Step 7's lesson: react-native-web reads
-  // the shorthand as `flex-basis: 0%` with shrink still on, and a row of six
-  // that disagrees with Yoga about its basis is a row that lays out one way in
-  // the browser and another on the phone.
   cell: {
     flexGrow: 1,
     flexShrink: 1,
@@ -415,20 +447,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
   },
-  // Much larger than a move label, because `′` is a small mark in a big empty
-  // em and at 17pt it reads as a speck next to `R`. The key has to be as
-  // findable as its neighbours — being findable is the entire reason it exists.
-  //
-  // The glyph also sits at cap height rather than on the centre line, so
-  // centring the *box* leaves the ink high. The nudge puts the mark itself on
-  // the middle of the key; it is a transform rather than a `lineHeight` because
-  // line box maths differs between web and Yoga and this only has to move ink.
-  primeText: {
-    fontFamily: ALG_FONT,
-    fontSize: 32,
-    fontWeight: '700',
-    transform: [{ translateY: 5 }],
-  },
   tag: {
     position: 'absolute',
     top: 3,
@@ -436,40 +454,6 @@ const styles = StyleSheet.create({
     fontFamily: ALG_FONT,
     fontSize: 9,
     fontWeight: '700',
-  },
-  tagArmed: {
-    color: 'rgba(255,255,255,0.85)',
-  },
-  holdTrack: {
-    position: 'absolute',
-    left: 5,
-    right: 5,
-    bottom: 4,
-    height: 3,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  holdFill: {
-    height: 3,
-    borderRadius: 2,
-  },
-  ring: {
-    position: 'absolute',
-    top: -1,
-    left: -1,
-    right: -1,
-    bottom: -1,
-    borderWidth: 2,
-    borderRadius: 10,
-  },
-  halo: {
-    position: 'absolute',
-    top: -4,
-    left: -4,
-    right: -4,
-    bottom: -4,
-    borderWidth: 3,
-    borderRadius: 13,
   },
   disabled: {
     opacity: 0.35,

@@ -31,17 +31,12 @@ describe('PAD_LAYOUT', () => {
     expect(PAD_LAYOUT).toHaveLength(PAD_COLUMNS * PAD_ROWS);
   });
 
-  it("has no empty cells left: the cross's gap is the prime key", () => {
-    // The design left column 3 row 1 deliberately empty. The operator used the
-    // hold on a phone and found its feedback lives under the thumb causing it,
-    // so the armed `′` came back as a second route and took that cell.
-    expect(PAD_LAYOUT.some((cell) => cell.gap)).toBe(false);
-    expect(PAD_LAYOUT[2].tool).toBe('prime');
-  });
-
-  it('puts the prime key directly above R', () => {
-    // The most prime-heavy key on a Roux pad, and the reach is one row.
-    expect(PAD_LAYOUT[2 + PAD_COLUMNS].key).toBe('R');
+  it("keeps the cross's one deliberate hole, at column 3 of row 1", () => {
+    // **Experiment branch.** The shipped pad spends this cell on an armed `′`
+    // key; here both modifiers come off one hold, so the gap the design asked
+    // for is back. One, and in that cell — anywhere else and the net is wrong.
+    const gaps = PAD_LAYOUT.map((cell, i) => (cell.gap ? i : -1)).filter((i) => i >= 0);
+    expect(gaps).toEqual([2]);
   });
 
   it('is every key a move, or a tool, and never both', () => {
@@ -72,9 +67,10 @@ describe('PAD_LAYOUT', () => {
     expect(column(6)).toEqual(['x', 'y', 'z']);
   });
 
-  it('carries the four tools, and no Clear', () => {
+  it('carries the three tools, and no Clear', () => {
     const tools = PAD_LAYOUT.filter((cell) => cell.tool).map((cell) => cell.tool);
-    expect(tools.sort()).toEqual(['backspace', 'flag', 'keyboard', 'prime']);
+    // No `prime` key on this branch — the hold reaches both modifiers.
+    expect(tools.sort()).toEqual(['backspace', 'flag', 'keyboard']);
     // Clearing a solve does not belong under a thumb aiming at `R` — it moved
     // to the solves list in Step 8 (plan §8.8).
     expect(tools).not.toContain('clear');
@@ -199,27 +195,22 @@ describe('applyPadPress', () => {
     expect(applyPadPress(once, 'R', { repeat: true, held: true })).toBe('R2');
   });
 
-  it('writes a prime when the `′` key was armed', () => {
-    expect(applyPadPress('', 'R', { primed: true })).toBe("R'");
-    expect(applyPadPress('U', 'M', { primed: true })).toBe("U M'");
+  it('writes whichever token the accessory menu was released on', () => {
+    expect(applyPadPress('', 'R', { modifier: "'" })).toBe("R'");
+    expect(applyPadPress('', 'R', { modifier: '2' })).toBe('R2');
+    expect(applyPadPress('U', 'M', { modifier: "'" })).toBe("U M'");
   });
 
-  it('lets an armed prime beat a promotion, because arming is deliberate', () => {
-    // You tapped `′` and then `R`. The only thing that can mean is `R'`.
-    expect(applyPadPress('R', 'R', { primed: true, repeat: true })).toBe("R R'");
+  it('writes the plain move when the menu was released on nothing', () => {
+    // A hold you thought better of still gives you what a tap would have.
+    expect(applyPadPress('U', 'R', { modifier: '' })).toBe('U R');
   });
 
-  it('still lets a hold lose to a promotion, because a hold is a duration', () => {
-    // The asymmetry with the case above is the whole difference between the two
-    // routes to a prime: one is a statement, the other is a finger resting a
-    // moment too long on the second tap.
-    expect(applyPadPress('R', 'R', { held: true, repeat: true })).toBe('R2');
-  });
-
-  it('treats the two routes to a prime as the same result', () => {
-    expect(applyPadPress('U', 'R', { held: true })).toBe(
-      applyPadPress('U', 'R', { primed: true })
-    );
+  it('lets a menu choice beat everything else', () => {
+    // It is the most deliberate thing the pad can carry: the operator held the
+    // key, watched the menu open, and slid onto a specific token.
+    expect(applyPadPress('R', 'R', { modifier: "'", repeat: true })).toBe("R R'");
+    expect(applyPadPress('R', 'R', { modifier: '2', repeat: true })).toBe('R R2');
   });
 
   it('appends rather than promoting when the token is no longer there', () => {
