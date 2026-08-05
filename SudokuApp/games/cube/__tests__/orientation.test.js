@@ -15,8 +15,10 @@ import {
   facingAt,
   facingColors,
   orientationAt,
+  viewAfterHold,
 } from '../orientation';
 import {
+  FACE_NORMALS,
   FACE_ORDER,
   applyMoves,
   cubeFromAlg,
@@ -24,7 +26,7 @@ import {
   isSolved,
   solvedCube,
 } from '../cubeState';
-import { DEFAULT_PITCH, DEFAULT_YAW } from '../geometry';
+import { DEFAULT_PITCH, DEFAULT_YAW, orbit } from '../geometry';
 import { OPPOSITE_FACE, parseAlg } from '../moves';
 
 const RAD = (degrees) => (degrees * Math.PI) / 180;
@@ -288,5 +290,106 @@ describe('describing a hold in colours', () => {
   it('has a colour for every face', () => {
     FACE_ORDER.forEach((face) => expect(COLOR_NAMES[face]).toBeTruthy());
     expect(new Set(Object.values(COLOR_NAMES)).size).toBe(6);
+  });
+});
+
+describe('viewAfterHold — the picture does not jump when the hold is set', () => {
+  // What the operator is looking at: where each face's normal lands on screen.
+  // If two cameras put all six in the same places, the two pictures are the
+  // same picture.
+  const picture = (yaw, pitch, alg) => {
+    const turned = applyMoves(solvedCube(), parseAlg(alg || ''));
+    const faces = facelets(turned);
+    // Which original colour is on each face position now, and where that face
+    // position sits on screen.
+    return FACE_ORDER.map((face) => ({
+      color: faces[face][4],
+      at: orbit(FACE_NORMALS[face], yaw, pitch),
+    })).sort((a, b) => a.color.localeCompare(b.color));
+  };
+
+  const sameTo = (a, b, tolerance) =>
+    a.every((entry, i) =>
+      entry.color === b[i].color &&
+      entry.at.every((v, axis) => Math.abs(v - b[i].at[axis]) <= tolerance)
+    );
+
+  /** How far the picture moved, worst face, worst axis. */
+  const drift = (yaw, pitch) => {
+    const before = picture(yaw, pitch, '');
+    const view = viewAfterHold(yaw, pitch);
+    const after = picture(view.yaw, view.pitch, orientationAt(yaw, pitch));
+    let worst = 0;
+    before.forEach((entry, i) => {
+      expect(entry.color).toBe(after[i].color);
+      entry.at.forEach((v, axis) => {
+        worst = Math.max(worst, Math.abs(v - after[i].at[axis]));
+      });
+    });
+    return worst;
+  };
+
+  it('leaves the opening view exactly where it is', () => {
+    expect(drift(DEFAULT_YAW, DEFAULT_PITCH)).toBeLessThan(1e-9);
+  });
+
+  it('is exact at the angles a hand actually stops at', () => {
+    // Including the cube turned right over for the traditional yellow-up Roux
+    // hold, which is the one the old behaviour moved furthest.
+    [
+      [-30, 25],
+      [-30, 155],
+      [0, 120],
+      [45, 45],
+      [-90, 20],
+      [30, 25],
+      [-30, -25],
+      [180, 30],
+    ].forEach(([y, p]) => {
+      expect(drift(RAD(y), RAD(p))).toBeLessThan(1e-9);
+    });
+  });
+
+  it('beats sending the camera back to the opening angle, nearly everywhere', () => {
+    // The old behaviour, for comparison: the hold is baked in and the camera
+    // goes to the default whatever the operator was looking at.
+    const oldDrift = (yaw, pitch) => {
+      const before = picture(yaw, pitch, '');
+      const after = picture(DEFAULT_YAW, DEFAULT_PITCH, orientationAt(yaw, pitch));
+      let worst = 0;
+      before.forEach((entry, i) => {
+        entry.at.forEach((v, axis) => {
+          worst = Math.max(worst, Math.abs(v - after[i].at[axis]));
+        });
+      });
+      return worst;
+    };
+
+    let exact = 0;
+    let better = 0;
+    let total = 0;
+    for (let y = -180; y < 180; y += 15) {
+      for (let p = -180; p < 180; p += 15) {
+        const now = drift(RAD(y), RAD(p));
+        const was = oldDrift(RAD(y), RAD(p));
+        total += 1;
+        if (now < 1e-9) exact += 1;
+        if (now <= was + 1e-9) better += 1;
+      }
+    }
+    // Over half of every angle a finger can reach is pixel-exact, and the
+    // camera never ends up further from the picture than the old jump did.
+    expect(exact / total).toBeGreaterThan(0.5);
+    expect(better).toBe(total);
+  });
+
+  it('never returns an angle the camera cannot hold', () => {
+    for (let y = -180; y < 180; y += 30) {
+      for (let p = -180; p < 180; p += 30) {
+        const view = viewAfterHold(RAD(y), RAD(p));
+        expect(Number.isFinite(view.yaw)).toBe(true);
+        expect(Number.isFinite(view.pitch)).toBe(true);
+      }
+    }
   });
 });

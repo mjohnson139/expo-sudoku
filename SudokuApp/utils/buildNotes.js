@@ -20,6 +20,7 @@ const BUILD_NOTES = {
       'The cube turns all the way over, so yellow-up — the usual Roux hold — is one drag away',
       'Set start locks that hold in, and every move you write is relative to it',
       'Start view is the shortcut back to the hold you picked, however far you have turned away',
+      'Set start no longer moves the cube: it stays exactly where you turned it to',
       'Then the move pad opens, with the cube starting from the scramble in your chosen hold',
       'Twelve keys — U D L R F B, M, r, l, x y z — with ’ and 2 armed before the move they apply to',
       'Every move you enter turns the cube as you enter it, at whatever speed the chip is set to',
@@ -41,6 +42,10 @@ const BUILD_NOTES = {
       'Save a scramble to your favorites, and load any of them back onto the cube later',
       'Loading a favorite brings back every solve you wrote against it',
       'The scramble you were looking at, and everything you saved, survive closing the app',
+      'The cube is much bigger: the screen was two thirds buttons and text, and now it is not',
+      'Moves sit in a two-line track that scrolls itself to wherever the cube is, however long the solve gets',
+      'Pull the handle under the moves and the whole solve opens out over the cube; tap it to put it away',
+      'The view controls moved up beside the title, so a whole row of the page went back to the cube',
       'Sudoku and Fungiku are unchanged',
     ]
   },

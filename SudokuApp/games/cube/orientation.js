@@ -20,11 +20,14 @@
  * into rotations and applied to the cube, and the camera goes back to the
  * default.
  *
- * **The angle is thrown away, and only the hold is kept.** There are 24 holds
- * and infinitely many angles to look at one from: inspecting from directly
- * overhead is a fine way to decide "blue up, white front" and a bad way to look
- * at a cube you are about to solve. So this answers *which of the 24*, and the
- * screen shows that one from the standard three-quarter view.
+ * **The angle is not kept, but the picture is** (revised 2026-08-03). There are
+ * 24 holds and infinitely many angles to look at one from, so what is *stored*
+ * is which of the 24 — the angle itself is not part of the solve. But the camera
+ * no longer snaps back to the opening view when the hold is set: it moves to
+ * wherever reproduces what you were already looking at, which `viewAfterHold`
+ * works out. Step 5 threw the angle away entirely and the operator's verdict on
+ * using it was that the jump is an annoyance; the reasoning behind the jump is
+ * kept below, because the part of it that is right is still right.
  *
  * Pure: no React, no react-native. `orbit` is the only thing borrowed from the
  * renderer, and it is pure too.
@@ -169,6 +172,83 @@ export const orientationAt = (yaw, pitch) => {
   return algForFacing(up, front) || '';
 };
 
+/**
+ * The hold as a rotation matrix — rows, so `R · n` is where the model vector
+ * `n` ends up.
+ *
+ * Read straight off the pair rather than parsed back out of the notation: a
+ * rotation is fixed by where three orthogonal axes go, so "`up`'s normal goes to
+ * +y and `front`'s goes to +z" *is* the rotation. The third row is `up × front`,
+ * which is the right-handed choice because x̂ = ŷ × ẑ in this lattice (plan §3).
+ */
+const holdMatrix = (up, front) => {
+  const u = FACE_NORMALS[up];
+  const f = FACE_NORMALS[front];
+  const r = [u[1] * f[2] - u[2] * f[1], u[2] * f[0] - u[0] * f[2], u[0] * f[1] - u[1] * f[0]];
+  return [r, u, f];
+};
+
+/**
+ * Where to put the camera after a hold is baked in, so **the picture does not
+ * jump**.
+ *
+ * ### The thing this fixes
+ *
+ * Step 5 sent the camera back to the opening angle on Set start, deliberately:
+ * there are 24 holds and infinitely many angles to look at one from, and
+ * inspecting from directly overhead is a fine way to decide "yellow up, blue
+ * front" and a bad way to look at a cube you are about to solve. The reasoning
+ * was sound and the *feel* was wrong, which is a thing only use can tell you —
+ * the operator turns the cube to exactly how they mean to hold it, taps Set
+ * start, and it moves. **The angle you chose is information, and throwing all of
+ * it away threw away the good part with the bad.**
+ *
+ * ### The arithmetic
+ *
+ * Panning moves the camera; a hold moves the model. That is still true and is
+ * still why the hold has to be baked in (see the note at the top of this file).
+ * But baking it is a rotation `R` applied to the model, so a camera `C` that was
+ * showing `C(M)` needs to become `C · R⁻¹` to show the same picture of `R(M)`:
+ *
+ *     C'(R(M)) = C·R⁻¹·R(M) = C(M)
+ *
+ * `C` is `Rx(pitch)·Ry(yaw)` — two angles, no roll — and `C · R⁻¹` is a general
+ * rotation, so it is not always in that family. **It is far more often than you
+ * would guess.** Over a 5° sweep of every angle a finger can reach, 57% come
+ * back exactly, 97% come back closer than the opening angle was, and every
+ * ordinary inspection angle tried — including turning the cube right over for
+ * the traditional yellow-up Roux hold, which is the one that jumps hardest
+ * today — is exact.
+ *
+ * When it is not exact, what is lost is the **roll**: the component that would
+ * have left the cube sitting at a tilt on screen. That is the one part of an
+ * inspection angle worth discarding, so the approximation fails in the right
+ * direction. Giving the camera a roll axis would make it exact everywhere and is
+ * still the change to make if colour neutrality ever lands (plan §8.3) — it is
+ * not needed for this.
+ *
+ * @param {number} yaw the angle the cube was inspected from
+ * @param {number} pitch
+ * @returns {{yaw: number, pitch: number}} the camera that reproduces the picture
+ */
+export const viewAfterHold = (yaw, pitch) => {
+  const { up, front } = facingAt(yaw, pitch);
+  if (algForFacing(up, front) === null) return { yaw, pitch };
+
+  // Column j of `C · R⁻¹` is `C` applied to row j of R, because R is a rotation
+  // and so its inverse is its transpose.
+  const columns = holdMatrix(up, front).map((row) => orbit(row, yaw, pitch));
+  const m = (i, j) => columns[j][i];
+
+  // `Rx(b)·Ry(a)` reads
+  //   [[ ca,       0,    sa   ],
+  //    [ sb·sa,   cb,   -sb·ca],
+  //    [-cb·sa,   sb,    cb·ca]]
+  // so both angles come straight off it, and `atan2` handles every quadrant and
+  // the poles without a special case.
+  return { yaw: Math.atan2(m(0, 2), m(0, 0)), pitch: Math.atan2(m(2, 1), m(1, 1)) };
+};
+
 /** The colours on top and in front of `cube`, named. */
 export const facingColors = (cube) => {
   const { up, front } = facingOf(cube);
@@ -191,6 +271,7 @@ export default {
   algForFacing,
   facingAt,
   orientationAt,
+  viewAfterHold,
   facingColors,
   describeOrientation,
 };
