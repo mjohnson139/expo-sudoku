@@ -16,6 +16,7 @@ import CubeView from './CubeView';
 import CubeAlgInputModal from './CubeAlgInputModal';
 import CubeFavoritesModal from './CubeFavoritesModal';
 import CubeMovePad from './CubeMovePad';
+import CubeMoveTrack from './CubeMoveTrack';
 import CubeNameModal from './CubeNameModal';
 import CubePhaseModal from './CubePhaseModal';
 import CubePhaseStrip from './CubePhaseStrip';
@@ -29,13 +30,13 @@ import {
   describeOrientation,
   describeOrientationSentence,
   orientationAt,
+  viewAfterHold,
 } from './orientation';
 import { randomScramble } from './scramble';
 import {
   appendAlg,
   appendToken,
   describeSolve,
-  describeToken,
   dropLastToken,
   nextModifier,
   padToken,
@@ -178,6 +179,21 @@ const CubeScreen = ({ onExitToHub }) => {
   // new scramble nor coming back tomorrow means they wanted to move.
   const [yaw, setYaw] = useState(DEFAULT_YAW);
   const [pitch, setPitch] = useState(DEFAULT_PITCH);
+
+  /**
+   * The angle **Set start** left the cube at, and which solve it was set for.
+   *
+   * Transient, like the angle itself (plan §7.1) — what is *authored* is the
+   * hold, and the hold is stored. This only has to survive until the operator
+   * pans away and taps `Start view`, so that the button goes back to the view
+   * they chose rather than to a default they never asked for.
+   *
+   * Tagged with the solve's id rather than reset by every callback that could
+   * invalidate it: switching pages, loading a favorite and starting a new solve
+   * would each have to remember to clear it, and the one that forgot would send
+   * `Start view` to another solve's angle.
+   */
+  const [chosenView, setChosenView] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -435,9 +451,16 @@ const CubeScreen = ({ onExitToHub }) => {
   const setStartingOrientation = useCallback(() => {
     pause();
     editOpen({ orientation: orientationAt(yaw, pitch) });
-    setYaw(DEFAULT_YAW);
-    setPitch(DEFAULT_PITCH);
-  }, [pause, editOpen, yaw, pitch]);
+    // Where the camera has to stand to keep showing what it is showing, now
+    // that the hold has been turned into the model underneath it. Usually that
+    // is exactly the angle the operator was already at, and the picture does not
+    // move at all; see `viewAfterHold` for when it cannot be, and why the part
+    // it gives up is the part worth giving up.
+    const view = viewAfterHold(yaw, pitch);
+    setYaw(view.yaw);
+    setPitch(view.pitch);
+    setChosenView({ id: openId, ...view });
+  }, [pause, editOpen, yaw, pitch, openId]);
 
   // Back to inspection. Only offered while the solve is empty: re-orienting
   // under moves that are already written would silently change what every one
@@ -526,14 +549,24 @@ const CubeScreen = ({ onExitToHub }) => {
     [renamingId, endRename]
   );
 
-  // The shortcut back to the hold you picked. Because the orientation is baked
-  // into the model rather than left in the camera, "the view I chose" and "the
-  // default view" are the same thing — so this is the reset that already
-  // existed, under the name it now deserves.
+  /**
+   * The shortcut back to the hold you picked — and, since 2026-08-03, back to
+   * the *angle* you picked it from.
+   *
+   * Step 5 could make this the plain reset, because setting a hold sent the
+   * camera to the default and so "the view I chose" and "the default view" were
+   * the same thing. They are not any more: Set start leaves the camera where it
+   * was, so this has to go back there rather than to the opening angle.
+   *
+   * Falling back to the default is the honest answer when there is nothing
+   * remembered — after a cold start, the hold comes back from the file and the
+   * angle deliberately does not.
+   */
   const startView = useCallback(() => {
-    setYaw(DEFAULT_YAW);
-    setPitch(DEFAULT_PITCH);
-  }, []);
+    const chosen = chosenView && chosenView.id === openId ? chosenView : null;
+    setYaw(chosen ? chosen.yaw : DEFAULT_YAW);
+    setPitch(chosen ? chosen.pitch : DEFAULT_PITCH);
+  }, [chosenView, openId]);
 
   // A key is the armed modifier plus the letter, and the arming is spent — one
   // move, then back to plain. Holding it would mean a `'` left armed silently
@@ -702,9 +735,19 @@ const CubeScreen = ({ onExitToHub }) => {
   const openMoves = Math.max(0, player.index - openStart);
   const renamingPhase = isPhaseBoundary(phases, player.index);
 
-  // The boundaries, for the divider in the solve card. A set, because the card
+  // The boundaries, for the dividers in the move track. A set, because the track
   // asks this once per token.
-  const marks = useMemo(() => new Set(phases.map((phase) => phase.at)), [phases]);
+  //
+  // **Only while writing.** The markers belong to the solve, and the track shows
+  // the *scramble* in the other mode — where a divider from somebody's Roux
+  // first block would be drawn across a scramble that has no phases and cannot
+  // have any. (The card this replaced had the same bug and nobody caught it,
+  // because you have to open a scramble that already has an annotated solve
+  // behind it to see one.)
+  const marks = useMemo(
+    () => new Set(writing ? phases.map((phase) => phase.at) : []),
+    [writing, phases]
+  );
 
   // Solve mode has two phases, which is how the operator described it: **find
   // the hold**, then **write the solve**. Inspecting is panning, so it gets the
@@ -745,10 +788,98 @@ const CubeScreen = ({ onExitToHub }) => {
       : Math.min(widthAllowance, MAX_CUBE, height * CUBE_HEIGHT_SHARE)
   );
 
+  /**
+   * The controls that ride on the header (plan §8.6, Step 7).
+   *
+   * These are the *view*: where the camera is pointing, and — in solve mode —
+   * the way back out to the scramble. They were a row of their own, twice: an
+   * action row above the cube and a second row of buttons below it, together
+   * about 100 points on a screen whose subject is a square. A header row was
+   * already being paid for, and it had a whole empty column on the right of it.
+   *
+   * Icon-only, and that is the trade this step makes: a label is a word you
+   * read once and an icon is a target you hit every time. What a label says
+   * that an icon cannot is a *count* — so `count` is a parameter, and Favorites
+   * keeps its number.
+   */
+  const headerAction = (name, label, hint, onPress, count) => (
+    <TouchableOpacity
+      key={label}
+      style={[styles.headerAction, { borderColor: border }]}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityHint={hint}
+    >
+      <MaterialCommunityIcons name={name} size={18} color={titleColor} />
+      {count > 0 && (
+        <Text style={[styles.headerActionCount, { color: titleColor }]}>{count}</Text>
+      )}
+    </TouchableOpacity>
+  );
+
+  const headerActions = writing ? (
+    <>
+      {!inspecting &&
+        headerAction(
+          'arrow-left',
+          'Back to the scramble',
+          'Stops writing and shows the scramble again; the solve is kept',
+          stopSolving
+        )}
+
+      {/* Whichever of the two the hold allows, and the rule is Step 5's,
+          unchanged: re-orienting is free while the solve is empty and locked
+          once it is not, because re-orienting under moves already written would
+          silently change what every one of them does (operator, 2026-08-02). */}
+      {!inspecting &&
+        (solveCount === 0
+          ? headerAction(
+              'axis-arrow',
+              'Pick the starting orientation again',
+              'Goes back to turning the cube to how you want to hold it',
+              reorient
+            )
+          : headerAction(
+              'restore',
+              'Back to the starting view',
+              `Looks at the cube from ${holdText} again`,
+              startView
+            ))}
+
+      {headerAction(
+        'rotate-3d-variant',
+        'Turn the cube around',
+        'Shows the three faces that are currently hidden',
+        showOtherSide
+      )}
+    </>
+  ) : (
+    <>
+      {headerAction('restore', 'Reset the view', 'Looks at the cube from the front again', resetView)}
+      {headerAction(
+        'rotate-3d-variant',
+        'Turn the cube around',
+        'Shows the three faces that are currently hidden',
+        showOtherSide
+      )}
+      {/* Not a view control, and here anyway: the row below fits three labelled
+          buttons at 320 points and not four, and this is the one of the four
+          whose label was a noun rather than a verb. It keeps its count. */}
+      {headerAction(
+        'star-box-outline',
+        `Favorites, ${favorites.length} saved`,
+        'Opens the list of scrambles you have kept',
+        () => setShowFavorites(true),
+        favorites.length
+      )}
+    </>
+  );
+
   if (!hydrated) {
     return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <ScreenHeader title="Cube Scramble" theme={theme} onHomePress={onExitToHub} />
+        <ScreenHeader title="Cube Scramble" theme={theme} onHomePress={onExitToHub} dense />
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={titleColor} />
         </View>
@@ -758,100 +889,57 @@ const CubeScreen = ({ onExitToHub }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      <ScreenHeader title="Cube Scramble" theme={theme} onHomePress={onExitToHub} />
+      {/* Dense, and carrying the view controls (plan §8.6, Step 7). The default
+          header wrapped "Cube Scramble" onto two lines and cost 75 points to say
+          something the operator knew before they tapped the tile; the controls
+          that ride on it used to be a row of their own, and a row on this screen
+          is the cube's height. */}
+      <ScreenHeader
+        title="Cube Scramble"
+        theme={theme}
+        onHomePress={onExitToHub}
+        dense
+        actions={headerActions}
+      />
 
-      {/* While a solve is being written the scramble is context rather than the
-          subject, so it drops to one muted line — it is still the thing being
-          solved and it is still worth being able to read, but the card below it
-          now belongs to the solve. */}
-      {writing && (
-        <Text
-          style={[styles.scrambleLine, { color: pendingColor }]}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-          accessibilityLabel={`Solving the scramble ${scramble}`}
-        >
-          {scramble}
-        </Text>
+      {/* The moves — and the scrubber's track. Tapping a token turns the cube to
+          that point, one move at a time and in whichever direction it lies,
+          which is a shorter route to "what does move 14 do" than fourteen taps
+          on the step button and still shows the moves rather than cutting to the
+          answer.
+
+          The tokens come from the same scan as the moves (`player.tokens`), so a
+          token and the move it turns to cannot drift apart — and a solve entered
+          as `r U r'` reads back as `r U r'` rather than being quietly corrected
+          to the model's canonical `Rw U Rw'` (plan §4).
+
+          **Inspection does not get one.** There are no moves yet, and the prompt
+          it used to hold is said better by the live hold readout under the cube —
+          which is the answer the phase is actually looking for. */}
+      {!inspecting && (
+        <CubeMoveTrack
+          tokens={player.tokens}
+          index={player.index}
+          marks={marks}
+          placeholder={writing ? 'Tap a key to begin' : scramble}
+          accent={CUBE_ACCENT}
+          theme={theme}
+          pendingColor={pendingColor}
+          noun={noun}
+          label={writing ? `Solve: ${solve || 'nothing yet'}` : `Scramble: ${scramble}`}
+          // How far the drawer may be pulled down: the room the stage is
+          // holding. It opens *over* the cube and never resizes it — the
+          // measurement it is given is a limit, not a claim.
+          room={stage ? stage.height : 0}
+          onSeek={playTo}
+        />
       )}
-
-      {/* The algorithm is also the scrubber's track: tapping a token turns the
-          cube to that point, one move at a time and in whichever direction it
-          lies — which is a shorter route to "what does move 14 do" than
-          fourteen taps on the step button, and still shows the moves rather
-          than cutting to the answer.
-
-          The tokens come from the same scan as the moves (`player.tokens`), so
-          a token and the move it turns to cannot drift apart — and a solve
-          entered as `r U r'` reads back as `r U r'` rather than being quietly
-          corrected to the model's canonical `Rw U Rw'` (plan §4). */}
-      <View style={[styles.scrambleCard, { backgroundColor: surface, borderColor: border }]}>
-        <Text
-          style={[styles.scrambleText, { color: pendingColor }]}
-          accessibilityLabel={
-            inspecting
-              ? 'Turn the cube to how you want to hold it, then set it as the start'
-              : writing
-                ? `Solve: ${solve || 'nothing yet'}`
-                : `Scramble: ${scramble}`
-          }
-          selectable
-        >
-          {player.count === 0
-            ? writing
-              ? inspecting
-                ? 'Turn the cube to how you want to hold it'
-                : 'Tap a key to begin'
-              : scramble
-            : player.tokens.flatMap((token, i) => {
-                // The gap between two tokens is where a phase boundary shows,
-                // and it is its own element rather than part of the token: the
-                // token is a tap target that turns the cube, and a divider is
-                // not a move you can turn to. It is a separate span rather than
-                // a bar drawn under the group because the card wraps — a group
-                // can start mid-line and end two lines later.
-                const gap =
-                  i === 0 ? null : (
-                    <Text
-                      key={`gap-${i}`}
-                      style={marks.has(i) ? [styles.phaseMark, { color: CUBE_ACCENT }] : null}
-                    >
-                      {marks.has(i) ? '  |  ' : '  '}
-                    </Text>
-                  );
-
-                const move = (
-                  <Text
-                    key={`${token}-${i}`}
-                    onPress={() => playTo(i + 1)}
-                    suppressHighlighting
-                    accessibilityRole="button"
-                    accessibilityLabel={`Move ${i + 1}, ${describeToken(token)}`}
-                    accessibilityHint={`Turns the cube to this point in the ${
-                      writing ? 'solve' : 'scramble'
-                    }`}
-                    style={
-                      i === player.index - 1
-                        ? [styles.currentToken, { color: CUBE_ACCENT }]
-                        : i < player.index
-                          ? { color: titleColor }
-                          : null
-                    }
-                  >
-                    {token}
-                  </Text>
-                );
-
-                return gap ? [gap, move] : [move];
-              })}
-        </Text>
-      </View>
 
       {/* Directly under the moves it is describing, and only once there is
           something to describe — a solve with no markers costs the cube
-          nothing. Above the action row rather than below the pad because it is
-          about the *moves*, and the eye should not have to cross the cube to
-          get from `First block · 8` to the eight moves it counted. */}
+          nothing. Above the cube rather than below the pad because it is about
+          the *moves*, and the eye should not have to cross the cube to get from
+          `First block · 8` to the eight moves it counted. */}
       {writing && !inspecting && spans.length > 0 && (
         <CubePhaseStrip
           spans={spans}
@@ -862,133 +950,12 @@ const CubeScreen = ({ onExitToHub }) => {
         />
       )}
 
-      <View style={styles.actionRow}>
-        {writing ? (
-          <>
-            <TouchableOpacity
-              style={[styles.toolButton, { borderColor: border }]}
-              onPress={stopSolving}
-              accessibilityRole="button"
-              accessibilityLabel="Back to the scramble"
-              accessibilityHint="Stops writing and shows the scramble again; the solve is kept"
-            >
-              <MaterialCommunityIcons name="arrow-left" size={18} color={titleColor} />
-              <Text style={[styles.toolButtonText, { color: titleColor }]}>Scramble</Text>
-            </TouchableOpacity>
-
-            {/* The middle control is whichever of the three things is actually
-                available, because there is only room for one of them:
-
-                  inspecting            → Set start  (the point of the phase)
-                  set, nothing written  → Re-orient  (change your mind, freely)
-                  set, moves written    → Start view (the hold is locked in)
-
-                Locking once moves exist is the operator's call (2026-08-02):
-                re-orienting under moves already written would silently change
-                what every one of them does to the cube. */}
-            {inspecting ? (
-              <TouchableOpacity
-                style={[styles.primaryButton, { backgroundColor: CUBE_ACCENT }]}
-                onPress={setStartingOrientation}
-                accessibilityRole="button"
-                accessibilityLabel={`Set the start as ${holdText}`}
-                accessibilityHint="Holds the cube this way round; every move you write is relative to it"
-              >
-                <MaterialCommunityIcons name="check" size={18} color="#ffffff" />
-                <Text style={styles.primaryButtonText}>Set start</Text>
-              </TouchableOpacity>
-            ) : solveCount === 0 ? (
-              <TouchableOpacity
-                style={[styles.toolButton, { borderColor: border }]}
-                onPress={reorient}
-                accessibilityRole="button"
-                accessibilityLabel="Pick the starting orientation again"
-                accessibilityHint="Goes back to turning the cube to how you want to hold it"
-              >
-                <MaterialCommunityIcons name="rotate-3d-variant" size={18} color={titleColor} />
-                <Text style={[styles.toolButtonText, { color: titleColor }]}>Re-orient</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.toolButton, { borderColor: border }]}
-                onPress={startView}
-                accessibilityRole="button"
-                accessibilityLabel="Back to the starting view"
-                accessibilityHint={`Looks at the cube from ${holdText} again`}
-              >
-                <MaterialCommunityIcons name="home-outline" size={18} color={titleColor} />
-                <Text style={[styles.toolButtonText, { color: titleColor }]}>Start view</Text>
-              </TouchableOpacity>
-            )}
-
-            {/* Icon-only: with a labelled button either side, labelling this one
-                too wraps the row onto a second line at 320 points, and the 40
-                points that costs come out of the cube. */}
-            <TouchableOpacity
-              style={[styles.toolButton, styles.iconOnly, { borderColor: border }]}
-              onPress={showOtherSide}
-              accessibilityRole="button"
-              accessibilityLabel="Turn the cube around"
-              accessibilityHint="Shows the three faces that are currently hidden"
-            >
-              <MaterialCommunityIcons
-                name="rotate-3d-variant"
-                size={18}
-                color={titleColor}
-              />
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <TouchableOpacity
-              style={[styles.primaryButton, { backgroundColor: CUBE_ACCENT }]}
-              onPress={startSolving}
-              accessibilityRole="button"
-              accessibilityLabel="Write a solve"
-              accessibilityHint="Opens the move pad, with the cube starting from this scramble"
-            >
-              <MaterialCommunityIcons name="pencil-outline" size={18} color="#ffffff" />
-              <Text style={styles.primaryButtonText}>
-                Solve{solveCount > 0 ? ` (${solveCount})` : ''}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.toolButton, { borderColor: border }]}
-              onPress={newScramble}
-              accessibilityRole="button"
-              accessibilityLabel="New scramble"
-              accessibilityHint="Generates a new random scramble and applies it to the cube"
-            >
-              <MaterialCommunityIcons name="dice-multiple" size={18} color={titleColor} />
-              <Text style={[styles.toolButtonText, { color: titleColor }]}>New</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.toolButton,
-                { borderColor: saved ? CUBE_ACCENT : border },
-                saved && { backgroundColor: surface },
-              ]}
-              onPress={toggleSaved}
-              accessibilityRole="button"
-              accessibilityLabel={saved ? 'Remove from saved scrambles' : 'Save this scramble'}
-              accessibilityState={{ selected: saved }}
-            >
-              <MaterialCommunityIcons
-                name={saved ? 'star' : 'star-outline'}
-                size={18}
-                color={saved ? CUBE_ACCENT : titleColor}
-              />
-              <Text
-                style={[styles.toolButtonText, { color: saved ? CUBE_ACCENT : titleColor }]}
-              >
-                {saved ? 'Saved' : 'Save'}
-              </Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
+      {/* The action row is gone, and that is Step 7's third cut (plan §8.6).
+          Its three controls were `Scramble` — navigation, which now sits beside
+          the home button — and two view controls, which now sit with the view.
+          Its own comment used to explain that one of the three had to be
+          icon-only because labelling it wrapped the row, "and the 40 points that
+          costs come out of the cube". The row itself was 48. */}
 
       {/* Takes the leftover height, and *is* the cube's allowance: it sits in
           the middle of whatever the phone has left rather than hanging under the
@@ -1029,13 +996,44 @@ const CubeScreen = ({ onExitToHub }) => {
       )}
 
       {inspecting ? (
-        <Text
-          style={[styles.hold, { color: CUBE_ACCENT }]}
-          accessibilityLiveRegion="polite"
-          accessibilityLabel={`Holding ${holdText}`}
-        >
-          {describeOrientationSentence(facingCube)}
-        </Text>
+        <>
+          <Text
+            style={[styles.hold, { color: CUBE_ACCENT }]}
+            accessibilityLiveRegion="polite"
+            accessibilityLabel={`Holding ${holdText}`}
+          >
+            {describeOrientationSentence(facingCube)}
+          </Text>
+
+          {/* The one row this screen still has, and the one it should: `Set
+              start` is the *point* of this phase and an accented, labelled
+              button is what says so. It sits under the readout it is confirming
+              rather than above the cube, which is where it used to be —
+              inspecting reads bottom-up now, cube then hold then set. */}
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={[styles.toolButton, { borderColor: border }]}
+              onPress={stopSolving}
+              accessibilityRole="button"
+              accessibilityLabel="Back to the scramble"
+              accessibilityHint="Stops writing and shows the scramble again; the solve is kept"
+            >
+              <MaterialCommunityIcons name="arrow-left" size={18} color={titleColor} />
+              <Text style={[styles.toolButtonText, { color: titleColor }]}>Scramble</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: CUBE_ACCENT }]}
+              onPress={setStartingOrientation}
+              accessibilityRole="button"
+              accessibilityLabel={`Set the start as ${holdText}`}
+              accessibilityHint="Holds the cube this way round; every move you write is relative to it"
+            >
+              <MaterialCommunityIcons name="check" size={18} color="#ffffff" />
+              <Text style={styles.primaryButtonText}>Set start</Text>
+            </TouchableOpacity>
+          </View>
+        </>
       ) : writing ? (
         <CubeMovePad
           modifier={modifier}
@@ -1055,59 +1053,79 @@ const CubeScreen = ({ onExitToHub }) => {
           onPhase={openPhases}
         />
       ) : (
-        <>
-          <Text style={[styles.hint, { color: titleColor }]}>
-            Drag the cube · tap a move to turn to it
-          </Text>
+        // One row where there were two and a caption (plan §8.6). What went:
+        // `Reset view` and `Other side` are view controls and moved up to the
+        // header with the rest of the view; the hint line went altogether. It
+        // read "Drag the cube · tap a move to turn to it", which earns its 24
+        // points on the first visit and never again — and this screen has been
+        // charging the cube for it on every visit since Step 1.
+        //
+        // What is left is the three things this mode is *for*, still labelled,
+        // because a verb with no noun on it is a guess.
+        <View style={styles.bottomRow}>
+          <TouchableOpacity
+            style={[styles.primaryButton, { backgroundColor: CUBE_ACCENT }]}
+            onPress={startSolving}
+            accessibilityRole="button"
+            accessibilityLabel="Write a solve"
+            accessibilityHint="Opens the move pad, with the cube starting from this scramble"
+          >
+            <MaterialCommunityIcons name="pencil-outline" size={18} color="#ffffff" />
+            <Text style={styles.primaryButtonText}>
+              Solve{solveCount > 0 ? ` (${solveCount})` : ''}
+            </Text>
+          </TouchableOpacity>
 
-          <View style={styles.bottomRow}>
-            <TouchableOpacity
-              style={[styles.toolButton, { borderColor: border }]}
-              onPress={resetView}
-              accessibilityRole="button"
-              accessibilityLabel="Reset the view"
-            >
-              <MaterialCommunityIcons name="restore" size={18} color={titleColor} />
-              <Text style={[styles.toolButtonText, { color: titleColor }]}>Reset view</Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toolButton, { borderColor: border }]}
+            onPress={newScramble}
+            accessibilityRole="button"
+            accessibilityLabel="New scramble"
+            accessibilityHint="Generates a new random scramble and applies it to the cube"
+          >
+            <MaterialCommunityIcons name="dice-multiple" size={18} color={titleColor} />
+            <Text style={[styles.toolButtonText, { color: titleColor }]}>New</Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.toolButton, { borderColor: border }]}
-              onPress={showOtherSide}
-              accessibilityRole="button"
-              accessibilityLabel="Turn the cube around"
-              accessibilityHint="Shows the three faces that are currently hidden"
-            >
-              <MaterialCommunityIcons name="rotate-3d-variant" size={18} color={titleColor} />
-              <Text style={[styles.toolButtonText, { color: titleColor }]}>Other side</Text>
-            </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.toolButton,
+              { borderColor: saved ? CUBE_ACCENT : border },
+              saved && { backgroundColor: surface },
+            ]}
+            onPress={toggleSaved}
+            accessibilityRole="button"
+            accessibilityLabel={saved ? 'Remove from saved scrambles' : 'Save this scramble'}
+            accessibilityState={{ selected: saved }}
+          >
+            <MaterialCommunityIcons
+              name={saved ? 'star' : 'star-outline'}
+              size={18}
+              color={saved ? CUBE_ACCENT : titleColor}
+            />
+            <Text style={[styles.toolButtonText, { color: saved ? CUBE_ACCENT : titleColor }]}>
+              {saved ? 'Saved' : 'Save'}
+            </Text>
+          </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.toolButton, { borderColor: border }]}
-              onPress={() => setShowFavorites(true)}
-              accessibilityRole="button"
-              accessibilityLabel={`Favorites, ${favorites.length} saved`}
-              accessibilityHint="Opens the list of scrambles you have kept"
-            >
-              <MaterialCommunityIcons name="star-box-outline" size={18} color={titleColor} />
-              <Text style={[styles.toolButtonText, { color: titleColor }]}>
-                Favorites{favorites.length > 0 ? ` (${favorites.length})` : ''}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </>
+        </View>
       )}
 
       {/* The bottom line of solve mode, in both its phases — and **the way into
           the picker**, which is why it is a button rather than the caption it
           used to be.
 
-          It has to be this and not a row of its own: solve mode is already
-          header · scramble line · solve card · a three-button row · stage ·
-          transport · three pad rows · this, and at 320×568 that leaves the cube
-          about 120 points. The action row's middle button is already three-way
-          and cannot become four. So the line that already said which hold and
-          how many moves says which *page* too, and tapping it opens the list.
+          It has to be this and not a row of its own: this one line says which
+          page, which hold and how many moves, and opens the list, for the 21
+          points a caption was costing anyway.
+
+          **It also carries the scramble now** (Step 7). That used to be a muted
+          line of its own above the solve — 20 points to answer "which cube am I
+          on", a question that comes up rarely and has a whole mode devoted to it
+          one tap away. Here it is last in the line and the line truncates from
+          the right, so it is the first thing to go when the screen is narrow,
+          which is the correct order of importance. The full text is on the
+          accessibility label either way.
 
           Both phases get it, and that is not symmetry for its own sake:
           inspecting a brand-new solve you have changed your mind about would
@@ -1121,7 +1139,7 @@ const CubeScreen = ({ onExitToHub }) => {
           accessibilityRole="button"
           accessibilityLabel={`${openSolve.name}, ${describeSolve(solve)}${
             inspecting ? '' : `, started from ${holdText}`
-          }`}
+          }, solving the scramble ${scramble}`}
           accessibilityHint="Opens the solves written for this scramble"
         >
           <MaterialCommunityIcons
@@ -1137,6 +1155,7 @@ const CubeScreen = ({ onExitToHub }) => {
           >
             {openSolve.name} · {inspecting ? '' : `${holdText} · `}
             {describeSolve(solve)}
+            <Text style={styles.solveBarScramble}> · {scramble}</Text>
           </Text>
           <MaterialCommunityIcons name="chevron-up" size={14} color={titleColor} />
         </TouchableOpacity>
@@ -1222,58 +1241,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  scrambleCard: {
-    alignSelf: 'stretch',
-    marginHorizontal: 4,
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  scrambleText: {
-    fontFamily: ALG_FONT,
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
-  },
-  // The scramble while a solve is being written: one line, smaller, above the
-  // card. Twenty tokens do not fit and are not meant to — this is "which cube
-  // am I on", and the whole thing is one tap away in the other mode.
-  scrambleLine: {
-    fontFamily: ALG_FONT,
-    fontSize: 11,
-    lineHeight: 16,
-    textAlign: 'center',
-    alignSelf: 'stretch',
-    marginBottom: 4,
-    paddingHorizontal: 6,
-  },
-  // Bold as well as coloured: the token you are on has to be findable in a
-  // twenty-token block at a glance, and on a monospaced face weight is the
-  // difference that survives a small screen.
-  currentToken: {
-    fontWeight: '700',
-  },
-  // A phase boundary, in the moves themselves. An ASCII bar rather than a box
-  // drawing character: this is set in whatever the platform calls "monospace",
-  // and the one glyph that is certainly in all three of them is the one on the
-  // keyboard.
-  phaseMark: {
-    fontWeight: '700',
-  },
   actionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     flexWrap: 'wrap',
-    marginTop: 12,
+    marginTop: 10,
   },
   bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     flexWrap: 'wrap',
+    marginTop: 6,
     marginBottom: 4,
+  },
+  // A view control on the header row. Square-ish and icon-only, but still 30
+  // points of border around an 18-point glyph with the row's own height behind
+  // it — this step does not buy its space back from the size of a target.
+  headerAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 7,
+    marginLeft: 5,
+  },
+  headerActionCount: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginLeft: 3,
   },
   primaryButton: {
     flexDirection: 'row',
@@ -1307,18 +1305,15 @@ const styles = StyleSheet.create({
   iconOnly: {
     paddingHorizontal: 10,
   },
+  // Takes the leftover — but the leftover is no longer an afterthought, which is
+  // the whole of Step 7 (plan §8.6). Every row above and below this one now has
+  // to justify its height against what it costs the cube.
   stage: {
     flex: 1,
     alignSelf: 'stretch',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
-  },
-  hint: {
-    fontSize: 11,
-    opacity: 0.6,
-    marginTop: 10,
-    marginBottom: 2,
+    marginTop: 6,
   },
   // The pad already ate the vertical the bottom row used to have, so the line
   // under it is tight to it rather than floating. It is a button now — the way
@@ -1344,6 +1339,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     opacity: 0.75,
     marginRight: 4,
+  },
+  // Dimmer than the rest of the line, because it is context rather than
+  // identity: this is the cube you are solving, not the page you are on.
+  solveBarScramble: {
+    fontFamily: ALG_FONT,
+    opacity: 0.7,
   },
   // The live readout while inspecting. Bigger and accented than the other
   // captions on this page because during that phase it is the *answer* — the
