@@ -37,6 +37,7 @@ const CubeSolvesModal = ({
   onDuplicate,
   onRename,
   onRemove,
+  onClear,
   onClose,
 }) => {
   const titleColor = theme.colors.title;
@@ -117,6 +118,32 @@ const CubeSolvesModal = ({
                     >
                       <MaterialCommunityIcons
                         name="content-copy"
+                        size={ICON_SIZE}
+                        color={titleColor}
+                      />
+                    </TouchableOpacity>
+
+                    {/* **Clear came off the pad in Step 8** (plan §8.8): the
+                        design's rule is that nothing which edits the solve wears
+                        a move colour, and emptying a page you have been drilling
+                        into does not belong under a thumb that is aiming at `R`.
+                        It lands here rather than on the header, which is three
+                        icons at 320 points and full — and here is where the
+                        other destructive thing already lives, so "empty it" and
+                        "delete it" are one decision made in one place.
+
+                        Only offered for a solve that has something in it. */}
+                    <TouchableOpacity
+                      style={[styles.rowIcon, solve.alg.length === 0 && styles.rowIconOff]}
+                      onPress={() => onClear(solve.id)}
+                      disabled={solve.alg.length === 0}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Clear the moves from ${solve.name}`}
+                      accessibilityHint="Removes every move and every marker, and keeps the page"
+                      accessibilityState={{ disabled: solve.alg.length === 0 }}
+                    >
+                      <MaterialCommunityIcons
+                        name="close-circle-outline"
                         size={ICON_SIZE}
                         color={titleColor}
                       />
@@ -253,9 +280,15 @@ const styles = StyleSheet.create({
     opacity: 0.5,
     marginTop: 3,
   },
+  // Four of these on a row now that Clear has moved in, where there were three.
+  // A point off each side is what pays for the fourth without the name beside
+  // them losing a character.
   rowIcon: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
     paddingVertical: 8,
+  },
+  rowIconOff: {
+    opacity: 0.35,
   },
   newButton: {
     flexDirection: 'row',

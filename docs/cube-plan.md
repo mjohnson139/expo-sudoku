@@ -475,8 +475,8 @@ the operator can open in Expo Go.
 | **5** | **Orientation.** Record how the cube is held before a solve starts — Roux's inspection step, "yellow up, blue left" | **shipped** (out of order, 2026-08-02) |
 | **6** | **Annotate the move groups.** "These moves solve first block, these solve second block" — labelled spans, per-phase move counts, and a transport that plays one group | **shipped** |
 | **7** | **Give the page back to the cube.** The chrome takes two thirds of the screen and the biggest piece of it grows as you drill; cut it to a budget | **shipped** (#92, 2026-08-05) |
-| **8** | **The designed solve screen.** A spatial cross pad, hold-for-prime, and a phase-split tick scrubber — from a settled design bundle, and the answer to §9.8 | next |
-| **9** | **Edit a solve you have already written.** Fix a move in the middle without undoing back to it — the oldest live gap in the feature | |
+| **8** | **The designed solve screen.** A spatial cross pad, hold-for-prime, and a phase-split tick scrubber — from a settled design bundle, and the answer to §9.8 | **shipped** (2026-08-05) |
+| **9** | **Edit a solve you have already written.** Fix a move in the middle without undoing back to it — the oldest live gap in the feature | next |
 | **10** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
 | **11** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
 
@@ -1014,6 +1014,59 @@ transport glyphs that differ only in chevron count with play as the only filled
 glyph and only circle. **Backspace removes a token whole** — `R2` goes to nothing
 in one press, not to `R`.
 
+#### What building it settled (2026-08-05)
+
+**It shipped as specified**, including the four reconciliations above: the fixed
+track kept its drawer and took only the design's token styling, Clear left the
+pad, the method chip was not built, and the light-mode hexes went through a
+palette instead of into a `StyleSheet`. Four things are worth not rediscovering.
+
+- **The design's "10pt side margins" are measured from the screen edge, and the
+  page already provides them.** Setting them on the scrubber card as well
+  double-counted, and pushed the transport one point off the right edge of a
+  320pt phone. The horizontal-overflow check caught it, as it caught Step 7's —
+  that check has now found a real bug in two consecutive steps.
+- **The transport row does not fit 320 at the design's spacing.** It was drawn at
+  375, where the card has 333 points inside it and the row wants 292; at 320
+  there are 282. The first fix let the two end labels shrink, and the position
+  readout came out as `39 / …` — the one thing on that row that has to be read.
+  **Air first, then labels, never the targets:** the gap went 10 → 6 and the
+  buttons kept their size.
+- **On a dark theme the four tints cannot live in the backgrounds.** Tinting them
+  toward the theme surface far enough for a dark key leaves the four **ΔE 0.9–2.6
+  apart**, against the 6.12 the design has between them on white — the exact
+  mistake the Fungiku regions made. The grouping moved to the **border and the
+  label**, which come out ΔE 6.3–6.9 apart, and `padPalette.test.js` now puts a
+  number under both the separation and the label's contrast on all eight themes.
+  It caught a third thing on the way: mixing the label toward the *theme's* text
+  colour breaks on `twilight`, whose title is a mid-lightness purple — contrast
+  3.1 on its own key. Lift toward white, not toward the theme.
+- **The promotion is guarded by the text, not by the timer.** A promotion
+  *rewrites* the last token where an append only adds one, so a stale one would
+  resurrect a move an undo had just deleted — the race Step 3 shipped twice,
+  pointed at something worse. `promoteLastToken` refuses on anything except a
+  last token that is exactly the key, so the race is closed by construction
+  rather than by the disarm-on-undo that also happens.
+
+**What it cost the cube**, measured on a 42-move annotated solve, against Step 7:
+
+| Solve mode, 42 moves, annotated | Step 7 | Step 8 |
+|---|---|---|
+| 320×568 | 194 | **123** |
+| 375×667 | 293 | **222** |
+| 393×852 | 373 | **373** (width-bound) |
+
+−71 points at the two smaller sizes and nothing at the largest. The chrome grew
+by about 100: the scrubber card 42 → 81, the pad 126 → 152. **The legend is the
+row that gives**, exactly as this section predicted — it is drawn only where the
+cube is already limited by the width of the phone rather than by the page
+(`LEGEND_MIN_HEIGHT`), which is §8.6's budget rule made executable. Without that
+the 320 case was a 94-point cube, which would have undone a third of Step 7.
+
+**Whether −71 is the right trade is the operator's call**, and it is the live
+question this step hands over. What was bought for it: a tap saved on every
+prime, `E` and `S` on the pad, and a tick track that shows the shape of a solve.
+
 ### 8.7 Editing a solve you have already written (Step 9)
 
 Written up when it was Step 7, moved to 8 by the layout work and to **9** by the
@@ -1069,15 +1122,23 @@ belonged.
    finger". Nobody has complained yet because nobody has used it yet.
 7. **Turn speed.** Answered and shipped in Step 2 — a chip cycling 1× → 2× → 0.5×.
    Not persisted; see §7 and the note under Step 3 in the handoff.
-8. ~~**How a move gets entered.**~~ **Answered by a design round** (2026-08-04),
-   and it was the epic's longest-running question — open since Step 3 shipped the
-   armed modifier. The answer is **press-and-hold for prime, second tap for a
-   half turn**, and it is Step 8 (§8.8). The three alternatives this question
-   listed are all decided in the bundle's rejected column: a standalone `'` key
-   works, costs two taps, and is the fallback if hold tests badly; swipe-up is
-   unreliable in a dense grid; and a per-key prime strip leaves 35.6pt for the
-   letter at six columns — under a thumb's contact patch, where a mis-hit turns
-   the cube *the wrong way* rather than doing nothing.
+8. ~~**How a move gets entered.**~~ **Answered by a design round** (2026-08-04)
+   **and shipped in Step 8** (2026-08-05), and it was the epic's longest-running
+   question — open since Step 3 shipped the armed modifier. The answer is
+   **press-and-hold for prime, second tap for a half turn** (§8.8). The three
+   alternatives this question listed are all decided in the bundle's rejected
+   column: a standalone `'` key works, costs two taps, and is the fallback if
+   hold tests badly; swipe-up is unreliable in a dense grid; and a per-key prime
+   strip leaves 35.6pt for the letter at six columns — under a thumb's contact
+   patch, where a mis-hit turns the cube *the wrong way* rather than doing
+   nothing.
+
+   **What is left is use, not design.** The hold has been driven as a timed
+   gesture at three widths and behaves; whether **180ms** is the right threshold,
+   and whether a hold reads as natural under a thumb mid-drill, are things only a
+   real session answers. The fallback is written down and cheap — a standalone
+   `'` key, which the pad now has a spare cell's worth of room for nowhere, so it
+   would cost the layout a rethink rather than a slot.
 
    What the armed modifier got right and should be carried forward: **the pad
    showed the arming**, relabelling every key to `U'`, `R'`, `M'`, so the second

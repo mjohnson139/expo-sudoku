@@ -1,171 +1,308 @@
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { ALG_FONT } from './algText';
-import { MODIFIERS, PAD_COLUMNS, PAD_KEYS, describeToken, padToken } from './solve';
+import CubeGlyph from './CubeGlyph';
+import { padPalette } from './padPalette';
+import {
+  BACKSPACE_REPEAT_MS,
+  HOLD_MS,
+  PAD_COLUMNS,
+  PAD_LAYOUT,
+  describeToken,
+  isHold,
+} from './solve';
 
 /**
- * The keyboard a solve gets written on (docs/cube-plan.md §8.2, Step 3).
+ * The pad's fixed geometry (plan §8.8): three 44pt rows, two 5pt gaps, 10pt of
+ * top padding. **Fixed is the point** — plan §8.6 sizes the cube first and puts
+ * every other row on a budget, and a pad whose height depended on anything would
+ * resize the cube while it was being used.
+ */
+export const KEY_HEIGHT = 44;
+export const KEY_GAP = 5;
+export const PAD_TOP = 10;
+
+/** How long a backspace waits before it starts repeating. */
+const REPEAT_AFTER_MS = 400;
+
+/**
+ * The keyboard a solve gets written on — **the spatial cross** (plan §8.8,
+ * Step 8).
  *
- * Twelve keys, two rows of six, and a row underneath for the two modifiers, the
- * two ways to take a move back, the text field and the phase marker. Which
- * twelve is a Roux decision and is argued in `solve.PAD_KEYS`; how many fit on a
- * row is a phone decision — the narrowest screen this app supports has 300
- * points, and the stage above is the `flex: 1` that pays for every one of them.
+ * Six columns by three rows. The left three are a cube net, so `U` `F` `D` run
+ * down the spine with `L` and `R` beside `F` and `B` marked *far* in the corner
+ * the net cannot place; then slices, wides and rotations in their own columns.
+ * `PAD_LAYOUT` owns which key goes where — this file owns what a press means and
+ * what it looks like while it is happening.
  *
- * The bottom row is the one place a sixth control could go, and Step 6 spent it
- * on the flag: the rows above are six keys wide, so a sixth here costs the page
- * no height at all. It is the *only* free slot on this screen — everything else
- * would be another row, and another row comes out of the cube.
+ * ### Prime is a hold, and the key says so from 0ms
  *
- * ### The modifiers are armed, and the keys say so
+ * Step 3's `'` and `2` were **armed before the key**, which cost two taps for a
+ * move Roux uses constantly and spent two of the eighteen cells on modifiers.
+ * Both are gone. Tap a key and you get `R`; hold it past 180ms and you get `R'`;
+ * tap it a second time and the `R` you just wrote becomes `R2` (that rule is
+ * `applyPadPress`, in `solve.js`, where it can be tested).
  *
- * Tap `'`, then `R`, and you get `R'`. Two taps for a move Roux uses constantly,
- * which is the honest cost of the alternatives being worse: modifying the move
- * you just made means un-turning and re-turning the cube, and cycling
- * `R → R2 → R'` on repeated taps animates a cube rocking back and forth rather
- * than a solve being written (plan §9.8 — this is the first thing to revisit
- * after a real drilling session).
+ * Two things about the gesture are load-bearing rather than decorative:
  *
- * What makes two taps bearable is that the pad *shows* the arming: every key
- * relabels itself to `U'`, `D'`, `R'` … while a modifier is live, so the second
- * tap is aimed at a key that already reads the move it is about to make. Nothing
- * has to be remembered between the two taps.
+ * - **It fires on touch-up.** `onPress`, not `onPressIn` — which is also what
+ *   makes sliding off a key cancel it, because React Native only calls `onPress`
+ *   for a touch released *on* the target. Firing on touch-down would make every
+ *   prime a double entry, and there would be no way to abandon one.
+ * - **The fill starts at 0ms.** A hold with no feedback until it completes is a
+ *   hidden gesture, and strictly worse than the two taps it replaces. The
+ *   hairline across the key's foot means the key is telling you what will happen
+ *   *before* it happens; the ring, the `'` and the haptic at the threshold are
+ *   the confirmation, not the first news.
  *
- * Purely presentational — every decision about what a tap means is in `solve.js`.
+ * The armed styling is deliberately the loudest thing on the pad: the key fills
+ * accent and rings, because at that moment it is about to turn the cube the
+ * opposite way to the one written on it.
  */
 const CubeMovePad = ({
-  modifier,
   canUndo,
-  canClear,
   canPhase,
+  // The key a second tap would promote — `R` when the solve ends `… R` and `R`
+  // was the last key pressed. Drawn as a `2` in the corner, which is the
+  // design's fourth hold state: the pad says "again and this becomes R2" rather
+  // than leaving it to be discovered.
+  promoteKey,
   accent,
   theme,
   onKey,
-  onModifier,
   onUndo,
-  onClear,
   onType,
   onPhase,
 }) => {
-  const titleColor = theme.colors.title;
-  const surface = theme.colors.numberPad.background;
-  const border = theme.colors.numberPad.border;
+  const palette = padPalette(theme, accent);
+
+  // Only one key can be down at a time, so one press's worth of state lives
+  // here rather than in eighteen children.
+  const [pressed, setPressed] = useState(null);
+  const [armed, setArmed] = useState(false);
+  const fill = useRef(new Animated.Value(0)).current;
+  const startedAt = useRef(0);
+  const armTimer = useRef(null);
+  const repeatTimer = useRef(null);
+  const repeatTick = useRef(null);
+
+  const clearTimers = useCallback(() => {
+    if (armTimer.current) clearTimeout(armTimer.current);
+    if (repeatTimer.current) clearTimeout(repeatTimer.current);
+    if (repeatTick.current) clearInterval(repeatTick.current);
+    armTimer.current = null;
+    repeatTimer.current = null;
+    repeatTick.current = null;
+  }, []);
+
+  // A pad that unmounts mid-press — switching to the scramble, or the solve
+  // being deleted under it — must not leave a timer holding a haptic.
+  useEffect(() => clearTimers, [clearTimers]);
+
+  const pressIn = useCallback(
+    (key) => {
+      startedAt.current = Date.now();
+      setPressed(key);
+      setArmed(false);
+      fill.setValue(0);
+      Animated.timing(fill, {
+        toValue: 1,
+        duration: HOLD_MS,
+        easing: Easing.linear,
+        // Width, so it cannot go on the native driver.
+        useNativeDriver: false,
+      }).start();
+      armTimer.current = setTimeout(() => {
+        setArmed(true);
+        // The confirmation you get without looking. Web has no haptics and
+        // throws nothing — `impactAsync` resolves to a no-op there.
+        if (Platform.OS !== 'web') {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        }
+      }, HOLD_MS);
+    },
+    [fill]
+  );
+
+  const pressOut = useCallback(() => {
+    clearTimers();
+    fill.stopAnimation();
+    fill.setValue(0);
+    setPressed(null);
+    setArmed(false);
+  }, [clearTimers, fill]);
+
+  // Touch-up **on the key**. `onPressOut` has already run and cleared the
+  // visual state, so the gesture is read off the clock rather than off `armed`,
+  // which is gone by now.
+  const press = useCallback(
+    (key) => {
+      onKey(key, { held: isHold(Date.now() - startedAt.current) });
+    },
+    [onKey]
+  );
+
+  // Backspace is the one key that repeats: holding it deletes back through the
+  // solve at 120ms a token, after a pause long enough that a single tap is
+  // never two.
+  const holdBackspace = useCallback(() => {
+    repeatTimer.current = setTimeout(() => {
+      repeatTick.current = setInterval(onUndo, BACKSPACE_REPEAT_MS);
+    }, REPEAT_AFTER_MS);
+  }, [onUndo]);
 
   const rows = [];
-  for (let i = 0; i < PAD_KEYS.length; i += PAD_COLUMNS) {
-    rows.push(PAD_KEYS.slice(i, i + PAD_COLUMNS));
+  for (let i = 0; i < PAD_LAYOUT.length; i += PAD_COLUMNS) {
+    rows.push(PAD_LAYOUT.slice(i, i + PAD_COLUMNS));
   }
 
-  const tool = (name, label, hint, onPress, disabled) => (
-    <TouchableOpacity
-      key={label}
-      style={[styles.tool, { borderColor: border }, disabled && styles.disabled]}
-      onPress={onPress}
-      disabled={disabled}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityHint={hint}
-      accessibilityState={{ disabled: !!disabled }}
-    >
-      <MaterialCommunityIcons name={name} size={17} color={titleColor} />
-    </TouchableOpacity>
-  );
+  const moveKey = (cell) => {
+    const { key, tag } = cell;
+    const group = palette.tone(cell.tone);
+    const down = pressed === key;
+    const live = down && armed;
+    const promoting = !down && promoteKey === key;
+
+    // Whole styles rather than a base with overrides layered on it: Step 7
+    // shipped a header where `[base, variant]` flattened to an object carrying
+    // both `flex: 1` and a `flexBasis`, and web and Yoga disagreed about which
+    // won. Nothing here sets a layout property twice.
+    const face = live
+      ? { backgroundColor: accent, borderColor: accent }
+      : down
+        ? { backgroundColor: palette.pressed, borderColor: palette.pressedBorder }
+        : { backgroundColor: group.bg, borderColor: group.border };
+
+    return (
+      <Pressable
+        key={key}
+        style={[styles.cell, styles.key, face, down && styles.keyDown, styles.keyShadow]}
+        onPressIn={() => pressIn(key)}
+        onPressOut={pressOut}
+        onPress={() => press(key)}
+        accessibilityRole="button"
+        accessibilityLabel={describeToken(key)}
+        accessibilityHint="Tap to add this move; hold for prime; tap again for a half turn"
+      >
+        <Text
+          style={[styles.keyText, { color: live ? '#ffffff' : group.ink }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+        >
+          {key}
+        </Text>
+
+        {/* `B` is the face a net cannot show in place, so it is the one key that
+            has to say where it is. */}
+        {!!tag && !live && !promoting && (
+          <Text style={[styles.tag, { color: palette.faint }]}>{tag}</Text>
+        )}
+
+        {/* The prime mark, at the moment the key means the prime. */}
+        {live && <Text style={[styles.tag, styles.tagArmed]}>′</Text>}
+
+        {/* "Again and this becomes R2." */}
+        {promoting && <Text style={[styles.tag, { color: accent }]}>2</Text>}
+
+        {/* The hold, drawn from 0ms. */}
+        {down && (
+          <View style={[styles.holdTrack, { backgroundColor: palette.holdTrack }]}>
+            <Animated.View
+              style={[
+                styles.holdFill,
+                {
+                  backgroundColor: live ? '#ffffff' : accent,
+                  width: fill.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['0%', '100%'],
+                  }),
+                },
+              ]}
+            />
+          </View>
+        )}
+
+        {/* The ring, and the soft halo outside it. Two views because React
+            Native has no spread shadow to put a 3pt glow on a border. */}
+        {live && (
+          <>
+            <View style={[styles.halo, { borderColor: 'rgba(198,40,40,0.16)' }]} pointerEvents="none" />
+            <View style={[styles.ring, { borderColor: accent }]} pointerEvents="none" />
+          </>
+        )}
+      </Pressable>
+    );
+  };
+
+  const toolKey = (cell) => {
+    const { tool } = cell;
+    const isFlag = tool === 'flag';
+    const group = isFlag ? palette.accent : palette.tone('tool');
+    const disabled = tool === 'backspace' ? !canUndo : isFlag ? !canPhase : false;
+
+    const config = {
+      backspace: {
+        label: 'Undo the last move',
+        hint: 'Removes the last move whole, and turns it back. Hold to keep deleting',
+        onPress: onUndo,
+      },
+      keyboard: {
+        label: 'Type an algorithm',
+        hint: 'Opens a field for typing or pasting a whole sequence',
+        onPress: onType,
+      },
+      flag: {
+        label: 'End the phase here',
+        hint: 'Names the group of moves since the last marker, and lists the ones already marked',
+        onPress: onPhase,
+      },
+    }[tool];
+
+    const down = pressed === tool;
+
+    return (
+      <Pressable
+        key={tool}
+        style={[
+          styles.cell,
+          styles.key,
+          { backgroundColor: down ? palette.pressed : group.bg, borderColor: group.border },
+          down && styles.keyDown,
+          disabled && styles.disabled,
+        ]}
+        onPressIn={() => {
+          setPressed(tool);
+          if (tool === 'backspace') holdBackspace();
+        }}
+        onPressOut={() => {
+          clearTimers();
+          setPressed(null);
+        }}
+        onPress={config.onPress}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={config.label}
+        accessibilityHint={config.hint}
+        accessibilityState={{ disabled }}
+      >
+        <CubeGlyph name={tool} size={tool === 'keyboard' ? 20 : 19} color={group.ink} />
+      </Pressable>
+    );
+  };
 
   return (
     <View style={styles.pad}>
       {rows.map((row, rowIndex) => (
         <View key={`row-${rowIndex}`} style={styles.row}>
-          {row.map((key) => {
-            const token = padToken(key, modifier);
-            return (
-              <TouchableOpacity
-                key={key}
-                style={[styles.key, { borderColor: border, backgroundColor: surface }]}
-                onPress={() => onKey(key)}
-                accessibilityRole="button"
-                accessibilityLabel={describeToken(token)}
-                accessibilityHint="Adds this move to the solve and turns the cube"
-              >
-                <Text
-                  style={[styles.keyText, { color: titleColor }]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                >
-                  {token}
-                </Text>
-              </TouchableOpacity>
-            );
+          {row.map((cell, cellIndex) => {
+            // The cross's one deliberate hole. A real cell holding real width,
+            // and not a target — it is what makes the cross read as a cross.
+            if (cell.gap) return <View key={`gap-${cellIndex}`} style={styles.cell} />;
+            return cell.tool ? toolKey(cell) : moveKey(cell);
           })}
         </View>
       ))}
-
-      <View style={styles.row}>
-        {MODIFIERS.map((mark) => {
-          const armed = modifier === mark;
-          return (
-            <TouchableOpacity
-              key={mark}
-              style={[
-                styles.key,
-                styles.modifier,
-                { borderColor: armed ? accent : border, backgroundColor: surface },
-                armed && { backgroundColor: accent, borderColor: accent },
-              ]}
-              onPress={() => onModifier(mark)}
-              accessibilityRole="button"
-              accessibilityLabel={mark === '2' ? 'Half turn' : 'Prime'}
-              accessibilityHint={
-                armed
-                  ? 'Armed — tap again to cancel'
-                  : 'Applies to the next move you tap'
-              }
-              accessibilityState={{ selected: armed }}
-            >
-              <Text
-                style={[styles.keyText, { color: armed ? '#ffffff' : titleColor }]}
-                numberOfLines={1}
-                adjustsFontSizeToFit
-              >
-                {mark}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-
-        {tool(
-          'backspace-outline',
-          'Undo the last move',
-          'Turns the last move back and removes it',
-          onUndo,
-          !canUndo
-        )}
-        {tool(
-          'close-circle-outline',
-          'Clear the solve',
-          'Removes every move and puts the cube back to the scramble',
-          onClear,
-          !canClear
-        )}
-        {tool(
-          'keyboard-outline',
-          'Type an algorithm',
-          'Opens a field for typing or pasting a whole sequence',
-          onType,
-          false
-        )}
-        {/* The one that annotates. It is not only "end the phase here" — it is
-            also the list of the ones already marked, and the only way to delete
-            one, which is why it stays live once a solve has any markers even if
-            there is nothing new to close. */}
-        {tool(
-          'flag-outline',
-          'End the phase here',
-          'Names the group of moves since the last marker, and lists the ones already marked',
-          onPhase,
-          !canPhase
-        )}
-      </View>
     </View>
   );
 };
@@ -173,48 +310,87 @@ const CubeMovePad = ({
 const styles = StyleSheet.create({
   pad: {
     alignSelf: 'stretch',
-    marginTop: 6,
+    paddingTop: PAD_TOP,
+    paddingHorizontal: 8,
+    gap: KEY_GAP,
   },
-  // Six keys, each taking an equal share of whatever the screen has. Fixed
-  // widths would either waste a wide phone or overflow a narrow one, and this
-  // row is the one thing on the page that has to fit exactly.
   row: {
     flexDirection: 'row',
     alignSelf: 'stretch',
+    gap: KEY_GAP,
+  },
+  // Spelled out rather than `flex: 1`. Step 7's lesson: react-native-web reads
+  // the shorthand as `flex-basis: 0%` with shrink still on, and a row of six
+  // that disagrees with Yoga about its basis is a row that lays out one way in
+  // the browser and another on the phone.
+  cell: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
   },
   key: {
-    flex: 1,
-    height: 36,
+    height: KEY_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderRadius: 8,
-    marginHorizontal: 2,
-    marginBottom: 4,
+    borderRadius: 10,
+  },
+  keyShadow: {
+    shadowColor: '#1f2430',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 0,
+    elevation: 1,
+  },
+  keyDown: {
+    transform: [{ translateY: 1 }],
   },
   keyText: {
     fontFamily: ALG_FONT,
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: '700',
   },
-  // The two modifiers keep a fifth more width than the four icons beside them:
-  // they are the keys that get hit in a hurry, and Roux is prime-heavy. The row
-  // is six controls now rather than five, so this is what pays for the flag —
-  // at 320 points a tool key comes out about 43 wide against the 46 of a move
-  // key above it, which is the honest cost of the sixth slot and was measured
-  // rather than assumed.
-  modifier: {
-    flex: 1.2,
+  tag: {
+    position: 'absolute',
+    top: 3,
+    right: 5,
+    fontFamily: ALG_FONT,
+    fontSize: 9,
+    fontWeight: '700',
   },
-  tool: {
-    flex: 1,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderRadius: 8,
-    marginHorizontal: 2,
-    marginBottom: 4,
+  tagArmed: {
+    color: 'rgba(255,255,255,0.85)',
+  },
+  holdTrack: {
+    position: 'absolute',
+    left: 5,
+    right: 5,
+    bottom: 4,
+    height: 3,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  holdFill: {
+    height: 3,
+    borderRadius: 2,
+  },
+  ring: {
+    position: 'absolute',
+    top: -1,
+    left: -1,
+    right: -1,
+    bottom: -1,
+    borderWidth: 2,
+    borderRadius: 10,
+  },
+  halo: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderWidth: 3,
+    borderRadius: 13,
   },
   disabled: {
     opacity: 0.35,

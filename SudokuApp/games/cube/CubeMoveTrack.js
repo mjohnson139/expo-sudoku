@@ -222,13 +222,18 @@ const CubeMoveTrack = ({
                 // still works from its new home".
                 accessibilityLabel={`Move ${i + 1}, ${describeToken(token)}`}
                 accessibilityHint={`Turns the cube to this point in the ${noun}`}
-                style={styles.token}
+                // The current move is **white on an accent chip** rather than
+                // accent-coloured text (plan §8.8). The fill is on the container
+                // rather than the label because the container's padding is
+                // already fixed — a chip that added its own would re-flow the
+                // row under the cursor on every move played.
+                style={[styles.token, i === index - 1 && { backgroundColor: accent }]}
               >
                 <Text
                   style={[
                     styles.tokenText,
                     { color: i < index ? titleColor : pendingColor },
-                    i === index - 1 && [styles.currentToken, { color: accent }],
+                    i === index - 1 && styles.currentToken,
                   ]}
                 >
                   {token}
@@ -316,16 +321,21 @@ const styles = StyleSheet.create({
     height: LINE,
     justifyContent: 'center',
     paddingHorizontal: 4,
+    borderRadius: 4,
   },
   tokenText: {
     fontFamily: ALG_FONT,
-    fontSize: 14,
+    // 12, from the design (plan §8.8), where Step 7 had 14. `lineHeight` stays
+    // `LINE` and that is the part that matters: every child of this track is
+    // exactly one line tall, or the auto-scroll — which is computed from `LINE`
+    // — parks a sliver of the previous row along the top edge.
+    fontSize: 12,
     lineHeight: LINE,
   },
-  // Bold as well as coloured: the token you are on has to be findable at a
-  // glance, and on a monospaced face weight is the difference that survives a
-  // small screen.
+  // White on the accent chip the container draws. Bold as well, because on a
+  // monospaced face weight is the difference that survives a small screen.
   currentToken: {
+    color: '#ffffff',
     fontWeight: '700',
   },
   // `height` as well as `lineHeight`, and it is load-bearing rather than tidy: a
