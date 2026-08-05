@@ -49,8 +49,8 @@ Branch from **`epic/cube`**, and open your PR **against `epic/cube`**. The epic
 merges to `main` once the cube is worth shipping, so `main` never carries a
 half-built tool.
 
-`epic/cube` carries Steps 1 through 7 as of 2026-08-03. It is cut from `main`
-and tracks it. (It was briefly cut from
+`epic/cube` carries Steps 1 through 7 as of 2026-08-05 (#92). It is cut from
+`main` and tracks it. (It was briefly cut from
 `epic/fungiku`, because the hub only existed there; Fungiku's Step 13 merged that
 epic to `main` on 2026-08-01 and this was rebased the same day. **No Fungiku
 dependency remains** — if you find a doc that says otherwise, it is stale.)
@@ -135,138 +135,153 @@ you built, at every stage of the motion, not only at rest.
 
 ---
 
-## Next step: **Step 8 — edit a solve you have already written**
+## Next step: **Step 8 — the designed solve screen**
 
-**The text field appends; it cannot edit.** A typo in the middle of a solve is
-fixed by undoing back to it and retyping everything after. That was fine when the
-solve was a scratchpad (Step 3), stopped being fine the moment solves were kept
-(Step 4 — which recorded it and deliberately did not fix it), and Step 6 put
-**markers** on top of the same text. It is the oldest live gap in the feature and
-every step adds weight to it.
+> **Branch from `epic/cube`, PR against `epic/cube`** — as every step does.
+> Step 7 merged on 2026-08-05 (#92), so the epic has the layout this step is
+> built on: the dense header, the fixed move track and its drawer, and the pad
+> and scrubber where Step 7 left them.
 
-> It was going to be Step 7. The operator looked at the screen first
-> (2026-08-03): the chrome had two thirds of the page, and this step's brief was
-> already being written around the squeeze — *"the screen is full… anything this
-> step adds has to replace something or live in a modal."* Step 7 shipped that
-> page back. **The line about there being nowhere to put an edit affordance is
-> no longer true**, so put it where it belongs.
+A settled design bundle for the solve screen, made in Claude Design. **Plan §8.8
+is the brief** — read it before anything else, because it is where the design's
+decisions are reconciled against this epic's, and four of them need reconciling.
+
+### Where the design lives, and how to read it
+
+Project **`2acc14f2-7f7e-434f-a29d-e0fe29fa876a`** — the whole project is
+readable, and the `DesignSync` MCP reads it with `get_file`. That needs a design
+authorization (`/design-login`); if the tool is not available, say so rather than
+guessing at the spec from §8.8's summary.
+
+```
+Cube Solve Screen.dc.html                          ← the spec
+design_handoff_cube_move_pad/README.md             ← READ THIS FIRST
+design-decisions.md                                ← platform decisions, "Cube move pad"
+Cube Solve Screen - prime options.dc.html          ← the rejected options
+support.js                                         ← the design-doc runtime; nothing to port
+```
+
+`README.md` in the handoff folder is the real document: every measurement,
+colour, timing and interaction, written as a handoff. The `.dc.html` is what it
+describes, and its `renderVals()` has the exact grid, tints and glyph paths.
+
+**The mock is a browser prototype, not code to copy.** It shares nothing with the
+app; its cube is a flat CSS isometric fake standing in for the real renderer.
+Rebuild it in React Native against the app's theme and `StyleSheet`s, in the
+shape `CubeMovePad.js` / `CubeScrubber.js` / `CubePhaseStrip.js` already have.
 
 ### Scope — ONLY this
 
-1. **Replace the solve's text, rather than appending to it.**
-   `CubeAlgInputModal` already validates a whole algorithm with the real parser
-   and says which token it choked on; the honest shape is that modal opened with
-   the solve **already in it**, replacing on Add. Appending stays — it is what
-   the field is for mid-write — so this is a second way in rather than a changed
-   one. The move track and the solve bar are both plausible homes for "edit";
-   the track is already a tap target for every token, so a *long press* on one is
-   worth considering over another control.
-2. **Keep the markers on the moves they were put on.** A phase is an index
-   (plan §8.5), and a wholesale text replacement moves every index after the
-   edit. `clampPhases` keeps them *legal*; it does not keep them *right* — insert
-   a move at position 3 and `First block · 8` should become `· 9`, not stay at 8
-   pointing one move short. **This is the hard half of the step and it is where
-   the thinking goes.** A diff between the old and new token lists is enough to
-   shift each marker by how much the text before it grew or shrank; a marker
-   inside a stretch that was rewritten wholesale has no honest answer and
-   probably wants dropping rather than guessing.
-3. **Do not let an edit replay the solve.** `useScramblePlayer` tells "grew" from
-   "replaced" with `extendsAlg` asked at where the cube is (plan §5). An edit in
-   the middle is genuinely a *replacement* and should land on the end without
-   animating — which is what already happens, but only if the starting cube's
-   identity is right. Check it; a cold-start-style replay is the bug this epic
-   has shipped twice.
+1. **Prime becomes a press-and-hold.** Tap fires on **touch-up** and appends
+   `R`; hold past **180ms** appends `R'`. A 3pt hairline fills across the key's
+   foot from 0ms; at the threshold the key fills accent, a 2pt ring appears, a
+   `'` shows top-right, and a light haptic fires. Sliding off the key cancels.
+   The armed `'` modifier key goes.
+2. **A second tap on the same key promotes the token already written** to a half
+   turn — one `R2`, never `R R`. A third tap starts a fresh `R`. `2` comes off
+   the pad with `'`.
+3. **The pad becomes the spatial cross**, 6 × 3 at 44pt rows and 5pt gaps, with
+   `E` and `S` joining the slices and **column 3 row 1 genuinely empty**. Four
+   tints: neutral faces, cool slices, green wides, sand rotations; tools
+   outlined; the flag the only accent fill. A legend names the four groups.
+4. **The scrubber gains a phase-split tick track** — one tick per move, grouped
+   by phase with the group `flex`ed to its move count, the current move the only
+   full-height tick — and the five transport glyphs are redrawn as one family at
+   stroke 1.9 in a 24pt box, play the only filled glyph and only circle.
 
 ### Read first
 
-- `docs/cube-plan.md` §4 (**the text the operator entered is the text that is
-  kept** — an edit must not respell `r` as `Rw`), §5's growth rule, §8.5, §8.6
-  (the page you are working on now, and the budget rule that governs anything
-  you add to it), §10
-- `games/cube/solve.js` — `appendAlg`, `dropLastToken`, `solveError`. A
-  `replaceAlg` belongs here, next to them, and pure.
-- `games/cube/solveList.js` — `withMoves` is the funnel every move edit goes
-  through and `clampPhases` is what it calls. **A marker-shifting function
-  belongs here**, next to the rest of the shape rules and the tests that hold
-  them.
-- `games/cube/CubeAlgInputModal.js` — the field, its validation and its Add
-- `games/cube/CubeMoveTrack.js` — where the tokens are now, and each one's
-  `onPress`
-- `games/cube/CubeScreen.js` — `editOpen`, `addTyped`, `headerActions`
-- `games/cube/useScramblePlayer.js` / `player.js` — `extendsAlg`, and why the
-  starting cube is an identity
+- **`docs/cube-plan.md` §8.8** — the brief, and the four places the design and
+  this plan disagree. Then §8.6 (the budget rule you are spending against), §8.5
+  (what a phase is), §9.8 (the question this answers), §10.
+- The design bundle's `README.md`, then the `.dc.html`'s `renderVals()`.
+- `games/cube/CubeMovePad.js` — the pad being replaced, and `solve.js`'s
+  `PAD_KEYS` / `MODIFIERS` / `nextModifier` / `padToken`, which are the armed
+  modifier's model and mostly go with it.
+- `games/cube/CubeScrubber.js`, `CubePhaseStrip.js` — what the tick track sits
+  next to, and the strip's argument for why a bounded scroller is allowed.
+- `games/cube/CubeMoveTrack.js` — **the token styling lands here**, not in a new
+  card. `trackLayout.js` owns its geometry.
+- `games/cube/solveList.js` — `phaseSpans` already produces exactly the
+  `{ at, label, count }` the tick track needs to group by.
 
 ### Behaviors that are easy to get wrong
 
-- **A replacement that happens to be an extension is still an extension.**
-  Opening the field, adding one move at the end and hitting Add must animate that
-  move, not jump. `extendsAlg` already answers this correctly; the trap is
-  bypassing it with a "this was an edit" flag.
-- **Never redisplay a canonical token.** Seeding the field is the obvious place
-  to leak `Rw` where the operator wrote `r`. Seed from the stored text.
-- **An empty replacement is a clear.** Decide whether that is allowed from the
-  field, and make it match what the clear key does to the markers (which is drop
-  them all — see `clearSolve`).
-- **The page has room again, and it is not free.** Step 7 took the chrome from
-  two thirds of the screen to about a third, and the way it did that was to put
-  every row on a budget justified against the cube (plan §8.6). A new row costs
-  the cube its height; the pad's bottom row is still six controls with no
-  seventh; the header's right-hand end is three icons at 320 points and that is
-  full. **Say what your addition costs the cube, in points, in the PR** — the
-  habit is what made this problem legible in the end.
-- **The move track is fixed at two lines and must stay fixed.** `TRACK_HEIGHT`
-  does not depend on how many moves there are, on purpose: the stage measures
-  itself, so a track that grew would resize the cube mid-solve. If an edit
-  affordance wants to live in the track, it cannot make the track taller.
-- **Every child of the track is exactly `LINE` tall, and the auto-scroll depends
-  on it.** Add an element to that row without a fixed height and the rows drift
-  out of step with `LINE`, and the scroll parks a few points off — which shows as
-  a sliver of the previous row along the top edge, and shows up nowhere else.
+- **Fire on touch-up, not touch-down.** Firing on down makes every prime a
+  double entry. This is the single most important line in the interaction table.
+- **The fill starts at 0ms.** Without it, hold-for-prime is a hidden gesture and
+  strictly worse than the two taps it replaces. §9.8's note on why the armed pad
+  relabelled itself is the same argument.
+- **`R2'` is `R2`.** A hold on the promoting tap is a plain promotion, not an
+  error.
+- **Backspace removes a token whole** — `R2` goes to nothing in one press, not to
+  `R`. Long-press repeats at 120ms.
+- **Undo is still two things that cannot happen at once** (plan §5). `retract`
+  owes the caller a removal and every exit from the backwards turn pays it. The
+  promotion rule now writes to the *last token* as well, so make sure a promotion
+  landing inside a retract's 260ms cannot resurrect a move that was deleted —
+  that is the same race Step 3 shipped twice.
+- **Say what it costs the cube, in points.** The new chrome is about +95pt
+  against Step 7's budget (§8.6): scrubber card 42 → 86, pad 126 → 142, legend
+  +34. At 375×667 that takes the cube 293 → roughly 200. That may be the right
+  trade — but it is a trade, it goes in the PR with the before/after table, and
+  if one row has to give, §8.8 argues it is the legend.
+- **Do not bring back the growing solve card.** The design draws every token
+  wrapped in an auto-height card; that is the card Step 7 removed, and at 42
+  moves it had left the cube four points. Keep the fixed track and its drawer,
+  take the design's token styling.
+- **Themes.** The design is light-mode hexes. Map onto `theme.colors` where a
+  token exists; where one does not, add it to the cube's own palette rather than
+  hardcoding `#ffffff` into a screen with a dark theme.
+- **The keyboard key is not the design's keyboard key.** Today it opens the text
+  field for a whole algorithm. The design calls it a toggle that collapses the
+  pad. Do not lose the text field.
 
 ### Out of scope for this step
 
-Entering a cube by colour, a solver, random-state scrambles, colour neutrality,
-a timer, re-orienting under written moves, a chrome-free mode (open question 14).
-Note what you spot; do not start it.
+**The CFOP switch.** The method chip may ship as a *label* for the method in use;
+the bundle's "rewrites the pad's slice/wide complement and the phase grouping" is
+a feature this epic has not planned. Also out: editing a solve (Step 9 — though
+the design has now decided *where* its `Edit` affordance goes, on the solve
+card's caption row), entering a cube by colour, a solver, colour neutrality, a
+timer, a chrome-free mode (open question 14). Note what you spot; do not start it.
 
 ### Visible in Expo Go when this lands
 
-Write a solve, notice that move 4 should have been `R'`, open the edit field with
-the whole solve in it, fix that one character, Add — and watch the cube land on
-the corrected solve with `First block · 8` still counting the first eight moves.
+Write a Roux solve on the new pad without ever arming a modifier: tap `R`, hold
+`U` until it fills and get `U'`, tap `M` twice and get one `M2`. The tick track
+under the cube shows the three blocks with the current move standing full height
+in its own.
 
 ### How to verify
 
-- `npm test` — the marker shifting is pure and belongs in `solveList.test.js`
-  next to `withMoves` and `clampPhases`. Pin what an insert, a delete and a
-  wholesale rewrite each do to a marker.
+- `npm test` — the promotion rule and the hold threshold are pure and belong in
+  `solve.js`'s tests next to `appendToken`. Pin: tap-tap is one `R2` and not two
+  tokens; a third tap is a fresh `R`; a hold on a promoting tap is still `R2`;
+  backspace takes `R2` to nothing in one.
 - `npx expo-doctor` and `npx expo export --platform all`.
-- Drive the web export headlessly at 320×568, 375×667 and 420×860, and **look at
-  the screenshots**. Step 7's two drivers are the pattern to copy (they live in
-  that session's scratchpad, like every step's, so write your own from the
-  description): `budget.js` seeds a save file straight into `localStorage` —
-  which is much faster than tapping a 42-move solve in, and is how it got a
-  worst-case screen to measure — then prints every row of the page with its
-  height, the cube's size and the overflow flags; `walk.js` clicks every control
-  by `aria-label` and asserts the behaviour behind it, then opens Fungiku to
-  prove the shared header is untouched.
-  **Seed the save file.** The shape is plan §7.2 and the key is `@CubeScramble`;
-  async-storage on web is plain `localStorage` with no prefix. Getting to a
-  42-move annotated solve by hand takes minutes and misses the case that matters.
-  Three things earlier steps learned about driving it: **the pad relabels every
-  key while a modifier is armed**, so the second tap of `R'` aims at `R prime`;
-  a key's label is what `describeToken` says, so `M` is `M slice`; and **a reload
-  is a cold start but not an unmount**, so the 400ms debounced save never flushes
-  — wait it out before reloading. A reload lands on the **hub**, so getting back
-  to the cube is one more tap.
+- **Drive it and look at the screenshots**, at 320×568, 375×667 and 393×852.
+  Step 7's three drivers are in that session's scratchpad and are described in
+  its entry below — `budget.js` is the one to re-run first, because it prints the
+  row-by-row height table this step has to justify. Seed the save file into
+  `localStorage` under `@CubeScramble` (plan §7.2 has the shape); it is far
+  faster than tapping a 42-move solve in.
+- **A hold is a timed gesture, so drive it as one**: `mouse.down()`, wait past
+  180ms, `mouse.up()` for the prime, and a second run under the threshold for the
+  plain turn. Assert on the token the solve ends up with, not on the key's style.
+- **Then look at it on a device.** Step 7 shipped a header that passed every
+  browser check at three widths and was broken on a phone, because web and Yoga
+  disagreed about a flattened style — see that entry. A hold gesture with a
+  haptic is even less like itself in a browser.
 
 ---
 
 ## Open questions for the operator (carry these forward)
 
 These are plan §9, restated so a session does not have to go looking. None block
-Step 8. Number 14 is the live one: Step 7 shipped, and whether it went far enough
-is a question only the operator can answer.
+Step 8 — 8 is *answered by* it. Number 14 is the live one: Step 7 shipped, and
+whether it went far enough is a question only the operator can answer, and Step 8
+spends about 95 points of what Step 7 won back.
 
 1. Scramble length — 20 moves. Leave it?
 2. Other puzzles — 2×2, 4×4, pyraminx, skewb?
@@ -283,14 +298,15 @@ is a question only the operator can answer.
    position: plan §7.1's rule is that everything authored is kept and everything
    about how you are currently looking at it is not, and a speed is the second
    kind. Say so if that turns out to be wrong in use — the file has room.
-8. **How a move gets entered** — live, and now shipped in one form. Step 3's pad
-   arms `'` and `2` before the key. Roux is prime-heavy, so that is two taps for
-   a very common move; what makes it bearable is that **the pad relabels every
-   key** while a modifier is armed, so the second tap is aimed at a key that
-   already reads `R'`. The two alternatives — modify the move you just made, or
-   cycle `R → R2 → R'` on repeated taps — are written up in the Step 3 entry
-   under "Steps already done". This wants the operator's first real drilling
-   session, not an opinion.
+8. ~~**How a move gets entered.**~~ **Answered by a design round** (2026-08-04)
+    and it is **Step 8** — the brief above. Press and hold for prime, second tap
+    on the same key for a half turn. This was the epic's longest-running
+    question, open since Step 3 shipped the armed `'`/`2` modifier, and the three
+    alternatives it listed are all decided in the design bundle's rejected
+    column. Plan §9.8 has the reasoning, including the one that killed the
+    per-key prime strip: at six columns it leaves 35.6pt for the letter, under a
+    thumb's contact patch, and a mis-hit there turns the cube **the wrong way**
+    rather than doing nothing.
 9. **Colour neutrality** — raised and deferred by the operator on 2026-08-01
    ("we're not gonna get into that right now"). Solves assume you pick a top and
    a left colour and hold it that way. **It now has a concrete cost attached**:
@@ -348,10 +364,12 @@ is a question only the operator can answer.
   only evidence that counts for how it *feels*.
 - ~~**`useScramblePlayer` assumes a solved starting cube.**~~ **Done in Step 3**:
   `buildPlayback(alg, { from })` and `useScramblePlayer(alg, from)`.
-- ~~**The text field appends; it cannot edit.**~~ **It is the next step** — see
-  the brief above. It was going to be Step 7 until the operator looked at how
-  much of the screen was chrome (2026-08-03); it lost nothing by waiting one step
-  and gained a page to put its affordance on.
+- **The text field appends; it cannot edit.** **Step 9** now — plan §8.7 keeps
+  the brief. It has been pushed twice, and both times it gained something: Step 7
+  gave it a page to sit on, and Step 8's design bundle **decided where its
+  affordance goes** — an `Edit` link on the solve card's caption row. The
+  remaining work is the marker arithmetic, which is where the difficulty always
+  was.
 - **Solve mode still has no "Favorites" button.** It is on the header in scramble
   mode now, where the other three slots in solve mode are already spoken for, so
   getting to the list from a solve is still Scramble first. Nobody has complained
@@ -390,10 +408,18 @@ is a question only the operator can answer.
   cube is now width-bound in five of the nine measured cases. **Keep the
   point-counting habit** — say what a new row costs the cube, in the PR. It is
   what made this legible in the end.
-- **The pad still has no seventh slot.** Six keys a row, three rows, and the
-  bottom one is full (`'` · `2` · undo · clear · type · flag). Step 7 did not
-  change the pad at all: it is 126 points and every key on it is a thumb target,
-  which is the one thing that step would not buy space from.
+- ~~**The pad still has no seventh slot.**~~ **Step 8 rebuilds the pad**, and the
+  constraint that produced this note goes with it: `'` and `2` stop being keys
+  (prime is a hold, a half turn is a second tap), `E` and `S` become keys, and the
+  grid becomes a 6 × 3 spatial cross with one deliberately empty cell. Clear comes
+  off the pad entirely. Plan §8.8. What does not change: **every key on it is a
+  thumb target**, 55.6 × 44pt, and that is still the one thing this screen will
+  not buy space from.
+- **The design bundle is read with the `DesignSync` MCP**, project
+  `2acc14f2-7f7e-434f-a29d-e0fe29fa876a`, and it needs a design authorization
+  (`/design-login`). `design_handoff_cube_move_pad/README.md` is the document
+  worth reading in full; `support.js` is the design-doc runtime and has nothing
+  in it to port.
 - **The header's right-hand end is three icons at 320 points, and that is full.**
   Solve mode uses all three (back · start view/re-orient · turn around); scramble
   mode uses three as well (reset view · turn around · favorites). A fourth wants a
