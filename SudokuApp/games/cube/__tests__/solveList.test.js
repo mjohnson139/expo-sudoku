@@ -2,8 +2,10 @@ import {
   MAX_PHASES,
   MAX_SOLVES,
   MAX_SOLVE_NAME,
+  announceCompareCell,
   announcePhaseSpan,
   clampPhases,
+  comparePhases,
   createSolve,
   currentSpan,
   defaultSolveName,
@@ -638,5 +640,259 @@ describe('sanitizeWorkspace', () => {
     expect(sanitizeWorkspace({ solving: 'yes', solveId: 7 }, { solves, scramble: SCRAMBLE })).toEqual(
       nothing
     );
+  });
+});
+
+// ——— Comparing the attempts (plan §8.10, Step 9) ——————————————————————————
+
+/** `n` real moves, so `moveCount` and `phaseSpans` see what the screen sees. */
+const moves = (n) =>
+  Array.from({ length: n }, (_, i) => ['R', 'U', 'F', "D'", 'L2', 'B'][i % 6]).join(' ');
+
+/** An attempt, as the file holds one. */
+const attempt = (id, name, count, phases) => ({
+  id,
+  scramble: SCRAMBLE,
+  name,
+  orientation: '',
+  alg: moves(count),
+  phases,
+  savedAt: 1,
+});
+
+/** Roux markers: first block of `a`, second block of `b`, and the fresh unnamed
+ *  boundary the last "end the phase" opens. */
+const roux = (a, b) => [
+  { at: 0, label: 'First block' },
+  { at: a, label: 'Second block' },
+  { at: a + b, label: '' },
+];
+
+describe('comparePhases', () => {
+  // Newest first is how the list arrives, so this is written the way the file
+  // holds it and read back the other way round.
+  const three = [
+    attempt('s3', 'Solve 3', 18, roux(6, 12)),
+    attempt('s2', 'Solve 2', 19, roux(7, 12)),
+    attempt('s1', 'Solve 1', 20, roux(8, 12)),
+  ];
+
+  it('lines up phases with the same name, oldest attempt first', () => {
+    const { labels, rows } = comparePhases(three);
+
+    expect(labels).toEqual(['First block', 'Second block']);
+    expect(rows.map((row) => row.name)).toEqual(['Solve 1', 'Solve 2', 'Solve 3']);
+    // The column is the point: 8, 7, 6 read downwards is the improvement.
+    expect(rows.map((row) => row.cells[0].count)).toEqual([8, 7, 6]);
+    expect(rows.map((row) => row.cells[1].count)).toEqual([12, 12, 12]);
+  });
+
+  it('agrees with phaseSpans, because it is phaseSpans', () => {
+    const { rows } = comparePhases(three);
+    const oldest = three[2];
+    const spans = phaseSpans(oldest.phases, 20);
+
+    expect(rows[0].cells[0].count).toBe(
+      spans.find((span) => span.label === 'First block').count
+    );
+    expect(rows[0].total).toBe(20);
+  });
+
+  it('marks the fewest, not the first', () => {
+    const { rows } = comparePhases(three);
+
+    expect(rows.map((row) => row.cells[0].best)).toEqual([false, false, true]);
+    // Three equal second blocks are all the fewest, so all three are marked.
+    expect(rows.map((row) => row.cells[1].best)).toEqual([true, true, true]);
+  });
+
+  it('averages nothing — there is no mean to be dragged around by a bad attempt', () => {
+    const abandoned = [attempt('s2', 'Solve 2', 3, roux(3, 0)), ...three];
+    const { rows } = comparePhases(abandoned);
+
+    expect(rows.map((row) => row.cells[0].count)).toEqual([8, 7, 6, 3]);
+    expect(rows.some((row) => 'average' in row)).toBe(false);
+  });
+
+  it('refuses to call a phase only one solve has marked the best', () => {
+    const list = [
+      attempt('s2', 'Solve 2', 6, [{ at: 0, label: 'First block' }]),
+      attempt('s1', 'Solve 1', 12, [
+        { at: 0, label: 'First block' },
+        { at: 8, label: 'CMLL' },
+      ]),
+    ];
+
+    const { labels, rows } = comparePhases(list);
+    expect(labels).toEqual(['First block', 'CMLL']);
+    // Two attempts at the first block, one of them shorter.
+    expect(rows.map((row) => row.cells[0].best)).toEqual([false, true]);
+    // One attempt at CMLL, and a sample of one has no best in it.
+    expect(rows.map((row) => (row.cells[1] ? row.cells[1].best : null))).toEqual([false, null]);
+  });
+
+  it('gives a solve with no markers a row of nothing, and says it is unannotated', () => {
+    const list = [attempt('s2', 'Solve 2', 20, []), attempt('s1', 'Solve 1', 20, roux(8, 12))];
+    const { labels, rows } = comparePhases(list);
+
+    expect(labels).toEqual(['First block', 'Second block']);
+    expect(rows[1]).toEqual({
+      id: 's2',
+      name: 'Solve 2',
+      total: 20,
+      annotated: false,
+      cells: [null, null],
+    });
+    expect(rows[0].annotated).toBe(true);
+  });
+
+  it('has no columns at all when nothing is annotated', () => {
+    const list = [attempt('s2', 'Solve 2', 20, []), attempt('s1', 'Solve 1', 12, [])];
+    expect(comparePhases(list)).toEqual({
+      labels: [],
+      rows: [
+        { id: 's1', name: 'Solve 1', total: 12, annotated: false, cells: [] },
+        { id: 's2', name: 'Solve 2', total: 20, annotated: false, cells: [] },
+      ],
+    });
+  });
+
+  it('does not line Roux up against CFOP', () => {
+    const list = [
+      attempt('s2', 'Solve 2', 20, [
+        { at: 0, label: 'Cross' },
+        { at: 7, label: 'F2L' },
+        { at: 20, label: '' },
+      ]),
+      attempt('s1', 'Solve 1', 20, roux(8, 12)),
+    ];
+
+    const { labels, rows } = comparePhases(list);
+
+    // Eight columns rather than four, because a Cross is not a First block and
+    // no arrangement makes it one.
+    expect(labels).toEqual(['First block', 'Second block', 'Cross', 'F2L']);
+    expect(rows[0].cells.map((cell) => cell && cell.count)).toEqual([8, 12, null, null]);
+    expect(rows[1].cells.map((cell) => cell && cell.count)).toEqual([null, null, 7, 13]);
+    // And nothing is anyone's best, because no column has two attempts in it.
+    expect(rows.every((row) => row.cells.every((cell) => !cell || !cell.best))).toBe(true);
+  });
+
+  it('interleaves a new label where the solve that introduced it put it', () => {
+    const list = [
+      attempt('s2', 'Solve 2', 20, [
+        { at: 0, label: 'First block' },
+        { at: 8, label: 'Second block' },
+        { at: 14, label: 'CMLL' },
+        { at: 20, label: '' },
+      ]),
+      attempt('s1', 'Solve 1', 20, [
+        { at: 0, label: 'First block' },
+        { at: 14, label: 'CMLL' },
+        { at: 20, label: '' },
+      ]),
+    ];
+
+    // Solve 1 never named a second block, and Solve 2's goes *between* the two
+    // labels it already has rather than on the end.
+    expect(comparePhases(list).labels).toEqual(['First block', 'Second block', 'CMLL']);
+  });
+
+  it('puts a label directly after whatever it followed, which is all the evidence there is', () => {
+    const list = [
+      // A solve that stopped after the first block and then jumped to LSE says
+      // LSE follows First block, and nothing here knows Roux well enough to
+      // disagree with it.
+      attempt('s2', 'Solve 2', 20, [
+        { at: 0, label: 'First block' },
+        { at: 6, label: 'LSE' },
+        { at: 20, label: '' },
+      ]),
+      attempt('s1', 'Solve 1', 20, [
+        { at: 0, label: 'First block' },
+        { at: 8, label: 'Second block' },
+        { at: 20, label: '' },
+      ]),
+    ];
+
+    expect(comparePhases(list).labels).toEqual(['First block', 'LSE', 'Second block']);
+  });
+
+  it('leaves the unnamed spans out — including the one at the very end', () => {
+    // A trailing marker at the end of the solve is a real boundary with no moves
+    // in it. The strip skips it and so does this; it is not a column.
+    const list = [attempt('s1', 'Solve 1', 20, roux(8, 12))];
+    const { labels, rows } = comparePhases(list);
+
+    expect(labels).toEqual(['First block', 'Second block']);
+    // 8 and 12 is the whole solve here, but the row carries its own total
+    // because the columns are under no obligation to add up.
+    expect(rows[0].total).toBe(20);
+  });
+
+  it('carries a total the columns do not have to add up to', () => {
+    // Only the first block is named; the twelve moves after it are unclassified
+    // and stay that way rather than being invented into a phase.
+    const list = [attempt('s1', 'Solve 1', 20, [{ at: 0, label: 'First block' }, { at: 8, label: '' }])];
+    const { labels, rows } = comparePhases(list);
+
+    expect(labels).toEqual(['First block']);
+    expect(rows[0].cells[0].count).toBe(8);
+    expect(rows[0].total).toBe(20);
+  });
+
+  it('sums a label used twice in one solve, and says it was two groups', () => {
+    const list = [
+      attempt('s1', 'Solve 1', 20, [
+        { at: 0, label: 'Second block' },
+        { at: 5, label: 'CMLL' },
+        { at: 12, label: 'Second block' },
+        { at: 20, label: '' },
+      ]),
+    ];
+
+    const { labels, rows } = comparePhases(list);
+    expect(labels).toEqual(['Second block', 'CMLL']);
+    expect(rows[0].cells[0]).toEqual({
+      label: 'Second block',
+      count: 13,
+      groups: 2,
+      best: false,
+    });
+  });
+
+  it('survives an empty list, and a missing one', () => {
+    expect(comparePhases([])).toEqual({ labels: [], rows: [] });
+    expect(comparePhases(null)).toEqual({ labels: [], rows: [] });
+  });
+
+  it('does not mutate the list it was handed', () => {
+    const list = [...three];
+    comparePhases(list);
+    expect(list.map((solve) => solve.id)).toEqual(['s3', 's2', 's1']);
+  });
+});
+
+describe('announceCompareCell', () => {
+  it('says the count, and singular where it should', () => {
+    expect(announceCompareCell('Solve 1', 'First block', { count: 8, groups: 1, best: false })).toBe(
+      'Solve 1, First block, 8 moves'
+    );
+    expect(announceCompareCell('Solve 1', 'CMLL', { count: 1, groups: 1, best: false })).toBe(
+      'Solve 1, CMLL, 1 move'
+    );
+  });
+
+  it('says which is the fewest, and how many groups it took', () => {
+    expect(announceCompareCell('Solve 3', 'First block', { count: 6, groups: 1, best: true })).toBe(
+      'Solve 3, First block, 6 moves, fewest so far'
+    );
+    expect(
+      announceCompareCell('Solve 3', 'Second block', { count: 13, groups: 2, best: false })
+    ).toBe('Solve 3, Second block, 13 moves, 2 groups');
+  });
+
+  it('says plainly when a solve did not mark the phase', () => {
+    expect(announceCompareCell('Solve 2', 'CMLL', null)).toBe('Solve 2, CMLL not marked');
   });
 });

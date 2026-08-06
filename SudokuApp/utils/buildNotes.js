@@ -55,6 +55,11 @@ const BUILD_NOTES = {
       'Four colours group the keys — faces, slices, wide turns, rotations — and the flag is the one key in red',
       'The five transport buttons are redrawn as one family, with play the only round one',
       'Clearing a solve moved off the pad and into the solves list, where deleting one already lived',
+      'Compare your attempts: the solves list has a Compare tab that puts every solve at this scramble side by side',
+      'One column per phase, one row per attempt — read First block 8, 7, 6 down the column and see whether you are improving',
+      'The fewest moves for a phase is marked, as long as two attempts have it; nothing is averaged',
+      'Phases line up by name, so a solve annotated with CFOP gets its own columns rather than being lined up against Roux',
+      'A solve with no groups named says so plainly instead of looking like a bad attempt',
       'Sudoku and Fungiku are unchanged',
     ]
   },
