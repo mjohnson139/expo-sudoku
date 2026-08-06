@@ -216,9 +216,10 @@ next row.
 
 Editing a solve (tabled — §8.9), an optimizer or solver of any kind (outsourced —
 §8.9, and that includes a placeholder button or a client stub), entering a cube
-by colour (Step 10), comparing across *different* scrambles, a timer, colour
+by colour (now Step 11), comparing across *different* scrambles, a timer, colour
 neutrality, and the chrome-free mode (open question 14). Note what you spot; do
-not start it.
+not start it — **and note it well**: Step 10 is an architecture review, and what
+you spot while building is exactly what it wants to read.
 
 ### Visible in Expo Go when this lands
 
@@ -253,10 +254,21 @@ answer by drilling on it. Number 8 is now answered *and shipped*, including the
 part of it that wanted use: the threshold was drilled on and moved from 180ms to
 300ms.
 
-**What is left in the epic after Step 9** is Step 10 (enter a cube by hand) and
-these questions. Two rows left the table on 2026-08-06 rather than moving down
-it — the editor is tabled and the optimizer is outsourced — so the backlog is
-genuinely shorter than it was, not rearranged. Plan §8.9.
+**What is left in the epic after Step 9** is **Step 10 — the architecture review
+and the merge decision** (plan §8.11, added 2026-08-06), then Step 11 (enter a
+cube by hand), then these questions. Two rows also left the table on 2026-08-06
+rather than moving down it — the editor is tabled and the optimizer is
+outsourced — so the backlog is genuinely shorter than it was, not rearranged.
+Plan §8.9.
+
+**Step 10 is the odd one and needs flagging here** so a session does not try to
+make it look like the others: it is the one step **exempt from "must be visible
+in Expo Go"**, because what it ships is a written verdict and a yes/no on merging
+`epic/cube` into `main`. Code changes are allowed only where the review finds
+something concrete and small; anything bigger is written down as a finding. A
+review that ends with no code changes is a good outcome. It must not produce a
+plugin framework, a game SDK or a base class — three games is not enough evidence
+for any of those, and inventing one would fail its own review.
 
 1. Scramble length — 20 moves. Leave it?
 2. Other puzzles — 2×2, 4×4, pyraminx, skewb?

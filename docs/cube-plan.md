@@ -469,7 +469,8 @@ Step 5 build still has `scramble` and `favorites` exactly where they were.
 ## 8. Delivery steps
 
 One branch per step, per `.github/dev-process.md`. Every step must ship something
-the operator can open in Expo Go.
+the operator can open in Expo Go — **with one deliberate exception, Step 10**,
+which is a review and ships a verdict instead (§8.11).
 
 | Step | What lands | State |
 |---|---|---|
@@ -482,15 +483,18 @@ the operator can open in Expo Go.
 | **7** | **Give the page back to the cube.** The chrome takes two thirds of the screen and the biggest piece of it grows as you drill; cut it to a budget | **shipped** (#92, 2026-08-05) |
 | **8** | **The designed solve screen.** A spatial cross pad, hold-for-prime, and a phase-split tick scrubber — from a settled design bundle, and the answer to §9.8 | **shipped** (2026-08-05) |
 | **9** | **Compare your attempts.** Every solve written at this scramble, with its phase counts beside each other — "my first block over five attempts" | next |
-| **10** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
+| **10** | **Architecture review, and the merge decision.** Does what we built meet the bar, does it plug into the platform the way the platform expects, and can `epic/cube` go to `main`? | |
+| **11** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
 | — | ~~**Edit a solve you have already written.**~~ | **tabled** (2026-08-06) |
 | — | ~~**A solver**, and random-state scrambles off the back of the same search~~ | **outsourced** (2026-08-06) |
 
 **The table was re-ordered a third time on 2026-08-06, and this one removed
-scope rather than moving it.** §8.9 has the operator's reasoning and it is worth
-reading before touching either tabled row, because both are *decisions* rather
-than backlog: editing is not deferred until there is time for it, and the solver
-is not waiting for someone to write one.
+scope rather than moving it** — two rows out, one row in. §8.9 has the operator's
+reasoning and it is worth reading before touching either tabled row, because both
+are *decisions* rather than backlog: editing is not deferred until there is time
+for it, and the solver is not waiting for someone to write one. The row that came
+in is **Step 10**, and it is the first step in this epic that looks at the whole
+of what was built rather than adding to it (§8.11).
 
 **The table has now been re-ordered twice, and both were re-orderings rather
 than new scope.** Step 6 landing (2026-08-02) moved *edit a solve* ahead of
@@ -1390,6 +1394,131 @@ solve rather than displaying the ones written (§8.9 — that is the API's job).
 **Visible in Expo Go when this lands:** write three solves at one scramble with
 first blocks of 8, 7 and 6 moves, open the list, and read the improvement down a
 column.
+
+### 8.11 Architecture review, and the merge decision (Step 10, specified 2026-08-06)
+
+Ten steps of feature work have gone into `epic/cube` without anyone standing back
+from it. **This step stands back**, against one bar — *would a staff engineer
+sign this off* — and it ends in a decision rather than a diff: **can the epic
+merge to `main`?**
+
+#### This step is exempt from "must be visible in Expo Go", and that is the point
+
+Every other step must ship something the operator can open (§8, and the handoff's
+golden rules). This one deliberately cannot, and pretending otherwise is how a
+review turns into a refactor nobody asked for. So the rule is replaced rather
+than waived:
+
+> **What ships is a written verdict and a merge decision.** Code changes are
+> allowed only where the review finds something *concrete and small*. Anything
+> bigger gets written down as a finding with a recommendation and does not get
+> built in this step.
+
+If the review ends with no code changes at all, that is a **good** outcome and
+the PR says so.
+
+#### The bar: simple, elegant, data-driven
+
+Not "well-abstracted". The three things to check, in this order:
+
+1. **Is the data the source of truth, or is it in the code?** This epic's best
+   work is already this shape and it is what to measure the rest against:
+   `PAD_LAYOUT` owns which key sits where and `PAD_KEYS` is *derived* from it, so
+   there is one place to add a key rather than two to forget one. `PHASE_METHODS`
+   owns the method vocabulary. `padPalette.js` owns the tints. **Look for the
+   opposite**: a rule spelled out in JSX, a list maintained in two places, a
+   `switch` where a table would do.
+2. **One rule, one function.** The epic's standing golden rule, and Step 6 has
+   the scar that produced it — "it survived the reload but not the undo" is what
+   two implementations of one rule looks like in the wild. Check the rules that
+   have more than one caller: what a press means, what shifts a phase marker,
+   what counts as an extension rather than a replacement.
+3. **Is anything here more general than its one use?** A cube-shaped abstraction
+   with one implementation is a cost with no benefit. **This step must not
+   produce a plugin framework, a game SDK, or a base class.** Three games is not
+   enough evidence for any of those, and inventing one here would fail its own
+   review.
+
+#### Plugging into the greater game platform
+
+The platform's contract is small, real, and already almost identical for both
+games. Cube imports **six** things from outside `games/cube/`:
+
+`hooks/useAppTheme` · `hooks/useBoardSize` · `components/ScreenHeader` ·
+`utils/gameProgress` · `utils/debounce` · `utils/color`
+
+Fungiku imports the same five plus `usePersistentReducer`, `useBoardOrigin`,
+`components/Symbol` and `utils/symbolSets`. **That overlap is the platform**,
+whether or not anyone wrote it down. The review's job is to say whether it is the
+*whole* contract and whether it is honest. Specifically:
+
+- **`games/registry.js` is the data-driven seam and it works.** One entry per
+  game — `id`, `title`, `tagline`, `icon`, `accent`, `Screen`, `readProgress` —
+  and the hub renders cards from the list while `App.js` routes on `id`. The
+  cube's entry is seven lines. Confirm nothing has grown a special case for
+  `id === 'cube'` anywhere; if it has, that is the finding.
+- **`utils/gameProgress.js` inverts the dependency, and this is the review's
+  headline candidate.** A platform util **imports three games' internals** —
+  `games/fungiku/engine`, `games/fungiku/difficulty`, `games/cube/scramble` —
+  and the cube's own `storage.js` then imports `describeCubeProgress` back out of
+  it. So the path is `games/cube/storage → utils/gameProgress → games/cube/scramble`,
+  and **the registry's promise that "adding a game is an entry here, not a UI
+  edit" is not quite true**: adding a game also means editing a shared util that
+  every other game depends on.
+
+  The data-driven fix is already half-built and looks cheap: `readProgress` is
+  *per entry* and already returns `{ label, detail }`, so each `describe*Progress`
+  belongs next to the game whose save it reads, and `gameProgress.js` keeps only
+  what is genuinely shared — `formatElapsed` and the like. **Check the cost
+  before recommending it**: the tests currently reach these functions in a plain
+  node environment precisely because that file has no React Native imports, and a
+  move that breaks that trade is not an improvement. Say which way it came out.
+- **Two ways to persist one thing.** Fungiku uses `hooks/usePersistentReducer`;
+  the cube rolls its own debounced writer over `AsyncStorage` in
+  `games/cube/storage.js`. Both work. Either the platform has a persistence
+  primitive and the cube should be on it, or it does not and `usePersistentReducer`
+  is fungiku's — **say which, because right now the answer is "nobody decided"**.
+  Note the cube's shape is genuinely different (one blob, written on change,
+  read by shape rather than by version) before assuming it should converge.
+- **What the cube does *not* touch is evidence too.** No `contexts/`, no wallet,
+  no coins. Fungiku's economy is entirely fungiku's — ten files, none shared.
+  That is the correct amount of coupling for two games that have nothing to do
+  with each other, and the review should confirm it rather than propose a
+  cross-game economy.
+
+#### Inside the cube, the specific things to look at
+
+- **24 modules in `games/cube/`.** Is each one earning its file? The split has
+  been load-bearing — `favorites.js` holds the save's shape rules precisely so it
+  can be tested without React Native — but a boundary that exists only because a
+  file got long is not a boundary.
+- **`readCubeSave` lives in `favorites.js` and now reads four things**, only one
+  of which is favorites. Already known and already deliberate (it is where every
+  caller looks). This step is the one with standing to decide whether a
+  `cubeSave.js` is worth the churn, and "no" is a legitimate answer to write down.
+- **The pure core is the good news and should be said out loud.** `moves`,
+  `cubeState`, `geometry`, `orientation`, `solve`, `solveList`, `scramble` are
+  free of React Native and carry the bulk of the 835 tests. That is why this epic
+  can be reviewed at all. Any finding that would push logic *out* of that core and
+  into a component is a finding to reject.
+
+#### The merge decision
+
+The output is an explicit **yes or no on merging `epic/cube` into `main`**, with
+whatever is blocking it named. Cover at least:
+
+- **Does it stand up on a device**, not just in a browser at three widths — the
+  epic's own scar (Step 7 shipped a header that passed every browser check and
+  was broken on a phone), and `expo-haptics` fires exactly once in a place only a
+  device can judge.
+- **Storage compatibility.** `@CubeScramble` is at version 2 and is read by shape.
+  A user on a build from Step 3 opening a build from Step 10 must not lose their
+  solves; prove it rather than assert it.
+- **`npx expo-doctor` (expect 18/18), `npx expo export --platform all`, `npm test`.**
+- **Build notes and `app.json`.** Per §12 they are kept per release, not per step:
+  the cube epic is `3.1.0` and the entry gets *extended*, so the merge is the
+  moment that entry has to describe the whole feature rather than the last step
+  of it.
 
 ## 9. Open questions for the operator
 
