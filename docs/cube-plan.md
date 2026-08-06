@@ -361,9 +361,14 @@ from the *allowed* faces rather than drawing and retrying — same distribution,
 but it terminates by construction instead of depending on the quality of its
 randomness.
 
-Upgrading to random-state is its own step (§8, last row), and it is the same
-search a solver needs — which is why the two share a row now that neither is on
-the critical path (§8.1).
+Upgrading to random-state is the same search a solver needs, which is why the two
+shared a row — and why they left the table together on 2026-08-06 when that
+search was **outsourced to an API** (§8.9). Nothing in the app changes: these
+scrambles stay random-move, which is what nearly every phone timer ships. If the
+API ever answers "give me a random-state scramble" as well as "optimize this
+phase", it is a swap of `scramble.js`'s generator for a fetch with this one as
+the offline fallback — but **do not build the fallback plumbing before there is
+something to fall back from.**
 
 ## 7. Favorites and persistence
 
@@ -476,9 +481,16 @@ the operator can open in Expo Go.
 | **6** | **Annotate the move groups.** "These moves solve first block, these solve second block" — labelled spans, per-phase move counts, and a transport that plays one group | **shipped** |
 | **7** | **Give the page back to the cube.** The chrome takes two thirds of the screen and the biggest piece of it grows as you drill; cut it to a budget | **shipped** (#92, 2026-08-05) |
 | **8** | **The designed solve screen.** A spatial cross pad, hold-for-prime, and a phase-split tick scrubber — from a settled design bundle, and the answer to §9.8 | **shipped** (2026-08-05) |
-| **9** | **Edit a solve you have already written.** Fix a move in the middle without undoing back to it — the oldest live gap in the feature | next |
+| **9** | **Compare your attempts.** Every solve written at this scramble, with its phase counts beside each other — "my first block over five attempts" | next |
 | **10** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
-| **11** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
+| — | ~~**Edit a solve you have already written.**~~ | **tabled** (2026-08-06) |
+| — | ~~**A solver**, and random-state scrambles off the back of the same search~~ | **outsourced** (2026-08-06) |
+
+**The table was re-ordered a third time on 2026-08-06, and this one removed
+scope rather than moving it.** §8.9 has the operator's reasoning and it is worth
+reading before touching either tabled row, because both are *decisions* rather
+than backlog: editing is not deferred until there is time for it, and the solver
+is not waiting for someone to write one.
 
 **The table has now been re-ordered twice, and both were re-orderings rather
 than new scope.** Step 6 landing (2026-08-02) moved *edit a solve* ahead of
@@ -520,9 +532,13 @@ the answer arrived from watching the thing be used.
 So the epic becomes a notebook. That is *less* code, not more: no search, no
 pruning tables, no megabyte of dependency, and every step from here is
 recognisably the same shape — moves on a cube that the model and renderer
-already animate. The solver stays in the table because random-state scrambles
-(§6) still want the same search and it would be a good thing to have; it is just
+already animate. The solver stayed in the table because random-state scrambles
+(§6) still want the same search and it would be a good thing to have; it was just
 no longer the thing everything else waits on.
+
+**And on 2026-08-06 it left the table entirely** — the search is **outsourced to
+an API**, which is this section's argument carried to its end rather than a
+change of mind about it. §8.9 has the reasoning.
 
 ### 8.2 What a solve is
 
@@ -1193,7 +1209,11 @@ the tick track came out and the cube took its 22 points back, leaving the real
 cost at **49**. What was bought for it: two routes to a prime rather than two
 taps, and `E` and `S` on the pad.
 
-### 8.7 Editing a solve you have already written (Step 9)
+### 8.7 Editing a solve you have already written — **tabled 2026-08-06**
+
+> **This step is not being built.** The brief below is kept intact, unedited,
+> because it is a good brief and because §8.9 tables it on the strength of *what
+> an edit is for* rather than on any fault in it. Read §8.9 first.
 
 Written up when it was Step 7, moved to 8 by the layout work and to **9** by the
 design bundle (§8.8, 2026-08-04). Kept here intact each time, because it is the
@@ -1229,6 +1249,148 @@ whoever takes this step no longer has to design its way in — that argument is
 settled and the work is the marker arithmetic, which is where it always
 belonged.
 
+### 8.9 Why the editor is tabled and the optimizer is outsourced (2026-08-06)
+
+Two rows left the table on the same day, for one reason, and it is the same kind
+of reason that replanned the epic in §8.1: **looking at what the feature is
+actually for.**
+
+#### The editor was serving two different jobs
+
+The editing brief (§8.7, which was Step 9 until this section replaced it) answers
+*"the text field appends; it cannot edit"*, and
+that sentence has been covering two wants that only look alike:
+
+1. **Fix a typo.** You meant `R'` and wrote `R`. The move list is wrong about
+   what you did.
+2. **Improve a block.** Your first block is 8 moves and you think it can be 6.
+   The move list is *right* about what you did and you want to have done
+   something else.
+
+The brief was built for (1) and quietly justified by (2) — §8.5 is where that
+justification is written down, and it is the honest one: *"first block in 8
+versus first block in 12 is exactly what a Roux learner is trying to improve."*
+The operator took (2) apart on 2026-08-06:
+
+> *"If I wanted to improve first block or second block that would just ripple
+> through the whole thing. So I think that's really editing as the API
+> optimizer."*
+
+That is correct and it is fatal to the step as scoped. **A better first block is
+not a text edit.** Change the six moves that build the block and every move after
+them is now being applied to a different cube — the second block is being built
+somewhere it is not, the CMLL case is no longer that case, and the phase markers
+are pointing at moves that no longer mean anything. A diff that shifts markers by
+how much the text grew (§8.7's hard half) is exactly the wrong tool for it: it
+carefully preserves the annotations on a solve whose annotations are the thing
+that stopped being true.
+
+So the step's hard half was hard in service of the job it could not do anyway,
+and its easy half — open the modal with the solve in it — serves only (1).
+
+#### Which leaves (1), and (1) is not worth a step on its own
+
+A typo is caught within a move or two of making it, because the cube on screen
+turns the wrong way immediately. Backspace repeats at 120ms and the solves are
+around forty moves. The recovery is bad but it is *rare and cheap*, and the
+affordance question (§8.7 lists three honest candidates and no obvious winner)
+costs more to settle than the papercut costs to live with.
+
+**If it ever comes back, it comes back small**: `CubeAlgInputModal` opened with
+the solve already in it, `clampPhases` for the markers, and no diff arithmetic
+at all. That is a couple of hours. What is *not* worth building is the version
+that tries to be right about markers across a rewrite, because that version is
+pretending to be the optimizer.
+
+#### And the optimizer is somebody else's search
+
+The remaining row — a solver, and random-state scrambles off the back of the same
+search — is **outsourced to an API** (operator, 2026-08-06). Not deferred:
+outsourced. The reasoning is §8.1's, one step further along. §8.1 moved the
+solver to the end because a computed solution is not the operator's solution and
+does not help someone drilling. What 2026-08-06 adds is that the *useful* version
+— take the solve I wrote and show me a shorter route through the same phase — is
+a real optimization problem over a real cube, and this repo is not where that
+gets written:
+
+- A two-phase search wants pruning tables measured in megabytes, and this epic's
+  whole argument for the cubie model over cubing.js was **not** shipping that.
+- The interesting query is not "solve this cube" but "solve this *phase* under
+  this *method's* constraints" — a first block that keeps the DL edge, a CMLL
+  that does not disturb the block. That is a constrained search, which is harder
+  than the unconstrained one, not easier.
+- It is a pure function of a cube state and a phase: **request in, algorithm
+  out.** Nothing about it needs to be on the phone, and nothing else in the epic
+  is blocked on it. It is the single most natural thing here to put behind a
+  network call.
+
+**What this means for the plan right now: nothing is being built for it.** No
+client, no protocol, no placeholder button. It is recorded so the next session
+does not helpfully start writing a Kociemba search. When it is real it arrives as
+its own step, and the shape it should take is *annotate an existing solve* — a
+phase already has a start, an end and a cube state at its start (§8.5), so
+"optimize this phase" is a request the data model can already describe.
+
+#### What the epic does instead
+
+If you improve a block by **re-attempting it** rather than by editing it, the
+loop only closes when you can see the attempts next to each other. That was an
+open question carried in the handoff — *"my first block over five attempts at
+this scramble"* — filed as "the obvious next thing to want" and parked with
+*"it should wait for the operator to say they want it."* **Tabling the editor is
+what asks for it**, so it becomes **Step 9** and §8.10 is its brief.
+
+`duplicateSolve` already exists. Copy the solve, rewrite the block on the copy,
+and compare the two numbers: that is the improvement loop the editor was standing
+in for, built out of the thing the epic is already good at — writing a solve
+down — rather than out of a text diff.
+
+### 8.10 Compare your attempts (Step 9, specified 2026-08-06)
+
+**The question this screen cannot answer is "am I getting better at this
+scramble?"** Step 6 made every phase count knowable and Step 8 put them on the
+page — but one solve at a time, so `First block · 8` is a fact with nothing to
+compare it against. The operator's own words for what they are doing with the
+tool are *"working out a Roux first block by hand and trying to remember what I
+did"* (§8.1). Remembering across attempts is the half that is still manual.
+
+**Scope is one view, and the data for it already exists.**
+
+- **A per-scramble comparison of the solves already written.** `solvesFor` gives
+  the list, `phaseSpans` gives each one's phases and counts, `describePhaseSpan`
+  already says them out loud. Nothing new is computed; it is arranged.
+- **The unit of comparison is a phase, not a solve.** Total move count is the
+  least interesting number on the screen — it is what a shorter *anything*
+  improves. `First block: 8, 8, 6, 7` down a column is the thing worth seeing,
+  because a Roux drill improves one phase at a time and the operator says so.
+- **Phases are named, not positional.** Solve 1's second span and Solve 3's
+  second span are only comparable if they are both `Second block`. A solve with
+  no markers has nothing to line up and should say so plainly rather than being
+  guessed at — an unannotated solve is a legitimate thing to have written.
+- **Best is worth marking; average is not.** Which attempt has the shortest first
+  block is the answer to the question being asked. A mean over four attempts,
+  where one of them was abandoned half-way, is a number that lies.
+
+**Two things to decide while building, not before:**
+
+- **Where it lives.** The solves list is the honest home — it is already the
+  per-scramble list of solves and already where solve-level operations moved in
+  Step 8 — and the cheapest version of this step is *columns added to a list that
+  exists*. A separate screen is the version to reach for only if the list cannot
+  hold it.
+- **What it costs the cube.** §8.6's rule stands: say what a new row costs, in
+  points, in the PR. If this lands inside the solves list it costs the solve
+  screen nothing, which is most of the argument for putting it there.
+
+**Out of scope, deliberately:** comparing across *different* scrambles (the
+numbers are not comparable — a scramble with an easy block is not a better
+solve), a timer (§9.3, still unanswered), and anything that suggests a *better*
+solve rather than displaying the ones written (§8.9 — that is the API's job).
+
+**Visible in Expo Go when this lands:** write three solves at one scramble with
+first blocks of 8, 7 and 6 moves, open the list, and read the improvement down a
+column.
+
 ## 9. Open questions for the operator
 
 1. **Scramble length.** 20 moves, matching what a WCA 3×3 scramble comes out at.
@@ -1244,6 +1406,12 @@ belonged.
    (operator, 2026-08-01): solves are **written by the operator**, not computed.
    The question was whether a solver should optimize for move count or follow the
    method's own logic; the real answer was that neither is wanted yet. See §8.1.
+
+   **Fully closed on 2026-08-06**: the part that *is* wanted eventually —
+   optimize a phase I already wrote — is **outsourced to an API** and is not
+   this repo's code (§8.9). The original question is now moot rather than
+   pending: it asked what a local solver should optimize for, and there is no
+   local solver.
 6. **Left-handed drag.** The current mapping is "push the surface under your
    finger". Nobody has complained yet because nobody has used it yet.
 7. **Turn speed.** Answered and shipped in Step 2 — a chip cycling 1× → 2× → 0.5×.
@@ -1259,12 +1427,15 @@ belonged.
    patch, where a mis-hit turns the cube *the wrong way* rather than doing
    nothing.
 
-   **What is left is use, not design.** The hold has been driven as a timed
-   gesture at three widths and behaves; whether **180ms** is the right threshold,
-   and whether a hold reads as natural under a thumb mid-drill, are things only a
-   real session answers. The fallback is written down and cheap — a standalone
-   `'` key, which the pad now has a spare cell's worth of room for nowhere, so it
-   would cost the layout a rethink rather than a slot.
+   **The threshold half is closed too** (operator, 2026-08-06). 180ms shipped and
+   was too short under a real thumb — *"I'm getting a lot of prime moves when I
+   want a regular turn"* — so `HOLD_MS` is **300**, the top of the design's
+   120–320 range. The asymmetry picked the number rather than splitting the
+   difference: a tap misread as a prime turns the cube the wrong way and costs an
+   undo, while a prime that waits another 120ms costs only the wait. Tested and
+   accepted the same day. The fallback is still written down and cheap — a
+   standalone `'` key, which the pad has a spare cell's worth of room for
+   nowhere, so it would cost the layout a rethink rather than a slot.
 
    What the armed modifier got right and should be carried forward: **the pad
    showed the arming**, relabelling every key to `U'`, `R'`, `M'`, so the second
