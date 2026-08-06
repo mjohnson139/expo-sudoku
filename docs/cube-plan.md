@@ -475,8 +475,8 @@ the operator can open in Expo Go.
 | **5** | **Orientation.** Record how the cube is held before a solve starts — Roux's inspection step, "yellow up, blue left" | **shipped** (out of order, 2026-08-02) |
 | **6** | **Annotate the move groups.** "These moves solve first block, these solve second block" — labelled spans, per-phase move counts, and a transport that plays one group | **shipped** |
 | **7** | **Give the page back to the cube.** The chrome takes two thirds of the screen and the biggest piece of it grows as you drill; cut it to a budget | **shipped** (#92, 2026-08-05) |
-| **8** | **The designed solve screen.** A spatial cross pad, hold-for-prime, and a phase-split tick scrubber — from a settled design bundle, and the answer to §9.8 | next |
-| **9** | **Edit a solve you have already written.** Fix a move in the middle without undoing back to it — the oldest live gap in the feature | |
+| **8** | **The designed solve screen.** A spatial cross pad, hold-for-prime, and a phase-split tick scrubber — from a settled design bundle, and the answer to §9.8 | **shipped** (2026-08-05) |
+| **9** | **Edit a solve you have already written.** Fix a move in the middle without undoing back to it — the oldest live gap in the feature | next |
 | **10** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
 | **11** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
 
@@ -1014,6 +1014,185 @@ transport glyphs that differ only in chevron count with play as the only filled
 glyph and only circle. **Backspace removes a token whole** — `R2` goes to nothing
 in one press, not to `R`.
 
+#### Two things use changed, the same day (2026-08-05)
+
+**The operator drilled on it and sent back two corrections.** Both are the kind
+only a hand finds, and both are recorded here because the reasoning is worth more
+than the diff.
+
+- ~~**The phase-split tick track.**~~ **Removed.** *"Let's remove the red
+  segments above the scrub controls."* It was a reasonable thing to try and it
+  was wrong: at 42 moves each tick is about six points wide, so the "picture of
+  the solve" is a row of identical dashes, and the position it encodes is said
+  exactly by `42 / 42` an inch below it. **It cost 22 points of cube to restate a
+  number.** The phase *chips* above the cube already carry the part that was
+  earning its keep — the counts, and tapping one to play that block.
+  `tickTrack.js` and its tests went with it.
+- **Prime is now two gestures, not one.** *"It's hard to see the prime symbols
+  when your finger is on the button and holding."* Exactly right, and it is the
+  one thing three viewport widths in a browser cannot show you: **the hold's
+  entire confirmation — the fill, the ring, the `′` — is drawn on the key being
+  held, which is the key under the thumb.** The browser has no thumb. So the
+  armed `′` is back, in the cell the design left empty, as a *second route*
+  rather than a replacement: tap `′`, then the key. Its feedback is everywhere
+  the hand is not.
+
+The armed route brings back **Step 3's one genuinely good idea about modifiers**:
+while `′` is armed every move key relabels itself to `R'`, `U'`, `M'` … so the
+second tap is aimed at a key that already reads the move it will make. What is
+*not* brought back is filling those keys accent — that was tried and it erases
+the four tints and the flag's status as the only accent fill. The relabelling
+plus one lit key is enough, and it keeps the pad readable.
+
+**And the `′` key lights for the hold as well**, not only for its own tap
+(operator, 2026-08-05). That is the same fix applied a second time and it is
+worth stating as a rule: *the pad must always say "a prime is coming" somewhere
+the hand is not.* A hold past the threshold says so on the held key — the fill,
+the ring, the mark — and every one of those is under the thumb causing it. The
+`′` key is the one place on this pad guaranteed to be visible mid-gesture, so it
+answers for both routes. `armed` can only be true while a **move** key is down —
+the arm timer starts in `pressIn`, which tools never call — so there is no state
+where it lights for a hold on a tool.
+
+**The two routes differ on one rule, deliberately.** An armed prime beats a
+pending promotion, because arming is a statement: you tapped `′` and then `R`,
+and that can only mean `R'`. A *hold* still loses to a promotion, because a hold
+is a duration and a finger resting a moment too long on the second tap should do
+the harmless thing (`R2'` is `R2`). That asymmetry is in `applyPadPress`.
+
+**The cube got the tick track's 22 points back:**
+
+| Solve mode, 42 moves, annotated | Step 7 | Step 8 as designed | Step 8 as shipped |
+|---|---|---|---|
+| 320×568 | 194 | 123 | **145** |
+| 375×667 | 293 | 222 | **244** |
+| 393×852 | 373 | 373 | **373** (width-bound) |
+
+So the designed screen costs the cube **49 points**, not 71.
+
+#### A third thing an algorithm change can be (2026-08-05)
+
+**The promotion never animated its second quarter**, and the operator caught it
+the same day: *"the second one doesn't seem animated."* Exactly right, and it is
+worth writing down because the cause is structural rather than careless.
+
+Plan §5 says an algorithm change is one of two things — a **growth** (the pad
+appending, so the cube turns) or a **replacement** (a favorite loading, so the
+cube resets). A promotion is neither: it rewrites the token the cube is
+*standing on*. `extendsAlg` compares tokens up to where the cube is, sees
+`R` become `R2` at that very position, and correctly calls it a replacement — so
+the transport reset, and the cube appeared in its new position. Sampling the
+renderer confirmed it: **one distinct frame across the whole window**, against
+seventeen for an ordinary tap.
+
+`promotedTurn` is the third case, and the fix is to *carry on* rather than reset:
+the cube is already a quarter of the way through the half turn the token just
+became, so the animation runs the back half of that sweep.
+
+**The sweep has to be signed, and that is the part worth not rediscovering.** A
+half turn has no direction of its own — `shortWay(2)` is `+2` whichever way you
+came — but this one does. `D` carries `amount: 3` and turns anticlockwise, while
+`D2` would animate clockwise, so continuing it naively puts the layer 180° from
+where the cube actually is: it would **snap across the cube and then turn**. So
+`turnAngle` and `partialTurn` take an optional signed quarter-turn count, and the
+promotion asks for two quarters *in the direction the first one went*. Landing is
+untouched — ±2 quarter turns are the same permutation, and `t = 1` still hands
+off to the exact integer path.
+
+**None of that is visible from the ends**, which is Step 2's lesson again: `t = 0`
+and `t = 1` are identical whichever way round the sweep goes. It is pinned in
+`geometry.test.js` as exact arithmetic — halfway through the signed sweep equals
+where the quarter turn left the cube, for all six faces — including a test that
+the *unsigned* version lands more than a unit away, so the bug cannot come back
+unnoticed.
+
+#### The accessory menu: tried, and turned down (2026-08-05)
+
+Having shipped three routes to two modifiers, the operator said the obvious
+thing: *"I am second guessing how prime and 2x work."* So the alternative was
+built on a branch and driven — **press and hold a key and an iOS-style accent
+picker opens above it reading `R  R′  R2`**, slide onto one and release. One
+gesture reaching both modifiers, replacing the hold, the second-tap promotion and
+the armed `′` all at once, and giving the cross its deliberate gap back.
+
+**The operator tried it and kept what is here** (*"I like it the other way"*).
+Recorded so it is not re-proposed as an obvious improvement, because it is a
+reasonable idea and it will occur to someone again. What it would have cost:
+
+- **A prime became hold + slide, where it is now just a hold.** That is the
+  whole trade, and it is the one that decided it.
+- **The keys stop being `Pressable`s.** A finger sliding from a key onto a menu
+  overlapping its neighbours crosses several views, so the pad has to own one
+  `PanResponder` and hit-test measured geometry. **VoiceOver then cannot open the
+  menu** — `accessibilityActions` are the standard substitute, untested with a
+  screen reader.
+- **On the top row the menu opens over the scrubber**, covering a transport
+  button while it is up. There is nowhere else for it to go.
+
+Two things it cost to build are worth keeping even though the branch is gone, as
+they are true of any pad-level gesture: **`locationX`/`locationY` are relative to
+the element the touch landed on**, not to the view holding the responder, so page
+coordinates minus a measured origin are the only frame the gesture and the layout
+agree on; and **`onLayout` runs children before parents**, so a cell that folds
+in its row's offset as it is measured folds in a zero — which makes the top row
+work perfectly and every key below it dead, and reads like a flaky gesture rather
+than a geometry bug.
+
+#### What building it settled (2026-08-05)
+
+**It shipped as specified**, including the four reconciliations above: the fixed
+track kept its drawer and took only the design's token styling, Clear left the
+pad, the method chip was not built, and the light-mode hexes went through a
+palette instead of into a `StyleSheet`. Four things are worth not rediscovering.
+
+- **The design's "10pt side margins" are measured from the screen edge, and the
+  page already provides them.** Setting them on the scrubber card as well
+  double-counted, and pushed the transport one point off the right edge of a
+  320pt phone. The horizontal-overflow check caught it, as it caught Step 7's —
+  that check has now found a real bug in two consecutive steps.
+- **The transport row does not fit 320 at the design's spacing.** It was drawn at
+  375, where the card has 333 points inside it and the row wants 292; at 320
+  there are 282. The first fix let the two end labels shrink, and the position
+  readout came out as `39 / …` — the one thing on that row that has to be read.
+  **Air first, then labels, never the targets:** the gap went 10 → 6 and the
+  buttons kept their size.
+- **On a dark theme the four tints cannot live in the backgrounds.** Tinting them
+  toward the theme surface far enough for a dark key leaves the four **ΔE 0.9–2.6
+  apart**, against the 6.12 the design has between them on white — the exact
+  mistake the Fungiku regions made. The grouping moved to the **border and the
+  label**, which come out ΔE 6.3–6.9 apart, and `padPalette.test.js` now puts a
+  number under both the separation and the label's contrast on all eight themes.
+  It caught a third thing on the way: mixing the label toward the *theme's* text
+  colour breaks on `twilight`, whose title is a mid-lightness purple — contrast
+  3.1 on its own key. Lift toward white, not toward the theme.
+- **The promotion is guarded by the text, not by the timer.** A promotion
+  *rewrites* the last token where an append only adds one, so a stale one would
+  resurrect a move an undo had just deleted — the race Step 3 shipped twice,
+  pointed at something worse. `promoteLastToken` refuses on anything except a
+  last token that is exactly the key, so the race is closed by construction
+  rather than by the disarm-on-undo that also happens.
+
+**What it cost the cube as first built**, on a 42-move annotated solve — see the
+table above for what it cost once the tick track came out:
+
+| Solve mode, 42 moves, annotated | Step 7 | Step 8 as designed |
+|---|---|---|
+| 320×568 | 194 | **123** |
+| 375×667 | 293 | **222** |
+| 393×852 | 373 | **373** (width-bound) |
+
+−71 points at the two smaller sizes and nothing at the largest. The chrome grew
+by about 100: the scrubber card 42 → 81, the pad 126 → 152. **The legend is the
+row that gives**, exactly as this section predicted — it is drawn only where the
+cube is already limited by the width of the phone rather than by the page
+(`LEGEND_MIN_HEIGHT`), which is §8.6's budget rule made executable. Without that
+the 320 case was a 94-point cube, which would have undone a third of Step 7.
+
+**The operator answered it the same day**, and the answer was "not like that":
+the tick track came out and the cube took its 22 points back, leaving the real
+cost at **49**. What was bought for it: two routes to a prime rather than two
+taps, and `E` and `S` on the pad.
+
 ### 8.7 Editing a solve you have already written (Step 9)
 
 Written up when it was Step 7, moved to 8 by the layout work and to **9** by the
@@ -1069,15 +1248,23 @@ belonged.
    finger". Nobody has complained yet because nobody has used it yet.
 7. **Turn speed.** Answered and shipped in Step 2 — a chip cycling 1× → 2× → 0.5×.
    Not persisted; see §7 and the note under Step 3 in the handoff.
-8. ~~**How a move gets entered.**~~ **Answered by a design round** (2026-08-04),
-   and it was the epic's longest-running question — open since Step 3 shipped the
-   armed modifier. The answer is **press-and-hold for prime, second tap for a
-   half turn**, and it is Step 8 (§8.8). The three alternatives this question
-   listed are all decided in the bundle's rejected column: a standalone `'` key
-   works, costs two taps, and is the fallback if hold tests badly; swipe-up is
-   unreliable in a dense grid; and a per-key prime strip leaves 35.6pt for the
-   letter at six columns — under a thumb's contact patch, where a mis-hit turns
-   the cube *the wrong way* rather than doing nothing.
+8. ~~**How a move gets entered.**~~ **Answered by a design round** (2026-08-04)
+   **and shipped in Step 8** (2026-08-05), and it was the epic's longest-running
+   question — open since Step 3 shipped the armed modifier. The answer is
+   **press-and-hold for prime, second tap for a half turn** (§8.8). The three
+   alternatives this question listed are all decided in the bundle's rejected
+   column: a standalone `'` key works, costs two taps, and is the fallback if
+   hold tests badly; swipe-up is unreliable in a dense grid; and a per-key prime
+   strip leaves 35.6pt for the letter at six columns — under a thumb's contact
+   patch, where a mis-hit turns the cube *the wrong way* rather than doing
+   nothing.
+
+   **What is left is use, not design.** The hold has been driven as a timed
+   gesture at three widths and behaves; whether **180ms** is the right threshold,
+   and whether a hold reads as natural under a thumb mid-drill, are things only a
+   real session answers. The fallback is written down and cheap — a standalone
+   `'` key, which the pad now has a spare cell's worth of room for nowhere, so it
+   would cost the layout a rethink rather than a slot.
 
    What the armed modifier got right and should be carried forward: **the pad
    showed the arming**, relabelling every key to `U'`, `R'`, `M'`, so the second

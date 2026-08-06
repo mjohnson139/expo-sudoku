@@ -15,37 +15,113 @@
 import { algError, moveCount, tokenize, tryTokenize } from './moves';
 
 /**
- * The pad's twelve keys — the **Roux set** (operator, 2026-08-01).
+ * The pad, as a **spatial cross** (docs/cube-plan.md §8.8, Step 8).
  *
- * Not the full notation the parser takes. A Roux first block is the faces plus
- * `M` and `r`; LSE is very nearly just `M` and `U`; `x` and `y` are how the cube
- * gets turned over during inspection. `E`, `S` and the other three wides are
- * real notation that nobody writes a Roux solve in, and eighteen keys on a phone
- * is a worse pad than twelve. The text field takes anything the parser does, so
- * nothing is out of reach — it is just not on the pad.
+ * Six columns by three rows. The left three columns are a cube net, so the
+ * faces sit where they *are* — `B` top-left carrying a `far` tag because the
+ * back face is the one a net cannot show in place, `U` `F` `D` down the spine,
+ * `L` and `R` either side of `F`. Then the slices in column 4, the wides in
+ * column 5 and the rotations in column 6.
  *
- * Two rows of six, in the order they are laid out.
+ * ### Why there is room for `E` and `S`
+ *
+ * Step 3's pad was twelve keys and two of the eighteen cells went on the armed
+ * `'` and `2`. A half turn is a second tap now and prime is a hold, so both
+ * modifier keys came off and the notation nobody could fit — `E` and `S` — took
+ * their place. The Roux argument for leaving them off was always a space
+ * argument rather than a notation one.
+ *
+ * ### Column 3 row 1 was the cross's gap, and now it is the prime key
+ *
+ * The design left that cell **deliberately empty** — "it is what makes the cross
+ * read as a cross" — and shipping it that way is what found the problem. From
+ * the operator, using it on a phone (2026-08-05): *"it's hard to see the prime
+ * symbols when your finger is on the button and holding."* Which is exactly
+ * right, and is the one thing a browser at three viewport widths cannot show
+ * you — **the finger is part of the interface and the screenshots do not have
+ * one.** The hold's confirmation is drawn under the thumb that is causing it.
+ *
+ * So prime is now **both**: hold a key, or tap `′` and then the key. The hold is
+ * untouched for the people it already suits; the tap is a second route whose
+ * feedback is somewhere the hand is not. It sits directly above `R`, which is
+ * the cell the gap was in and the most prime-heavy key on a Roux pad.
+ *
+ * Row-major, six to a row, so the screen can slice it without knowing the shape.
  */
-export const PAD_KEYS = ['U', 'D', 'L', 'R', 'F', 'B', 'M', 'r', 'l', 'x', 'y', 'z'];
+export const PAD_LAYOUT = [
+  { key: 'B', tone: 'face', tag: 'far' },
+  { key: 'U', tone: 'face' },
+  { tool: 'prime', tone: 'tool' },
+  { key: 'M', tone: 'slice' },
+  { key: 'l', tone: 'wide' },
+  { key: 'x', tone: 'rot' },
 
-/** How many keys go on a row. Twelve in two rows of six is the widest the
- *  narrowest supported phone takes without the keys becoming unhittable. */
+  { key: 'L', tone: 'face' },
+  { key: 'F', tone: 'face' },
+  { key: 'R', tone: 'face' },
+  { key: 'E', tone: 'slice' },
+  { key: 'r', tone: 'wide' },
+  { key: 'y', tone: 'rot' },
+
+  { tool: 'backspace', tone: 'tool' },
+  { key: 'D', tone: 'face' },
+  { tool: 'flag', tone: 'accent' },
+  { key: 'S', tone: 'slice' },
+  { tool: 'keyboard', tone: 'tool' },
+  { key: 'z', tone: 'rot' },
+];
+
+/** Every move key on the pad, in layout order. Derived rather than listed: two
+ *  places to add a key is one place to forget one. */
+export const PAD_KEYS = PAD_LAYOUT.filter((cell) => cell.key).map((cell) => cell.key);
+
+/** How many cells go on a row. */
 export const PAD_COLUMNS = 6;
 
-/** The two modifiers, armed before the key they apply to. */
-export const MODIFIERS = ["'", '2'];
+/** How many rows the pad has. Fixed — the pad's height is a constant the cube's
+ *  budget is measured against (plan §8.6). */
+export const PAD_ROWS = 3;
 
 /**
- * Arming a modifier, or disarming the one already armed.
+ * How long a key must be held before it means a prime (plan §8.8).
  *
- * Tapping the armed modifier again clears it — otherwise the only way out of a
- * mis-tapped `'` is to spend a move on it. Tapping the *other* one swaps, which
- * is what someone who meant `2` and hit `'` is trying to say.
+ * 180ms is short enough that a deliberate prime does not feel like waiting and
+ * long enough that fast typing never trips it. The design shipped it
+ * configurable across 120–320 and those bounds are kept here so a setting has
+ * somewhere to clamp to.
  */
-export const nextModifier = (current, tapped) => (current === tapped ? '' : tapped);
+export const HOLD_MS = 180;
 
-/** The token a key press means, with whatever is armed. */
-export const padToken = (key, modifier) => `${key}${modifier || ''}`;
+/** The range the threshold may be tuned across, if it is ever exposed. */
+export const HOLD_MS_MIN = 120;
+export const HOLD_MS_MAX = 320;
+
+/** How fast a held backspace repeats. */
+export const BACKSPACE_REPEAT_MS = 120;
+
+/**
+ * How long a key stays "the last key" for the second-tap promotion.
+ *
+ * **The design did not put a number on this one** — it models `lastKeyAt` and
+ * says "within the repeat window", so a window is intended, but the value was
+ * left open. 1200ms is a deliberate choice rather than a found one: comfortably
+ * longer than a double tap, comfortably shorter than looking away and coming
+ * back, so a promotion is always something the operator just did rather than
+ * something they did a while ago.
+ *
+ * It is a backstop rather than the rule. What actually guards a promotion is the
+ * *text* — see `promoteLastToken`.
+ */
+export const PROMOTE_MS = 1200;
+
+/** How far through the hold a press is, 0 → 1. What the key's fill draws. */
+export const holdProgress = (elapsed, threshold = HOLD_MS) => {
+  if (!(threshold > 0)) return 1;
+  return Math.max(0, Math.min(1, (elapsed || 0) / threshold));
+};
+
+/** Whether a press has been held long enough to mean a prime. */
+export const isHold = (elapsed, threshold = HOLD_MS) => (elapsed || 0) >= threshold;
 
 /**
  * Add one token to a solve.
@@ -80,6 +156,75 @@ export const dropLastToken = (alg) => {
   return tokens.slice(0, -1).join(' ');
 };
 
+/**
+ * Promote the token already written to a half turn — `… R` becomes `… R2`.
+ *
+ * Returns `null` when there is nothing to promote, which the caller reads as
+ * "append instead".
+ *
+ * ### The guard is the text, not the timer
+ *
+ * The screen also tracks which key was last pressed and when, but **this
+ * function refuses on anything except a last token that is exactly `key`** — and
+ * that is what makes the promotion safe rather than merely usually right.
+ *
+ * Undo is two things that cannot happen at once (plan §5): the cube turns
+ * backwards for 260ms and the move is dropped at the end of it. A promotion
+ * landing inside that window used to be the shape of the bug Step 3 shipped
+ * twice — and a promotion is worse than an append, because it *rewrites* the
+ * last token rather than adding one, so a stale one would resurrect a move that
+ * had been deleted. Checking the token is still there closes that by
+ * construction: if the drop has landed, the last token is not `R` any more and
+ * this returns `null`.
+ *
+ * A third tap is a fresh move for the same reason and with no extra rule — the
+ * last token is `R2` by then, which is not `R`, so there is nothing to promote.
+ */
+export const promoteLastToken = (alg, key) => {
+  const tokens = tryTokenize(alg);
+  if (!tokens || tokens.length === 0) return null;
+  if (tokens[tokens.length - 1] !== key) return null;
+  return [...tokens.slice(0, -1), `${key}2`].join(' ');
+};
+
+/**
+ * What a press on a move key does to the solve — the whole of the core loop
+ * (plan §8.8).
+ *
+ * @param {string} alg the solve as it stands
+ * @param {string} key the key that was pressed
+ * @param {{held?: boolean, repeat?: boolean, primed?: boolean}} gesture `held` is
+ *   "past the hold threshold at touch-up"; `primed` is "the `′` key was armed
+ *   before this press"; `repeat` is "this was the last key pressed, recently
+ *   enough to count"
+ * @returns {string} the solve after the press
+ *
+ * ### The three cases are ordered, and the order is the rule
+ *
+ * **An armed prime beats a promotion**, because arming is a deliberate act: you
+ * tapped `′` and then this key, and the only thing that can mean is `R'`.
+ *
+ * **A hold does not.** `R2'` is `R2`, so a hold landing on a promoting tap is
+ * treated as a plain promotion rather than an error — a finger resting a moment
+ * too long on the second tap is the likeliest way to reach this, and it should
+ * do the harmless thing.
+ *
+ * That asymmetry is the whole difference between the two routes to a prime: one
+ * is a statement, the other is a duration.
+ */
+export const applyPadPress = (
+  alg,
+  key,
+  { held = false, repeat = false, primed = false } = {}
+) => {
+  if (primed) return appendToken(alg, `${key}'`);
+  if (repeat) {
+    const promoted = promoteLastToken(alg, key);
+    if (promoted !== null) return promoted;
+  }
+  return appendToken(alg, held ? `${key}'` : key);
+};
+
 /** Why the text field rejected what was typed, or null. */
 export const solveError = (text) => (text.trim() === '' ? null : algError(text));
 
@@ -100,6 +245,8 @@ const SPOKEN_KEY = {
   F: 'F',
   B: 'B',
   M: 'M slice',
+  E: 'E slice',
+  S: 'S slice',
   r: 'wide R',
   l: 'wide L',
   x: 'x rotation',
@@ -118,13 +265,20 @@ export const describeToken = (token) => {
 };
 
 export default {
+  PAD_LAYOUT,
   PAD_KEYS,
-  MODIFIERS,
-  nextModifier,
-  padToken,
+  PAD_COLUMNS,
+  PAD_ROWS,
+  HOLD_MS,
+  PROMOTE_MS,
+  BACKSPACE_REPEAT_MS,
+  holdProgress,
+  isHold,
   appendToken,
   appendAlg,
   dropLastToken,
+  promoteLastToken,
+  applyPadPress,
   solveError,
   describeSolve,
   describeToken,

@@ -136,6 +136,58 @@ export const extendsAlg = (before, after, from) => {
 };
 
 /**
+ * The **promotion**: the pad's second tap growing `R` into `R2` in place
+ * (plan §8.8).
+ *
+ * It is the one edit that rewrites a move the cube has *already played*, which
+ * makes it invisible to `extendsAlg` — the token at the cube's own position
+ * changed, so that function correctly calls it a replacement, and a replacement
+ * resets. The result was a half turn whose second quarter never animated: the
+ * cube simply appeared in its new position (operator, 2026-08-05).
+ *
+ * @returns {{at: number, turns: number}|null} the move to carry on turning, and
+ *   the **signed** quarter-turn sweep to carry it round by, or `null` if this
+ *   was not a promotion.
+ *
+ * ### Why the sweep has to be signed
+ *
+ * A half turn has no direction of its own — `shortWay(2)` is `+2` whichever way
+ * you came — but this one does, because the cube is already a quarter of the way
+ * through it. `D` carries `amount: 3` and turns **anticlockwise**; `D2` carries
+ * `2` and would animate clockwise, so continuing it naively would snap the layer
+ * 180° and then turn. The sweep is therefore two quarters *in the direction the
+ * first quarter went*, and the animation runs the back half of it. Landing is
+ * unaffected: ±2 quarter turns are the same permutation.
+ */
+export const promotedTurn = (before, after, from) => {
+  const first = tryScanAlg(before || '');
+  const second = tryScanAlg(after || '');
+  if (!first || !second) return null;
+
+  const at = from === undefined ? first.moves.length : from;
+  if (!Number.isInteger(at) || at < 1) return null;
+  if (at > first.moves.length || at > second.moves.length) return null;
+
+  // Everything the cube went through *before* the last move must be untouched;
+  // anything after where it is standing has not been played and cannot matter.
+  for (let i = 0; i < at - 1; i += 1) {
+    if (first.moves[i].token !== second.moves[i].token) return null;
+  }
+
+  const was = first.moves[at - 1];
+  const now = second.moves[at - 1];
+  if (was.axis !== now.axis) return null;
+  if (was.layers.length !== now.layers.length) return null;
+  if (was.layers.some((layer, i) => layer !== now.layers[i])) return null;
+
+  const from90 = shortWay(was.amount);
+  if (Math.abs(from90) !== 1) return null;
+  if (Math.abs(shortWay(now.amount)) !== 2) return null;
+
+  return { at: at - 1, turns: 2 * from90 };
+};
+
+/**
  * How long one move's animation runs, at `rate` times normal speed.
  *
  * The rate divides rather than multiplies, so 2× is twice as *quick*, which is
@@ -201,6 +253,7 @@ export const announcePosition = (index, count, noun = 'scramble') => {
 export default {
   buildPlayback,
   extendsAlg,
+  promotedTurn,
   turnDuration,
   gapDuration,
   nextSpeed,

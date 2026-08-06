@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -18,6 +18,7 @@ import CubeFavoritesModal from './CubeFavoritesModal';
 import CubeMovePad from './CubeMovePad';
 import CubeMoveTrack from './CubeMoveTrack';
 import CubeNameModal from './CubeNameModal';
+import CubePadLegend from './CubePadLegend';
 import CubePhaseModal from './CubePhaseModal';
 import CubePhaseStrip from './CubePhaseStrip';
 import CubeScrubber from './CubeScrubber';
@@ -34,12 +35,12 @@ import {
 } from './orientation';
 import { randomScramble } from './scramble';
 import {
+  PROMOTE_MS,
   appendAlg,
-  appendToken,
+  applyPadPress,
   describeSolve,
   dropLastToken,
-  nextModifier,
-  padToken,
+  promoteLastToken,
 } from './solve';
 import {
   createSolve,
@@ -73,6 +74,27 @@ const MAX_CUBE = 440;
 
 /** Share of the window height the cube may take. */
 const CUBE_HEIGHT_SHARE = 0.42;
+
+/**
+ * How tall a phone has to be before the pad's colour legend is drawn (plan §8.8).
+ *
+ * **This is §8.6's budget rule, made executable.** The cube is sized first and
+ * every other row has to justify itself against it — and the legend is the one
+ * row the design itself nominates as the first to go: four tints that need a
+ * permanent key may be four tints too many, and the pad's grouping is *also*
+ * carried by position, so the colour is a second encoding of something the
+ * columns already say.
+ *
+ * Above this height the cube is limited by the width of the phone rather than by
+ * the page, so the legend costs it **nothing** and it is drawn. Below it, the 29
+ * points come straight out of the cube, and they are not worth it — at 320×568
+ * they are the difference between a 94-point cube and a 123-point one.
+ *
+ * Keyed on the **window**, deliberately, and not on the measured stage: a row
+ * whose presence depended on a measurement it changes is a layout that
+ * oscillates.
+ */
+const LEGEND_MIN_HEIGHT = 780;
 
 /** The markers of a solve that is not open. A shared constant rather than a
  *  fresh `[]`, so the memos below it are not rebuilt on every render of the
@@ -116,8 +138,8 @@ const NO_PHASES = [];
  * are a persisted list, the open one is a persisted id, and solve mode itself is
  * a persisted flag; the hold and the moves are *fields of a solve* rather than
  * of the screen. What is still local, and deliberately so, is the view angle,
- * the scrub position, the speed and the armed modifier — where the operator is
- * standing rather than what they wrote.
+ * the scrub position, the speed and the half-finished key gesture — where the
+ * operator is standing rather than what they wrote.
  *
  * Restoring is therefore a second path into exactly the state tapping **Solve**
  * reaches, and the two have to agree: which of the three middle buttons shows
@@ -154,9 +176,68 @@ const CubeScreen = ({ onExitToHub }) => {
   // rather than stacked — a Modal presented on top of a Modal is reliable on
   // web and finicky on iOS, and there is nothing to gain by finding out which.
   const [renamingId, setRenamingId] = useState(null);
-  // The modifier waiting for a key: `''`, `'` or `2`. Not persisted: it is a
-  // half-finished tap, not a written move.
-  const [modifier, setModifier] = useState('');
+  /**
+   * The key a second tap would promote to a half turn, or null (plan §8.8).
+   *
+   * State rather than a ref, and one piece of it rather than a `lastKey` plus a
+   * `lastKeyAt`, because **the pad draws it**: the key wears a `2` in the corner
+   * while it is promotable, so "what will the next tap do" is on the screen
+   * rather than in the operator's head. One value means the tag and the
+   * behaviour cannot disagree — which they would the moment a window expired
+   * without anything re-rendering.
+   *
+   * Not persisted: it is a half-finished gesture, not a written move.
+   */
+  const [promoteKey, setPromoteKey] = useState(null);
+  const promoteTimer = useRef(null);
+
+  /**
+   * The `′` key is armed, so the next move key writes a prime.
+   *
+   * The second route to a prime, added after the operator used the first one on
+   * a phone: the hold's feedback is drawn on the key being held, which is the
+   * key under the thumb. This one's feedback is everywhere else — the `′` fills
+   * accent and every move key relabels itself. Transient, like the promotion:
+   * a half-finished gesture, not a written move.
+   */
+  const [primed, setPrimed] = useState(false);
+
+  /** Point the promotion at a key, or take it off one, and start the clock. */
+  const armPromotion = useCallback((key) => {
+    if (promoteTimer.current) clearTimeout(promoteTimer.current);
+    promoteTimer.current = null;
+    setPromoteKey(key);
+    if (key) {
+      promoteTimer.current = setTimeout(() => setPromoteKey(null), PROMOTE_MS);
+    }
+  }, []);
+
+  /**
+   * Drop every half-finished gesture.
+   *
+   * **One function, because they are one idea:** an armed prime and a pending
+   * promotion are both "a press that has started and not finished", and every
+   * transition that invalidates one invalidates the other — a new scramble, a
+   * different solve, an undo, a clear, opening the flag. Two calls at nine call
+   * sites is eight chances to add the tenth site and only remember one of them.
+   */
+  const resetGesture = useCallback(() => {
+    armPromotion(null);
+    setPrimed(false);
+  }, [armPromotion]);
+
+  /** Arm the `′`, or disarm the one already armed — the only way out of a
+   *  mis-tapped prime that does not cost a move. */
+  const tapPrime = useCallback(() => {
+    setPrimed((current) => !current);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (promoteTimer.current) clearTimeout(promoteTimer.current);
+    },
+    []
+  );
   const [showTyping, setShowTyping] = useState(false);
   const [showPhases, setShowPhases] = useState(false);
 
@@ -356,7 +437,7 @@ const CubeScreen = ({ onExitToHub }) => {
   const showScramble = useCallback(
     (alg) => {
       pause();
-      setModifier('');
+      resetGesture();
       setScramble(alg);
       // The most recent solve for the scramble arriving, which is the page you
       // were last on for it. Nothing there is not a problem: Solve starts one.
@@ -364,7 +445,7 @@ const CubeScreen = ({ onExitToHub }) => {
       setOpenId(mine.length > 0 ? mine[0].id : null);
       setSolving(false);
     },
-    [pause, solves]
+    [pause, solves, resetGesture]
   );
 
   const newScramble = useCallback(() => {
@@ -421,16 +502,16 @@ const CubeScreen = ({ onExitToHub }) => {
   // it was before solves were kept.
   const startSolving = useCallback(() => {
     pause();
-    setModifier('');
+    resetGesture();
     if (!openSolve) beginSolve();
     setSolving(true);
-  }, [pause, openSolve, beginSolve]);
+  }, [pause, openSolve, beginSolve, resetGesture]);
 
   const stopSolving = useCallback(() => {
     pause();
-    setModifier('');
+    resetGesture();
     setSolving(false);
-  }, [pause]);
+  }, [pause, resetGesture]);
 
   /**
    * Take the angle the cube is being looked at from and make it the hold.
@@ -477,28 +558,28 @@ const CubeScreen = ({ onExitToHub }) => {
   const openSolveById = useCallback(
     (id) => {
       pause();
-      setModifier('');
+      resetGesture();
       setOpenId(id);
       setSolving(true);
       setShowSolves(false);
     },
-    [pause]
+    [pause, resetGesture]
   );
 
   const startNewSolve = useCallback(() => {
     pause();
-    setModifier('');
+    resetGesture();
     const made = beginSolve();
     if (made) setSolving(true);
     setShowSolves(false);
-  }, [pause, beginSolve]);
+  }, [pause, beginSolve, resetGesture]);
 
   // Copy a solve and open the copy — "same first block, try the second block
   // differently", which starts by keeping what you already had.
   const copySolve = useCallback(
     (id) => {
       pause();
-      setModifier('');
+      resetGesture();
       const { solves: grown, solve: made } = duplicateSolve(solves, id);
       if (!made) return;
       setSolves(grown);
@@ -506,7 +587,7 @@ const CubeScreen = ({ onExitToHub }) => {
       setSolving(true);
       setShowSolves(false);
     },
-    [pause, solves]
+    [pause, solves, resetGesture]
   );
 
   /**
@@ -568,28 +649,40 @@ const CubeScreen = ({ onExitToHub }) => {
     setPitch(chosen ? chosen.pitch : DEFAULT_PITCH);
   }, [chosenView, openId]);
 
-  // A key is the armed modifier plus the letter, and the arming is spent — one
-  // move, then back to plain. Holding it would mean a `'` left armed silently
-  // priming a move three taps later.
-  //
-  // `pause` first, always: it lands whatever the cube was doing, and it is what
-  // settles an undo whose move has not been dropped yet (see the hook's
-  // `flushRetract`). A key tapped inside the 260ms an undo takes would otherwise
-  // be appended to a solve that still had the undone move in it.
+  /**
+   * A press on a move key — tap, hold, or the second tap that promotes.
+   *
+   * The rule itself is `applyPadPress`, in `solve.js`, where the test runner can
+   * reach it. What lives here is the *memory*: whether this key is the one a
+   * second tap would promote, and what the press leaves promotable afterwards.
+   *
+   * `pause` first, always: it lands whatever the cube was doing, and it is what
+   * settles an undo whose move has not been dropped yet (see the hook's
+   * `flushRetract`). A key pressed inside the 260ms an undo takes would
+   * otherwise be appended to a solve that still had the undone move in it.
+   */
   const tapKey = useCallback(
-    (key) => {
+    (key, { held = false } = {}) => {
       pause();
+      // An armed `′` beats a pending promotion — see `applyPadPress`. Asking it
+      // here as well would be the rule written twice, so this only records
+      // *whether* the prime was armed and lets that function decide.
+      const repeat = !primed && promoteKey === key;
       editOpen((current) =>
-        withMoves(current, appendToken(current.alg, padToken(key, modifier)))
+        withMoves(current, applyPadPress(current.alg, key, { held, repeat, primed }))
       );
-      setModifier('');
+      // What the *next* tap may do is decided by what this one just wrote: a
+      // plain single turn can be promoted, a prime or a half turn cannot. Asked
+      // of the solve as it stood, which is the same question `applyPadPress`
+      // asked of it a line ago.
+      const promoted = repeat && promoteLastToken(solve, key) !== null;
+      armPromotion(promoted || held || primed ? null : key);
+      // The arming is spent — one move, then back to plain. Holding it would
+      // mean a `′` tapped once silently priming a move three taps later.
+      setPrimed(false);
     },
-    [modifier, pause, editOpen]
+    [promoteKey, primed, solve, pause, editOpen, armPromotion]
   );
-
-  const tapModifier = useCallback((mark) => {
-    setModifier((current) => nextModifier(current, mark));
-  }, []);
 
   // Backwards *first*, then drop it. Removing the move and letting the transport
   // reset would put the cube where it belongs without ever showing it get there,
@@ -599,19 +692,46 @@ const CubeScreen = ({ onExitToHub }) => {
   // The drop goes through `withMoves`, as every edit to the moves now does:
   // a phase is an index into the list being edited, and undo is the edit that
   // can leave one pointing past the end of it (plan §8.5).
+  //
+  // **Disarming the promotion here is the belt to `promoteLastToken`'s braces.**
+  // The move the promotion would rewrite is the move this is deleting, and undo
+  // takes 260ms to land it — so a press inside that window is the exact race
+  // Step 3 shipped twice, pointed at a rewrite rather than an append. Two
+  // independent things now have to fail for it to bite: this line, and the
+  // check that the token is still where the promotion thinks it is.
   const undoMove = useCallback(() => {
-    setModifier('');
+    resetGesture();
     retract(() => editOpen((current) => withMoves(current, dropLastToken(current.alg))));
-  }, [retract, editOpen]);
+  }, [retract, editOpen, resetGesture]);
 
   // The one edit that does *not* go through `withMoves`: clearing is "remove
   // every move", and a marker at 0 would survive the clamp and leave a label
   // hanging off a solve with nothing in it.
   const clearSolve = useCallback(() => {
     pause();
-    setModifier('');
+    resetGesture();
     editOpen({ alg: '', phases: [] });
-  }, [pause, editOpen]);
+  }, [pause, editOpen, resetGesture]);
+
+  /**
+   * The same thing, for whichever solve the list was pointing at.
+   *
+   * Clear moved off the pad in Step 8 and into the solves list, so it now
+   * arrives with an id rather than meaning "the open one" — and clearing a page
+   * that is *not* on the cube must not touch the transport, which is why this is
+   * not `clearSolve` with an argument. When it is the open one, it is: the pause
+   * and the disarm are what stop a turn in flight landing on an empty solve.
+   */
+  const clearSolveById = useCallback(
+    (id) => {
+      if (id === openId) {
+        clearSolve();
+        return;
+      }
+      setSolves((current) => updateSolve(current, id, { alg: '', phases: [] }));
+    },
+    [openId, clearSolve]
+  );
 
   const addTyped = useCallback(
     (text) => {
@@ -643,9 +763,9 @@ const CubeScreen = ({ onExitToHub }) => {
    */
   const openPhases = useCallback(() => {
     pause();
-    setModifier('');
+    resetGesture();
     setShowPhases(true);
-  }, [pause]);
+  }, [pause, resetGesture]);
 
   /**
    * Close the group of moves the operator has just written, and name it.
@@ -1035,23 +1155,25 @@ const CubeScreen = ({ onExitToHub }) => {
           </View>
         </>
       ) : writing ? (
-        <CubeMovePad
-          modifier={modifier}
-          canUndo={solveCount > 0}
-          canClear={solveCount > 0}
-          // Live once there is anything to say about — moves to name, or
-          // markers to take back off. Only a solve with neither has nothing for
-          // the flag to do.
-          canPhase={solveCount > 0 || phases.length > 0}
-          accent={CUBE_ACCENT}
-          theme={theme}
-          onKey={tapKey}
-          onModifier={tapModifier}
-          onUndo={undoMove}
-          onClear={clearSolve}
-          onType={() => setShowTyping(true)}
-          onPhase={openPhases}
-        />
+        <>
+          <CubeMovePad
+            canUndo={solveCount > 0}
+            // Live once there is anything to say about — moves to name, or
+            // markers to take back off. Only a solve with neither has nothing
+            // for the flag to do.
+            canPhase={solveCount > 0 || phases.length > 0}
+            promoteKey={promoteKey}
+            primed={primed}
+            accent={CUBE_ACCENT}
+            theme={theme}
+            onKey={tapKey}
+            onPrime={tapPrime}
+            onUndo={undoMove}
+            onType={() => setShowTyping(true)}
+            onPhase={openPhases}
+          />
+          {height >= LEGEND_MIN_HEIGHT && <CubePadLegend theme={theme} accent={CUBE_ACCENT} />}
+        </>
       ) : (
         // One row where there were two and a caption (plan §8.6). What went:
         // `Reset view` and `Other side` are view controls and moved up to the
@@ -1173,6 +1295,7 @@ const CubeScreen = ({ onExitToHub }) => {
         onDuplicate={copySolve}
         onRename={beginRename}
         onRemove={deleteSolve}
+        onClear={clearSolveById}
         onClose={() => setShowSolves(false)}
       />
 
