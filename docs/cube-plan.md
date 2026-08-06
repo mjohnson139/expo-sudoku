@@ -1106,6 +1106,38 @@ where the quarter turn left the cube, for all six faces — including a test tha
 the *unsigned* version lands more than a unit away, so the bug cannot come back
 unnoticed.
 
+#### The accessory menu: tried, and turned down (2026-08-05)
+
+Having shipped three routes to two modifiers, the operator said the obvious
+thing: *"I am second guessing how prime and 2x work."* So the alternative was
+built on a branch and driven — **press and hold a key and an iOS-style accent
+picker opens above it reading `R  R′  R2`**, slide onto one and release. One
+gesture reaching both modifiers, replacing the hold, the second-tap promotion and
+the armed `′` all at once, and giving the cross its deliberate gap back.
+
+**The operator tried it and kept what is here** (*"I like it the other way"*).
+Recorded so it is not re-proposed as an obvious improvement, because it is a
+reasonable idea and it will occur to someone again. What it would have cost:
+
+- **A prime became hold + slide, where it is now just a hold.** That is the
+  whole trade, and it is the one that decided it.
+- **The keys stop being `Pressable`s.** A finger sliding from a key onto a menu
+  overlapping its neighbours crosses several views, so the pad has to own one
+  `PanResponder` and hit-test measured geometry. **VoiceOver then cannot open the
+  menu** — `accessibilityActions` are the standard substitute, untested with a
+  screen reader.
+- **On the top row the menu opens over the scrubber**, covering a transport
+  button while it is up. There is nowhere else for it to go.
+
+Two things it cost to build are worth keeping even though the branch is gone, as
+they are true of any pad-level gesture: **`locationX`/`locationY` are relative to
+the element the touch landed on**, not to the view holding the responder, so page
+coordinates minus a measured origin are the only frame the gesture and the layout
+agree on; and **`onLayout` runs children before parents**, so a cell that folds
+in its row's offset as it is measured folds in a zero — which makes the top row
+work perfectly and every key below it dead, and reads like a flaky gesture rather
+than a geometry bug.
+
 #### What building it settled (2026-08-05)
 
 **It shipped as specified**, including the four reconciliations above: the fixed

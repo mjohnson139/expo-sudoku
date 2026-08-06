@@ -474,6 +474,13 @@ in the same session.
   one caller passes it. If a second one appears, check it against the same
   invariant: the frame it starts on must be the frame the cube is already
   showing.
+- ~~**An accessory menu for the modifiers.**~~ **Built on a branch, driven, and
+  turned down by the operator** (2026-08-05): hold a key, an iOS-style accent
+  picker opens reading `R  R′  R2`, slide and release. It replaced all three
+  routes with one gesture and gave the cross its gap back — and *"I like it the
+  other way"*. Plan §8.8 has what it would have cost, including the part that
+  decided it: a prime became hold **plus a slide**, where it is now just a hold.
+  Do not re-propose it as an obvious win; it was tried.
 - **The phase counts are per solve and nothing compares them.** Open question 13.
 - **Half turns animate clockwise.** `shortWay(2)` is 2, not −2; both land in the
   same place and nothing prefers one. If a solve tutorial ever wants `R2` to go
