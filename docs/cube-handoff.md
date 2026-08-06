@@ -258,9 +258,8 @@ These are plan §9, restated so a session does not have to go looking. None bloc
 Step 9. **Number 14 is the live one and Step 8 sharpened it into a number**: the
 new pad and scrubber cost the cube 71 points at 320 and 375, and whether that is
 the right trade is a question only the operator can answer by drilling on it.
-Number 8 is now answered *and shipped*, but the part of it that wants use — is
-180ms the right threshold, does a hold read as natural under a thumb — is asked
-in the same session.
+Number 8 is now answered *and shipped*, including the part of it that wanted
+use: the threshold was drilled on and moved from 180ms to 300ms.
 
 1. Scramble length — 20 moves. Leave it?
 2. Other puzzles — 2×2, 4×4, pyraminx, skewb?
@@ -287,13 +286,16 @@ in the same session.
     thumb's contact patch, and a mis-hit there turns the cube **the wrong way**
     rather than doing nothing.
 
-    **What is left is use, not design.** The gesture has been driven as a timed
-    gesture at three widths and behaves. Whether **180ms** is right, and whether
-    a hold feels natural under a thumb mid-drill, only a real session says —
-    `HOLD_MS` is one constant in `solve.js` with the design's 120–320 range
-    recorded beside it. The fallback if the hold tests badly is written down and
-    is a standalone `'` key, which would cost the pad a rethink rather than a
-    slot, because the cross has no spare cell.
+    **The threshold half is now answered too** (operator, 2026-08-06): 180ms was
+    too short under a real thumb — *"I'm getting a lot of prime moves when I want
+    a regular turn"* — and `HOLD_MS` is **300**, the far end of the design's
+    120–320 range. The asymmetry decided it: a tap misread as a prime turns the
+    cube the wrong way and costs an undo, while a prime that waits another 120ms
+    costs only the wait. The fallback if the hold still tests badly is written
+    down and is a standalone `'` key, which would cost the pad a rethink rather
+    than a slot, because the cross has no spare cell — but with a second route to
+    a prime already shipped (the armed `′`), the hold no longer has to carry the
+    gesture alone.
 9. **Colour neutrality** — raised and deferred by the operator on 2026-08-01
    ("we're not gonna get into that right now"). Solves assume you pick a top and
    a left colour and hold it that way. **It now has a concrete cost attached**:

@@ -38,7 +38,7 @@ const REPEAT_AFTER_MS = 400;
  *
  * ### Two routes to a prime, because a finger hides one of them
  *
- * **Hold a key** past 180ms, or **tap `′` and then the key**. Tap it a second
+ * **Hold a key** past `HOLD_MS`, or **tap `′` and then the key**. Tap it a second
  * time and the `R` you just wrote becomes `R2`. Every rule about what a press
  * *means* is `applyPadPress`, in `solve.js`, where it can be tested.
  *
