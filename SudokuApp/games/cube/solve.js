@@ -85,12 +85,20 @@ export const PAD_ROWS = 3;
 /**
  * How long a key must be held before it means a prime (plan §8.8).
  *
- * 180ms is short enough that a deliberate prime does not feel like waiting and
- * long enough that fast typing never trips it. The design shipped it
- * configurable across 120–320 and those bounds are kept here so a setting has
- * somewhere to clamp to.
+ * **180ms was too short in use** (operator, 2026-08-06): *"I'm getting a lot of
+ * prime moves when I want a regular turn."* This is handoff open question 8's
+ * remaining half — whether the threshold is right — answered by drilling on it,
+ * and it fails in the one direction that matters. A tap that reads as a prime
+ * turns the cube **the wrong way** and costs an undo; a prime that needs another
+ * 120ms of thumb costs nothing but the wait. So the threshold moves to the far
+ * end of the design's range rather than splitting the difference.
+ *
+ * 300ms is where the platforms already put a long press (RN's `delayLongPress`
+ * defaults to 500), so a hold that reads as deliberate anywhere else on a phone
+ * reads as deliberate here. The design shipped the threshold configurable across
+ * 120–320 and those bounds are kept, so this stays inside what was designed.
  */
-export const HOLD_MS = 180;
+export const HOLD_MS = 300;
 
 /** The range the threshold may be tuned across, if it is ever exposed. */
 export const HOLD_MS_MIN = 120;

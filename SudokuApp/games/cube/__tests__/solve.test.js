@@ -8,6 +8,8 @@
 
 import {
   HOLD_MS,
+  HOLD_MS_MAX,
+  HOLD_MS_MIN,
   PAD_COLUMNS,
   PAD_KEYS,
   PAD_LAYOUT,
@@ -137,6 +139,17 @@ describe('the hold', () => {
   it('never draws past either end', () => {
     expect(holdProgress(-100)).toBe(0);
     expect(holdProgress(HOLD_MS * 10)).toBe(1);
+  });
+
+  it('is long enough that an ordinary tap is not a prime', () => {
+    // The threshold went 180 → 300 because 180 was tripping on taps meant as
+    // plain turns (operator, 2026-08-06), and a false prime turns the cube the
+    // wrong way. 250ms is a slow-but-ordinary tap; it must still read as a tap.
+    expect(isHold(250)).toBe(false);
+    // And it stays inside the range the design sanctioned, so a setting built on
+    // HOLD_MS_MIN/MAX can still reach it.
+    expect(HOLD_MS).toBeGreaterThanOrEqual(HOLD_MS_MIN);
+    expect(HOLD_MS).toBeLessThanOrEqual(HOLD_MS_MAX);
   });
 });
 
