@@ -654,6 +654,17 @@ make **if and when colour neutrality lands**, and not before.
 left", live under the cube as you pan. Nobody inspecting a cube thinks in `z2`,
 and reading colours off a 120-point cube is guesswork.
 
+**The opening view shows the top, the front and the left** (2026-08-06). It was
+the mirror of that — top, front, right — which is how a cube is conventionally
+drawn and which showed the operator the one side face they had no use for. A
+readout naming a face that is off screen is one you have to take on trust, so the
+yaw was mirrored. It is safe for the reason that matters: **U is still the
+highest face and F is still the nearest**, so the opening view is still the
+identity hold, `orientationAt` still answers `''` there, and nothing about which
+rotation means what changed. A test ties the words to the pixels — the sticker
+the renderer draws at the centre of the left face must be the colour the readout
+calls left.
+
 **And the two colours it names are the top and the left** (operator,
 2026-08-06), which is a readout decision with a reason in the method rather than
 in taste: **LSE runs on M, and M moves the front centre while leaving the left

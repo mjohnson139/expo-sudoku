@@ -169,8 +169,22 @@ export const orbit = (p, yaw, pitch) => {
   return [x1, y1 * cx - z1 * sx, y1 * sx + z1 * cx];
 };
 
-/** The view the cube opens at: U, F and R all in sight, F to the left of R. */
-export const DEFAULT_YAW = (-30 * Math.PI) / 180;
+/**
+ * The view the cube opens at: **U, F and L all in sight**, F to the right of L.
+ *
+ * It was the mirror of this until 2026-08-06 — U, F and R — which is how a cube
+ * is conventionally drawn, and which showed the operator the one side face they
+ * had no use for. **A hold is named by its top and its left** (plan §8.3), and a
+ * readout naming a face that is off screen is a readout you have to take on
+ * trust. Roux's first block is the left-hand one, so the left face is also what
+ * is being *looked at* for most of a solve.
+ *
+ * Mirroring the yaw and nothing else is the whole change, and it is safe for the
+ * reason that matters: **U is still the highest face and F is still the
+ * nearest**, so this view is still the identity hold and `orientationAt` still
+ * answers `''` here. Nothing about which rotations mean what moves.
+ */
+export const DEFAULT_YAW = (30 * Math.PI) / 180;
 export const DEFAULT_PITCH = (25 * Math.PI) / 180;
 
 /**

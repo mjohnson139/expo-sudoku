@@ -20,13 +20,14 @@ import {
 import {
   FACE_NORMALS,
   FACE_ORDER,
+  STICKER_COLORS,
   applyMoves,
   cubeFromAlg,
   facelets,
   isSolved,
   solvedCube,
 } from '../cubeState';
-import { DEFAULT_PITCH, DEFAULT_YAW, orbit } from '../geometry';
+import { DEFAULT_PITCH, DEFAULT_YAW, buildScene, orbit } from '../geometry';
 import { OPPOSITE_FACE, parseAlg } from '../moves';
 
 const RAD = (degrees) => (degrees * Math.PI) / 180;
@@ -452,3 +453,62 @@ describe('viewAfterHold — the picture does not jump when the hold is set', () 
     }
   });
 });
+
+describe('the readout names faces the opening view actually shows', () => {
+  // The point of naming a hold by its top and its left (2026-08-06) is that
+  // those are the faces in front of you. That is only true if the camera shows
+  // them, so this ties the words to the pixels: the sticker the renderer draws
+  // at the centre of the left face must be the colour the readout says is on
+  // the left. It was not, until the opening yaw was mirrored the same day —
+  // the view showed U, F and R, and `left` was the one face off screen.
+  const centreFill = (cube, normal) => {
+    const { polygons } = buildScene(cube, {
+      size: 300,
+      yaw: DEFAULT_YAW,
+      pitch: DEFAULT_PITCH,
+      colors: STICKER_COLORS,
+    });
+    // The centre cubie of that face: position is the normal itself.
+    const key = `${normal.join(',')}|${normal.join(',')}:tile`;
+    return (polygons.find((polygon) => polygon.key === key) || {}).fill || null;
+  };
+
+  const holds = [
+    ['', 'the opening hold'],
+    [algForFacing('D', 'R'), 'yellow up, blue left — the Roux hold'],
+    [algForFacing('B', 'U'), 'a side colour on top'],
+  ];
+
+  it.each(holds)('shows the colours it names (%s — %s)', (alg) => {
+    const held = cubeFromAlg(alg);
+    const named = facingColors(held);
+
+    // A drawn sticker is darkened by how its face is turned, and the renderer
+    // does that by mixing toward black — a pure scale, so the *direction* of
+    // the colour survives it. Comparing normalized channels is therefore exact
+    // enough to name the sticker; comparing raw ones is not, and says a shaded
+    // orange is red.
+    const nearest = (fill) =>
+      FACE_ORDER.map((face) => ({ face, hex: STICKER_COLORS[face] })).sort(
+        (a, b) => distance(fill, a.hex) - distance(fill, b.hex)
+      )[0].face;
+
+    expect(COLOR_NAMES[nearest(centreFill(held, [-1, 0, 0]))]).toBe(named.left);
+    expect(COLOR_NAMES[nearest(centreFill(held, [0, 1, 0]))]).toBe(named.up);
+    // And the right face is the one you cannot see, which is the trade.
+    expect(centreFill(held, [1, 0, 0])).toBeNull();
+  });
+});
+
+/** Colour distance with the renderer's shading divided out: it mixes toward
+ *  black, which scales all three channels together, so normalizing by the
+ *  brightest channel leaves something that identifies the sticker. */
+const distance = (a, b) => {
+  const unit = (hex) => {
+    const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    const peak = Math.max(...rgb, 1);
+    return rgb.map((channel) => channel / peak);
+  };
+  const [x, y] = [unit(a), unit(b)];
+  return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]);
+};
