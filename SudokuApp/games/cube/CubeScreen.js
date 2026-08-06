@@ -877,7 +877,7 @@ const CubeScreen = ({ onExitToHub }) => {
 
   // Live while inspecting — this updates under the finger as the cube is
   // dragged, and it is the thing that makes picking a hold trustworthy. Reading
-  // colours off a 120-point cube is guesswork; reading "yellow up · blue front"
+  // colours off a 120-point cube is guesswork; reading "yellow up · blue left"
   // is not.
   const facingCube = inspecting
     ? applyMoves(scrambledCube, parseAlg(orientationAt(yaw, pitch)))

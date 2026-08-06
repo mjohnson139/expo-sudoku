@@ -974,7 +974,8 @@ a key tap and an undo to confirm moves still turn rather than appear.
 
 Shipped: solve mode is now **two phases**, and the cube turns all the way over. Tap Solve and you are *inspecting* —
 no pad, no transport, a cube roughly twice the size, and a live readout under it
-saying **"yellow up · blue front"** as you drag. Tap **Set start** and that hold
+saying **"yellow up · blue left"** as you drag (it said *front* until
+2026-08-06 — see plan §8.3 for why the left colour is the one Roux names). Tap **Set start** and that hold
 is baked into the model as a rotation prefix, so every move you then write is
 relative to it. `Start view` is the shortcut back to it; `Re-orient` goes back to
 inspecting, and is only offered while the solve is empty.

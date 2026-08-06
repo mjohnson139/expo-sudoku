@@ -266,14 +266,73 @@ describe('orientationAt', () => {
 
 describe('describing a hold in colours', () => {
   it('names the opening view the way the operator does', () => {
-    expect(describeOrientation(solvedCube())).toBe('white up · green front');
+    expect(describeOrientation(solvedCube())).toBe('white up · orange left');
   });
 
   it('reads the colours off a cube that has been turned over', () => {
-    // Roux's traditional hold: yellow on top, blue on the left. Blue on the
-    // left means orange in front, holding yellow up.
-    const held = cubeFromAlg(algForFacing('D', 'L'));
-    expect(facingColors(held)).toEqual({ up: 'yellow', front: 'orange' });
+    // Roux's traditional hold: yellow on top, blue on the left — which is red
+    // in front, and the front is the part nobody says out loud.
+    const held = cubeFromAlg(algForFacing('D', 'R'));
+    expect(facingColors(held)).toEqual({ up: 'yellow', front: 'red', left: 'blue' });
+    expect(describeOrientation(held)).toBe('yellow up · blue left');
+  });
+
+  it('is the left centre that survives the M slice, which is why it is the one named', () => {
+    // The whole reason the readout takes up-and-left rather than up-and-front
+    // (operator, 2026-08-06): **LSE runs on M, and M moves the front centre.**
+    // Through the phase where the cube is turned about most, the front colour
+    // is the one that keeps changing and the left one is the anchor.
+    const held = cubeFromAlg(algForFacing('D', 'R'));
+    const turned = applyMoves(held, parseAlg('M'));
+
+    expect(facingColors(turned).left).toBe(facingColors(held).left);
+    expect(facingColors(turned).up).not.toBe(facingColors(held).up);
+    expect(facingColors(turned).front).not.toBe(facingColors(held).front);
+  });
+
+  it('names a hold as uniquely by up-and-left as by up-and-front', () => {
+    // The claim that makes the readout honest: two adjacent faces fix an
+    // orientation, so saying it the way Roux says it loses nothing. All 24
+    // holds must have 24 distinct (up, left) pairs.
+    const pairs = new Set();
+
+    FACE_ORDER.forEach((up) => {
+      FACE_ORDER.forEach((front) => {
+        const alg = algForFacing(up, front);
+        if (alg === null) return;
+        const colors = facingColors(cubeFromAlg(alg));
+        pairs.add(`${colors.up}|${colors.left}`);
+        // And the three named faces are always three different colours.
+        expect(new Set([colors.up, colors.front, colors.left]).size).toBe(3);
+      });
+    });
+
+    expect(pairs.size).toBe(ORIENTATION_COUNT);
+  });
+
+  it('puts left where a cube would put it, on every one of the 24', () => {
+    // Read off the L centre; checked against the geometry. `up × front` is the
+    // right-handed +x — the *right* — so left is the face opposite it. Two
+    // routes to one answer, pinned so they cannot drift apart.
+    FACE_ORDER.forEach((up) => {
+      FACE_ORDER.forEach((front) => {
+        const alg = algForFacing(up, front);
+        if (alg === null) return;
+
+        const u = FACE_NORMALS[up];
+        const f = FACE_NORMALS[front];
+        const right = [
+          u[1] * f[2] - u[2] * f[1],
+          u[2] * f[0] - u[0] * f[2],
+          u[0] * f[1] - u[1] * f[0],
+        ];
+        const expected = FACE_ORDER.find((face) =>
+          FACE_NORMALS[face].every((component, i) => component === -right[i])
+        );
+
+        expect(facingColors(cubeFromAlg(alg)).left).toBe(COLOR_NAMES[expected]);
+      });
+    });
   });
 
   it('describes a scrambled cube by its centres, which never move', () => {

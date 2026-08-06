@@ -651,8 +651,22 @@ not. Reaching them means giving the camera a roll axis, which is the change to
 make **if and when colour neutrality lands**, and not before.
 
 **A hold is described in colours, never in rotations** — "yellow up · blue
-front", live under the cube as you pan. Nobody inspecting a cube thinks in `z2`,
+left", live under the cube as you pan. Nobody inspecting a cube thinks in `z2`,
 and reading colours off a 120-point cube is guesswork.
+
+**And the two colours it names are the top and the left** (operator,
+2026-08-06), which is a readout decision with a reason in the method rather than
+in taste: **LSE runs on M, and M moves the front centre while leaving the left
+one alone.** Through the phase where the cube is turned about most, the front
+colour is the one that keeps changing and the left one is the anchor — it is the
+face the first block is built on. A solver holding a cube knows what is on top
+and what is on the left and would have to *work out* what is in front.
+
+Nothing under the readout changed: `up` and `front` still identify a hold
+internally, `algForFacing` still takes that pair, and the save file still stores
+a rotation prefix rather than any colour at all (§7.2). Up-and-left identifies a
+hold exactly as well — any two adjacent faces do, and a test pins that all 24
+have distinct pairs — so saying it the method's way loses nothing.
 
 ~~Because the hold is baked into the model, "the view I chose" and "the default
 view" become the same thing.~~ **Not since 2026-08-03**: the camera stays where
