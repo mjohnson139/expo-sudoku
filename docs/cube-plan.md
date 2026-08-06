@@ -407,13 +407,33 @@ about how they happen to be looking at it right now is not.**
 
 | Kept | Not kept |
 |---|---|
-| The scramble, and the favorites | The view angle |
-| Every solve: its hold, its moves, its name | The scrub position |
-| Which solve was being edited, and that solve mode was open | The turn speed |
+| The scramble, and the favorites | The scrub position |
+| Every solve: its hold, its moves, its name | The turn speed |
+| Which solve was being edited, and that solve mode was open | |
+| **The angle the cube is turned to** (2026-08-06) | |
 
-The right-hand column is unchanged and the reasoning still holds: those are
-where you are standing, not what you wrote. Restoring someone into the middle of
-a half-played scramble is worse than opening it whole.
+The right-hand column's reasoning still holds: those are where you are standing,
+not what you wrote. Restoring someone into the middle of a half-played scramble
+is worse than opening it whole.
+
+**The view angle changed sides on 2026-08-06**, at the operator's request:
+
+> *"I just wanted the initial view to have that specific view of the left side,
+> but once the user moves the cube we want to remember the camera position so it
+> doesn't reset when they background the app and come back."*
+
+The original call was defensible and it was wrong about which kind of thing an
+angle is. **Turning the cube to where you want it is closer to putting it down on
+the table than to scrolling** — a deliberate act whose result you expect to find
+as you left it — where a scrub position genuinely is just where the playhead
+happens to be. The distinction that survives is not *authored text vs. not*, it
+is **did you choose this, and would you choose it again**: an angle, yes; a
+half-played position, no.
+
+What this makes of `DEFAULT_YAW`/`DEFAULT_PITCH` is the *opening* view — the
+first visit, and where `Reset view` and `Start view` go back to — rather than the
+view every visit begins at. Which is what makes §8.3's left-face opening view a
+starting point instead of a snap-back.
 
 **Decide the shape once.** A solve is already two fields (`orientation`, `alg`)
 and §8.5 adds a third (`phases`), so the file wants a slot for annotations from
@@ -428,7 +448,7 @@ file twice and writing two migrations.
   scramble: "R U2 F' …",                       // the one on the cube
   favorites: [{ alg, savedAt }],
   solves:    [{ id, scramble, name, orientation, alg, phases, savedAt }],
-  workspace: { solving, solveId },
+  workspace: { solving, solveId, view: { yaw, pitch } | null },
 }
 ```
 
@@ -456,12 +476,23 @@ relitigating:
   no migration and no reshaping. `sanitizePhases` is now `clampPhases`, the same
   function the screen applies live.
 - **`workspace` is the other half of "come back to what you left"** — which
-  solve was open and whether solve mode was. Both are cross-checked against what
-  survived sanitizing: an open solve has to exist and has to belong to the
-  scramble on screen, and solve mode with nothing open is not a state the screen
-  has.
+  solve was open, whether solve mode was, and **which way the cube was turned**.
+  The two ids are cross-checked against what survived sanitizing: an open solve
+  has to exist and has to belong to the scramble on screen, and solve mode with
+  nothing open is not a state the screen has. `view` needs no such check, because
+  an angle is valid against any cube — losing your place should not also move the
+  camera.
+- **`view` is the one field in the file that is not authored text**, and it was
+  added on 2026-08-06 rather than designed in — see §7.1 for the rule it changed.
+  `null` means nothing remembered, which is a first visit and is the screen's cue
+  to open at the default. It is sanitized to two finite angles and wrapped by the
+  same `wrapAngle` every other angle in the app goes through, because `1e9` is
+  finite and is not somewhere anybody can look from.
 
-**Neither direction of version skew needs a migration step.** A Step 5 file has
+**Neither direction of version skew needs a migration step**, and `view` did not
+need one either — `_v` is still 2. A file without it reads as "nothing
+remembered", which is the truth, and a build without it ignores a field it does
+not know about. A Step 5 file has
 no `solves` key and `sanitizeSolves(undefined)` is the empty list — which is the
 truth, because that build could not keep a solve. A Step 4 file opened by a
 Step 5 build still has `scramble` and `favorites` exactly where they were.

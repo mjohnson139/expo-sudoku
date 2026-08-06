@@ -60,8 +60,22 @@ export const loadCubeState = async () => {
   }
 };
 
-/** Write everything the operator authored (debounced, with `.flush()` for
- *  unmount). */
+/** Two finite angles or nothing — so a NaN out of a gesture cannot be written
+ *  into the file and come back as a cube nobody can see. */
+const sanitizeSavedView = (view) =>
+  view && Number.isFinite(view.yaw) && Number.isFinite(view.pitch)
+    ? { yaw: view.yaw, pitch: view.pitch }
+    : null;
+
+/**
+ * Write everything the operator authored (debounced, with `.flush()` for
+ * unmount).
+ *
+ * **The view angle joined it on 2026-08-06** and is the one thing in the file
+ * that is not authored text. Plan §7.1 has the amended rule: the angle you
+ * turned the cube to is something you did on purpose and expect to find as you
+ * left it, where the scrub position and the turn speed are still not.
+ */
 export const saveCubeState = debounce(
   async ({ scramble, favorites, solves, workspace }) => {
     try {
@@ -75,6 +89,11 @@ export const saveCubeState = debounce(
           workspace: {
             solving: (workspace && workspace.solving) === true,
             solveId: (workspace && workspace.solveId) || null,
+            // The angle the cube was left turned to. Written by shape rather
+            // than trusted, the same as everything else in here — and read back
+            // through `sanitizeWorkspace`, which is what decides whether a pair
+            // of numbers is an angle.
+            view: sanitizeSavedView(workspace && workspace.view),
           },
         })
       );

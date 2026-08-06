@@ -10,6 +10,7 @@ const BUILD_NOTES = {
       'Every visit hands you a fresh 20-move scramble in standard notation',
       'The cube is drawn in 3D with the scramble already applied — drag it to turn it and read any face',
       'It opens showing the top, front and left faces, so the two colours a Roux hold is named by are the ones in front of you',
+      'Turn the cube and it stays turned: the angle you left it at comes back when you do, even after the app is closed',
       '"Other side" jumps to the three faces you cannot see; "Reset view" goes back to the opening angle',
       'Play the scramble: press play and watch the cube turn through it one move at a time',
       'Step forward and back a move at a time, or jump straight to the start or the end',

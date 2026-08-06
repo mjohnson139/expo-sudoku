@@ -95,7 +95,10 @@ is always openable in Expo Go (project → Branches) even with no step PR open.
   visible should be pinned rather than eyeballed at one width.
 - **The save file's shape is settled and should not be reopened.** Plan §7.2 has
   it in full. Every field in it is now written and read by something; Step 6 was
-  the last one to fill an empty slot.
+  the last one to fill an empty slot, and **`workspace.view` was the last one
+  added** (2026-08-06, at the operator's request — the angle the cube is turned
+  to is kept now, and plan §7.1 has the amended rule). It needed no version bump:
+  a file without it reads as "nothing remembered", which is the truth.
 - **One rule, one function.** Every edit to a solve's moves goes through
   `withMoves`, which is also what keeps the markers honest — and the clamping it
   does is literally the same `clampPhases` that `sanitizeSolves` runs on the way
@@ -276,13 +279,22 @@ made.**
    eventually, optimize a phase I already wrote, is **outsourced to an API** and
    is not this repo's code (plan §8.9).
 6. Drag direction — currently "push the surface under your finger".
+6a. ~~**Whether the view angle is kept.**~~ **Answered by use** (operator,
+    2026-08-06): *"once the user moves the cube we want to remember the camera
+    position so it doesn't reset when they background the app and come back."*
+    It is in `workspace.view` now. The rule it changed is plan §7.1's, and the
+    distinction that replaced it is worth keeping: not *authored text vs. not*
+    but **did you choose this, and would you choose it again** — an angle yes, a
+    half-played scrub position no. `DEFAULT_YAW`/`DEFAULT_PITCH` are the
+    *opening* view now, not the view every visit begins at.
 7. ~~Turn speed.~~ **Answered** (operator, 2026-08-01): a speed control, and it
    is in — a chip cycling 1× → 2× → 0.5×, scaling the beat between moves as well
    as the turns, and applying to single steps as much as to playback. **Step 4
-   settled that it stays transient**, along with the view angle and the scrub
-   position: plan §7.1's rule is that everything authored is kept and everything
-   about how you are currently looking at it is not, and a speed is the second
-   kind. Say so if that turns out to be wrong in use — the file has room.
+   settled that it stays transient**, along with the scrub position — and **the
+   view angle left that group on 2026-08-06** (see 6a). Plan §7.1's amended rule
+   is that what you chose on purpose is kept, and a speed you set once and forgot
+   is arguably the first kind too. Say so if that turns out to be wrong in use —
+   the file has room, and the angle is the precedent.
 8. ~~**How a move gets entered.**~~ **Answered by a design round** (2026-08-04)
     **and shipped in Step 8** (2026-08-05). Press and hold for prime, second tap
     on the same key for a half turn. This was the epic's longest-running

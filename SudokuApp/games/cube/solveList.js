@@ -53,6 +53,7 @@
  * screen to disagree.
  */
 
+import { wrapAngle } from './geometry';
 import { isValidAlg, moveCount, normalizeAlg } from './moves';
 
 /**
@@ -671,24 +672,59 @@ export const sanitizeSolves = (raw) => {
 };
 
 /**
+ * The angle the cube was left at, brought into shape.
+ *
+ * `null` means "nothing remembered", which is a first visit and is the screen's
+ * cue to open at the default view rather than at a corner of a file. Anything
+ * else is two angles in radians, wrapped the way every other angle in this app
+ * is wrapped — a corrupt file holding `1e9` is finite and is not an angle
+ * anybody can look at, and `wrapAngle` is the one function that decides what a
+ * yaw of 1e9 means.
+ */
+const sanitizeView = (raw) => {
+  if (!raw || typeof raw !== 'object') return null;
+  if (!Number.isFinite(raw.yaw) || !Number.isFinite(raw.pitch)) return null;
+  return { yaw: wrapAngle(raw.yaw), pitch: wrapAngle(raw.pitch) };
+};
+
+/**
  * Where the operator was standing, brought into shape.
  *
  * This is the other half of "come back to what you left" (plan §7.1): the data
- * is the solves, and this is the *workspace* — which solve was open, and whether
- * solve mode was open at all. What is deliberately **not** here is the scrub
- * position, the view angle and the speed, which are where you are standing
- * rather than what you wrote.
+ * is the solves, and this is the *workspace* — which solve was open, whether
+ * solve mode was open at all, and **which way the cube was turned**.
  *
- * Both fields are cross-checked against what actually survived sanitizing: an
+ * ### The angle is kept now, and that is a change to §7.1 (operator, 2026-08-06)
+ *
+ * It was not, and the rule it was excluded by is a good rule: *everything
+ * authored is kept, everything about how you are currently looking at it is
+ * not.* The scrub position and the turn speed still fall on the wrong side of
+ * that line — restoring somebody into the middle of a half-played scramble is
+ * worse than opening it whole.
+ *
+ * **The angle turned out to be on the other side of it.** *"Once the user moves
+ * the cube we want to remember the camera position so it doesn't reset when they
+ * background the app and come back."* Turning the cube to where you want it is
+ * closer to putting it down on the table than to scrolling: it is a thing you
+ * did on purpose and expect to find as you left it. So the default view is the
+ * *opening* view — the first visit, and whatever `Reset view` and `Start view`
+ * go back to — rather than the view every visit begins at.
+ *
+ * The two ids are cross-checked against what actually survived sanitizing: an
  * open solve has to exist and has to belong to the scramble on screen, and solve
- * mode with nothing open is not a state this screen has.
+ * mode with nothing open is not a state this screen has. The angle needs no such
+ * check, because an angle is valid against any cube.
  */
 export const sanitizeWorkspace = (raw, { solves, scramble }) => {
   const wanted = raw && typeof raw === 'object' ? raw : {};
   const open = findSolve(solves, wanted.solveId);
   const solveId = open && open.scramble === normalizeAlg(scramble) ? open.id : null;
 
-  return { solving: solveId !== null && wanted.solving === true, solveId };
+  return {
+    solving: solveId !== null && wanted.solving === true,
+    solveId,
+    view: sanitizeView(wanted.view),
+  };
 };
 
 /** `"8 moves"`, or `"empty"` — what a row in the picker says about itself. */

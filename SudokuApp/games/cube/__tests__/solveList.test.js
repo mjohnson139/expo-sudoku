@@ -606,40 +606,104 @@ describe('sanitizeWorkspace', () => {
   it('restores the solve that was open, and the mode with it', () => {
     expect(
       sanitizeWorkspace({ solving: true, solveId: 's1' }, { solves, scramble: SCRAMBLE })
-    ).toEqual({ solving: true, solveId: 's1' });
+    ).toEqual({ solving: true, solveId: 's1', view: null });
   });
 
   it('keeps an open solve without solve mode — the scramble is where you left', () => {
     expect(
       sanitizeWorkspace({ solving: false, solveId: 's1' }, { solves, scramble: SCRAMBLE })
-    ).toEqual({ solving: false, solveId: 's1' });
+    ).toEqual({ solving: false, solveId: 's1', view: null });
   });
 
   it('refuses a solve written against a different scramble', () => {
     expect(
       sanitizeWorkspace({ solving: true, solveId: 's2' }, { solves, scramble: SCRAMBLE })
-    ).toEqual({ solving: false, solveId: null });
+    ).toEqual({ solving: false, solveId: null, view: null });
   });
 
   it('refuses a solve that did not survive sanitizing', () => {
     expect(
       sanitizeWorkspace({ solving: true, solveId: 'gone' }, { solves, scramble: SCRAMBLE })
-    ).toEqual({ solving: false, solveId: null });
+    ).toEqual({ solving: false, solveId: null, view: null });
   });
 
   it('will not restore solve mode with nothing open, because that is not a state', () => {
     expect(
       sanitizeWorkspace({ solving: true, solveId: null }, { solves, scramble: SCRAMBLE })
-    ).toEqual({ solving: false, solveId: null });
+    ).toEqual({ solving: false, solveId: null, view: null });
   });
 
   it('survives a missing or corrupt workspace', () => {
-    const nothing = { solving: false, solveId: null };
+    const nothing = { solving: false, solveId: null, view: null };
     expect(sanitizeWorkspace(undefined, { solves, scramble: SCRAMBLE })).toEqual(nothing);
     expect(sanitizeWorkspace('nope', { solves, scramble: SCRAMBLE })).toEqual(nothing);
     expect(sanitizeWorkspace({ solving: 'yes', solveId: 7 }, { solves, scramble: SCRAMBLE })).toEqual(
       nothing
     );
+  });
+
+  // ——— The angle the cube was left at (operator, 2026-08-06) ————————————————
+  //
+  // A change to §7.1's rule rather than an addition to it: the angle used to be
+  // excluded as "where you are standing", and turning the cube to where you want
+  // it turns out to be closer to putting it down than to scrolling. The scrub
+  // position and the speed stay out.
+
+  it('keeps the angle the cube was left turned to', () => {
+    expect(
+      sanitizeWorkspace(
+        { solving: true, solveId: 's1', view: { yaw: 0.5, pitch: -0.25 } },
+        { solves, scramble: SCRAMBLE }
+      )
+    ).toEqual({ solving: true, solveId: 's1', view: { yaw: 0.5, pitch: -0.25 } });
+  });
+
+  it('remembers the angle even when the solve it was looking at is gone', () => {
+    // An angle is valid against any cube, so it does not get cross-checked the
+    // way the two ids do — losing your place should not also move the camera.
+    expect(
+      sanitizeWorkspace(
+        { solving: true, solveId: 'gone', view: { yaw: 0.5, pitch: -0.25 } },
+        { solves, scramble: SCRAMBLE }
+      )
+    ).toEqual({ solving: false, solveId: null, view: { yaw: 0.5, pitch: -0.25 } });
+  });
+
+  it('has nothing remembered on a first visit, which is the cue to open at the default', () => {
+    expect(sanitizeWorkspace({ solveId: 's1' }, { solves, scramble: SCRAMBLE }).view).toBeNull();
+  });
+
+  it('refuses anything that is not two angles', () => {
+    const view = (raw) =>
+      sanitizeWorkspace({ solveId: 's1', view: raw }, { solves, scramble: SCRAMBLE }).view;
+
+    expect(view({ yaw: 0.5 })).toBeNull();
+    expect(view({ yaw: 0.5, pitch: 'up' })).toBeNull();
+    expect(view({ yaw: NaN, pitch: 0 })).toBeNull();
+    expect(view({ yaw: Infinity, pitch: 0 })).toBeNull();
+    expect(view('0.5,0.25')).toBeNull();
+    expect(view(null)).toBeNull();
+  });
+
+  it('wraps an angle a corrupt file could hold, rather than trusting it', () => {
+    // 1e9 radians is finite and is not somewhere anybody can look from.
+    const wrapped = sanitizeWorkspace(
+      { solveId: 's1', view: { yaw: 1e9, pitch: 1e9 } },
+      { solves, scramble: SCRAMBLE }
+    ).view;
+
+    expect(Math.abs(wrapped.yaw)).toBeLessThanOrEqual(Math.PI);
+    expect(Math.abs(wrapped.pitch)).toBeLessThanOrEqual(Math.PI);
+  });
+
+  it('keeps a full turn as the same picture it already was', () => {
+    const view = sanitizeWorkspace(
+      { solveId: 's1', view: { yaw: 0.4 + Math.PI * 2, pitch: -0.2 } },
+      { solves, scramble: SCRAMBLE }
+    ).view;
+
+    expect(view.yaw).toBeCloseTo(0.4, 10);
+    expect(view.pitch).toBeCloseTo(-0.2, 10);
   });
 });
 
