@@ -89,10 +89,24 @@ export const shortWay = (amount) => {
   return n > 2 ? n - 4 : n;
 };
 
-/** How far through a turn of `amount` quarter turns a fraction `t` is, in
- *  radians about the move's axis. Exactly the angle `rotateQuarter` would give
- *  at `t = 1`, and exactly zero at `t = 0`. */
-export const turnAngle = (amount, t) => shortWay(amount) * -QUARTER * t;
+/**
+ * How far through a turn of `amount` quarter turns a fraction `t` is, in
+ * radians about the move's axis. Exactly the angle `rotateQuarter` would give
+ * at `t = 1`, and exactly zero at `t = 0`.
+ *
+ * `turns` overrides the direction, and exists for one caller: the pad's second
+ * tap, which grows `R` into `R2` **while the cube is already a quarter of the
+ * way through it**. `shortWay(2)` is always `+2` — a half turn has no direction
+ * of its own — so a `D2` animates the opposite way to the `D` it grew from, and
+ * continuing it would jump the layer 180° before turning. Handing the animation
+ * a signed sweep lets the second quarter carry on the way the first one went.
+ *
+ * It only ever changes *which way round* a half turn travels, never where it
+ * lands: ±2 quarter turns are the same permutation, and `t = 1` still hands off
+ * to the exact integer path.
+ */
+export const turnAngle = (amount, t, turns) =>
+  (turns === undefined ? shortWay(amount) : turns) * -QUARTER * t;
 
 /**
  * Rotate `v` about `axis` by `angle` radians, right-handed — the floating-point
@@ -120,10 +134,10 @@ const rotateAxis = (v, axis, angle) => {
  * of where the model puts the cube is a frame that does not match the one after
  * it. `t = 0` gives `v` back, and `t = 1` gives exactly `rotateQuarter`.
  */
-export const partialTurn = (v, axis, amount, t) => {
+export const partialTurn = (v, axis, amount, t, turns) => {
   if (!(t > 0)) return v;
   if (t >= 1) return rotateQuarter(v, axis, amount);
-  return rotateAxis(v, axis, turnAngle(amount, t));
+  return rotateAxis(v, axis, turnAngle(amount, t, turns));
 };
 
 // ---------------------------------------------------------------------------
@@ -289,12 +303,14 @@ const NEIGHBOURS = [
  * they land. `null` when there is nothing to animate, which is what keeps the
  * still cube's code path — and its output — exactly what it was.
  *
- * @param {{axis: number, layers: number[], amount: number, t: number}|null} turn
+ * @param {{axis: number, layers: number[], amount: number, t: number,
+ *   turns?: number}|null} turn `turns` is an optional signed quarter-turn count
+ *   overriding the direction — see `turnAngle`.
  */
 const spinFor = (turn) => {
   if (!turn) return null;
 
-  const { axis, layers, amount } = turn;
+  const { axis, layers, amount, turns } = turn;
   const t = Number.isFinite(turn.t) ? Math.max(0, Math.min(1, turn.t)) : 0;
   if (t === 0) return null;
 
@@ -316,7 +332,7 @@ const spinFor = (turn) => {
     /** The lattice a carried cubie's squares are built on. */
     place: landed ? settle : (v) => v,
     /** Where those squares are carried afterwards — null once it has landed. */
-    carry: landed ? null : (v) => partialTurn(v, axis, amount, t),
+    carry: landed ? null : (v) => partialTurn(v, axis, amount, t, turns),
     settle,
   };
 };

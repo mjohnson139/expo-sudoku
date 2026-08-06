@@ -1,27 +1,37 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ALG_FONT } from './algText';
+import CubeGlyph from './CubeGlyph';
+import { padPalette } from './padPalette';
 import { announcePosition, describePosition, describeSpeed } from './player';
 
 /**
- * The transport under the cube: where you are in the scramble, and the five
- * ways to move through it (docs/cube-plan.md §8, Step 2).
+ * The transport under the cube (plan §8.8, Step 8).
  *
- * ### Why a row of buttons and not a slider
+ * ### The five glyphs are one family now
  *
- * A scramble is twenty discrete moves, not a continuum. A slider over twenty
- * stops on a phone is a 9pt target per move and no way to land on the one you
- * want; the moves themselves are the slider — they are printed above the cube
- * and every one of them is tappable. This row is for the two things a tap on a
- * token cannot say: "one at a time" and "play it".
+ * They used to be `skip-previous` · `chevron-left` · `play` · `chevron-right` ·
+ * `skip-next` off the icon set: two filled glyphs, two stroked ones and a
+ * triangle, for five buttons that do one job. They are redrawn in `CubeGlyph` at
+ * a single stroke weight — step is a chevron on a bar, jump is two chevrons on
+ * the same bar — so the four scrubbing buttons read as a set and **play is the
+ * only filled glyph and the only circle**, which is what makes it findable
+ * without looking at it.
  *
- * Purely presentational. Everything it shows and everything it calls comes from
- * `useScramblePlayer`, so the same props drive a solve — which is what Step 3
- * does. `noun` and `startLabel` are the only things that differ, because
- * position 0 of a scramble is a solved cube and position 0 of a solve is the
- * scrambled one, and a button that says the wrong one of those is worse than a
- * button with no label at all.
+ * ### The tick track was here, and the operator removed it
+ *
+ * Step 8 shipped a phase-split tick track above this row — one tick per move,
+ * grouped by the marked phases, the current move the only full-height one. It
+ * came out after one session with it (operator, 2026-08-05: *"let's remove the
+ * red segments above the scrub controls"*).
+ *
+ * Worth recording *why* it was a reasonable thing to try and still wrong: on a
+ * 42-move solve every tick is about six points wide, so the "picture of the
+ * solve" it was supposed to draw is a row of identical dashes, and the position
+ * it encodes is already said exactly by `39 / 42` an inch below it. It cost 22
+ * points of cube to restate a number. The phase *chips* above the cube keep the
+ * part that was carrying its weight — the counts, and tapping one to play that
+ * block. `tickTrack.js` and its tests went with it.
  */
 const CubeScrubber = ({
   index,
@@ -38,18 +48,21 @@ const CubeScrubber = ({
   onSeek,
   onCycleSpeed,
 }) => {
-  const titleColor = theme.colors.title;
+  const palette = padPalette(theme, accent);
+  const surface = theme.colors.numberPad.background;
   const border = theme.colors.numberPad.border;
 
   const atStart = index <= 0;
   const atEnd = index >= count;
 
   const button = (name, label, onPress, disabled, primary) => (
-    <TouchableOpacity
+    <Pressable
+      key={name}
       style={[
-        styles.button,
-        { borderColor: primary ? accent : border },
-        primary && { backgroundColor: accent },
+        primary ? styles.playButton : styles.button,
+        primary
+          ? { backgroundColor: accent, borderColor: accent }
+          : { borderColor: palette.dark ? border : '#e2e5ea' },
         disabled && styles.disabled,
       ]}
       onPress={onPress}
@@ -58,103 +71,143 @@ const CubeScrubber = ({
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
     >
-      <MaterialCommunityIcons
-        name={name}
-        size={primary ? 20 : 18}
-        color={primary ? '#ffffff' : titleColor}
-      />
-    </TouchableOpacity>
+      {/* The triangle is optically off-centre in its own box, so the design
+          nudges it right inside the circle. The pause bars are symmetric and
+          must not be nudged. */}
+      <View style={primary && name === 'play' ? styles.playNudge : null}>
+        <CubeGlyph
+          name={name}
+          size={primary ? 22 : 20}
+          color={primary ? '#ffffff' : palette.ink}
+        />
+      </View>
+    </Pressable>
   );
 
   return (
-    <View style={styles.row}>
-      {button('skip-previous', startLabel, () => onSeek(0), atStart)}
-      {button('chevron-left', 'Previous move', onStepBack, atStart)}
-      {button(
-        playing ? 'pause' : 'play',
-        playing ? 'Pause' : `Play the ${noun}`,
-        onPlayPause,
-        count === 0,
-        true
-      )}
-      {button('chevron-right', 'Next move', onStepForward, atEnd)}
-      {button('skip-next', `Jump to the end of the ${noun}`, () => onSeek(count), atEnd)}
-
-      <Text
-        style={[styles.position, { color: titleColor }]}
-        accessibilityLabel={announcePosition(index, count, noun)}
-      >
-        {describePosition(index, count)}
-      </Text>
-
-      {/* Tap to cycle rather than a slider or a menu: three speeds is a short
-          enough cycle to be worth the one tap, and this row has no width for a
-          control that opens something. */}
-      <TouchableOpacity
-        style={[styles.speed, { borderColor: rate === 1 ? border : accent }]}
-        onPress={onCycleSpeed}
-        accessibilityRole="button"
-        accessibilityLabel={`Turn speed, ${describeSpeed(rate)}`}
-        accessibilityHint="Cycles through half, normal and double speed"
-      >
+    <View style={[styles.card, { backgroundColor: surface, borderColor: border }]}>
+      <View style={styles.row}>
         <Text
-          style={[styles.speedText, { color: rate === 1 ? titleColor : accent }]}
-          // The chip is 26pt wide and holds "0.5×"; shrinking beats truncating.
+          style={[styles.counter, { color: palette.ink }]}
+          accessibilityLabel={announcePosition(index, count, noun)}
           numberOfLines={1}
-          adjustsFontSizeToFit
         >
-          {describeSpeed(rate)}
+          {describePosition(index, count)}
         </Text>
-      </TouchableOpacity>
+
+        <View style={styles.buttons}>
+          {button('jumpStart', startLabel, () => onSeek(0), atStart)}
+          {button('stepPrev', 'Previous move', onStepBack, atStart)}
+          {button(
+            playing ? 'pause' : 'play',
+            playing ? 'Pause' : `Play the ${noun}`,
+            onPlayPause,
+            count === 0,
+            true
+          )}
+          {button('stepNext', 'Next move', onStepForward, atEnd)}
+          {button('jumpEnd', `Jump to the end of the ${noun}`, () => onSeek(count), atEnd)}
+        </View>
+
+        {/* Tap to cycle rather than a slider or a menu: three speeds is a short
+            enough cycle to be worth the one tap. */}
+        <Pressable
+          style={styles.speed}
+          onPress={onCycleSpeed}
+          accessibilityRole="button"
+          accessibilityLabel={`Turn speed, ${describeSpeed(rate)}`}
+          accessibilityHint="Cycles through half, normal and double speed"
+        >
+          <Text
+            style={[styles.speedText, { color: rate === 1 ? palette.faint : accent }]}
+            numberOfLines={1}
+          >
+            {describeSpeed(rate)}
+          </Text>
+        </Pressable>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  // Seven things on one line, and the narrowest phone this app supports has
-  // 300 points to put them in. They add up to about 284, and the row wraps
-  // rather than overflowing if a font or a locale makes that wrong.
+  // The design gives this card "10pt side margins" — **measured from the screen
+  // edge**, which the page's own padding already provides. Setting them here as
+  // well double-counted them and pushed the transport 1pt off the right edge of
+  // a 320pt phone; the horizontal-overflow check caught it, as it caught Step
+  // 7's.
+  card: {
+    alignSelf: 'stretch',
+    marginTop: 6,
+    paddingTop: 9,
+    // 8 rather than the design's 10, for the same 320-point reason as the gap.
+    paddingHorizontal: 8,
+    paddingBottom: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    marginTop: 8,
+    justifyContent: 'space-between',
+  },
+  // **The design's gap is 10, and it was drawn at 375.** The narrowest phone
+  // this app supports is 320, where the card has 282 points inside it and the
+  // row wants 292 — so the gap comes down to 6 and the buttons keep their size,
+  // because the buttons are the targets and the gap is only air.
+  //
+  // The first cut let the two end labels shrink instead. They did: the position
+  // readout came out as `39 / …` at 320, which is the one thing on this row that
+  // has to be readable. Air first, then labels, never the targets.
+  buttons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   button: {
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderRadius: 8,
-    width: 36,
-    height: 34,
-    marginHorizontal: 2,
+    width: 30,
+    height: 30,
   },
-  // Dimmed rather than hidden: the row keeps its shape at both ends of the
-  // scramble, so nothing shifts under a finger that is stepping through it.
-  disabled: {
-    opacity: 0.35,
-  },
-  position: {
-    fontFamily: ALG_FONT,
-    fontSize: 12,
-    marginHorizontal: 4,
-    minWidth: 44,
-    textAlign: 'center',
-  },
-  speed: {
+  playButton: {
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderRadius: 8,
-    width: 34,
-    height: 34,
+    borderRadius: 19,
+    width: 38,
+    height: 38,
+  },
+  playNudge: {
     marginLeft: 2,
+  },
+  // Dimmed rather than hidden: the row keeps its shape at both ends, so nothing
+  // shifts under a finger that is stepping through.
+  disabled: {
+    opacity: 0.35,
+  },
+  // Both ends have the same minimum so the five buttons stay optically centred
+  // as the counter's digit count changes. **Neither may shrink** — see the note
+  // on `buttons`; the counter is the one label on this row that has to be read.
+  counter: {
+    fontFamily: ALG_FONT,
+    fontSize: 12,
+    fontWeight: '600',
+    minWidth: 44,
+    flexShrink: 0,
+  },
+  speed: {
+    minWidth: 44,
+    flexShrink: 0,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
   },
   speedText: {
     fontFamily: ALG_FONT,
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 
