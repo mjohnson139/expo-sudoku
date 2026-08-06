@@ -476,12 +476,14 @@ the operator can open in Expo Go.
 | **6** | **Annotate the move groups.** "These moves solve first block, these solve second block" — labelled spans, per-phase move counts, and a transport that plays one group | **shipped** |
 | **7** | **Give the page back to the cube.** The chrome takes two thirds of the screen and the biggest piece of it grows as you drill; cut it to a budget | **shipped** (#92, 2026-08-05) |
 | **8** | **The designed solve screen.** A spatial cross pad, hold-for-prime, and a phase-split tick scrubber — from a settled design bundle, and the answer to §9.8 | **shipped** (2026-08-05) |
-| **9** | **Edit a solve you have already written.** Fix a move in the middle without undoing back to it — the oldest live gap in the feature | next |
-| **10** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
-| **11** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search | |
+| **9** | **Analyse a solve.** Grade a marked phase against the shortest one there was, and say where the moves stopped helping — starting with the Roux first block (§8.9) | next |
+| **10** | **Edit a solve you have already written.** Fix a move in the middle without undoing back to it — the oldest live gap in the feature | |
+| **11** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
+| **12** | **A solver**, if it is still wanted by then — and random-state scrambles off the back of the same search. **Step 9 builds the first piece of it**: a coordinate encoding and a search that already works on part of the cube | |
 
-**The table has now been re-ordered twice, and both were re-orderings rather
-than new scope.** Step 6 landing (2026-08-02) moved *edit a solve* ahead of
+**The table has now been re-ordered three times, and the first two were
+re-orderings rather than new scope.** Step 6 landing (2026-08-02) moved *edit a
+solve* ahead of
 *enter a cube by hand*: "the text field appends, it cannot edit" has been a known
 gap since Step 3, was recorded as *overdue* when Step 4 kept solves it could not
 fix a typo in, and Step 6 put **markers** on top of the same text.
@@ -496,6 +498,16 @@ designed around a budget instead of against the feature. Reclaiming the page
 first means the edit affordance gets put where it belongs rather than where
 there is room. §8.6 is the layout step; §8.7 keeps the edit brief so it is not
 lost in the shuffle.
+
+**The third re-ordering was new scope, and it came from use** (2026-08-06):
+*"I have been solving with the app and would love for the app to be able to
+analyze the moves and suggest how to improve."* Analysis becomes Step 9 and edit
+slides to 10 — the third time it has been pushed, and each time by something the
+operator wanted more. That is worth naming rather than glossing: *edit* has been
+the "oldest live gap" since Step 3 and has never once been the most valuable
+thing in the table. If it is pushed a fourth time, the honest conclusion is that
+undo-and-retype is tolerable and the gap was overstated. §8.9 is the analysis
+brief.
 
 **Steps 3–6 all shipped, and they were the operator's actual goal.** Steps 4–6
 are increments on Step 3:
@@ -1193,7 +1205,150 @@ the tick track came out and the cube took its 22 points back, leaving the real
 cost at **49**. What was bought for it: two routes to a prime rather than two
 taps, and `E` and `S` on the pad.
 
-### 8.7 Editing a solve you have already written (Step 9)
+### 8.9 Analysing a solve (Step 9, specified 2026-08-06)
+
+From the operator, after drilling on the shipped app (2026-08-06): *"I have been
+solving with the app and would love for the app to be able to analyze the moves
+and suggest how to improve."*
+
+Scoped in a question round the same day. Three readings were offered and the
+answer was the ambitious one: **show me a better solution**, judged on **move
+count**, and **ahead of editing** — so this becomes Step 9 and §8.7 slides to 10.
+
+#### This does not overturn §8.1 — it is what §8.1 was holding out for
+
+§8.1 dropped the solver because *"a computed solution is not their solution, it
+does not follow the method's logic (a shortest algorithm ignores what 'first
+block' even is)"*. That argument is still exactly right, and it is an argument
+against **solving the cube**, not against searching at all.
+
+**The phase markers are what change the picture.** Since Step 6 the operator
+tells the app, by hand, *"these twelve moves were my first block"*. That turns a
+vague question into a well-posed one:
+
+> Given this scramble and this hold, what is the shortest first block — and how
+> long was mine?
+
+That is method-aware by construction, because the method is the operator's own
+annotation. It is also a **far smaller search** than a full solve: a Roux first
+block is five pieces, not twenty.
+
+So the rule for this step, and for every phase added after it: **the app never
+solves the cube. It answers the question the operator's own marker asked.**
+
+#### What it computes
+
+For a marked phase, three things — and the third is the one that teaches:
+
+1. **The operator's length.** Already known (§8.5 counts them).
+2. **The optimal length** for that phase's goal, from the state the phase
+   started in.
+3. **Where the moves stopped helping.** Distance-to-goal after every prefix of
+   the phase. On an optimal path it falls by one per move; where it stalls or
+   rises is the waste, and *that* is the suggestion. "Your first block was 12
+   and an 8 was there" is a score; "moves 5 to 8 did not get you closer" is
+   coaching.
+
+All three come from one primitive — a distance-to-goal oracle for the phase —
+which is why they belong in one step rather than three.
+
+#### Step 9 is the **first block**, and only that
+
+The first block is the phase to start with, for reasons the docs already
+contain: it is the number the operator said they were trying to improve (§9.12),
+it is self-contained — a search from the scramble that depends on no later phase
+— and it is the smallest interesting search of the four.
+
+The others are deliberately **not** in this step, and each is a different problem
+rather than more of the same:
+
+| Phase | Why it is its own step |
+|---|---|
+| Second block | Must preserve the first, so the search is restricted and the state larger |
+| CMLL | Not a search at all — 42 known cases and a shorter algorithm per case, which is a lookup table |
+| LSE | `M` and `U` only; small, and probably the easiest to add second |
+| CFOP phases | A different method's goals entirely; §8.8 already declined to build the method switch |
+
+Ship one phase, find out whether the readout is worth reading, then extend. That
+is how Steps 3 through 8 went.
+
+#### The technical shape, and the part that is genuinely unproven
+
+- **The search gets its own encoding, and the model stays the source of truth.**
+  The cubie model (§3) is built for exactness and rendering, not for expanding a
+  million nodes a second. The search needs the five tracked pieces collapsed into
+  integer coordinates with a precomputed move table per coordinate. **Derive
+  those tables from the model** — turning a solved cube and reading off where the
+  pieces went — rather than hand-writing them, which is the same rule §3 applies
+  to facelet tables. A round-trip test against `cubeState` is what keeps the two
+  honest.
+- **Pruning tables are built at runtime by breadth-first search**, not shipped as
+  data. For the first block that is two small tables (the three block edges, the
+  two block corners), and the heuristic is the larger of the two.
+- **The block is defined relative to the hold.** The solve already stores its
+  orientation (§8.3), and the search must run in that frame or it will grade a
+  yellow-up solve against a white-up block.
+- **It must not freeze the pad.** Everything on this screen is one JS thread, and
+  the epic has no native module. The search has to be chunked — the same
+  discipline `useScramblePlayer` already uses for animation — or run behind a
+  state the UI can show honestly.
+
+**Feasibility is the open risk, and it is not yet retired.** Two throwaway spikes
+were written while specifying this and neither produced a working search inside a
+few minutes of node: the first allocated per node and never finished; the second
+moved to coordinate tables and still timed out, unexplained. Neither is evidence
+that it *cannot* be done — first-block solvers exist in JavaScript and the state
+space is small — but they are evidence that **this is real work and not an
+afternoon**, and that a plan asserting "it will be fast" without a number would
+be guessing. **The first task of Step 9 is a spike that finds an optimal first
+block for twenty real scrambles and reports the worst case in milliseconds.** If
+that comes back in tens of milliseconds the step proceeds as written; if it comes
+back in seconds, the honest options are a smaller goal (block minus one piece), a
+depth cap with "at least N moves shorter", or dropping back to the cheaper
+analysis §8.9.1 describes.
+
+#### 8.9.1 The cheaper analysis, kept as the fallback and probably worth having anyway
+
+None of this needs a search, all of it is a pure function of the tokens, and it
+was the recommended option in the question round:
+
+- **Cancellations and redundancy** — `R R'` that undoes itself, `R R` that should
+  be `R2`, a rotation immediately reversed. Objectively wasted rather than merely
+  suboptimal, and the least arguable thing to flag.
+- **Rotation count** — `x`/`y`/`z` cost time and grip.
+- **Phase counts against benchmarks** — the numbers are already on screen.
+
+If the search turns out to be too slow, this is what ships instead, and it is
+cheap enough that it may be worth shipping alongside regardless.
+
+#### Behaviours that are easy to get wrong
+
+- **Check the phase did what it claims before grading it.** The operator marks
+  "First block" by hand and can mark it in the wrong place. If the moves did not
+  actually build a block, say *that* — do not silently grade them against a goal
+  they were not aiming at.
+- **Optimal is not advisable.** A 7-move optimal block can be unrecognisable and
+  unfingertrickable; telling a learner their 11 "should" have been 7 is
+  discouraging and slightly false. Lead with the gap, not the machine's answer.
+- **Spoilers are a real design question.** A trainer that prints the solution
+  stops you finding it. Default to the number and reveal the moves on request.
+- **There are usually several optimal blocks.** Showing one as *the* answer
+  overstates it.
+- **§8.6's budget still applies.** Anything this adds to the solve screen costs
+  the cube points, and the PR says how many.
+
+#### Open questions this hands to the operator
+
+1. **Number, or solution?** Does "an 8 was available" land better than being
+   shown the eight moves? A drilling session answers it; the plan's guess is
+   number first, moves on request.
+2. **Only marked phases, or guess them?** The app could infer where the first
+   block finished rather than trusting the flag. Inferring is friendlier and can
+   be wrong; trusting is honest and needs the operator to have marked it.
+3. **Where does the readout live?** The solve screen is on a budget; a separate
+   analysis view costs nothing there and is one more tap away.
+
+### 8.7 Editing a solve you have already written (Step 10)
 
 Written up when it was Step 7, moved to 8 by the layout work and to **9** by the
 design bundle (§8.8, 2026-08-04). Kept here intact each time, because it is the
@@ -1286,6 +1441,20 @@ belonged.
    Step 7 deliberately does not build it: cutting the chrome that is there beats
    adding a way to hide it, and if 58% turns out to be enough this question
    answers itself.
+10. **Number, or solution?** New with Step 9 (2026-08-06). When the app knows an
+    8-move first block was available and the operator used 12, does printing the
+    number land better than printing the eight moves? A trainer that shows the
+    answer stops you finding it; one that only scores you is infuriating. §8.9's
+    guess is **number first, moves on request** — a drilling session settles it,
+    not an opinion.
+11. **Only marked phases, or guess them?** New with Step 9. The app could infer
+    where the first block finished rather than trusting the operator's marker.
+    Inferring is friendlier and can be quietly wrong; trusting is honest and does
+    nothing for an unmarked solve. Step 9 trusts the marker.
+12. **Where does the analysis live?** New with Step 9, and it is §8.6's budget
+    question wearing a different hat. The solve screen has no spare rows, so a
+    separate view costs it nothing and is one tap further away — and an extra tap
+    is how a readout ends up never being read.
 
 ## 10. Edge cases and things that are easy to get wrong
 

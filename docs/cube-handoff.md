@@ -136,126 +136,156 @@ you built, at every stage of the motion, not only at rest.
 
 ---
 
-## Next step: **Step 9 — edit a solve you have already written**
+## Next step: **Step 9 — analyse a solve (the Roux first block)**
 
 > **Branch from `epic/cube`, PR against `epic/cube`** — as every step does.
 > Step 8 merged on 2026-08-05, so the epic has the pad, the scrubber and the
-> palette this step sits next to.
+> palette this step sits next to. **The step order changed on 2026-08-06**:
+> editing a solve, which used to be Step 9, is now Step 10 and is unchanged
+> apart from its number.
 
-**The text field appends; it cannot edit.** A typo in the middle of a solve is
-fixed by undoing back to it and retyping everything after. Fine when the solve
-was a scratchpad (Step 3), not fine once solves were kept (Step 4), and Step 6
-put **markers** on top of the same text — so an edit now has to move them
-honestly as well.
+From the operator, after drilling on the shipped app: *"I have been solving with
+the app and would love for the app to be able to analyze the moves and suggest
+how to improve."* Scoped in a question round the same day to the ambitious
+reading — **show me a better solution**, judged on **move count** — and put
+ahead of the edit step because it is the thing they actually want to use.
 
-This is **the oldest live gap in the feature**. It has been re-ordered twice and
-gained something both times: Step 7 gave it a page to sit on, and Step 8's design
-bundle decided where its affordance goes. What is left is the marker arithmetic,
-which is where the difficulty always was.
+**This does not overturn §8.1's "no solver".** That decision was against
+*solving the cube for you*, on the grounds that a computed solution ignores what
+"first block" even means. The phase markers changed the picture: since Step 6 the
+operator tells the app by hand *"these twelve moves were my first block"*, which
+turns a vague question into a well-posed and much smaller one — five pieces, not
+twenty. **The rule for this step and every phase added after it: the app never
+solves the cube, it answers the question the operator's own marker asked.**
 
 ### Read first
 
-- **`docs/cube-plan.md` §8.7** — the brief, and it is the whole of it. Then §8.5
-  (what a phase is, and why markers rather than ranges), §5 (`extendsAlg`, and
-  why "the algorithm changed" is two events), §10.
-- `games/cube/CubeAlgInputModal.js` — it already validates a whole algorithm and
-  names the token it choked on. The honest shape of this step is **that modal,
-  opened with the solve already in it**.
-- `games/cube/solveList.js` — `withMoves` and `clampPhases`. This step's new
-  function belongs beside them, and has to be the *only* implementation of its
-  rule (see the golden rules above).
-- `games/cube/solve.js` — `appendAlg`, which stays: it is what the field is for
-  mid-write.
+- **`docs/cube-plan.md` §8.9** — the brief, and it is the whole of it, including
+  the fallback (§8.9.1), the behaviours to get right, and the three open
+  questions to hand back. Then §8.1 (why there is no solver, and why this is not
+  one), §8.5 (what a phase is and why markers rather than ranges), §8.3 (the
+  hold, which the block is defined relative to), §8.6 (the height budget), §3
+  (the cubie model and the no-hand-written-tables rule).
+- `games/cube/cubeState.js` and `moves.js` — `solvedCube`, `applyMove`,
+  `parseMove`. **The search derives its tables from these**; they stay the source
+  of truth.
+- `games/cube/solveList.js` — `phasesOf`/`clampPhases` and the marker model, which
+  is what tells the analysis where a phase starts and ends.
+- `games/cube/scramble.js` — `randomScramble`, which the spike measures against.
+
+### The first task is a spike, and it may change the rest of the step
+
+**Feasibility is not proven and the plan says so.** Two throwaway spikes were
+written while specifying this and neither finished: the first allocated per node,
+the second moved to coordinate tables and still timed out, unexplained. Neither
+shows it *cannot* be done — first-block solvers exist in JavaScript and the state
+space is small — but they do show this is real work rather than an afternoon.
+
+So: **before building any UI, find an optimal first block for twenty real
+scrambles and report the worst case in milliseconds.**
+
+- Comes back in **tens of ms** → the step proceeds as written below.
+- Comes back in **seconds** → say so in the PR and take one of the honest
+  retreats: a smaller goal (the block minus one piece), a depth cap reported as
+  "at least N moves shorter", or dropping to §8.9.1's no-search analysis.
+
+Either way the spike's numbers go in the PR. A step that ships the readout
+without ever stating the worst case has not retired the risk, it has hidden it.
 
 ### Scope — ONLY this
 
-1. **Replace the text rather than appending to it.** The modal opens with the
-   solve in it, edits it, and the result replaces the solve's moves. Appending
-   stays, because a CMLL alg dropped into the middle of a write is what the field
-   was built for — so the modal needs to be able to do both and to say which it
-   is about to do.
-2. **Keep the markers on the moves they were put on.** A phase is an index into
-   the move list (§8.5), so a wholesale replacement moves every index after the
-   edit. `clampPhases` keeps them *legal*, not *right*: insert a move at position
-   3 and `First block · 8` should read `· 9`. A diff between the old and new
-   token lists shifts each marker by how much the text before it grew or shrank.
-   **This is the hard half of the step and the reason it is a step.**
-3. **A marker inside a stretch rewritten wholesale has no honest answer.** It
-   probably wants dropping, the way undo drops one rather than clamping it — but
-   say which you chose and why, because it is a judgement call and the next
-   session should not have to re-derive it.
+1. **A distance-to-goal oracle for the Roux first block.** Coordinates for the
+   five tracked pieces (edges DL, BL, FL; corners DLB, DLF), a move table per
+   coordinate, and two pruning tables built at runtime by breadth-first search —
+   **all derived by turning a solved cube and reading off where the pieces went**,
+   never hand-written. A round-trip test against `cubeState` is what keeps the
+   derived tables and the model honest.
+2. **The three numbers, from that one primitive.** The operator's length (already
+   known, §8.5 counts it); the optimal length from the state the phase started
+   in; and **distance-to-goal after every prefix of the phase**, which is the one
+   that teaches — on an optimal path it falls by one per move, and where it
+   stalls is the waste. "Your first block was 12 and an 8 was there" is a score;
+   "moves 5 to 8 did not get you closer" is coaching.
+3. **A readout for a solve that has a first-block marker.** Number first. Where
+   it lives is yours to decide (see below).
 
-### Where the affordance goes — **decide this before you build**
+Only the first block. Second block, CMLL and LSE are each a *different* problem
+rather than more of the same — the plan's table says why — and each is its own
+step.
 
-The design bundle put an `Edit` link on the **solve card's caption row**, 10pt
-weight 600 in the accent, opposite `Solve 2 · 21 moves`. That decision was made
-against a screen that no longer exists: **Step 7 removed the solve card**, and
-Step 8 kept it removed. So the design has settled the *shape* of the affordance
-and not its home, and the honest candidates are:
+### Where the readout goes — **decide this before you build**
 
-- **The drawer handle row** under the move track. It is 16pt of grab bar with
-  nothing at either end, it is attached to the moves being edited, and it is
-  already a control. Most likely right.
-- **The solves list**, next to Clear, which moved there in Step 8. Consistent —
-  it is where solve-level operations now live — but it is two taps from the
-  moves and it is the wrong altitude: this edits *the text*, not *the page*.
-- **A long-press on a token in the track.** Cheapest in points and least
-  discoverable; the track's tap is already spoken for by "turn the cube to here".
+§8.6's budget is the constraint: Step 8 cost the cube 49 points and open question
+14 says the next 40 have to come from hiding rather than adding. So:
 
-Say which you picked and why in the PR. Do not add a header slot: the header's
-right-hand end is three icons at 320 points and it is full.
+- **A separate analysis view**, reached from the solve. Costs the solve screen
+  nothing and is one tap away. Most likely right, and it is the only candidate
+  that can afford to show a per-move breakdown at all.
+- **A line in the phase list**, next to `First block · 12`. Cheapest to find and
+  the hardest to fit — it is a row, and rows are the thing on a budget.
+- **Inside the solves list**, as a column. Answers "which attempt was best" but
+  not "where did it go wrong".
 
-### Behaviors that are easy to get wrong
+Say which you picked and why in the PR, with the height table if you touched the
+solve screen at all.
 
-- **An edit must not replay the solve.** `extendsAlg` asked at *where the cube
-  is* (plan §5) already tells "grew" from "replaced". **The trap is bypassing it
-  with a "this was an edit" flag** — a replacement that happens to be an
-  extension is still an extension, and should animate like one.
-- **One rule, one function.** Whatever shifts the markers is the only thing that
-  shifts them, and it goes through `withMoves` like every other edit to a solve's
-  moves. Two implementations of one rule is how "it survived the reload but not
-  the undo" gets shipped — Step 6 has the scar.
-- **The promotion has to be disarmed by an edit.** Step 8 added `armPromotion`,
-  and every path that changes the moves out from under the pad already calls it
-  with `null`. A new one that does not would leave a `2` on a key pointing at a
-  token the edit replaced. `promoteLastToken` refuses on a mismatched last token,
-  so this is a cosmetic bug rather than a corrupting one — but it is a bug.
-- **The modal is validated by the same parser twice.** Do not add a third path.
+### Behaviours that are easy to get wrong
+
+- **Check the phase did what it claims before grading it.** The marker is placed
+  by hand and can be in the wrong place. If the moves did not actually build a
+  block, say *that* — do not silently grade them against a goal they were not
+  aiming at.
+- **Run in the solve's own frame.** The solve stores its orientation (§8.3). A
+  search run in the default frame will grade a yellow-up solve against a white-up
+  block and be confidently wrong.
+- **It must not freeze the pad.** One JS thread, no native module. Chunk the
+  search the way `useScramblePlayer` chunks animation, or put it behind a state
+  the UI can show honestly. A 300ms freeze on a phone is a bug even if the
+  browser never showed it.
+- **Optimal is not advisable.** A 7-move optimal block can be unrecognisable and
+  unfingertrickable. Lead with the gap, not the machine's answer.
+- **There are usually several optimal blocks.** Showing one as *the* answer
+  overstates it.
+- **Spoilers.** A trainer that prints the solution stops you finding it — default
+  to the number, reveal the moves on request. This is open question 1 below.
 
 ### Out of scope for this step
 
-Entering a cube by colour (Step 10), a solver (Step 11), colour neutrality,
-a timer, the CFOP switch, and the chrome-free mode (open question 14). Note what
-you spot; do not start it.
+Editing a solve (Step 10), entering a cube by hand (Step 11), a full solver
+(Step 12 — and note this step builds its first piece), the other three phases,
+colour neutrality, a timer, the CFOP switch, and the chrome-free mode (open
+question 14). Note what you spot; do not start it.
 
 ### Visible in Expo Go when this lands
 
-Open a solve with a typo three moves in, fix that one move, and watch the phase
-counts stay right — `First block · 8` still reading 8 if the edit was inside it
-and reading 9 if the edit added a move to it. Nothing replays.
+Write a first block on a scramble, mark it, and read back how long it was, how
+short it could have been, and which of your moves did not get you closer.
 
 ### How to verify
 
-- `npm test` — the marker arithmetic is pure and belongs in `solveList.js`'s
-  tests next to `clampPhases`. Pin: an edit before a marker shifts it; an edit
-  after it does not; an edit that grows a phase grows its count; a marker inside
-  a rewritten stretch does whatever you decided, deliberately.
+- `npm test` — the oracle is pure and wants pinning hard: a solved block is
+  distance 0; applying an optimal solution reaches 0 in exactly its length; the
+  derived move tables agree with `applyMove` on the tracked pieces for all 18
+  moves (that is the round-trip test, and it is the one that matters); a known
+  scramble gets a known optimal length.
+- **The spike's numbers**, over 20 real scrambles, worst case in ms — in the PR.
 - `npx expo-doctor` (expect 18/18) and `npx expo export --platform all`.
 - **Drive it and look at the screenshots**, at 320×568, 375×667 and 393×852.
-  Step 8's five drivers are described in its entry below and are worth
-  re-creating: `budget.mjs` prints the row-by-row height table, and this step
-  **must not move those numbers** — say so with the table.
-- **Sample the position label across the edit** to prove nothing replays, the way
-  Step 4's `resume.js` did.
-- **Then look at it on a device.** Step 7 shipped a header that passed every
-  browser check at three widths and was broken on a phone.
+  Step 8's drivers are described in its entry below: `budget.mjs` prints the
+  row-by-row height table, and if this step touches the solve screen it says what
+  it did to those numbers.
+- **Then look at it on a device**, and specifically hold the pad while the search
+  runs. Step 7 shipped a header that passed every browser check at three widths
+  and was broken on a phone.
 
 ---
 
 ## Open questions for the operator (carry these forward)
 
 These are plan §9, restated so a session does not have to go looking. None block
-Step 9. **Number 14 is the live one and Step 8 sharpened it into a number**: the
+Step 9 — **but 15 to 17 are Step 9's own, and 15 in particular is a design
+decision the step has to make and the operator has to confirm in use.**
+**Number 14 is still the live one and Step 8 sharpened it into a number**: the
 new pad and scrubber cost the cube 71 points at 320 and 375, and whether that is
 the right trade is a question only the operator can answer by drilling on it.
 Number 8 is now answered *and shipped*, but the part of it that wants use — is
@@ -345,6 +375,20 @@ in the same session.
     points of card. So **the next 40 points have to come from hiding rather than
     cutting**, which is exactly what this question asks about — and it is now the
     cheapest big win left on this screen.
+15. **Number, or solution?** New with Step 9 (2026-08-06). Does *"an 8 was
+    available"* land better than being shown the eight moves? A trainer that
+    prints the answer stops you finding it; a trainer that only scores you can be
+    infuriating. The plan's guess is **number first, moves on request**, and a
+    drilling session is the only thing that settles it.
+16. **Only marked phases, or guess them?** New with Step 9. The app could infer
+    where the first block finished rather than trusting the operator's flag.
+    Inferring is friendlier and can be wrong; trusting is honest and needs the
+    marker to have been placed. Step 9 trusts the marker — this asks whether that
+    is annoying enough in use to change.
+17. **Where does the readout live?** New with Step 9, and it is §8.6's budget
+    question again: the solve screen has no spare rows, so a separate view costs
+    nothing there and is one more tap away. Whichever Step 9 picks, the operator
+    is the one who finds out whether the extra tap means it never gets read.
 
 ### Noted in passing, for a later step
 
@@ -361,11 +405,15 @@ in the same session.
   only evidence that counts for how it *feels*.
 - ~~**`useScramblePlayer` assumes a solved starting cube.**~~ **Done in Step 3**:
   `buildPlayback(alg, { from })` and `useScramblePlayer(alg, from)`.
-- **The text field appends; it cannot edit.** **Step 9, and it is the brief
-  above.** Plan §8.7 keeps the detail. Note that the design bundle put its `Edit`
-  link on **the solve card's caption row** — a row Step 7 removed and Step 8 kept
-  removed — so the design settled the *shape* of the affordance and not its home.
-  The brief above lists the three honest candidates.
+- **The text field appends; it cannot edit.** **Step 10** — it was Step 9 until
+  the operator asked for analysis on 2026-08-06 and put it first. Plan §8.7 keeps
+  the whole brief, and nothing about it changed except its number: the hard half
+  is still the marker arithmetic (a phase is an index, so a replacement moves
+  every index after the edit, and `clampPhases` keeps markers *legal* rather than
+  *right*). Note that the design bundle put its `Edit` link on **the solve card's
+  caption row** — a row Step 7 removed and Step 8 kept removed — so the design
+  settled the *shape* of the affordance and not its home; §8.7 lists the three
+  honest candidates (the drawer handle row is most likely right).
 - **Solve mode still has no "Favorites" button.** It is on the header in scramble
   mode now, where the other three slots in solve mode are already spoken for, so
   getting to the list from a solve is still Scramble first. Nobody has complained
