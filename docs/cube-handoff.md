@@ -29,6 +29,11 @@ questions forward.
 
 - **Repo:** `mjohnson139/expo-sudoku`. App code is in **`SudokuApp/`**
   (Expo · React Native · JavaScript).
+- **The review:** `docs/cube-review.md` (Step 10, 2026-08-07) — the verdict on
+  the whole epic, what it deliberately did *not* fix, and the merge decision.
+  Read it before proposing an architectural change; three findings are written
+  down in it with recommendations, and two conclusions in it are decisions
+  (`readCubeSave` stays in `favorites.js`; `MAX_SOLVES` is not changed).
 - **Source of truth:** `docs/cube-plan.md`. Read it end to end before writing
   code — model (§3), notation (§4), renderer (§5), scrambles (§6), storage (§7),
   the step table (§8), open questions (§9), and the edge cases that already bit
@@ -49,7 +54,8 @@ Branch from **`epic/cube`**, and open your PR **against `epic/cube`**. The epic
 merges to `main` once the cube is worth shipping, so `main` never carries a
 half-built tool.
 
-`epic/cube` carries Steps 1 through 9 as of 2026-08-06. It is cut from
+`epic/cube` carries Steps 1 through 10 as of 2026-08-07, and Step 10 signed it
+off for `main` (`docs/cube-review.md`). It is cut from
 `main` and tracks it. (It was briefly cut from
 `epic/fungiku`, because the hub only existed there; Fungiku's Step 13 merged that
 epic to `main` on 2026-08-01 and this was rebased the same day. **No Fungiku
@@ -66,7 +72,10 @@ is always openable in Expo Go (project → Branches) even with no step PR open.
   `react-native-svg` — Step 2 touched only `utils/buildNotes.js`, because plan
   §12 says to, Step 4 touched those same two (the hub badge counts solves now),
   Step 6 touched only the build notes, **Step 8 added `expo-haptics`** to
-  `package.json` and nothing else, and Step 9 touched only the build notes. A
+  `package.json` and nothing else, and Step 9 touched only the build notes.
+  **Step 10 — the architecture review — touched only the build notes too**, which
+  is the outcome §8.11 wanted: it looked hardest at the shared seam and
+  recommended the one change it found there rather than making it. A
   step that needs to touch anything else should say why in its PR. **Step 7 is the only one that has had to touch shared
   code**, and it is the pattern for the next time: the header it needed to shrink
   is `components/ScreenHeader.js`, shared with Fungiku, so it added a `dense`
@@ -142,117 +151,119 @@ you built, at every stage of the motion, not only at rest.
 
 ---
 
-## Next step: **Step 10 — the architecture review, and the merge decision**
+## Next step: **Step 11 — enter a cube by hand**
 
 > **Branch from `epic/cube`, PR against `epic/cube`** — as every step does.
-> Step 9 merged on 2026-08-06, so the epic has the comparison table, the pad,
-> the scrubber and the palette. `epic/cube` now carries Steps 1 through 9.
+> Step 10 merged on 2026-08-07, so `epic/cube` now carries Steps 1 through 10
+> and has a signed-off architecture review sitting in `docs/cube-review.md`.
 
-**Read `docs/cube-plan.md` §8.11 before anything else. It is this step's brief
-and the whole of it**, and it is unusually specific about what the step is *not*
-allowed to become. Read §8.9 too, because two rows left the table rather than
-moving down it and a review that recommends building either of them is
-re-opening a decision the operator already made.
+**Read `docs/cube-review.md` first.** It is the only step in this epic that
+produced a verdict rather than a feature, and three of its findings are written
+down rather than fixed — deliberately, and two of them are waiting for exactly a
+step like this one that is already opening those files. Then read plan §8, where
+Step 11 is listed and **not specified in detail**: part of this step is deciding
+what it is.
 
-**This is the one step exempt from "must be visible in Expo Go", and that is
-deliberate rather than a concession.** What ships is **a written verdict and a
-yes/no on merging `epic/cube` into `main`**. Code changes are allowed only where
-the review finds something *concrete and small*; anything bigger is written down
-as a finding with a recommendation and is not built here. **A review that ends
-with no code changes at all is a good outcome and the PR should say so.**
+### The scope, as far as it is settled
+
+The generator hands you a random scramble. **This step is about the cube that is
+already in your hand** — one somebody else scrambled, one off a competition
+sheet, one you are half-way through and want to write down. Two routes were
+sketched and only the first is obviously right:
+
+1. **Paste an algorithm.** A scramble is text and this app already parses every
+   token of it. `CubeAlgInputModal` exists, `algError` already names the
+   offending token, and `showScramble` is already the one function that puts a
+   different scramble on the cube. **This is a small step.**
+2. **Set the colours facelet by facelet.** A cube that came off a table has no
+   algorithm — you have 54 stickers and no idea what sequence produced them.
+   This is a real feature: a net to tap on, a colour picker, and — the part that
+   makes it hard — **validating that what was entered is a cube that exists**.
+   Parity, permutation and orientation are all checkable, and a cube that fails
+   them must be rejected with a reason, or the transport will play a solve that
+   cannot be right.
+
+**Decide whether (2) is in this step or is its own**, and say so in the PR. The
+honest reading is that (1) is a couple of hours and (2) is a step of its own with
+a solver-adjacent validation problem in it — and the epic has form for splitting
+exactly this way (Step 5 jumped the queue when Step 3's route turned out to be
+the wrong instrument).
 
 ### Read first
 
-- **`docs/cube-plan.md` §8.11** — the bar, the platform contract, the specific
-  things to look at inside the cube, and what the merge decision has to cover.
-  It already names the headline candidate (`utils/gameProgress.js` inverting the
-  dependency) and tells you to check its cost before recommending it.
-- **This whole file.** The "Noted in passing" list below is nine steps of things
-  people spotted and deliberately did not fix — it is the review's inbox, and it
-  is why every step has been asked to note rather than fix.
-- `games/registry.js`, `utils/gameProgress.js`, `hooks/usePersistentReducer` and
-  `games/cube/storage.js` — the four files the platform question lives in.
-
-### The bar — in this order
-
-1. **Is the data the source of truth, or is it in the code?** `PAD_LAYOUT`,
-   `PHASE_METHODS` and `padPalette.js` are what good looks like here. Look for
-   the opposite: a rule spelled out in JSX, a list maintained in two places, a
-   `switch` where a table would do.
-2. **One rule, one function.** Check the rules with more than one caller: what a
-   press means, what shifts a phase marker, what counts as an extension rather
-   than a replacement — and now what counts a phase, which Step 9 routed through
-   `phaseSpans` on purpose.
-3. **Is anything more general than its one use?** **This step must not produce a
-   plugin framework, a game SDK or a base class.** Three games is not enough
-   evidence for any of those, and inventing one would fail its own review.
+- **`docs/cube-review.md`** — the verdict, and findings 4 and 5, which are
+  small, written down, and in the files this step will be in anyway.
+- `games/cube/CubeAlgInputModal.js` — the field, the validation and the Add
+  button already exist for solves; a scramble wants the same thing pointed
+  somewhere else.
+- `games/cube/CubeScreen.js`'s `showScramble` — **the one function that changes
+  the scramble**, and it already does the four things a new scramble has to do
+  (pause, drop half-finished gestures, open that scramble's most recent solve,
+  leave solve mode). Route a pasted scramble through it, not around it.
+- `games/cube/moves.js` — `parseAlg`, `algError`, `isValidAlg`, `normalizeAlg`.
+  **If you find yourself writing a second validator, that is the bug.**
+- `games/cube/cubeState.js` — `facelets` is there, and it is what route (2)
+  would have to invert.
 
 ### Behaviors that are easy to get wrong
 
-- **A review is not a refactor.** The temptation is to fix everything found.
-  §8.11's rule is the guard: concrete and small, or written down.
-- **The pure core is the good news and should be said out loud.** `moves`,
-  `cubeState`, `geometry`, `orientation`, `solve`, `solveList`, `compareLayout`
-  and `scramble` are free of React Native and carry the bulk of 875 tests. **Any
-  finding that would push logic out of that core and into a component is a
-  finding to reject.**
-- **Check the cost of the `gameProgress` fix before recommending it.** The tests
-  reach those functions in a plain node environment precisely because that file
-  has no React Native imports. A move that breaks that trade is not an
-  improvement — say which way it came out.
-- **`MAX_SOLVES` is 100, culled by creation date.** Step 9 said out loud that a
-  comparison view is the first thing that makes an old solve worth keeping. Do
-  not change the cap in a review; decide whether it is a finding.
-
-### The merge decision
-
-An explicit **yes or no**, with whatever blocks it named. Cover at least:
-
-- **Does it stand up on a device**, not just in a browser at three widths — this
-  epic's own scar (Step 7 shipped a header that passed every browser check and
-  was broken on a phone), and `expo-haptics` fires exactly once where only a
-  device can judge it.
-- **Storage compatibility.** `@CubeScramble` is version 2 and read by shape. A
-  user on a Step 3 build opening a Step 10 build must not lose their solves —
-  **prove it rather than assert it.**
-- `npm test`, `npx expo-doctor` (expect 18/18), `npx expo export --platform all`.
-- **Build notes and `app.json`.** Per plan §12 they are per release: `3.1.0` gets
-  *extended*, and the merge is the moment that entry has to describe the whole
-  feature rather than the last step of it. Step 9 extended it; read it back as a
-  whole and see whether it reads like one feature.
+- **A pasted scramble is a *new scramble*, not an edit.** Everything Step 4
+  learned applies: it changes which solves are yours, it must not be an effect
+  keyed on `scramble` (hydration fires that), and the transport has to read it as
+  a replacement rather than growth — which is what `startingCube`'s identity is
+  for. `showScramble` already gets all of this right. Use it.
+- **Keep what was typed** (plan §4). A scramble pasted as `r U r'` must read back
+  as `r U r'`, never as the canonical `Rw U Rw'`. This is the epic's oldest
+  standing rule and the pad's own `′` inconsistency is already noted below.
+- **A scramble that does not parse must not reach the cube.** Today an unreadable
+  saved scramble falls back to a solved cube; a *pasted* one should be refused at
+  the field with the token named, which is what `solveError` already does for
+  solves.
+- **Where does the control go?** The header's right-hand end is three icons at
+  320 points and **full** (see below), and scramble mode's bottom row is three
+  labelled buttons and also full. There is no spare slot. **Say what it costs the
+  cube, in points, in the PR** — that habit is what made Step 7 legible.
+- **Favorites are keyed by algorithm text.** A pasted scramble that matches one
+  you already saved *is* that favorite, and the star should light up. That falls
+  out of `normalizeAlg` for free — but only if the paste goes through it.
 
 ### Visible in Expo Go when this lands
 
-**Nothing, deliberately** — see above. If the review does make a concrete small
-change, that change is checked in Expo Go like anything else.
+Paste a scramble off a competition sheet, see it on the cube, star it, write a
+solve against it. That is the whole demo and it should be one screen recording.
 
 ### How to verify
 
-- `npm test` (875 today), `npx expo-doctor`, `npx expo export --platform all` —
-  green before and after, and the point of running them is the merge decision
-  rather than the review.
-- If nothing changed in the code, say so and show the three runs anyway.
-- **Then look at it on a device**, because half the merge decision is that
-  sentence.
+- `npm test` (889 today) — and the new rules are pure, so they are testable:
+  a pasted scramble that matches a favorite, one that does not parse, one that
+  normalizes to an existing one.
+- `npx expo-doctor` (18/18), `npx expo export --platform all`.
+- A headless driver at 320×568, 375×667 and 393×852: paste, refuse a bad one,
+  confirm the star, confirm the solves list follows the new scramble.
+- **And a device** — as every step of this epic has in fact had, even where the
+  docs only recorded the headless half. **Say in the PR which findings came from
+  the handset**; Step 10 is why that sentence is here.
 
 ---
 
 ## The step after that (for the file you rewrite)
 
-**Step 11 — enter a cube by hand** (plan §8, unspecified in detail): paste an
-algorithm, or set the colours facelet by facelet, for a cube that came off a
-table rather than out of the generator. After that the epic is open questions,
-and question 14 is the live one.
+After Step 11 the epic's planned work is **done**, and what is left is the open
+questions below — of which **14 is the live one** and wants a drilling session
+rather than an opinion. `docs/cube-review.md` also leaves three findings written
+down (clearing a solve spelled twice, the List/Compare toggle's rule in JSX, and
+`utils/gameProgress.js` inverting the dependency); the third is the only one big
+enough to be a step, and it is a platform tidy rather than cube work.
 
 ---
 
-
 ## Open questions for the operator (carry these forward)
 
-These are plan §9, restated so a session does not have to go looking. None block
-Step 10 — but several of them are *findings waiting to be written down*, which is
-new: a review is the step with standing to say "this is a question for the
-operator and here is what it costs either way".
+These are plan §9, restated so a session does not have to go looking. **None
+block Step 11**, and Step 10 was the step with standing to write the ones that
+were really findings down — it did, in `docs/cube-review.md`. What is left here
+is what it says on the tin: questions only the operator can answer, most of them
+by drilling rather than by deciding.
 
 **Number 13 is answered and shipped** (Step 9, 2026-08-06). **Number 14 is the
 live one and Step 8 sharpened it into a number**: the pad and scrubber cost the
@@ -262,8 +273,8 @@ is the right trade is a question only the operator can answer by drilling on it.
 answered *and shipped*, including the part that wanted use: the hold threshold
 was drilled on and moved from 180ms to 300ms.
 
-**What is left in the epic after Step 10** is Step 11 (enter a cube by hand),
-then these questions. Two rows left the table on 2026-08-06 rather than moving
+**What is left in the epic after Step 11** is these questions, and nothing else
+that was planned. Two rows left the table on 2026-08-06 rather than moving
 down it — the editor is tabled and the optimizer is outsourced — so the backlog
 is genuinely shorter than it was, not rearranged. Plan §8.9, and **a review that
 recommends building either of them is re-opening a decision the operator already
@@ -386,7 +397,12 @@ made.**
   standing warning: both animation bugs this repo has shipped were invisible in
   the browser. This one uses no native driver and no `setValue`, which is the
   class of problem avoided rather than dodged, but a device pass is still the
-  only evidence that counts for how it *feels*.
+  only evidence that counts for how it *feels*. **Step 10 raised this as the one
+  condition on merging the epic and the operator closed it the same day** — they
+  have been testing on device throughout (2026-08-07). What is worth keeping is
+  the habit it exposed: **write down when a finding came from a device**, because
+  the docs recorded nine steps of browser evidence and left the hand-testing
+  invisible. See `docs/cube-review.md`.
 - ~~**`useScramblePlayer` assumes a solved starting cube.**~~ **Done in Step 3**:
   `buildPlayback(alg, { from })` and `useScramblePlayer(alg, from)`.
 - **The text field appends; it cannot edit.** **Tabled on 2026-08-06 — plan §8.9
@@ -420,11 +436,12 @@ made.**
   always a real page and never a surprise — but there is no count of solves
   visible in scramble mode at all, and "how many attempts have I written at
   this?" is a question the hub badge now answers and the screen does not.
-- **`readCubeSave` lives in `favorites.js` and now reads four things**, only one
-  of which is favorites. It was left there because it is where every caller
-  already looks and moving it is churn across `storage.js` and the tests, but
-  the file is misnamed for what it holds. A step with reason to touch both could
-  reasonably split a `cubeSave.js` out of it.
+- ~~**`readCubeSave` lives in `favorites.js` and now reads four things.**~~
+  **Decided in Step 10: leave it** (`docs/cube-review.md`, finding 7). The
+  argument got stronger rather than weaker — `readCubeSave` is four lines
+  delegating to `solveList.js`, so a `cubeSave.js` would be a file whose entire
+  content is a call to two other files. **The file is misnamed, not misplaced.**
+  If it ever grates, rename `favorites.js`; do not split it.
 - **A solve is culled by age, not by use.** `MAX_SOLVES` is 100 across the whole
   file, newest-created first, oldest dropped — and `savedAt` is creation time
   and is never bumped, so editing a very old solve does not protect it. At 100
@@ -432,6 +449,9 @@ made.**
   ever came down. **Step 9 is the first thing that makes an old solve worth
   keeping** — the attempt you are measuring against is by definition the older
   one — so if the cap ever feels real, this is why. It was not changed.
+  **Step 10 looked at it and left it** (`docs/cube-review.md`, finding 8): the
+  cap is across the whole file, 100 is unreachable in practice, and a review is
+  not where a number like that should move. Revisit only if the cap comes down.
 - **The pad only ever writes a straight `'`**, so a solve cannot be entered with
   a curly apostrophe from it — but one *pasted* into the text field is kept as
   typed, and will read back as `R’` next to the pad's `R'`. Honest (plan §4 says
@@ -543,13 +563,96 @@ made.**
 
 ## Steps already done
 
+### **Step 10 — the architecture review, and the merge decision** ✅ *(2026-08-07)*
+
+Shipped: **a verdict, in `docs/cube-review.md`, and a yes on merging `epic/cube`
+into `main`** — with one condition, which is a drilling session on a real
+handset, because half of "would a staff engineer sign this off" is evidence and
+this epic has never had that kind. 889 tests, 18/18 from doctor, all three
+platforms bundling.
+
+**Nine findings; four fixed, three written down with recommendations, two closed
+as decisions.** The step was allowed to change only what was concrete and small
+and it stayed inside that: **the only file it touched outside `games/cube/` was
+`utils/buildNotes.js`.** It looked hardest at the shared seam and *recommended*
+the change it found there rather than making it, which is the outcome §8.11
+wanted.
+
+**One real defect, and it is the one this epic would have minded most.**
+`saveCubeState` is debounced 400ms and `CubeScreen` flushed it on **unmount** and
+nothing else — but **backgrounding an app unmounts nothing**, so the last edit sat
+in the debounce and a phone that then evicted the process never wrote it. Up to
+400ms of *authored* work: the move just entered, the name just typed, the marker
+just dropped. That is Step 4's own complaint — *"if I background the app and come
+back… my solve I was working on is gone"* — in a narrower window, and **the cube
+was the only persisted surface in the app without the guard**: `usePersistentReducer`
+has had one since the hub existed, `useFungikuWallet` has its own, and
+`utils/debounce`'s docstring names the two moments `flush()` is for as "a screen
+unmounts **or the app backgrounds**". The cube did one half.
+
+**Proven with a counterfactual rather than a passing test.** `background.mjs`
+writes a move and backgrounds the app 60ms later, then reads `localStorage`: with
+the fix, `Solve 1: "R"`; with the listener disabled and the bundle re-exported,
+`Solve 1: ""`. Two other findings were dead code (`FACE_NAMES`, which was also a
+second face→colour table next to the live one in `orientation.js`, and a leftover
+style), and one was a screen-reader gap — **and the reason that one survived nine
+steps is worth keeping**: `solve.test.js` already walked every pad key through
+`describeToken` and asserted `toBeTruthy()`, and **the fallback is truthy**. The
+test that looked like it covered it could not fail.
+
+Three things it decided rather than changed, so they do not get re-litigated:
+
+- **`readCubeSave` stays in `favorites.js`.** A `cubeSave.js` would be a file
+  whose entire content is a four-line function delegating to two other files.
+- **`MAX_SOLVES` stays at 100.** A review is not where a cap moves.
+- **`utils/gameProgress.js` inverting the dependency is real and the fix is
+  recommended — but not as a review's "concrete and small".** §8.11 said to check
+  the cost first, and the cost is not what the sketch assumes: the functions live
+  in a shared util because **jest runs with `testEnvironment: "node"`**, and the
+  obvious home for each — next to its game's storage — is exactly the one that
+  imports `AsyncStorage` and breaks 34 assertions. Done properly it is three new
+  pure modules, a three-way test split and a rename, for no user-visible effect.
+  **The node-test trade survives it, which was the actual question.**
+
+**Storage compatibility was proven, not asserted**, by extracting the real Step
+1/3-era modules from `af0e12c`, having that code write a save, and opening it
+with today's reader. Forward: scramble and every favorite come back identical,
+`solves` empty. Backward: a Step 10 file read by Step 3 code is fine — **but if
+that old build writes, the solves are gone.** Not a blocker, and the reason is
+specific: **the cube has never shipped to `main`**, so no build in the wild can
+do it. Reachable only by rolling an EAS Update branch of the epic back on a
+device that already has solves. Worth knowing; not worth a migration.
+
+Also fixed: the `3.1.0` build-notes entry still carried Step 1's date. Read back
+as a whole it **does** read like one feature — scramble → inspect → hold → write
+→ annotate → compare → keep, which is the order it is used in — so nothing was
+restructured, and nothing was added for Step 10 either: its one user-visible
+change is that the entry's existing promise about backgrounding is now more true.
+
+Verified with `npm test` (889, one new), `npx expo-doctor` (18/18), `npx expo
+export --platform all`, `background.mjs` both ways, and `walk.mjs` at 320×568,
+375×667 and 393×852 — no overflow, no console errors, and the legend's newly
+derived label reading character-for-character what the hand-written one said.
+
+**The merge's one condition was answered the same day and the answer was that it
+had never been open** (operator, 2026-08-07): *"I've been testing on device the
+whole way."* The review had recorded the device pass as unproven because every
+piece of written evidence in `docs/` is headless — and that was a gap in the
+record, not in the testing. It re-reads the whole epic: the 300ms threshold, the
+armed `′`, the unanimated second quarter and the tick track's removal are all
+device findings, and none of them could have come from a browser. **The process
+lesson for the next epic is to say so when a correction comes from a hand** —
+nine steps of headless evidence and a trail of hand-found corrections read, to a
+reviewer, like a feature that had never been held.
+
 ### **Step 9 — compare your attempts** ✅ *(2026-08-06)*
 
 Shipped: **the solves list can answer "am I getting better at this scramble?"**
 A **Compare** toggle turns the per-scramble list into a table — one row per
 attempt, one column per phase — and `First block  8 · 7 · 6` reads straight down
-the column. The fewest moves in each column is marked. 875 tests across the app,
-40 of them new.
+the column. The fewest moves in each column is marked. **888** tests across the
+app, 40 of them new. *(This entry and the one below said 875 until Step 10
+measured the suite at Step 9's own merge commit and got 888.)*
 
 **It cost the cube nothing**, which is most of the argument for where it went.
 The 42-move annotated budget is identical to Step 8's:
@@ -591,8 +694,8 @@ Two things it learned, neither of which a passing test would have said:
   key tints got in during Step 8. `accentInk` lifts it toward white on a dark
   surface and `padPalette.test.js` pins it on all eight themes.
 
-Verified with `npm test` (875), `npx expo-doctor` (18/18), `npx expo export
---platform all`, and four headless drivers at 320×568, 375×667 and 393×852 with
+Verified with `npm test` (888 — see above), `npx expo-doctor` (18/18), `npx expo
+export --platform all`, and four headless drivers at 320×568, 375×667 and 393×852 with
 the screenshots read: `budget.mjs` seeds the 42-move annotated solve and prints
 every row of solve mode with its height, proving the numbers above; `compare.mjs`
 opens the list from the bar under the pad, switches to Compare, reads every cell

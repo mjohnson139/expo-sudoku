@@ -243,9 +243,19 @@ export const describeSolve = (alg) => {
   return count === 1 ? '1 move' : `${count} moves`;
 };
 
-/** How a key reads out loud. `R'` is "R prime", not "R apostrophe", and `r` is a
- *  wide turn rather than the letter R said quietly. */
-const SPOKEN_KEY = {
+/**
+ * How a key reads out loud. `R'` is "R prime", not "R apostrophe", and `r` is a
+ * wide turn rather than the letter R said quietly.
+ *
+ * **A second list of the pad's keys, and it cannot be derived from the first**
+ * — `PAD_LAYOUT` says where a key sits and this says how it sounds, and the
+ * domain here is wider besides: a solve typed into the text field can hold `Rw`
+ * or `u`, which are notation the pad has no key for. So the two are pinned
+ * against each other in `solve.test.js` instead: every pad key must have a
+ * spoken form, or a key added to the cross reads out as a bare letter with
+ * nothing failing. Exported for exactly that test.
+ */
+export const SPOKEN_KEY = {
   U: 'U',
   D: 'D',
   L: 'L',

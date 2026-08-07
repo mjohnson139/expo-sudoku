@@ -21,8 +21,17 @@ import { LEGEND, padPalette } from './padPalette';
 const CubePadLegend = ({ theme, accent }) => {
   const palette = padPalette(theme, accent);
 
+  // Said from `LEGEND` rather than restated. The hand-written version listed the
+  // same four groups a second time, so a fifth tint would have been drawn and
+  // not announced — the failure `PAD_KEYS` is derived to avoid, one file over.
+  const spoken = LEGEND.map((group) => group.spoken).join(', ');
+
   return (
-    <View style={styles.legend} accessibilityRole="summary" accessibilityLabel="Key colours: faces, slices, wide turns, rotations">
+    <View
+      style={styles.legend}
+      accessibilityRole="summary"
+      accessibilityLabel={`Key colours: ${spoken}`}
+    >
       {LEGEND.map(({ tone, label }) => {
         const group = palette.tone(tone);
         return (
