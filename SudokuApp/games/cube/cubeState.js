@@ -49,16 +49,6 @@ export const STICKER_COLORS = {
   B: '#0051ba',
 };
 
-/** Human names, for the face legend and for screen readers. */
-export const FACE_NAMES = {
-  U: 'Up (white)',
-  R: 'Right (red)',
-  F: 'Front (green)',
-  D: 'Down (yellow)',
-  L: 'Left (orange)',
-  B: 'Back (blue)',
-};
-
 /** Which face an outward normal belongs to, on a solved cube. */
 const faceForNormal = (n) =>
   FACE_ORDER.find((face) => {

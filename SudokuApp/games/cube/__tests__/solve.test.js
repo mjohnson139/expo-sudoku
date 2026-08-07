@@ -14,6 +14,7 @@ import {
   PAD_KEYS,
   PAD_LAYOUT,
   PAD_ROWS,
+  SPOKEN_KEY,
   appendAlg,
   appendToken,
   applyPadPress,
@@ -107,6 +108,24 @@ describe('PAD_KEYS', () => {
   it('covers what a Roux solve is actually written in', () => {
     ['U', 'D', 'L', 'R', 'F', 'B', 'M', 'r', 'x', 'y'].forEach((key) => {
       expect(PAD_KEYS).toContain(key);
+    });
+  });
+
+  /**
+   * The pad's keys are listed twice — once as a layout, once as sounds — and
+   * only the layout can be derived (Step 10's review). Without this, a key added
+   * to the cross reads out as a bare letter and nothing says so: `describeToken`
+   * falls back to the character, which is right for `Rw` typed into the field
+   * and wrong for a key someone put on the pad.
+   *
+   * The suite below already walks every pad key through `describeToken` — but it
+   * asserts `toBeTruthy()`, and the fallback is truthy. That is why the gap
+   * survived nine steps: the test that looked like this one could not fail.
+   */
+  it('has a spoken form for every key on it', () => {
+    PAD_KEYS.forEach((key) => {
+      expect(Object.prototype.hasOwnProperty.call(SPOKEN_KEY, key)).toBe(true);
+      expect(SPOKEN_KEY[key].length).toBeGreaterThan(0);
     });
   });
 

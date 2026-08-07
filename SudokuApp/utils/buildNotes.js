@@ -4,7 +4,7 @@
 const BUILD_NOTES = {
   '3.1.0': {
     title: 'Cube Scramble — a 3D cube on the hub',
-    date: '2026-08-01',
+    date: '2026-08-07',
     notes: [
       'New on the hub: Cube Scramble, a tool for the Rubik\'s cube in your hands',
       'Every visit hands you a fresh 20-move scramble in standard notation',

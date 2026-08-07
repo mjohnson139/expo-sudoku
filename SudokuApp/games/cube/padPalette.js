@@ -55,12 +55,20 @@ export const GROUPS = {
   tool: { bg: '#f0f1f4', border: '#d5dae2', ink: '#5d6473' },
 };
 
-/** The four groups the legend names, in the order it names them. */
+/**
+ * The four groups the legend names, in the order it names them.
+ *
+ * `label` is the swatch's own word, cut to fit a 9.5pt row; `spoken` is the same
+ * group with the room a screen reader has. Both live here because the legend
+ * used to hold the spoken list a second time, in a hand-written
+ * `accessibilityLabel`, and a fifth tint would have been drawn without being
+ * announced.
+ */
 export const LEGEND = [
-  { tone: 'face', label: 'FACES' },
-  { tone: 'slice', label: 'SLICES' },
-  { tone: 'wide', label: 'WIDE' },
-  { tone: 'rot', label: 'ROTATE' },
+  { tone: 'face', label: 'FACES', spoken: 'faces' },
+  { tone: 'slice', label: 'SLICES', spoken: 'slices' },
+  { tone: 'wide', label: 'WIDE', spoken: 'wide turns' },
+  { tone: 'rot', label: 'ROTATE', spoken: 'rotations' },
 ];
 
 /** Is this a surface that wants light text on it? */
