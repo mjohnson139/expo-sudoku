@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   Platform,
   StyleSheet,
   Text,
@@ -329,6 +330,34 @@ const CubeScreen = ({ onExitToHub }) => {
   // Leaving for the hub unmounts the screen, and a debounced write that has not
   // fired yet is a write that never happens.
   useEffect(() => () => saveCubeState.flush(), []);
+
+  /**
+   * Backgrounding the app is the *other* way a pending write is lost, and it is
+   * the one that matters here (Step 10's review).
+   *
+   * Nothing unmounts when the system sends the app to the background — the
+   * effect above does not run — so the 400ms debounce is simply left holding the
+   * last edit, and a phone that then evicts the process never writes it. What
+   * that costs is up to 400ms of *authored* work: the move just entered, the
+   * name just typed, the marker just dropped.
+   *
+   * **That is the exact complaint Step 4 was built to answer** — *"if I
+   * background the app and come back… my solve I was working on is gone"* — and
+   * this screen is the only persisted surface in the app that was not already
+   * covered. `usePersistentReducer` has done this for Sudoku and Fungiku since
+   * the hub existed, and `utils/debounce`'s own docstring names the two moments
+   * `flush()` is for as "a screen unmounts **or the app backgrounds**". The cube
+   * rolls its own writer (plan §8.11), so it has to do its own half.
+   *
+   * `inactive` counts as well as `background`: iOS passes through it on the way
+   * out, and on a quick swipe up it is as far as the app gets.
+   */
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'background' || next === 'inactive') saveCubeState.flush();
+    });
+    return () => subscription.remove();
+  }, []);
 
   // The cube a solve starts on: the scramble fully applied, which is the cube
   // the operator would be holding. Memoized because it is also the *identity*
@@ -1439,9 +1468,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginLeft: 5,
-  },
-  iconOnly: {
-    paddingHorizontal: 10,
   },
   // Takes the leftover — but the leftover is no longer an afterthought, which is
   // the whole of Step 7 (plan §8.6). Every row above and below this one now has
