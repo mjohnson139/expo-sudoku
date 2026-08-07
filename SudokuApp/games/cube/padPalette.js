@@ -114,4 +114,21 @@ export const padPalette = (theme, accent) => {
   };
 };
 
-export default { GROUPS, LEGEND, padPalette, isDarkSurface };
+/**
+ * The accent, as **text** on the theme's own surface (Step 9).
+ *
+ * The accent is a fill everywhere it appears on the pad — the flag key, the New
+ * solve button — and a fill carries white on any theme. As text it does not:
+ * `#c62828` on `twilight`'s `#4a4462` is **contrast 1.63**, and on `dark` it is
+ * 2.25. Both are unreadable, and both look fine in a screenshot, which is
+ * precisely the mistake §8.8 made once already with the four key tints.
+ *
+ * So on a dark surface the accent is lifted toward white — 0.6, the same
+ * treatment and the same reasoning as the key labels above, and the smallest
+ * lift that clears 4.5 on both dark themes (dark 6.4, twilight 4.7). On a light
+ * theme it is the accent verbatim, so the mark is the app's own red.
+ */
+export const accentInk = (theme, accent) =>
+  isDarkSurface(theme.colors.numberPad.background) ? mix(accent, '#ffffff', 0.6) : accent;
+
+export default { GROUPS, LEGEND, padPalette, isDarkSurface, accentInk };

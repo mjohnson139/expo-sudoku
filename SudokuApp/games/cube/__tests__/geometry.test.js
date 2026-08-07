@@ -24,6 +24,7 @@ import {
 } from '../geometry';
 import { STICKER_COLORS, applyMove, cubeFromAlg, solvedCube } from '../cubeState';
 import { parseMove } from '../moves';
+import { orientationAt } from '../orientation';
 
 const SIZE = 300;
 
@@ -119,10 +120,21 @@ describe('buildScene', () => {
     expect(scene({ yaw: Math.PI / 2, pitch: 0 }).polygons).toHaveLength(9 * 2);
   });
 
-  it('opens on Up, Front and Right — the standard inspection view', () => {
+  it('opens on Up, Front and Left — the faces a Roux hold is named by', () => {
+    // It opened on Up, Front and *Right* until 2026-08-06, which is how a cube
+    // is conventionally drawn and which showed the one side face the operator
+    // had no use for. A hold is named by its top and its left (plan §8.3), and
+    // a readout naming a face that is off screen is one you have to take on
+    // trust. `0,1,0` is U, `0,0,1` is F, `-1,0,0` is L.
     expect(new Set(scene().polygons.map(normalOf))).toEqual(
-      new Set(['0,1,0', '0,0,1', '1,0,0'])
+      new Set(['0,1,0', '0,0,1', '-1,0,0'])
     );
+  });
+
+  it('is still the identity hold, which is what makes mirroring the yaw safe', () => {
+    // U is still the highest face and F is still the nearest, so the opening
+    // view is still "no rotation" and every `R` still means the same face.
+    expect(orientationAt(DEFAULT_YAW, DEFAULT_PITCH)).toBe('');
   });
 
   it('orders faces back to front, so the painter can just draw them', () => {

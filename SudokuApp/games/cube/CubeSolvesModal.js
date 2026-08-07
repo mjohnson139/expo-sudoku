@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ALG_FONT } from './algText';
+import CubeCompareTable from './CubeCompareTable';
 import { describeSolveSize } from './solveList';
 
 const ICON_SIZE = 20;
@@ -24,6 +25,15 @@ const ICON_SIZE = 20;
  * goes, so the copy comes with the moves and the hold already in it and you
  * delete back to the fork. New starts empty, at inspection, which is the other
  * half of the practice: a different hold entirely.
+ *
+ * ### And Compare is the other half of that (Step 9, plan §8.10)
+ *
+ * Duplicating a solve and rewriting the block is only half a loop: the loop
+ * closes when the two attempts sit next to each other. So the list has a second
+ * mode rather than a second screen — it is already the per-scramble list of
+ * solves, so a comparison here is *columns added to a list that exists*, and it
+ * costs the solve screen nothing. §8.6's budget rule is why that matters: a new
+ * row on the solve screen is paid for out of the cube.
  */
 const CubeSolvesModal = ({
   visible,
@@ -44,6 +54,17 @@ const CubeSolvesModal = ({
   const surface = theme.colors.numberPad.background;
   const border = theme.colors.numberPad.border;
 
+  const [comparing, setComparing] = useState(false);
+
+  // Which mode you left it in is *where you were standing*, not something you
+  // wrote (plan §7.1), so it does not go in the save file — and it resets when
+  // the list closes, because the way in is a button that says "Solves".
+  useEffect(() => {
+    if (!visible) setComparing(false);
+  }, [visible]);
+
+  const compare = comparing && solves.length > 0;
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -59,10 +80,54 @@ const CubeSolvesModal = ({
 
           <Text style={[styles.title, { color: titleColor }]}>Solves</Text>
           <Text style={[styles.subtitle, { color: titleColor }]}>
-            for the scramble on the cube
+            {compare ? 'phase counts across your attempts' : 'for the scramble on the cube'}
           </Text>
 
-          {solves.length === 0 ? (
+          {/* Two modes, one list. The toggle is only worth its 30 points once
+              there is more than one attempt to compare — with a single solve the
+              table is a row of numbers with nothing beside them, which is the
+              solve screen's job and it already does it. */}
+          {solves.length > 1 && (
+            <View style={[styles.modes, { borderColor: border }]}>
+              {[
+                { key: 'list', text: 'List', on: !compare },
+                { key: 'compare', text: 'Compare', on: compare },
+              ].map((mode) => (
+                <TouchableOpacity
+                  key={mode.key}
+                  style={[styles.mode, mode.on && { backgroundColor: accent }]}
+                  onPress={() => setComparing(mode.key === 'compare')}
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    mode.key === 'compare' ? 'Compare the attempts' : 'List the solves'
+                  }
+                  accessibilityHint={
+                    mode.key === 'compare'
+                      ? 'Shows each solve’s phase counts side by side'
+                      : undefined
+                  }
+                  accessibilityState={{ selected: mode.on }}
+                >
+                  <Text
+                    style={[styles.modeText, { color: mode.on ? '#ffffff' : titleColor }]}
+                  >
+                    {mode.text}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {compare ? (
+            <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollBody}>
+              <CubeCompareTable
+                solves={solves}
+                currentId={currentId}
+                theme={theme}
+                accent={accent}
+              />
+            </ScrollView>
+          ) : solves.length === 0 ? (
             <Text style={[styles.empty, { color: titleColor }]}>
               Nothing written for this scramble yet.
             </Text>
@@ -235,6 +300,24 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     textAlign: 'center',
     marginBottom: 12,
+  },
+  // A segmented pair rather than two buttons: they are one choice, and at this
+  // width a pair of outlined buttons reads as two unrelated things to press.
+  modes: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    borderWidth: 1,
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  mode: {
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+  },
+  modeText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   empty: {
     fontSize: 14,

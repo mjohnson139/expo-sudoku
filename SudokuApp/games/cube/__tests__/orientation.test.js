@@ -20,13 +20,14 @@ import {
 import {
   FACE_NORMALS,
   FACE_ORDER,
+  STICKER_COLORS,
   applyMoves,
   cubeFromAlg,
   facelets,
   isSolved,
   solvedCube,
 } from '../cubeState';
-import { DEFAULT_PITCH, DEFAULT_YAW, orbit } from '../geometry';
+import { DEFAULT_PITCH, DEFAULT_YAW, buildScene, orbit } from '../geometry';
 import { OPPOSITE_FACE, parseAlg } from '../moves';
 
 const RAD = (degrees) => (degrees * Math.PI) / 180;
@@ -266,14 +267,73 @@ describe('orientationAt', () => {
 
 describe('describing a hold in colours', () => {
   it('names the opening view the way the operator does', () => {
-    expect(describeOrientation(solvedCube())).toBe('white up · green front');
+    expect(describeOrientation(solvedCube())).toBe('white up · orange left');
   });
 
   it('reads the colours off a cube that has been turned over', () => {
-    // Roux's traditional hold: yellow on top, blue on the left. Blue on the
-    // left means orange in front, holding yellow up.
-    const held = cubeFromAlg(algForFacing('D', 'L'));
-    expect(facingColors(held)).toEqual({ up: 'yellow', front: 'orange' });
+    // Roux's traditional hold: yellow on top, blue on the left — which is red
+    // in front, and the front is the part nobody says out loud.
+    const held = cubeFromAlg(algForFacing('D', 'R'));
+    expect(facingColors(held)).toEqual({ up: 'yellow', front: 'red', left: 'blue' });
+    expect(describeOrientation(held)).toBe('yellow up · blue left');
+  });
+
+  it('is the left centre that survives the M slice, which is why it is the one named', () => {
+    // The whole reason the readout takes up-and-left rather than up-and-front
+    // (operator, 2026-08-06): **LSE runs on M, and M moves the front centre.**
+    // Through the phase where the cube is turned about most, the front colour
+    // is the one that keeps changing and the left one is the anchor.
+    const held = cubeFromAlg(algForFacing('D', 'R'));
+    const turned = applyMoves(held, parseAlg('M'));
+
+    expect(facingColors(turned).left).toBe(facingColors(held).left);
+    expect(facingColors(turned).up).not.toBe(facingColors(held).up);
+    expect(facingColors(turned).front).not.toBe(facingColors(held).front);
+  });
+
+  it('names a hold as uniquely by up-and-left as by up-and-front', () => {
+    // The claim that makes the readout honest: two adjacent faces fix an
+    // orientation, so saying it the way Roux says it loses nothing. All 24
+    // holds must have 24 distinct (up, left) pairs.
+    const pairs = new Set();
+
+    FACE_ORDER.forEach((up) => {
+      FACE_ORDER.forEach((front) => {
+        const alg = algForFacing(up, front);
+        if (alg === null) return;
+        const colors = facingColors(cubeFromAlg(alg));
+        pairs.add(`${colors.up}|${colors.left}`);
+        // And the three named faces are always three different colours.
+        expect(new Set([colors.up, colors.front, colors.left]).size).toBe(3);
+      });
+    });
+
+    expect(pairs.size).toBe(ORIENTATION_COUNT);
+  });
+
+  it('puts left where a cube would put it, on every one of the 24', () => {
+    // Read off the L centre; checked against the geometry. `up × front` is the
+    // right-handed +x — the *right* — so left is the face opposite it. Two
+    // routes to one answer, pinned so they cannot drift apart.
+    FACE_ORDER.forEach((up) => {
+      FACE_ORDER.forEach((front) => {
+        const alg = algForFacing(up, front);
+        if (alg === null) return;
+
+        const u = FACE_NORMALS[up];
+        const f = FACE_NORMALS[front];
+        const right = [
+          u[1] * f[2] - u[2] * f[1],
+          u[2] * f[0] - u[0] * f[2],
+          u[0] * f[1] - u[1] * f[0],
+        ];
+        const expected = FACE_ORDER.find((face) =>
+          FACE_NORMALS[face].every((component, i) => component === -right[i])
+        );
+
+        expect(facingColors(cubeFromAlg(alg)).left).toBe(COLOR_NAMES[expected]);
+      });
+    });
   });
 
   it('describes a scrambled cube by its centres, which never move', () => {
@@ -393,3 +453,62 @@ describe('viewAfterHold — the picture does not jump when the hold is set', () 
     }
   });
 });
+
+describe('the readout names faces the opening view actually shows', () => {
+  // The point of naming a hold by its top and its left (2026-08-06) is that
+  // those are the faces in front of you. That is only true if the camera shows
+  // them, so this ties the words to the pixels: the sticker the renderer draws
+  // at the centre of the left face must be the colour the readout says is on
+  // the left. It was not, until the opening yaw was mirrored the same day —
+  // the view showed U, F and R, and `left` was the one face off screen.
+  const centreFill = (cube, normal) => {
+    const { polygons } = buildScene(cube, {
+      size: 300,
+      yaw: DEFAULT_YAW,
+      pitch: DEFAULT_PITCH,
+      colors: STICKER_COLORS,
+    });
+    // The centre cubie of that face: position is the normal itself.
+    const key = `${normal.join(',')}|${normal.join(',')}:tile`;
+    return (polygons.find((polygon) => polygon.key === key) || {}).fill || null;
+  };
+
+  const holds = [
+    ['', 'the opening hold'],
+    [algForFacing('D', 'R'), 'yellow up, blue left — the Roux hold'],
+    [algForFacing('B', 'U'), 'a side colour on top'],
+  ];
+
+  it.each(holds)('shows the colours it names (%s — %s)', (alg) => {
+    const held = cubeFromAlg(alg);
+    const named = facingColors(held);
+
+    // A drawn sticker is darkened by how its face is turned, and the renderer
+    // does that by mixing toward black — a pure scale, so the *direction* of
+    // the colour survives it. Comparing normalized channels is therefore exact
+    // enough to name the sticker; comparing raw ones is not, and says a shaded
+    // orange is red.
+    const nearest = (fill) =>
+      FACE_ORDER.map((face) => ({ face, hex: STICKER_COLORS[face] })).sort(
+        (a, b) => distance(fill, a.hex) - distance(fill, b.hex)
+      )[0].face;
+
+    expect(COLOR_NAMES[nearest(centreFill(held, [-1, 0, 0]))]).toBe(named.left);
+    expect(COLOR_NAMES[nearest(centreFill(held, [0, 1, 0]))]).toBe(named.up);
+    // And the right face is the one you cannot see, which is the trade.
+    expect(centreFill(held, [1, 0, 0])).toBeNull();
+  });
+});
+
+/** Colour distance with the renderer's shading divided out: it mixes toward
+ *  black, which scales all three channels together, so normalizing by the
+ *  brightest channel leaves something that identifies the sticker. */
+const distance = (a, b) => {
+  const unit = (hex) => {
+    const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+    const peak = Math.max(...rgb, 1);
+    return rgb.map((channel) => channel / peak);
+  };
+  const [x, y] = [unit(a), unit(b)];
+  return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]);
+};

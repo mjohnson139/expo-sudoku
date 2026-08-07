@@ -7,7 +7,7 @@
  * eye on whichever two themes someone happened to open.
  */
 
-import { GROUPS, LEGEND, isDarkSurface, padPalette } from '../padPalette';
+import { GROUPS, LEGEND, accentInk, isDarkSurface, padPalette } from '../padPalette';
 import { closestPair, contrastRatio } from '../../../utils/color';
 import { SUDOKU_THEMES } from '../../../utils/themes';
 
@@ -83,5 +83,33 @@ describe('padPalette', () => {
     // theme's own surface instead, or the pad is a lamp.
     expect(palette.tone('face').bg).not.toBe('#ffffff');
     expect(contrastRatio(palette.tone('face').bg, '#ffffff')).toBeGreaterThan(2);
+  });
+});
+
+describe('accentInk', () => {
+  // The comparison table (Step 9) draws the accent as a *number*, where every
+  // other use of it on this screen is a fill carrying white text. `#c62828` on
+  // twilight's own surface is contrast 1.63, and it looks perfectly fine in a
+  // screenshot — which is exactly how the four key tints got in.
+  it.each(themes)('is legible as text on the %s theme', (name, theme) => {
+    const surface = theme.colors.numberPad.background;
+    expect(contrastRatio(accentInk(theme, ACCENT), surface)).toBeGreaterThanOrEqual(4.1);
+  });
+
+  it.each(themes)('clears the large-text bar comfortably on %s', (name, theme) => {
+    const surface = theme.colors.numberPad.background;
+    // The counts are 15pt semibold, so 3.0 is the standard that applies; the
+    // check above is the stricter one and this is the floor under it.
+    expect(contrastRatio(accentInk(theme, ACCENT), surface)).toBeGreaterThanOrEqual(3);
+  });
+
+  it('leaves a light theme the app’s own red, so the mark is the accent', () => {
+    expect(accentInk(SUDOKU_THEMES.classic, ACCENT)).toBe(ACCENT);
+  });
+
+  it('lifts it on a dark theme rather than leaving it unreadable', () => {
+    const dark = SUDOKU_THEMES.twilight;
+    expect(accentInk(dark, ACCENT)).not.toBe(ACCENT);
+    expect(contrastRatio(ACCENT, dark.colors.numberPad.background)).toBeLessThan(2);
   });
 });

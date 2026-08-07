@@ -49,7 +49,7 @@ Branch from **`epic/cube`**, and open your PR **against `epic/cube`**. The epic
 merges to `main` once the cube is worth shipping, so `main` never carries a
 half-built tool.
 
-`epic/cube` carries Steps 1 through 8 as of 2026-08-05. It is cut from
+`epic/cube` carries Steps 1 through 9 as of 2026-08-06. It is cut from
 `main` and tracks it. (It was briefly cut from
 `epic/fungiku`, because the hub only existed there; Fungiku's Step 13 merged that
 epic to `main` on 2026-08-01 and this was rebased the same day. **No Fungiku
@@ -65,9 +65,9 @@ is always openable in Expo Go (project → Branches) even with no step PR open.
   registry entry, `describeCubeProgress` in `utils/gameProgress.js`, and adding
   `react-native-svg` — Step 2 touched only `utils/buildNotes.js`, because plan
   §12 says to, Step 4 touched those same two (the hub badge counts solves now),
-  Step 6 touched only the build notes, and **Step 8 added `expo-haptics`** to
-  `package.json` and nothing else. A step that needs to touch anything else
-  should say why in its PR. **Step 7 is the only one that has had to touch shared
+  Step 6 touched only the build notes, **Step 8 added `expo-haptics`** to
+  `package.json` and nothing else, and Step 9 touched only the build notes. A
+  step that needs to touch anything else should say why in its PR. **Step 7 is the only one that has had to touch shared
   code**, and it is the pattern for the next time: the header it needed to shrink
   is `components/ScreenHeader.js`, shared with Fungiku, so it added a `dense`
   prop and an `actions` prop **whose absence is exactly today's header** — no
@@ -89,10 +89,16 @@ is always openable in Expo Go (project → Branches) even with no step PR open.
   `favorites.js` and not in `storage.js`, and why the whole solves list lives in
   `solveList.js`. **`solve.js` is one page and `solveList.js` is the book**: the
   first is the text of a single solve and every way of editing it, the second is
-  the list, the save shape, the phases and the sanitizing.
+  the list, the save shape, the phases, the sanitizing and — since Step 9 — the
+  comparison across solves. Layout arithmetic counts as pure too: `trackLayout.js`
+  and `compareLayout.js` are both there because a number that decides what is
+  visible should be pinned rather than eyeballed at one width.
 - **The save file's shape is settled and should not be reopened.** Plan §7.2 has
   it in full. Every field in it is now written and read by something; Step 6 was
-  the last one to fill an empty slot.
+  the last one to fill an empty slot, and **`workspace.view` was the last one
+  added** (2026-08-06, at the operator's request — the angle the cube is turned
+  to is kept now, and plan §7.1 has the amended rule). It needed no version bump:
+  a file without it reads as "nothing remembered", which is the truth.
 - **One rule, one function.** Every edit to a solve's moves goes through
   `withMoves`, which is also what keeps the markers honest — and the clamping it
   does is literally the same `clampPhases` that `sanitizeSolves` runs on the way
@@ -136,139 +142,132 @@ you built, at every stage of the motion, not only at rest.
 
 ---
 
-## Next step: **Step 9 — compare your attempts**
+## Next step: **Step 10 — the architecture review, and the merge decision**
 
 > **Branch from `epic/cube`, PR against `epic/cube`** — as every step does.
-> Step 8 merged on 2026-08-05 and the hold threshold moved to 300ms on
-> 2026-08-06, so the epic has the pad, the scrubber and the palette this step
-> sits next to.
+> Step 9 merged on 2026-08-06, so the epic has the comparison table, the pad,
+> the scrubber and the palette. `epic/cube` now carries Steps 1 through 9.
 
-**Read `docs/cube-plan.md` §8.9 before anything else.** On 2026-08-06 the
-operator tabled the solve editor and outsourced the optimizer to an API, and
-this step exists *because of* that decision rather than beside it. A session that
-picks up the old Step 9 brief will build the wrong thing.
+**Read `docs/cube-plan.md` §8.11 before anything else. It is this step's brief
+and the whole of it**, and it is unusually specific about what the step is *not*
+allowed to become. Read §8.9 too, because two rows left the table rather than
+moving down it and a review that recommends building either of them is
+re-opening a decision the operator already made.
 
-**The question this screen cannot answer is "am I getting better at this
-scramble?"** Step 6 made every phase count knowable and Step 8 put them on the
-page — one solve at a time, so `First block · 8` is a fact with nothing to
-compare it against. If you improve a block by **re-attempting** it rather than by
-editing it — which is what §8.9 decided — then this is the step that closes the
-loop.
+**This is the one step exempt from "must be visible in Expo Go", and that is
+deliberate rather than a concession.** What ships is **a written verdict and a
+yes/no on merging `epic/cube` into `main`**. Code changes are allowed only where
+the review finds something *concrete and small*; anything bigger is written down
+as a finding with a recommendation and is not built here. **A review that ends
+with no code changes at all is a good outcome and the PR should say so.**
 
 ### Read first
 
-- **`docs/cube-plan.md` §8.9** — why the editor is tabled and the optimizer is
-  outsourced. Then **§8.10**, which is this step's brief and the whole of it.
-  Then §8.5 (what a phase is, and why markers rather than ranges) and §8.6 (the
-  height budget, and the rule about saying what a row costs).
-- `games/cube/solveList.js` — `solvesFor`, `phaseSpans`, `describePhaseSpan`,
-  `duplicateSolve`. **Everything this step displays is already computed here.**
-  If you find yourself writing a second way to count a phase, stop.
-- The solves list as Step 8 left it — the most likely home for this, and the
-  version of the step that costs the solve screen nothing.
+- **`docs/cube-plan.md` §8.11** — the bar, the platform contract, the specific
+  things to look at inside the cube, and what the merge decision has to cover.
+  It already names the headline candidate (`utils/gameProgress.js` inverting the
+  dependency) and tells you to check its cost before recommending it.
+- **This whole file.** The "Noted in passing" list below is nine steps of things
+  people spotted and deliberately did not fix — it is the review's inbox, and it
+  is why every step has been asked to note rather than fix.
+- `games/registry.js`, `utils/gameProgress.js`, `hooks/usePersistentReducer` and
+  `games/cube/storage.js` — the four files the platform question lives in.
 
-### Scope — ONLY this
+### The bar — in this order
 
-1. **Show the solves for one scramble with their phase counts beside each
-   other.** Nothing new is computed; it is arranged. `solvesFor` gives the list,
-   `phaseSpans` gives the phases and counts.
-2. **Compare by phase name, not by position.** Solve 1's second span and Solve
-   3's second span line up only if they are both `Second block`. This is the
-   step's one real piece of thinking — the arrangement is a join on a label, and
-   solves annotated with different methods, or with free-text names, or with
-   nothing at all, all have to land somewhere honest.
-3. **A solve with no markers has nothing to line up.** Say so plainly rather than
-   guessing; an unannotated solve is a legitimate thing to have written and it
-   should not be made to look like a bad one.
-4. **Mark the best; do not average.** Which attempt has the shortest first block
-   is the question being asked. A mean over four attempts where one was abandoned
-   half-way is a number that lies.
-
-### Where it lives — **decide this before you build**
-
-- **The solves list.** It is already the per-scramble list of solves, it is
-  already where solve-level operations moved in Step 8, and columns added to a
-  list that exists is the cheapest version of this step. **Most likely right**,
-  and it costs the solve screen zero points, which is most of the argument.
-- **A separate screen.** Reach for this only if the list genuinely cannot hold
-  it — say what stopped it, in the PR.
-
-Do not add a row to the solve screen for this. §8.6's budget is the standing rule
-and Step 8 already spent 71 points of cube; a comparison is not what buys the
-next row.
+1. **Is the data the source of truth, or is it in the code?** `PAD_LAYOUT`,
+   `PHASE_METHODS` and `padPalette.js` are what good looks like here. Look for
+   the opposite: a rule spelled out in JSX, a list maintained in two places, a
+   `switch` where a table would do.
+2. **One rule, one function.** Check the rules with more than one caller: what a
+   press means, what shifts a phase marker, what counts as an extension rather
+   than a replacement — and now what counts a phase, which Step 9 routed through
+   `phaseSpans` on purpose.
+3. **Is anything more general than its one use?** **This step must not produce a
+   plugin framework, a game SDK or a base class.** Three games is not enough
+   evidence for any of those, and inventing one would fail its own review.
 
 ### Behaviors that are easy to get wrong
 
-- **One rule, one function.** The counts on this screen must come from
-  `phaseSpans` and nothing else. Two implementations of "how long is first block"
-  is how the comparison ends up disagreeing with the solve screen it is
-  comparing.
-- **A phase at the end of a solve with no moves in it** is a real boundary that
-  the strip already skips and the modal already lists (see the notes below).
-  Decide what a zero-length span does *here* and say which you chose.
-- **`MAX_SOLVES` is 100 and culling is by creation date.** A comparison view is
-  the first thing that makes an old solve worth keeping, so if this step makes
-  the cap feel real, say so — do not quietly change it.
-- **Do not suggest a better solve.** Displaying the ones written is this step;
-  proposing a shorter one is the API's job and is not being built (§8.9).
+- **A review is not a refactor.** The temptation is to fix everything found.
+  §8.11's rule is the guard: concrete and small, or written down.
+- **The pure core is the good news and should be said out loud.** `moves`,
+  `cubeState`, `geometry`, `orientation`, `solve`, `solveList`, `compareLayout`
+  and `scramble` are free of React Native and carry the bulk of 875 tests. **Any
+  finding that would push logic out of that core and into a component is a
+  finding to reject.**
+- **Check the cost of the `gameProgress` fix before recommending it.** The tests
+  reach those functions in a plain node environment precisely because that file
+  has no React Native imports. A move that breaks that trade is not an
+  improvement — say which way it came out.
+- **`MAX_SOLVES` is 100, culled by creation date.** Step 9 said out loud that a
+  comparison view is the first thing that makes an old solve worth keeping. Do
+  not change the cap in a review; decide whether it is a finding.
 
-### Out of scope for this step
+### The merge decision
 
-Editing a solve (tabled — §8.9), an optimizer or solver of any kind (outsourced —
-§8.9, and that includes a placeholder button or a client stub), entering a cube
-by colour (now Step 11), comparing across *different* scrambles, a timer, colour
-neutrality, and the chrome-free mode (open question 14). Note what you spot; do
-not start it — **and note it well**: Step 10 is an architecture review, and what
-you spot while building is exactly what it wants to read.
+An explicit **yes or no**, with whatever blocks it named. Cover at least:
+
+- **Does it stand up on a device**, not just in a browser at three widths — this
+  epic's own scar (Step 7 shipped a header that passed every browser check and
+  was broken on a phone), and `expo-haptics` fires exactly once where only a
+  device can judge it.
+- **Storage compatibility.** `@CubeScramble` is version 2 and read by shape. A
+  user on a Step 3 build opening a Step 10 build must not lose their solves —
+  **prove it rather than assert it.**
+- `npm test`, `npx expo-doctor` (expect 18/18), `npx expo export --platform all`.
+- **Build notes and `app.json`.** Per plan §12 they are per release: `3.1.0` gets
+  *extended*, and the merge is the moment that entry has to describe the whole
+  feature rather than the last step of it. Step 9 extended it; read it back as a
+  whole and see whether it reads like one feature.
 
 ### Visible in Expo Go when this lands
 
-Write three solves at one scramble with first blocks of 8, 7 and 6 moves, open
-the list, and read the improvement down a column.
+**Nothing, deliberately** — see above. If the review does make a concrete small
+change, that change is checked in Expo Go like anything else.
 
 ### How to verify
 
-- `npm test` — whatever joins spans across solves is pure and belongs in
-  `solveList.js`'s tests. Pin: solves with the same phase names line up; a solve
-  with no phases does whatever you decided, deliberately; the best is the
-  minimum and not the first; two solves annotated with different methods do not
-  produce a nonsense column.
-- `npx expo-doctor` (expect 18/18) and `npx expo export --platform all`.
-- **Drive it and look at the screenshots**, at 320×568, 375×667 and 393×852.
-  `budget.mjs` prints the row-by-row height table and **this step must not move
-  those numbers** — say so with the table. If it lands in the solves list that
-  should be trivially true, which is the point.
-- **Then look at it on a device.** Step 7 shipped a header that passed every
-  browser check at three widths and was broken on a phone.
+- `npm test` (875 today), `npx expo-doctor`, `npx expo export --platform all` —
+  green before and after, and the point of running them is the merge decision
+  rather than the review.
+- If nothing changed in the code, say so and show the three runs anyway.
+- **Then look at it on a device**, because half the merge decision is that
+  sentence.
 
 ---
+
+## The step after that (for the file you rewrite)
+
+**Step 11 — enter a cube by hand** (plan §8, unspecified in detail): paste an
+algorithm, or set the colours facelet by facelet, for a cube that came off a
+table rather than out of the generator. After that the epic is open questions,
+and question 14 is the live one.
+
+---
+
 
 ## Open questions for the operator (carry these forward)
 
 These are plan §9, restated so a session does not have to go looking. None block
-Step 9. **Number 13 stopped being a question on 2026-08-06 and became the step
-itself** — see the brief above. **Number 14 is the live one and Step 8 sharpened
-it into a number**: the new pad and scrubber cost the cube 71 points at 320 and
-375, and whether that is the right trade is a question only the operator can
-answer by drilling on it. Number 8 is now answered *and shipped*, including the
-part of it that wanted use: the threshold was drilled on and moved from 180ms to
-300ms.
+Step 10 — but several of them are *findings waiting to be written down*, which is
+new: a review is the step with standing to say "this is a question for the
+operator and here is what it costs either way".
 
-**What is left in the epic after Step 9** is **Step 10 — the architecture review
-and the merge decision** (plan §8.11, added 2026-08-06), then Step 11 (enter a
-cube by hand), then these questions. Two rows also left the table on 2026-08-06
-rather than moving down it — the editor is tabled and the optimizer is
-outsourced — so the backlog is genuinely shorter than it was, not rearranged.
-Plan §8.9.
+**Number 13 is answered and shipped** (Step 9, 2026-08-06). **Number 14 is the
+live one and Step 8 sharpened it into a number**: the pad and scrubber cost the
+cube 71 points at 320 and 375, −49 once the tick track came out, and whether that
+is the right trade is a question only the operator can answer by drilling on it.
+**Number 12 gained a second candidate on 2026-08-06** — see below. Number 8 is
+answered *and shipped*, including the part that wanted use: the hold threshold
+was drilled on and moved from 180ms to 300ms.
 
-**Step 10 is the odd one and needs flagging here** so a session does not try to
-make it look like the others: it is the one step **exempt from "must be visible
-in Expo Go"**, because what it ships is a written verdict and a yes/no on merging
-`epic/cube` into `main`. Code changes are allowed only where the review finds
-something concrete and small; anything bigger is written down as a finding. A
-review that ends with no code changes is a good outcome. It must not produce a
-plugin framework, a game SDK or a base class — three games is not enough evidence
-for any of those, and inventing one would fail its own review.
+**What is left in the epic after Step 10** is Step 11 (enter a cube by hand),
+then these questions. Two rows left the table on 2026-08-06 rather than moving
+down it — the editor is tabled and the optimizer is outsourced — so the backlog
+is genuinely shorter than it was, not rearranged. Plan §8.9, and **a review that
+recommends building either of them is re-opening a decision the operator already
+made.**
 
 1. Scramble length — 20 moves. Leave it?
 2. Other puzzles — 2×2, 4×4, pyraminx, skewb?
@@ -280,13 +279,22 @@ for any of those, and inventing one would fail its own review.
    eventually, optimize a phase I already wrote, is **outsourced to an API** and
    is not this repo's code (plan §8.9).
 6. Drag direction — currently "push the surface under your finger".
+6a. ~~**Whether the view angle is kept.**~~ **Answered by use** (operator,
+    2026-08-06): *"once the user moves the cube we want to remember the camera
+    position so it doesn't reset when they background the app and come back."*
+    It is in `workspace.view` now. The rule it changed is plan §7.1's, and the
+    distinction that replaced it is worth keeping: not *authored text vs. not*
+    but **did you choose this, and would you choose it again** — an angle yes, a
+    half-played scrub position no. `DEFAULT_YAW`/`DEFAULT_PITCH` are the
+    *opening* view now, not the view every visit begins at.
 7. ~~Turn speed.~~ **Answered** (operator, 2026-08-01): a speed control, and it
    is in — a chip cycling 1× → 2× → 0.5×, scaling the beat between moves as well
    as the turns, and applying to single steps as much as to playback. **Step 4
-   settled that it stays transient**, along with the view angle and the scrub
-   position: plan §7.1's rule is that everything authored is kept and everything
-   about how you are currently looking at it is not, and a speed is the second
-   kind. Say so if that turns out to be wrong in use — the file has room.
+   settled that it stays transient**, along with the scrub position — and **the
+   view angle left that group on 2026-08-06** (see 6a). Plan §7.1's amended rule
+   is that what you chose on purpose is kept, and a speed you set once and forgot
+   is arguably the first kind too. Say so if that turns out to be wrong in use —
+   the file has room, and the angle is the precedent.
 8. ~~**How a move gets entered.**~~ **Answered by a design round** (2026-08-04)
     **and shipped in Step 8** (2026-08-05). Press and hold for prime, second tap
     on the same key for a half turn. This was the epic's longest-running
@@ -329,16 +337,20 @@ for any of those, and inventing one would fail its own review.
     hold (`yellow up`), the date, or the first block's move count is a question
     that wants one real drilling session, not an opinion. **Step 6 gives it a
     concrete candidate**: `First block · 8` is now known, and it is the number
-    the operator said they were trying to improve.
-13. ~~**Whether the counts are worth comparing across solves.**~~ **Answered, and
-    it is now Step 9** (2026-08-06). It was filed with Step 6 as "the obvious
-    next thing to want" and parked because nothing had asked for it — and then
-    **tabling the editor asked for it.** If a better first block comes from
-    re-attempting rather than editing (plan §8.9), the loop does not close until
-    the attempts sit next to each other. Plan §8.10 is the brief; the note under
-    Step 7 still applies and is now a constraint on *where* it goes rather than
-    whether it happens: a comparison is another row, rows are on a budget, so it
-    belongs in the solves list where it costs the solve screen nothing.
+    the operator said they were trying to improve. **Step 9 gives it a second
+    one, and a reason to care**: the comparison table's rows are the names, so
+    `Solve 1 / Solve 2 / Solve 3` is now a column of labels that says nothing
+    about what was different between them.
+13. ~~**Whether the counts are worth comparing across solves.**~~ **Answered,
+    became Step 9, and shipped the same day** (2026-08-06). It was filed with
+    Step 6 as "the obvious next thing to want" and parked because nothing had
+    asked for it — and then **tabling the editor asked for it.** It landed in the
+    solves list behind a Compare toggle, for zero points of cube. Plan §8.10 has
+    the brief and what building it settled. **What it opens rather than closes**
+    is whether a comparison is worth more than one scramble's worth of attempts —
+    §8.10 rules comparing *across* scrambles out on the grounds that the numbers
+    are not comparable, and that is still right, but "am I getting better at first
+    blocks generally" is a different question the tool now nearly asks.
 14. **Did Step 7 go far enough, and does the cube want a mode with no chrome at
     all?** Raised by the operator on 2026-08-03 (*"how much space all the chrome
     is taking"*) and half-answered by shipping: the cube went from a third of the
@@ -417,7 +429,9 @@ for any of those, and inventing one would fail its own review.
   file, newest-created first, oldest dropped — and `savedAt` is creation time
   and is never bumped, so editing a very old solve does not protect it. At 100
   that is unreachable in practice; it would stop being unreachable if the cap
-  ever came down.
+  ever came down. **Step 9 is the first thing that makes an old solve worth
+  keeping** — the attempt you are measuring against is by definition the older
+  one — so if the cap ever feels real, this is why. It was not changed.
 - **The pad only ever writes a straight `'`**, so a solve cannot be entered with
   a curly apostrophe from it — but one *pasted* into the text field is kept as
   typed, and will read back as `R’` next to the pad's `R'`. Honest (plan §4 says
@@ -513,8 +527,14 @@ for any of those, and inventing one would fail its own review.
   other way"*. Plan §8.8 has what it would have cost, including the part that
   decided it: a prime became hold **plus a slide**, where it is now just a hold.
   Do not re-propose it as an obvious win; it was tried.
-- **The phase counts are per solve and nothing compares them.** **This is now
-  Step 9** — the brief at the top of this file.
+- ~~**The phase counts are per solve and nothing compares them.**~~ **Built in
+  Step 9**, in the solves list behind a Compare toggle. What it left behind:
+  **an unannotated solve is invisible in the comparison except as a name in a
+  note**, which is the honest answer and is not the only possible one; and **a
+  solve annotated with a different method to its neighbours shows a row of
+  dashes in the visible columns** and its own columns are off to the right,
+  which reads worse than it is until you swipe. Both are rare and both are
+  noted rather than fixed.
 - **Half turns animate clockwise.** `shortWay(2)` is 2, not −2; both land in the
   same place and nothing prefers one. If a solve tutorial ever wants `R2` to go
   the way a particular fingertrick goes, that is the line to change.
@@ -522,6 +542,64 @@ for any of those, and inventing one would fail its own review.
 ---
 
 ## Steps already done
+
+### **Step 9 — compare your attempts** ✅ *(2026-08-06)*
+
+Shipped: **the solves list can answer "am I getting better at this scramble?"**
+A **Compare** toggle turns the per-scramble list into a table — one row per
+attempt, one column per phase — and `First block  8 · 7 · 6` reads straight down
+the column. The fewest moves in each column is marked. 875 tests across the app,
+40 of them new.
+
+**It cost the cube nothing**, which is most of the argument for where it went.
+The 42-move annotated budget is identical to Step 8's:
+
+| Solve mode, 42 moves, annotated | Step 8 | Step 9 |
+|---|---|---|
+| 320×568 | 145 | **145** |
+| 375×667 | 244 | **244** |
+| 393×852 | 373 | **373** (width-bound) |
+
+The whole of the thinking is `comparePhases` in `solveList.js`, next to
+`phaseSpans` — **the arrangement is a join on a label** and nothing here counts
+anything. Five decisions worth not relitigating, all in plan §8.10:
+
+- **Rows read oldest first**, which is backwards from the picker and right here:
+  improvement happens forwards.
+- **Unnamed spans are not columns.** `In progress` is not something two solves
+  have in common, and the zero-length boundary at the end of a solve — the one
+  the strip skips and the modal lists — never appears. So a row's columns can
+  total less than its moves, and the row carries its own total rather than
+  pretending they add up.
+- **A phase only one solve has marked has no best**; marking it would dress up a
+  sample of one. Ties are all marked.
+- **A label used twice in one solve is summed and says `2 groups`.**
+- **The column order is merged from the orders the solves themselves use.** Roux
+  beside CFOP produces eight columns and no equivalence is invented.
+
+Two things it learned, neither of which a passing test would have said:
+
+- **Four Roux columns do not fit 320 points at any round number.** The first cut
+  used a constant 54 and put `LSE` past the right edge — no overflow flag, no
+  console error, just the last phase of every solve hidden behind a swipe nobody
+  knew to make. The width is measured now (`compareLayout.js`, pure and tested
+  for the same reason `trackLayout.js` is), and where the columns genuinely
+  cannot fit the legend says how many phases there are.
+- **The accent is a fill everywhere else on this screen and a number here.** That
+  is a different contrast problem and `#c62828` loses it: **1.63 on `twilight`**,
+  2.25 on `dark`. Both look fine in a screenshot, which is exactly how the four
+  key tints got in during Step 8. `accentInk` lifts it toward white on a dark
+  surface and `padPalette.test.js` pins it on all eight themes.
+
+Verified with `npm test` (875), `npx expo-doctor` (18/18), `npx expo export
+--platform all`, and four headless drivers at 320×568, 375×667 and 393×852 with
+the screenshots read: `budget.mjs` seeds the 42-move annotated solve and prints
+every row of solve mode with its height, proving the numbers above; `compare.mjs`
+opens the list from the bar under the pad, switches to Compare, reads every cell
+back by `aria-label` and returns to the list; `edges.mjs` covers a lone solve
+(no toggle offered), two unannotated solves, one annotated beside one not, and a
+phase named twice; `themes.mjs` drives it on `dark` and `twilight`, which is
+where the contrast bug was found. **Not yet seen on a device.**
 
 ### **Step 8 — the designed solve screen** ✅ *(2026-08-05)*
 
@@ -908,7 +986,8 @@ a key tap and an undo to confirm moves still turn rather than appear.
 
 Shipped: solve mode is now **two phases**, and the cube turns all the way over. Tap Solve and you are *inspecting* —
 no pad, no transport, a cube roughly twice the size, and a live readout under it
-saying **"yellow up · blue front"** as you drag. Tap **Set start** and that hold
+saying **"yellow up · blue left"** as you drag (it said *front* until
+2026-08-06 — see plan §8.3 for why the left colour is the one Roux names). Tap **Set start** and that hold
 is baked into the model as a rotation prefix, so every move you then write is
 relative to it. `Start view` is the shortcut back to it; `Re-orient` goes back to
 inspecting, and is only offered while the solve is empty.

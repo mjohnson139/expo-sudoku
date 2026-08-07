@@ -407,13 +407,33 @@ about how they happen to be looking at it right now is not.**
 
 | Kept | Not kept |
 |---|---|
-| The scramble, and the favorites | The view angle |
-| Every solve: its hold, its moves, its name | The scrub position |
-| Which solve was being edited, and that solve mode was open | The turn speed |
+| The scramble, and the favorites | The scrub position |
+| Every solve: its hold, its moves, its name | The turn speed |
+| Which solve was being edited, and that solve mode was open | |
+| **The angle the cube is turned to** (2026-08-06) | |
 
-The right-hand column is unchanged and the reasoning still holds: those are
-where you are standing, not what you wrote. Restoring someone into the middle of
-a half-played scramble is worse than opening it whole.
+The right-hand column's reasoning still holds: those are where you are standing,
+not what you wrote. Restoring someone into the middle of a half-played scramble
+is worse than opening it whole.
+
+**The view angle changed sides on 2026-08-06**, at the operator's request:
+
+> *"I just wanted the initial view to have that specific view of the left side,
+> but once the user moves the cube we want to remember the camera position so it
+> doesn't reset when they background the app and come back."*
+
+The original call was defensible and it was wrong about which kind of thing an
+angle is. **Turning the cube to where you want it is closer to putting it down on
+the table than to scrolling** — a deliberate act whose result you expect to find
+as you left it — where a scrub position genuinely is just where the playhead
+happens to be. The distinction that survives is not *authored text vs. not*, it
+is **did you choose this, and would you choose it again**: an angle, yes; a
+half-played position, no.
+
+What this makes of `DEFAULT_YAW`/`DEFAULT_PITCH` is the *opening* view — the
+first visit, and where `Reset view` and `Start view` go back to — rather than the
+view every visit begins at. Which is what makes §8.3's left-face opening view a
+starting point instead of a snap-back.
 
 **Decide the shape once.** A solve is already two fields (`orientation`, `alg`)
 and §8.5 adds a third (`phases`), so the file wants a slot for annotations from
@@ -428,7 +448,7 @@ file twice and writing two migrations.
   scramble: "R U2 F' …",                       // the one on the cube
   favorites: [{ alg, savedAt }],
   solves:    [{ id, scramble, name, orientation, alg, phases, savedAt }],
-  workspace: { solving, solveId },
+  workspace: { solving, solveId, view: { yaw, pitch } | null },
 }
 ```
 
@@ -456,12 +476,23 @@ relitigating:
   no migration and no reshaping. `sanitizePhases` is now `clampPhases`, the same
   function the screen applies live.
 - **`workspace` is the other half of "come back to what you left"** — which
-  solve was open and whether solve mode was. Both are cross-checked against what
-  survived sanitizing: an open solve has to exist and has to belong to the
-  scramble on screen, and solve mode with nothing open is not a state the screen
-  has.
+  solve was open, whether solve mode was, and **which way the cube was turned**.
+  The two ids are cross-checked against what survived sanitizing: an open solve
+  has to exist and has to belong to the scramble on screen, and solve mode with
+  nothing open is not a state the screen has. `view` needs no such check, because
+  an angle is valid against any cube — losing your place should not also move the
+  camera.
+- **`view` is the one field in the file that is not authored text**, and it was
+  added on 2026-08-06 rather than designed in — see §7.1 for the rule it changed.
+  `null` means nothing remembered, which is a first visit and is the screen's cue
+  to open at the default. It is sanitized to two finite angles and wrapped by the
+  same `wrapAngle` every other angle in the app goes through, because `1e9` is
+  finite and is not somewhere anybody can look from.
 
-**Neither direction of version skew needs a migration step.** A Step 5 file has
+**Neither direction of version skew needs a migration step**, and `view` did not
+need one either — `_v` is still 2. A file without it reads as "nothing
+remembered", which is the truth, and a build without it ignores a field it does
+not know about. A Step 5 file has
 no `solves` key and `sanitizeSolves(undefined)` is the empty list — which is the
 truth, because that build could not keep a solve. A Step 4 file opened by a
 Step 5 build still has `scramble` and `favorites` exactly where they were.
@@ -482,7 +513,7 @@ which is a review and ships a verdict instead (§8.11).
 | **6** | **Annotate the move groups.** "These moves solve first block, these solve second block" — labelled spans, per-phase move counts, and a transport that plays one group | **shipped** |
 | **7** | **Give the page back to the cube.** The chrome takes two thirds of the screen and the biggest piece of it grows as you drill; cut it to a budget | **shipped** (#92, 2026-08-05) |
 | **8** | **The designed solve screen.** A spatial cross pad, hold-for-prime, and a phase-split tick scrubber — from a settled design bundle, and the answer to §9.8 | **shipped** (2026-08-05) |
-| **9** | **Compare your attempts.** Every solve written at this scramble, with its phase counts beside each other — "my first block over five attempts" | next |
+| **9** | **Compare your attempts.** Every solve written at this scramble, with its phase counts beside each other — "my first block over five attempts" | **shipped** (2026-08-06) |
 | **10** | **Architecture review, and the merge decision.** Does what we built meet the bar, does it plug into the platform the way the platform expects, and can `epic/cube` go to `main`? | |
 | **11** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
 | — | ~~**Edit a solve you have already written.**~~ | **tabled** (2026-08-06) |
@@ -651,8 +682,33 @@ not. Reaching them means giving the camera a roll axis, which is the change to
 make **if and when colour neutrality lands**, and not before.
 
 **A hold is described in colours, never in rotations** — "yellow up · blue
-front", live under the cube as you pan. Nobody inspecting a cube thinks in `z2`,
+left", live under the cube as you pan. Nobody inspecting a cube thinks in `z2`,
 and reading colours off a 120-point cube is guesswork.
+
+**The opening view shows the top, the front and the left** (2026-08-06). It was
+the mirror of that — top, front, right — which is how a cube is conventionally
+drawn and which showed the operator the one side face they had no use for. A
+readout naming a face that is off screen is one you have to take on trust, so the
+yaw was mirrored. It is safe for the reason that matters: **U is still the
+highest face and F is still the nearest**, so the opening view is still the
+identity hold, `orientationAt` still answers `''` there, and nothing about which
+rotation means what changed. A test ties the words to the pixels — the sticker
+the renderer draws at the centre of the left face must be the colour the readout
+calls left.
+
+**And the two colours it names are the top and the left** (operator,
+2026-08-06), which is a readout decision with a reason in the method rather than
+in taste: **LSE runs on M, and M moves the front centre while leaving the left
+one alone.** Through the phase where the cube is turned about most, the front
+colour is the one that keeps changing and the left one is the anchor — it is the
+face the first block is built on. A solver holding a cube knows what is on top
+and what is on the left and would have to *work out* what is in front.
+
+Nothing under the readout changed: `up` and `front` still identify a hold
+internally, `algForFacing` still takes that pair, and the save file still stores
+a rotation prefix rather than any colour at all (§7.2). Up-and-left identifies a
+hold exactly as well — any two adjacent faces do, and a test pins that all 24
+have distinct pairs — so saying it the method's way loses nothing.
 
 ~~Because the hold is baked into the model, "the view I chose" and "the default
 view" become the same thing.~~ **Not since 2026-08-03**: the camera stays where
@@ -1395,6 +1451,52 @@ solve rather than displaying the ones written (§8.9 — that is the API's job).
 first blocks of 8, 7 and 6 moves, open the list, and read the improvement down a
 column.
 
+#### Shipped 2026-08-06, in the solves list, for nothing
+
+It went where this section said it should — a **Compare** tab on the solves
+list — and the version of the argument that decided it is the cheap one: the
+list is already the per-scramble list of solves, so this is columns added to
+something that exists. The 42-move budget table is **identical** to Step 8's
+(145 / 244 / 373), which is the point rather than a happy accident.
+
+`comparePhases` is the whole of the thinking and it lives in `solveList.js` next
+to `phaseSpans`, because **the arrangement is a join on a label** and everything
+being arranged was already computed. Five decisions worth not relitigating:
+
+- **Rows read oldest first**, which is backwards from the picker and right here:
+  improvement happens forwards, so a column reads 8, 7, 6 downwards.
+- **Unnamed spans are not columns.** `In progress` is what a solve has not said
+  yet, not something two solves have in common, and the zero-length boundary at
+  the end of a solve — the one the strip already skips and the modal already
+  lists — never appears here at all. The consequence is that a row's columns can
+  total less than its move count, so the row carries its own total and the
+  columns are under no obligation to add up.
+- **A phase only one solve has marked has no best.** Marking it would dress up a
+  sample of one. Ties are all marked, because they are all the fewest.
+- **A label used twice in one solve is summed, and says `2 groups`.** Two goes at
+  the second block is still that many moves of second block.
+- **The column order is merged from the orders the solves themselves use**, with
+  a cursor: a solve that names only `First block` and `CMLL` still leaves room
+  for `Second block` between them. The honest limit of that is written into the
+  code — a solve that jumped from the first block to LSE puts `LSE` directly
+  after `First block`, because nothing here knows what Roux's phases mean.
+
+Two things building it found, neither of which a passing test would have said:
+
+- **Four Roux columns do not fit 320 points at any round number**, so the column
+  width is measured rather than chosen (`compareLayout.js`, and it is pure and
+  tested for the reason `trackLayout.js` is). The first cut used a constant 54
+  and pushed `LSE` off the right edge — no overflow, no error, just the last
+  phase of every solve hidden behind a swipe nobody knew to make. Where the
+  columns genuinely cannot fit (a Roux solve beside a CFOP one is seven or eight)
+  the legend says how many phases there are to swipe for.
+- **The accent is a fill everywhere else on this screen and a number here**, and
+  that is a different contrast problem: `#c62828` on `twilight`'s surface is
+  **1.63**, on `dark` 2.25. Both look fine in a screenshot — the exact mistake
+  §8.8 made with the four key tints. `accentInk` lifts it toward white on a dark
+  surface (0.6, the smallest lift clearing 4.5 on both), and `padPalette.test.js`
+  now pins it on all eight themes.
+
 ### 8.11 Architecture review, and the merge decision (Step 10, specified 2026-08-06)
 
 Ten steps of feature work have gone into `epic/cube` without anyone standing back
@@ -1498,8 +1600,10 @@ whether or not anyone wrote it down. The review's job is to say whether it is th
   `cubeSave.js` is worth the churn, and "no" is a legitimate answer to write down.
 - **The pure core is the good news and should be said out loud.** `moves`,
   `cubeState`, `geometry`, `orientation`, `solve`, `solveList`, `scramble` are
-  free of React Native and carry the bulk of the 835 tests. That is why this epic
-  can be reviewed at all. Any finding that would push logic *out* of that core and
+  free of React Native and carry the bulk of the 875 tests. That is why this epic
+  can be reviewed at all. **Step 9 added a 26th module, `compareLayout.js`**, for
+  the same reason and by the same test: it is arithmetic that decides what is
+  visible, so it is pure and it is pinned. Any finding that would push logic *out* of that core and
   into a component is a finding to reject.
 
 #### The merge decision
