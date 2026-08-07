@@ -13,15 +13,25 @@ here as a finding with a recommendation and was deliberately not built.
 
 ## The verdict
 
-**Merge `epic/cube` into `main`: yes.**
+**Merge `epic/cube` into `main`: yes. Unconditionally.**
 
-Nothing found in this review blocks it. There is **one condition, and it is the
-condition the epic has been carrying since Step 7**: the cube has never been
-looked at on a physical device by anyone but the operator, and this epic's worst
-shipped bug passed every browser check at three widths and was broken on a phone.
-The merge should follow one drilling session on a real handset. That is a
-sign-off on the code, waiting on evidence only a thumb can produce — not a
-finding.
+Nothing found in this review blocks it.
+
+This document was first written with **one condition** on it — that the cube be
+drilled on a physical handset before the merge, because every check this epic
+runs is a browser at three widths and Step 7 shipped a header that passed all of
+them and was broken on a phone. **The operator answered it the same day
+(2026-08-07): they have been testing on device the whole way through the epic.**
+
+That is worth recording rather than just deleting, because it re-reads the whole
+evidence trail: the corrections that arrived mid-step and looked like polish were
+device findings all along — *"I'm getting a lot of prime moves when I want a
+regular turn"* (the 300ms threshold), *"it's hard to see the prime symbols when
+your finger is on the button"* (the armed `′`), *"the second one doesn't seem
+animated"* (`promotedTurn`), *"let's remove the red segments"* (the tick track).
+**None of those could have come from a browser.** The device pass was not
+missing; it was continuous, and it was the source of the epic's best corrections.
+The gap was in the *record*, not in the testing.
 
 What the review is signing off:
 
@@ -337,22 +347,29 @@ component.**
 
 ### Does it stand up on a device?
 
-**Unproven, and this is the one condition on the merge.** Every check this epic
-has run since Step 1 is a browser at three widths, and Step 7 is the standing
-proof that this is not enough: a header that passed every one of them was broken
-on a real iPhone, because web and Yoga disagreed about a flattened style. Two
-further things are invisible to any headless check by construction:
+**Yes — confirmed by the operator (2026-08-07), who has been testing on device
+throughout the epic.**
+
+This review initially recorded it as unproven, because the *written* evidence in
+`docs/` is entirely headless: browsers at three widths, screenshots read back,
+overflow flags. That was a gap in the record and not in the testing, and the
+distinction matters for anyone reading this later. Three things are invisible to
+any headless check by construction, and all three were in fact judged by hand:
 
 - **`expo-haptics` fires exactly once**, at the hold threshold, guarded by
-  `Platform.OS !== 'web'`. Every check ever run on this epic ran with it off.
-- **The hold gesture's whole confirmation is drawn under the thumb causing it** —
-  which is what produced the armed `′` key in the first place. *The browser has
-  no thumb.*
+  `Platform.OS !== 'web'`. Every automated check ever run on this epic ran with
+  it switched off.
+- **The hold gesture's whole confirmation is drawn under the thumb causing it**,
+  which is exactly what produced the armed `′` key as a second route. *The
+  browser has no thumb.*
+- **The turn animation's feel**, which `docs/fungiku-plan.md` §2 warns about and
+  which no assertion about the ends of a move can see.
 
-Nothing here suggests a defect. It is simply that half of "would a staff engineer
-sign this off" is evidence, and for the feel of this screen the only evidence
-that counts is a handset. **Recommendation: one drilling session in Expo Go on
-`epic/cube` before the merge button, not a re-review after it.**
+**The lesson for the next epic is a process one, not a code one:** when a device
+finding arrives as a one-line correction — *"I'm getting a lot of prime moves"* —
+write down that it came from a device. Nine steps of headless evidence and a
+trail of hand-found corrections read, to a reviewer, like a feature that had
+never been held. It had been held the whole time.
 
 ### Storage compatibility — proven, not asserted
 
@@ -426,6 +443,10 @@ Beyond the three standard runs:
   *(Headless Chromium keeps a backgrounded tab `visible` — there is no window
   manager to hide it — so `document.visibilityState` is driven directly. That is
   the one stubbed input; on a device the OS supplies it.)*
+- **The operator's own device testing**, continuous across the epic and the
+  source of Step 8's two same-day corrections, Step 7a, and the 300ms hold
+  threshold. It is the evidence this document was missing rather than the
+  evidence the epic was missing.
 - **`walk.mjs`** — a regression walk at 320×568, 375×667 and 393×852: into the
   cube, into solve mode, set the hold, three moves through the pad, open the
   solves list, back out. **No horizontal overflow, no vertical overflow, no

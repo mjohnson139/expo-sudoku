@@ -240,8 +240,9 @@ solve against it. That is the whole demo and it should be one screen recording.
 - `npx expo-doctor` (18/18), `npx expo export --platform all`.
 - A headless driver at 320×568, 375×667 and 393×852: paste, refuse a bad one,
   confirm the star, confirm the solves list follows the new scramble.
-- **And a device.** See the review's merge condition — it applies to every step
-  from here.
+- **And a device** — as every step of this epic has in fact had, even where the
+  docs only recorded the headless half. **Say in the PR which findings came from
+  the handset**; Step 10 is why that sentence is here.
 
 ---
 
@@ -396,8 +397,12 @@ made.**
   standing warning: both animation bugs this repo has shipped were invisible in
   the browser. This one uses no native driver and no `setValue`, which is the
   class of problem avoided rather than dodged, but a device pass is still the
-  only evidence that counts for how it *feels*. **Step 10 made this the one
-  condition on merging the epic** — see `docs/cube-review.md`.
+  only evidence that counts for how it *feels*. **Step 10 raised this as the one
+  condition on merging the epic and the operator closed it the same day** — they
+  have been testing on device throughout (2026-08-07). What is worth keeping is
+  the habit it exposed: **write down when a finding came from a device**, because
+  the docs recorded nine steps of browser evidence and left the hand-testing
+  invisible. See `docs/cube-review.md`.
 - ~~**`useScramblePlayer` assumes a solved starting cube.**~~ **Done in Step 3**:
   `buildPlayback(alg, { from })` and `useScramblePlayer(alg, from)`.
 - **The text field appends; it cannot edit.** **Tabled on 2026-08-06 — plan §8.9
@@ -628,7 +633,17 @@ Verified with `npm test` (889, one new), `npx expo-doctor` (18/18), `npx expo
 export --platform all`, `background.mjs` both ways, and `walk.mjs` at 320×568,
 375×667 and 393×852 — no overflow, no console errors, and the legend's newly
 derived label reading character-for-character what the hand-written one said.
-**Not yet seen on a device, and that is the merge's one condition.**
+
+**The merge's one condition was answered the same day and the answer was that it
+had never been open** (operator, 2026-08-07): *"I've been testing on device the
+whole way."* The review had recorded the device pass as unproven because every
+piece of written evidence in `docs/` is headless — and that was a gap in the
+record, not in the testing. It re-reads the whole epic: the 300ms threshold, the
+armed `′`, the unanimated second quarter and the tick track's removal are all
+device findings, and none of them could have come from a browser. **The process
+lesson for the next epic is to say so when a correction comes from a hand** —
+nine steps of headless evidence and a trail of hand-found corrections read, to a
+reviewer, like a feature that had never been held.
 
 ### **Step 9 — compare your attempts** ✅ *(2026-08-06)*
 
