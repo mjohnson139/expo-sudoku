@@ -44,9 +44,9 @@ export const ROTATION_TOKENS = ['x', "x'", 'x2', 'y', "y'", 'y2', 'z', "z'", 'z2
  * The colour on each face of a solved, unrotated cube — the WCA scheme
  * (`cubeState.STICKER_COLORS`), said the way a person says it.
  *
- * Used to describe an orientation as **"yellow up, blue front"** rather than as
+ * Used to describe an orientation as **"yellow up · blue left"** rather than as
  * `z2 y'`. Nobody inspecting a cube thinks in rotations; they think in the
- * colour that is going on top.
+ * colour that is going on top and the one going on the left.
  */
 export const COLOR_NAMES = {
   U: 'white',
@@ -57,12 +57,21 @@ export const COLOR_NAMES = {
   B: 'blue',
 };
 
-/** Which of the original faces are at the U and F positions — the centres,
- *  which is what identifies an orientation. A face turn never moves a centre,
- *  so this reads the same on a scrambled cube as on a solved one. */
+/**
+ * Which of the original faces are at the U, F and L positions — the centres,
+ * which is what identifies an orientation. A face turn never moves a centre, so
+ * this reads the same on a scrambled cube as on a solved one.
+ *
+ * **The model identifies a hold by `up` and `front`; a person names it by `up`
+ * and `left`.** Both pairs work — any two adjacent faces fix an orientation, and
+ * 6 × 4 is 24 either way — so this is a naming decision rather than a modelling
+ * one, and the table below stays keyed on the pair the rotations are easiest to
+ * search over. See `describeOrientation` for why the *readout* takes the other
+ * pair.
+ */
 const facingOf = (cube) => {
   const faces = facelets(cube);
-  return { up: faces.U[4], front: faces.F[4] };
+  return { up: faces.U[4], front: faces.F[4], left: faces.L[4] };
 };
 
 const keyOf = ({ up, front }) => `${up}${front}`;
@@ -249,16 +258,38 @@ export const viewAfterHold = (yaw, pitch) => {
   return { yaw: Math.atan2(m(0, 2), m(0, 0)), pitch: Math.atan2(m(2, 1), m(1, 1)) };
 };
 
-/** The colours on top and in front of `cube`, named. */
+/** The colours on top of, in front of and to the left of `cube`, named. */
 export const facingColors = (cube) => {
-  const { up, front } = facingOf(cube);
-  return { up: COLOR_NAMES[up], front: COLOR_NAMES[front] };
+  const { up, front, left } = facingOf(cube);
+  return { up: COLOR_NAMES[up], front: COLOR_NAMES[front], left: COLOR_NAMES[left] };
 };
 
-/** `"white up · green front"` — how a hold is written on the screen. */
+/**
+ * `"white up · orange left"` — how a hold is written on the screen.
+ *
+ * ### Why left rather than front (operator, 2026-08-06)
+ *
+ * Roux names a hold by the **top and the left**, and the reason is in the method
+ * rather than in taste: LSE runs on the M slice, and **M moves the front centre
+ * and leaves the left one alone.** So through the part of a solve where the cube
+ * is being turned about most, the front colour is the one that keeps changing
+ * and the left colour is the anchor — it is the face the first block is built
+ * on. A solver holding a cube knows what is on top and what is on the left; they
+ * would have to work out what is in front.
+ *
+ * This is a **readout** decision and nothing below it changes. Up and front
+ * still identify the hold internally, `algForFacing` still takes that pair, and
+ * the save file still stores a rotation prefix rather than any colour at all
+ * (plan §7.2). Up and left identify the hold exactly as well — any two adjacent
+ * faces do — so nothing is lost by saying it the way the method says it.
+ *
+ * One string in one function on purpose: the inspection readout, the solve bar,
+ * the solves list, `Set start`, `Start view` and every accessibility label name
+ * a hold the same way.
+ */
 export const describeOrientation = (cube) => {
-  const { up, front } = facingColors(cube);
-  return `${up} up · ${front} front`;
+  const { up, left } = facingColors(cube);
+  return `${up} up · ${left} left`;
 };
 
 /** The same, opening with a capital, for the start of a line. */

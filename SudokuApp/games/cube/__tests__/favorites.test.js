@@ -114,13 +114,13 @@ describe('readCubeSave', () => {
         scramble: ALG,
         favorites: [{ alg: OTHER, savedAt: 7 }],
         solves: [SOLVE],
-        workspace: { solving: true, solveId: 's1' },
+        workspace: { solving: true, solveId: 's1', view: null },
       })
     ).toEqual({
       scramble: ALG,
       favorites: [{ alg: OTHER, savedAt: 7 }],
       solves: [SOLVE],
-      workspace: { solving: true, solveId: 's1' },
+      workspace: { solving: true, solveId: 's1', view: null },
     });
   });
 
@@ -133,7 +133,7 @@ describe('readCubeSave', () => {
       scramble: '',
       favorites: [],
       solves: [],
-      workspace: { solving: false, solveId: null },
+      workspace: { solving: false, solveId: null, view: null },
     };
     expect(readCubeSave(null)).toEqual(empty);
     expect(readCubeSave('nope')).toEqual(empty);
@@ -152,7 +152,7 @@ describe('readCubeSave', () => {
         scramble: ALG,
         favorites: [{ alg: ALG, savedAt: 3 }],
         solves: [],
-        workspace: { solving: false, solveId: null },
+        workspace: { solving: false, solveId: null, view: null },
       });
     });
 
@@ -162,7 +162,7 @@ describe('readCubeSave', () => {
         scramble: ALG,
         favorites: [{ alg: ALG, savedAt: 3 }],
         solves: [SOLVE],
-        workspace: { solving: true, solveId: 's1' },
+        workspace: { solving: true, solveId: 's1', view: null },
       };
       const read = readCubeSave(step4);
 
@@ -178,7 +178,7 @@ describe('readCubeSave', () => {
           solves: [SOLVE],
           workspace: { solving: true, solveId: 's1' },
         }).workspace
-      ).toEqual({ solving: false, solveId: null });
+      ).toEqual({ solving: false, solveId: null, view: null });
     });
 
     it('keeps a solve whose scramble was never favourited', () => {

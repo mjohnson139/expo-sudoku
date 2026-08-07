@@ -255,9 +255,12 @@ const CubeScreen = ({ onExitToHub }) => {
     );
   }, []);
 
-  // The view angle is deliberately *not* persisted and deliberately *not* reset
-  // by a new scramble: it is where the player is standing, and neither getting a
-  // new scramble nor coming back tomorrow means they wanted to move.
+  // The view angle is **kept** (operator, 2026-08-06) and deliberately not reset
+  // by a new scramble: turning the cube to where you want it is a thing you did
+  // on purpose, and neither getting a new scramble nor coming back tomorrow
+  // means you wanted it moved. `DEFAULT_YAW`/`DEFAULT_PITCH` are the *opening*
+  // view — the first visit, and where `Reset view` and `Start view` go back to —
+  // rather than the view every visit begins at. Plan §7.1.
   const [yaw, setYaw] = useState(DEFAULT_YAW);
   const [pitch, setPitch] = useState(DEFAULT_PITCH);
 
@@ -288,6 +291,12 @@ const CubeScreen = ({ onExitToHub }) => {
       // not at all — the screen never has to hold a pointer to nothing.
       setOpenId(saved.workspace.solveId);
       setSolving(saved.workspace.solving);
+      // Only when there is one: a first visit has no remembered angle, and the
+      // default the state already holds is the opening view.
+      if (saved.workspace.view) {
+        setYaw(saved.workspace.view.yaw);
+        setPitch(saved.workspace.view.pitch);
+      }
       // First ever visit: there should be a cube to look at, not an empty screen
       // with a button on it.
       setScramble(saved.scramble || randomScramble());
@@ -301,15 +310,21 @@ const CubeScreen = ({ onExitToHub }) => {
 
   // Persist after hydration only — writing before the read lands would overwrite
   // the player's solves with the empty list this screen starts at.
+  //
+  // `yaw` and `pitch` change on every frame of a drag, and that is what the
+  // debounce in `saveCubeState` is for: the timer restarts while the finger is
+  // moving and one write lands 400ms after it stops. A drag is the *only* thing
+  // on this screen that changes state continuously, so it is also the only thing
+  // that would have made an undebounced writer obvious.
   useEffect(() => {
     if (!hydrated) return;
     saveCubeState({
       scramble,
       favorites,
       solves,
-      workspace: { solving, solveId: openId },
+      workspace: { solving, solveId: openId, view: { yaw, pitch } },
     });
-  }, [hydrated, scramble, favorites, solves, solving, openId]);
+  }, [hydrated, scramble, favorites, solves, solving, openId, yaw, pitch]);
 
   // Leaving for the hub unmounts the screen, and a debounced write that has not
   // fired yet is a write that never happens.
@@ -877,7 +892,7 @@ const CubeScreen = ({ onExitToHub }) => {
 
   // Live while inspecting — this updates under the finger as the cube is
   // dragged, and it is the thing that makes picking a hold trustworthy. Reading
-  // colours off a 120-point cube is guesswork; reading "yellow up · blue front"
+  // colours off a 120-point cube is guesswork; reading "yellow up · blue left"
   // is not.
   const facingCube = inspecting
     ? applyMoves(scrambledCube, parseAlg(orientationAt(yaw, pitch)))

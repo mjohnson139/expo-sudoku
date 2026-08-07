@@ -53,6 +53,7 @@
  * screen to disagree.
  */
 
+import { wrapAngle } from './geometry';
 import { isValidAlg, moveCount, normalizeAlg } from './moves';
 
 /**
@@ -430,6 +431,147 @@ export const announcePhaseSpan = (span) => {
   return `${name}, ${count} moves, ${span.at + 1} to ${span.end}`;
 };
 
+// ——— Comparing the attempts (plan §8.10, Step 9) ——————————————————————————
+
+/**
+ * One ordering over every label, from the orders the solves themselves use.
+ *
+ * Each solve names its groups in the order it wrote them, and those orders are
+ * the only evidence there is about how the columns should sit. So they are
+ * merged: walk a solve's labels, and a label already in the result moves the
+ * cursor to just after it while a new one is inserted at the cursor. Two Roux
+ * solves agree and produce four columns; a Roux solve and a CFOP one share
+ * nothing and produce eight, four of which each solve leaves empty. **That is
+ * the honest answer** — a `Cross` column and a `First block` column are not the
+ * same column, and lining them up by position would invent an equivalence
+ * nobody stated.
+ *
+ * The cursor is what makes a partial solve harmless: an attempt that names only
+ * `First block` and `CMLL` still leaves `Second block` between them rather than
+ * pushing it to the end. The flip side is that a solve which jumped from the
+ * first block straight to LSE puts `LSE` directly after `First block` — which is
+ * all the evidence there is, since nothing here knows what Roux's phases mean.
+ */
+const mergeLabelOrder = (sequences) => {
+  const order = [];
+
+  sequences.forEach((labels) => {
+    let cursor = order.length;
+    labels.forEach((label) => {
+      const found = order.indexOf(label);
+      if (found === -1) {
+        order.splice(cursor, 0, label);
+        cursor += 1;
+      } else {
+        cursor = found + 1;
+      }
+    });
+  });
+
+  return order;
+};
+
+/**
+ * The named groups of one solve, totalled by name.
+ *
+ * **Unnamed spans are not compared.** `In progress` is what this solve has not
+ * said yet, not a phase two solves can have in common — and the boundary at the
+ * very end of a solve, the one the last "end the phase" opened, is an unnamed
+ * span of zero moves that the strip already declines to draw. Neither becomes a
+ * column here, so a solve's row can total less than its move count; the row
+ * carries that total separately rather than pretending the columns add up.
+ *
+ * A label used twice in one solve is summed, and the number of groups is kept —
+ * two goes at the second block *is* twelve moves of second block, and the row
+ * should say it was two groups rather than quietly reading like one.
+ */
+const countByLabel = (spans) => {
+  const totals = new Map();
+
+  spans.forEach((span) => {
+    const label = (span && span.label) || '';
+    if (label.length === 0) return;
+    const seen = totals.get(label) || { count: 0, groups: 0 };
+    totals.set(label, { count: seen.count + span.count, groups: seen.groups + 1 });
+  });
+
+  return totals;
+};
+
+/**
+ * The attempts at one scramble, side by side (plan §8.10).
+ *
+ * *"Am I getting better at this scramble?"* is the question a single solve
+ * screen cannot answer: `First block · 8` is a fact with nothing beside it.
+ * This arranges what Step 6 already computes — **nothing here counts anything**,
+ * `phaseSpans` does, and a second implementation of "how long is the first
+ * block" is how a comparison ends up disagreeing with the screen it compares.
+ *
+ * ```js
+ * {
+ *   labels: ['First block', 'Second block'],
+ *   rows: [{ id, name, total, annotated, cells: [{ label, count, groups, best } | null] }],
+ * }
+ * ```
+ *
+ * - **Rows read oldest first.** The list arrives newest-first, which is right
+ *   for a picker and backwards for this: improvement happens forwards, so the
+ *   column reads 8, 7, 6 down the page.
+ * - **`cells` is aligned to `labels`**, with `null` where a solve did not mark
+ *   that phase. A row of nulls is a solve with no markers at all, and it is a
+ *   legitimate thing to have written — `annotated` is false and the screen says
+ *   so plainly rather than showing it as a row of misses.
+ * - **`best` marks the fewest moves, and only where there is a comparison to
+ *   make.** A phase exactly one solve has marked has no best; marking it would
+ *   dress up a sample of one. Ties are all marked, because they are all the
+ *   fewest. **Nothing is averaged** — a mean over four attempts, one of them
+ *   abandoned half way, is a number that lies (plan §8.10).
+ */
+export const comparePhases = (solves) => {
+  const list = [...(solves || [])].reverse();
+
+  const counted = list.map((solve) => ({
+    solve,
+    total: moveCount(solve && solve.alg),
+    totals: countByLabel(phaseSpans(solve && solve.phases, moveCount(solve && solve.alg))),
+  }));
+
+  const labels = mergeLabelOrder(counted.map(({ totals }) => [...totals.keys()]));
+
+  // The fewest moves in each column, and how many solves are in it — one entry
+  // is a sample of one and gets no marker.
+  const bests = new Map();
+  labels.forEach((label) => {
+    const counts = counted
+      .filter(({ totals }) => totals.has(label))
+      .map(({ totals }) => totals.get(label).count);
+    if (counts.length >= 2) bests.set(label, Math.min(...counts));
+  });
+
+  const rows = counted.map(({ solve, total, totals }) => ({
+    id: solve.id,
+    name: solve.name,
+    total,
+    annotated: totals.size > 0,
+    cells: labels.map((label) => {
+      if (!totals.has(label)) return null;
+      const { count, groups } = totals.get(label);
+      return { label, count, groups, best: bests.get(label) === count };
+    }),
+  }));
+
+  return { labels, rows };
+};
+
+/** What one cell says out loud — the part a two-digit number in a 52-point
+ *  column has no room for. */
+export const announceCompareCell = (name, label, cell) => {
+  if (!cell) return `${name}, ${label} not marked`;
+  const moves = cell.count === 1 ? '1 move' : `${cell.count} moves`;
+  const groups = cell.groups > 1 ? `, ${cell.groups} groups` : '';
+  return `${name}, ${label}, ${moves}${groups}${cell.best ? ', fewest so far' : ''}`;
+};
+
 /**
  * The patch that changes a solve's moves — **and the only way the screen should
  * change them.**
@@ -530,24 +672,59 @@ export const sanitizeSolves = (raw) => {
 };
 
 /**
+ * The angle the cube was left at, brought into shape.
+ *
+ * `null` means "nothing remembered", which is a first visit and is the screen's
+ * cue to open at the default view rather than at a corner of a file. Anything
+ * else is two angles in radians, wrapped the way every other angle in this app
+ * is wrapped — a corrupt file holding `1e9` is finite and is not an angle
+ * anybody can look at, and `wrapAngle` is the one function that decides what a
+ * yaw of 1e9 means.
+ */
+const sanitizeView = (raw) => {
+  if (!raw || typeof raw !== 'object') return null;
+  if (!Number.isFinite(raw.yaw) || !Number.isFinite(raw.pitch)) return null;
+  return { yaw: wrapAngle(raw.yaw), pitch: wrapAngle(raw.pitch) };
+};
+
+/**
  * Where the operator was standing, brought into shape.
  *
  * This is the other half of "come back to what you left" (plan §7.1): the data
- * is the solves, and this is the *workspace* — which solve was open, and whether
- * solve mode was open at all. What is deliberately **not** here is the scrub
- * position, the view angle and the speed, which are where you are standing
- * rather than what you wrote.
+ * is the solves, and this is the *workspace* — which solve was open, whether
+ * solve mode was open at all, and **which way the cube was turned**.
  *
- * Both fields are cross-checked against what actually survived sanitizing: an
+ * ### The angle is kept now, and that is a change to §7.1 (operator, 2026-08-06)
+ *
+ * It was not, and the rule it was excluded by is a good rule: *everything
+ * authored is kept, everything about how you are currently looking at it is
+ * not.* The scrub position and the turn speed still fall on the wrong side of
+ * that line — restoring somebody into the middle of a half-played scramble is
+ * worse than opening it whole.
+ *
+ * **The angle turned out to be on the other side of it.** *"Once the user moves
+ * the cube we want to remember the camera position so it doesn't reset when they
+ * background the app and come back."* Turning the cube to where you want it is
+ * closer to putting it down on the table than to scrolling: it is a thing you
+ * did on purpose and expect to find as you left it. So the default view is the
+ * *opening* view — the first visit, and whatever `Reset view` and `Start view`
+ * go back to — rather than the view every visit begins at.
+ *
+ * The two ids are cross-checked against what actually survived sanitizing: an
  * open solve has to exist and has to belong to the scramble on screen, and solve
- * mode with nothing open is not a state this screen has.
+ * mode with nothing open is not a state this screen has. The angle needs no such
+ * check, because an angle is valid against any cube.
  */
 export const sanitizeWorkspace = (raw, { solves, scramble }) => {
   const wanted = raw && typeof raw === 'object' ? raw : {};
   const open = findSolve(solves, wanted.solveId);
   const solveId = open && open.scramble === normalizeAlg(scramble) ? open.id : null;
 
-  return { solving: solveId !== null && wanted.solving === true, solveId };
+  return {
+    solving: solveId !== null && wanted.solving === true,
+    solveId,
+    view: sanitizeView(wanted.view),
+  };
 };
 
 /** `"8 moves"`, or `"empty"` — what a row in the picker says about itself. */
@@ -580,5 +757,7 @@ export default {
   currentSpan,
   describePhaseSpan,
   announcePhaseSpan,
+  comparePhases,
+  announceCompareCell,
   withMoves,
 };
