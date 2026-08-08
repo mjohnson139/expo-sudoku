@@ -47,17 +47,6 @@ What the review is signing off:
   `padPalette.js`, `BASE_MOVES`/`WIDE_MOVES` in `moves.js`. Two exceptions were
   found and both are noted below; both were one-line-class problems, not
   structural ones.
-> **Postscript, 2026-08-07 (Step 10a).** The operator found a real bug the day
-> this merged — the pad's promotion animated backwards on `L`, `D` and `B` — and
-> it is worth reading against finding 2 rather than as an unrelated escape.
-> **Both are the same shape**: a value that is correct everywhere a test can see
-> it, and wrong at the one seam a test cannot. Finding 2 was a table the tests
-> walked with an assertion too weak to fail; this was a field dropped inside a
-> hook, which the node runner cannot reach at all. The review checked whether
-> rules had one home. It did not ask **which lines no test can see** — and on this
-> codebase that is a short, enumerable list: the object literals hooks hand to
-> components. `renderTurn` is the first of them to be pulled into the pure core.
-
 - **The one-rule-one-function rule holds where it matters most.** `clampPhases`
   has exactly two callers and they are the live edit and the file read, which is
   the pairing Step 6's scar is about. `withMoves` funnels every edit to a solve's
@@ -68,6 +57,23 @@ What the review is signing off:
   SDK, no base class, no abstract `Game`. `games/registry.js` is a list of seven-
   field objects and the hub maps over it. **This review proposes none of those
   either** — three games is not evidence for any of them.
+
+> **Postscript, 2026-08-07 — and the one thing this review did not ask.**
+>
+> The operator found a real bug the same day this merged: the pad's promotion
+> animated backwards on `L`, `D` and `B` (Step 10a). It belongs here rather than
+> in a separate note, because it is **the same shape as this review's own finding
+> 2** — a value that is correct everywhere a test can see it and wrong at the one
+> seam a test cannot. Finding 2 was a table the suite already walked, with an
+> assertion too weak to fail. Step 10a was a field dropped inside a hook, which
+> the node runner cannot reach at all.
+>
+> So the bar in §8.11 has a fourth question hiding behind it, and this review did
+> not ask it: **which lines can no test see?** On this codebase that list is
+> short and enumerable — the object literals hooks hand to components — and it is
+> exactly where nine steps of green tests were hiding a reversed animation.
+> `renderTurn` is the first of them pulled into the pure core; the rest are worth
+> an afternoon whenever someone is next in `useScramblePlayer` or `CubeScreen`.
 
 ---
 
