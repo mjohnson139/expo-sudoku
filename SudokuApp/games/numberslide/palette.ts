@@ -35,7 +35,7 @@ import { contrastRatio, hexToRgb, mix, readableOn, relativeLuminance } from '../
  * a tile looks like: the tray is the grid's background, a tile face is a cell's
  * background, and a number on a tile is inked in the colour that theme prints a
  * given digit in. The accent — the solved board, the primary button, the code
- * chip, the record badge — is `cell.userValueText`, the colour each theme
+ * chip, the SOLVED badge — is `cell.userValueText`, the colour each theme
  * already uses for *what the player put there*, and it is the one token that is
  * visibly different on all seven.
  */
@@ -135,7 +135,6 @@ export interface NSPalette {
   /** The win overlay, drawn over the board. */
   backdrop: string;
   winInk: string;
-  winMuted: string;
   winAccent: string;
   confetti: string[];
 }
@@ -233,7 +232,6 @@ export function numberSlidePalette(theme: AppTheme, isDark: boolean): NSPalette 
     // lifts a dark accent board to a mid tone that the page's own ink is only
     // about 3.4:1 against. So the surface is computed and the text is held to it.
     winInk: ensureContrast(ink, winSurface, TEXT_CONTRAST),
-    winMuted: ensureContrast(muted, winSurface, TEXT_CONTRAST),
     // 30pt bold: WCAG's large-text bar, not the body one.
     winAccent: ensureContrast(accent, winSurface, GRAPHIC_CONTRAST),
     // Decorative, but not invisible: each piece is held to 2:1 against the tray

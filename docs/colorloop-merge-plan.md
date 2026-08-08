@@ -324,7 +324,7 @@ guarantee:
 2. **Every part is played by the token that already plays it in Sudoku**: the
    tray is `grid.background`, a tile face is `cell.background`, a number on a tile
    is `cell.initialValueText`, and the accent — solved board, primary button, code
-   chip, record badge — is `cell.userValueText`, the colour each theme prints the
+   chip, SOLVED badge — is `cell.userValueText`, the colour each theme prints the
    *player's own answer* in. That last one is also the only token that differs on
    all seven, which is what makes cycling the theme visibly carry the screen.
 3. **`ensureContrast(colour, against, min)` blends toward black or white until the
@@ -416,11 +416,18 @@ Two consequences to honour:
 - **A player's Color Loop board is currently not resumable at all** — the games
   persist bests and settings, never an in-progress board. See §4.6.
 
-Step 1 landed the first of the two blobs: `@NumberSlide`, `_v: 1`, holding
-`best`, with the shape rules in a pure `readNumberSlideSave` that the node runner
-tests — the split `games/cube/solveList.js` and
-`games/fungiku/saveMigration.js` already use. Step 3 adds the in-progress board
-to the same object rather than to a second key.
+**Step 1 built `@NumberSlide` and then removed it again** (operator, 2026-08-08:
+*"let's remove the high score portion of the number slide"*), and the removal is
+the more useful record. A personal best on a game whose whole point is a
+*shareable* code is the wrong scoreboard — the board is the same board on
+everyone's phone, so the interesting comparison is against the person you sent
+the code to, not against yourself last Tuesday. Number Slide therefore persists
+**nothing** as of Step 1, and its card carries no badge.
+
+The consequence for §4.6 is real: **`describeNumberSlideProgress` has no standing
+to fall back to.** Number Slide's Continue badge now depends entirely on the
+resumable board Step 3 adds — there is no "best time" second-best answer. Color
+Loop still has `Training · 7 of 18 · 14★`.
 
 ### 4.5 Codes are the platform's most interesting idea, and this epic does not build a framework for it
 
@@ -461,8 +468,9 @@ Two ways out, and the epic takes both, in order:
    costing the player their run — which is the platform behaviour Fungiku's §6
    established and a guest game should not quietly break.
 2. **Fall back to standing**, the way the cube does when there is no solve to
-   return to: `Training · 7 of 18 · 14★` for Color Loop, the best time for
-   Number Slide.
+   return to: `Training · 7 of 18 · 14★` for Color Loop. **Number Slide has no
+   fallback** — its best time was removed in Step 1 (§4.4), so its card is
+   blank until there is a board to resume.
 
 `describeColorLoopProgress` and `describeNumberSlideProgress` go **next to the
 games**, not into `utils/gameProgress.js`. The cube's review named that file's

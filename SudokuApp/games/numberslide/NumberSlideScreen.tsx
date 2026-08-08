@@ -33,7 +33,6 @@ import {
   nsShuffle,
   nsSlideAt,
 } from './logic';
-import { NSBest, loadBest, saveBest } from './storage';
 import { numberSlidePalette } from './palette';
 import { useBoardOrigin } from './useBoardOrigin';
 
@@ -76,27 +75,13 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
   const [moves, setMoves] = useState(0);
   const [secs, setSecs] = useState(0);
   const [solved, setSolved] = useState(false);
-  const [best, setBest] = useState<NSBest | null>(null);
-  const [wasRecord, setWasRecord] = useState(false);
   const [toast, setToast] = useState('');
   const [showCodeEntry, setShowCodeEntry] = useState(false);
   const [codeInput, setCodeInput] = useState('');
-  const [nameInput, setNameInput] = useState('');
-  const [showNameEdit, setShowNameEdit] = useState(false);
 
   const startTimeRef = useRef(0);
   const runningRef = useRef(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadBest().then((saved) => {
-      if (!cancelled) setBest(saved);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const started = moves > 0;
   useEffect(() => {
@@ -159,9 +144,8 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
     animateSlide();
     setState(res.state);
     setMoves((m) => {
-      const total = m + res.moved.length;
-      if (nsIsSolved(res.state.board)) onSolved(total);
-      return total;
+      if (nsIsSolved(res.state.board)) onSolved();
+      return m + res.moved.length;
     });
   };
 
@@ -207,32 +191,18 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
   const shownSecs = useCountUp(secs, solved, 1200);
   const shownMoves = useCountUp(moves, solved, 1200);
 
-  const onSolved = (finalMoves: number) => {
+  const onSolved = () => {
     const t = Math.floor((Date.now() - startTimeRef.current) / 1000);
     runningRef.current = false;
     setSecs(t);
     setSolved(true);
-    const record = !best || t < best.secs;
-    setWasRecord(record);
 
     // `expo-haptics`, not RN's `Vibration` — one API for one thing, and
     // `Vibration` has no iOS intensity control (plan §6). Web has no haptics and
     // resolves to a no-op, so the platform guard is belt and braces. **This is a
     // device-only check**: no browser pass covers it.
     if (Platform.OS !== 'web') {
-      if (record) {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      } else {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-      }
-    }
-
-    if (record) {
-      const nb = { secs: t, moves: finalMoves, name: best?.name ?? '' };
-      setBest(nb);
-      saveBest(nb);
-      setShowNameEdit(true);
-      setNameInput(best?.name ?? '');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     }
   };
 
@@ -273,8 +243,6 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
     setMoves(0);
     setSecs(0);
     setSolved(false);
-    setWasRecord(false);
-    setShowNameEdit(false);
     runningRef.current = false;
   };
 
@@ -293,14 +261,6 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
     setShowCodeEntry(false);
     shuffle(sd);
     showToast('Loaded Puzzle ' + nsSeedCode(sd) + ' — good luck');
-  };
-
-  const saveName = () => {
-    if (!best) return;
-    const nb = { ...best, name: nameInput.trim().slice(0, 12) };
-    setBest(nb);
-    saveBest(nb);
-    setShowNameEdit(false);
   };
 
   const tiles: React.ReactNode[] = [];
@@ -366,14 +326,8 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
       </Text>
 
       <View style={styles.stats}>
-        <Stat label="MOVES" value={String(moves)} holder=" " palette={palette} />
-        <Stat label="TIME" value={formatElapsed(secs)} holder=" " palette={palette} />
-        <Stat
-          label="BEST"
-          value={best ? formatElapsed(best.secs) : '—'}
-          holder={best?.name ?? ' '}
-          palette={palette}
-        />
+        <Stat label="MOVES" value={String(moves)} palette={palette} />
+        <Stat label="TIME" value={formatElapsed(secs)} palette={palette} />
       </View>
 
       <View>
@@ -402,52 +356,14 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
             ]}
           >
             <PopIn delay={560} from={0.55}>
-              <Text style={[styles.winBadge, { color: palette.winAccent }]}>
-                {wasRecord ? 'NEW RECORD!' : 'SOLVED'}
-              </Text>
+              <Text style={[styles.winBadge, { color: palette.winAccent }]}>SOLVED</Text>
             </PopIn>
             <FadeSlideIn delay={720}>
               <Text style={[styles.winLine, { color: palette.winInk }]}>
                 {shownMoves} {moves === 1 ? 'move' : 'moves'} · {formatElapsed(shownSecs)}
               </Text>
             </FadeSlideIn>
-            {!wasRecord && best && (
-              <FadeSlideIn delay={800}>
-                <Text style={[styles.winSub, { color: palette.winMuted }]}>
-                  Best to beat: {formatElapsed(best.secs)}
-                  {best.name ? ` by ${best.name}` : ''}
-                </Text>
-              </FadeSlideIn>
-            )}
-            {showNameEdit && (
-              <FadeSlideIn delay={840} style={styles.nameRow}>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      color: palette.inputText,
-                      backgroundColor: palette.inputBackground,
-                      borderColor: palette.inputBorder,
-                    },
-                  ]}
-                  value={nameInput}
-                  onChangeText={setNameInput}
-                  placeholder="Name"
-                  placeholderTextColor={palette.inputPlaceholder}
-                  maxLength={12}
-                  onSubmitEditing={saveName}
-                />
-                <Btn
-                  label="Save"
-                  small
-                  onPress={saveName}
-                  color={palette.button}
-                  textColor={palette.buttonText}
-                  pressedColor={palette.buttonPressed}
-                />
-              </FadeSlideIn>
-            )}
-            <FadeSlideIn delay={880}>
+            <FadeSlideIn delay={800}>
               <Btn
                 label="Play again"
                 onPress={() => shuffle()}
@@ -495,7 +411,7 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
       </View>
 
       {showCodeEntry && (
-        <View style={styles.nameRow}>
+        <View style={styles.codeRow}>
           <TextInput
             style={[
               styles.input,
@@ -561,17 +477,14 @@ function animateSlide(): void {
   );
 }
 
-/** One of the three readouts above the board. `holder` reserves the name line so
- *  the row's height does not change when a record gains an owner. */
+/** One of the two readouts above the board. */
 function Stat({
   label,
   value,
-  holder,
   palette,
 }: {
   label: string;
   value: string;
-  holder: string;
   palette: ReturnType<typeof numberSlidePalette>;
 }) {
   return (
@@ -580,9 +493,6 @@ function Stat({
     >
       <Text style={[styles.statK, { color: palette.panelLabel }]}>{label}</Text>
       <Text style={[styles.statV, { color: palette.panelText }]}>{value}</Text>
-      <Text style={[styles.statHolder, { color: palette.accent }]} numberOfLines={1}>
-        {holder}
-      </Text>
     </View>
   );
 }
@@ -606,7 +516,7 @@ const styles = StyleSheet.create({
   goalLine: { fontSize: 12.5, textAlign: 'center' },
   stats: { flexDirection: 'row', gap: 10 },
   stat: {
-    minWidth: 92,
+    minWidth: 110,
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: 12,
@@ -620,7 +530,6 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     marginTop: 2,
   },
-  statHolder: { fontSize: 11, minHeight: 13, marginTop: 1 },
   board: {
     borderRadius: 22,
     overflow: 'hidden',
@@ -657,8 +566,7 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
   },
   winLine: { fontSize: 14, fontVariant: ['tabular-nums'] },
-  winSub: { fontSize: 12.5 },
-  nameRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
+  codeRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
   input: {
     borderWidth: 1,
     borderRadius: 10,

@@ -77,7 +77,6 @@ describe.each(THEME_NAMES)('the %s theme', (name) => {
   it('reads the win card over the scrim over the lit board', () => {
     const surface = mix(p.litTile, p.background, BACKDROP_ALPHA);
     expect(contrastRatio(p.winInk, surface)).toBeGreaterThanOrEqual(TEXT);
-    expect(contrastRatio(p.winMuted, surface)).toBeGreaterThanOrEqual(TEXT);
     // The badge is 30pt bold — WCAG's large-text bar.
     expect(contrastRatio(p.winAccent, surface)).toBeGreaterThanOrEqual(GRAPHIC);
   });

@@ -136,15 +136,21 @@ out to be what `allowJs: false` actually costs, a `typecheck` script, the Jest
 `.ts`/`.tsx` transform in this repo's node environment, `utils/rng.ts`,
 `utils/motion.ts` + `components/Motion.tsx`, `components/Confetti.tsx`, the two
 `Controls` primitives the screen uses, `expo-clipboard`, `Vibration` →
-`expo-haptics`, `@NumberSlide` as a versioned one-blob save, and
-`games/numberslide/` rendering **entirely** from `useAppTheme` through a pure
+`expo-haptics`, and `games/numberslide/` rendering **entirely** from `useAppTheme` through a pure
 `palette.ts` whose contrast floors hold by construction on all seven themes. A
-fourth registry entry with **no `readProgress`** (Step 3 owns badges). 117 new
-tests: the 17 incoming `logic.test.ts` cases untouched, the save shape, the
-palette on every theme, and a guard that stops the `.d.ts` shims drifting from
-the JavaScript they speak for. §4.1, §4.2, §4.4, §3 and §6 of the plan were all
-amended with what it found — **read those before Step 2, they are most of its
-brief.**
+fourth registry entry with **no `readProgress`** (Step 3 owns badges). 125 new
+tests: the 17 incoming `logic.test.ts` cases untouched, the palette on every
+theme, and a guard that stops the `.d.ts` shims drifting from the JavaScript
+they speak for.
+
+**The best time came back out before the step shipped** (operator, 2026-08-08),
+and it takes `@NumberSlide` with it — the game persists nothing. See plan §4.4
+for why, and note the consequence Step 3 inherits: **Number Slide's Continue
+badge has no fallback to stand on**, so its card stays blank until there is a
+resumable board.
+
+§4.1, §4.2, §4.4, §3 and §6 of the plan were all amended with what this step
+found — **read those before Step 2, they are most of its brief.**
 
 ---
 

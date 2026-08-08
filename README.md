@@ -65,7 +65,6 @@ sibling `color-loop` app.
 - **A shareable puzzle code.** Every board is a pure function of its seed, so
   the five characters on the chip *are* the puzzle — copy one, send it, and race
   the same board on someone else's phone.
-- **Your best time, with your name on it**, kept between visits.
 - **It wears whichever theme you picked.** There is no colour of its own
   anywhere on the screen: the tray, the tiles, the numbers and the accent all
   come from the theme, so cycling it carries the whole game with it.
