@@ -557,11 +557,70 @@ made.**
   noted rather than fixed.
 - **Half turns animate clockwise.** `shortWay(2)` is 2, not −2; both land in the
   same place and nothing prefers one. If a solve tutorial ever wants `R2` to go
-  the way a particular fingertrick goes, that is the line to change.
+  the way a particular fingertrick goes, that is the line to change. **A
+  *promotion* is the exception and must not use it** — see Step 10a: the cube is
+  already a quarter of the way round, so the sweep is signed and the renderer has
+  to be told.
+- **Anything a hook hands to a component is a seam a test cannot reach**, and
+  Step 10a is what that costs. `renderTurn` exists because one object spread
+  inside `useScramblePlayer` silently dropped a field for nine steps while every
+  unit test passed. If a component starts receiving something assembled inline in
+  a hook, that assembly belongs in a pure function.
 
 ---
 
 ## Steps already done
+
+### **Step 10a — the promotion turned the wrong way** ✅ *(2026-08-07)*
+
+A device finding, from the operator using the pad the day the review merged:
+*"double tapping for moves like L and D, the animation seems to reverse the
+direction."*
+
+It was exactly that, and the diagnosis is worth keeping because **every piece of
+the mechanism was already correct**. `promotedTurn` computed the signed sweep,
+`animate` carried it, `turnAngle` and `partialTurn` honoured it, `buildScene`
+accepted it — and `useScramblePlayer` **dropped it one spread short of the
+renderer**:
+
+```js
+const turning = live ? { ...moves[live.at], t: live.t } : null;   // no `turns`
+```
+
+Without it `buildScene` falls back to `shortWay(amount)`, which for a half turn
+is always `+2`. **`L`, `D` and `B` look down the negative end of their axis**, so
+they carry `amount: 3` and turn anticlockwise: their promotions jumped from +90°
+to −90° on the frame the second tap landed, then travelled the wrong way round to
+−180°. `R`, `U` and `F` sweep `+2` anyway and were perfect — which is exactly why
+the report named L and D.
+
+**Why nine steps of tests never saw it.** Step 8 pinned the signed sweep hard, at
+`turnAngle` and `partialTurn`, including a test literally called *"would snap
+without the signed sweep, which is the bug it fixes"* — and all of it passed
+throughout, because **the arithmetic was never wrong.** The bug was in a line
+inside a hook, which the node runner cannot reach. So the fix is two things:
+
+- **`renderTurn` in `player.js`** — the assembly of the renderer's turn, lifted
+  out of the hook into a pure function and pinned there. The rule this
+  establishes is in the golden rules now: *anything a hook hands to a component
+  is a seam a test cannot reach.*
+- **A `buildScene` test that asserts the picture rather than the angle**: a `D`
+  that has finished its quarter and a `D2` picked up at `t = 0.5` must draw the
+  same 27 stickers in the same 27 places. With the sweep, all six faces are
+  27/27. Without it, `R`/`U`/`F` are still 27/27 and **`L`/`D`/`B` are 21/27** —
+  the six stickers that changed sides, which is the reversal a thumb sees.
+
+**One measurement trap, recorded because it cost most of the time.** A headless
+driver comparing polygon *positions* across the promotion calls the bug smooth,
+and it is not a bug in the driver: **a layer turned 180° lands on the same nine
+screen positions it started on** — the cubies swap places among themselves. What
+changes is *which colour sits where*, and sticker shading follows the face
+normal, so colour is not a stable key mid-turn either. That is why the guard is
+two pure tests at the two seams rather than a pixel check.
+
+911 tests (22 new). `npx expo-doctor` 18/18, `npx expo export --platform all`,
+and a driver confirming every face still promotes and animates with no console
+errors.
 
 ### **Step 10 — the architecture review, and the merge decision** ✅ *(2026-08-07)*
 

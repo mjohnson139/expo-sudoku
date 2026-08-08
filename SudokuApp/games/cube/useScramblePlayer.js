@@ -8,6 +8,7 @@ import {
   gapDuration,
   nextSpeed,
   promotedTurn,
+  renderTurn,
   turnDuration,
 } from './player';
 
@@ -442,7 +443,11 @@ const useScramblePlayer = (alg, from) => {
   // renderer first — as `undefined`.
   const live = turn && turn.at < count ? turn : null;
   const cube = live ? states[live.at] : states[clampIndex(index, count)];
-  const turning = live ? { ...moves[live.at], t: live.t } : null;
+  // **`renderTurn`, and not a spread written here.** This line dropped the
+  // promotion's signed sweep for nine steps and no test could see it, because a
+  // line inside a hook is not something the node runner can reach. It is a pure
+  // function in `player.js` now, pinned there, and this is the call.
+  const turning = renderTurn(moves[live ? live.at : 0], live);
 
   return {
     moves,
