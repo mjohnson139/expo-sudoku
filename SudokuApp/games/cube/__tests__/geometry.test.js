@@ -238,6 +238,82 @@ describe('buildScene', () => {
       solved.polygons.map((p) => p.fill)
     );
   });
+
+  /**
+   * **The promotion's frame, at the seam the renderer actually reads.**
+   *
+   * `turnAngle` and `partialTurn` have pinned the signed sweep since Step 8, and
+   * they kept passing while the promotion animated backwards on a phone — because
+   * the value was computed correctly and then **dropped one spread short of
+   * `buildScene`** (operator, 2026-08-07: *"double tapping for moves like L and
+   * D, the animation seems to reverse the direction"*).
+   *
+   * So this asserts the thing that was broken rather than the arithmetic under
+   * it: **the first frame of the promoted half turn is the frame the cube is
+   * already showing.** A `D` that has finished its quarter and a `D2` picked up
+   * at `t = 0.5` must draw the same 27 stickers in the same 27 places.
+   *
+   * Vertices are compared as a set per polygon: the same square listed from a
+   * different corner is the same square, which is exactly what carrying corners
+   * round by 90° does to the ordering.
+   */
+  describe('a promoted half turn picks up where the quarter left off', () => {
+    const stickers = (turn) =>
+      new Set(
+        scene({ turn })
+          .polygons.filter((polygon) => polygon.key.endsWith(':tile'))
+          .map(
+            (polygon) =>
+              `${polygon.fill}|${polygon.points
+                .map((point) => point.map((n) => n.toFixed(1)).join(','))
+                .sort()
+                .join(' ')}`
+          )
+      );
+
+    const overlap = (a, b) => [...a].filter((entry) => b.has(entry)).length;
+
+    it.each([
+      ['R', 2],
+      ['U', 2],
+      ['F', 2],
+      ['L', -2],
+      ['D', -2],
+      ['B', -2],
+    ])('%s2 continues the %s it grew from', (face, turns) => {
+      const finished = stickers({ ...parseMove(face), t: 1 });
+      const promoted = stickers({ ...parseMove(`${face}2`), t: 0.5, turns });
+
+      expect(promoted.size).toBe(27);
+      expect(overlap(finished, promoted)).toBe(27);
+    });
+
+    /**
+     * And the half that would go unnoticed. `R`, `U` and `F` carry `amount: 1`
+     * and sweep `+2`, so the default is already the right way round and the bug
+     * was invisible on them — which is why the report named L and D.
+     */
+    it.each(['R', 'U', 'F'])('%s2 is continuous even without the sweep', (face) => {
+      const finished = stickers({ ...parseMove(face), t: 1 });
+      const naive = stickers({ ...parseMove(`${face}2`), t: 0.5 });
+
+      expect(overlap(finished, naive)).toBe(27);
+    });
+
+    /**
+     * The three that broke. `L`, `D` and `B` look down the negative end of their
+     * axis, so they carry `amount: 3` and turn anticlockwise — and the default
+     * `shortWay(2)` of `+2` puts the layer 180° from where the cube is standing.
+     * Six of the 27 stickers land somewhere else entirely, which is the reversal
+     * a thumb sees.
+     */
+    it.each(['L', 'D', 'B'])('%s2 visibly jumps without the sweep', (face) => {
+      const finished = stickers({ ...parseMove(face), t: 1 });
+      const naive = stickers({ ...parseMove(`${face}2`), t: 0.5 });
+
+      expect(overlap(finished, naive)).toBe(21);
+    });
+  });
 });
 
 describe('shortWay', () => {
