@@ -514,10 +514,15 @@ which is a review and ships a verdict instead (§8.11).
 | **7** | **Give the page back to the cube.** The chrome takes two thirds of the screen and the biggest piece of it grows as you drill; cut it to a budget | **shipped** (#92, 2026-08-05) |
 | **8** | **The designed solve screen.** A spatial cross pad, hold-for-prime, and a phase-split tick scrubber — from a settled design bundle, and the answer to §9.8 | **shipped** (2026-08-05) |
 | **9** | **Compare your attempts.** Every solve written at this scramble, with its phase counts beside each other — "my first block over five attempts" | **shipped** (2026-08-06) |
-| **10** | **Architecture review, and the merge decision.** Does what we built meet the bar, does it plug into the platform the way the platform expects, and can `epic/cube` go to `main`? | |
-| **11** | **Enter a cube by hand.** Paste an algorithm, or set the colours facelet by facelet, for a cube that came off a table rather than out of the generator | |
+| **10** | **Architecture review, and the merge decision.** Does what we built meet the bar, does it plug into the platform the way the platform expects, and can `epic/cube` go to `main`? | **shipped** (2026-08-07) — verdict in `docs/cube-review.md` |
+| **10a** | **The promotion turned the wrong way.** A device finding: the second tap animated backwards on `L`, `D` and `B` | **shipped** (2026-08-07) |
+| — | ~~**Enter a cube by hand.**~~ | **dropped** (2026-08-08) — §8.12 |
 | — | ~~**Edit a solve you have already written.**~~ | **tabled** (2026-08-06) |
 | — | ~~**A solver**, and random-state scrambles off the back of the same search~~ | **outsourced** (2026-08-06) |
+
+**The table is empty, and the epic shipped as V1 on 2026-08-08.** Every row is
+either shipped or struck. §8.12 has the last decision; §9 is what is left, and it
+is questions rather than work.
 
 **The table was re-ordered a third time on 2026-08-06, and this one removed
 scope rather than moving it** — two rows out, one row in. §8.9 has the operator's
@@ -1623,6 +1628,62 @@ whatever is blocking it named. Cover at least:
   the cube epic is `3.1.0` and the entry gets *extended*, so the merge is the
   moment that entry has to describe the whole feature rather than the last step
   of it.
+
+### 8.12 Why manual entry was dropped, and the epic closed at V1 (2026-08-08)
+
+The last row of the table never got built, and that is a **decision** rather than
+a deferral — the third one this epic has made of that kind, after tabling the
+editor and outsourcing the solver (§8.9).
+
+From the operator: *"I really wanna merge this epic and call this V1. I wanna
+drop the manual entry."*
+
+#### The argument for dropping it, beyond wanting to ship
+
+**Step 11 is the only row in this table with no use behind it.** Every other step
+came from the operator using the thing and finding it wanting, and the record is
+unusually clear about it:
+
+- Step 5 **jumped the queue** because entering a hold by typing `z2` turned out
+  to be the wrong instrument — *"we can pan the cube around and look at it and
+  that's a lot easier than using the keyboard."*
+- Step 7 came from *"how much space all the chrome is taking."*
+- Step 8 came from a question Step 3 raised and use kept alive.
+- Step 9 came from tabling the editor, which made comparison the obvious next
+  thing to want.
+- Step 10a came from a thumb, on a device, the day the review merged.
+
+**Nothing has ever asked for manual entry.** Nine steps of real drilling, and "I
+have a cube on the table and cannot get it into the app" has not once come up.
+The generator has been the source of every scramble anyone has actually solved.
+
+#### And the expensive half was never the half that was wanted
+
+The row bundled two things, and only the cheap one was ever plausible:
+
+1. **Paste an algorithm.** Genuinely small — `CubeAlgInputModal` exists,
+   `algError` already names the offending token, and `showScramble` is already
+   the one function that puts a different scramble on the cube. Hours, not days.
+2. **Set the colours facelet by facelet.** A net to tap, a colour picker, and —
+   the part that makes it real work — **validating that what was entered is a
+   cube that exists.** Permutation parity, corner orientation, edge flip: a cube
+   that fails them must be rejected with a reason, or the transport will happily
+   play a solve that cannot be right.
+
+(2) is a step of its own with a solver-adjacent problem inside it, which is
+precisely the shape of thing this epic has twice decided not to own. And (1) on
+its own is a convenience with nothing asking for it.
+
+**If it ever comes back, it comes back as (1) alone** — a paste field routed
+through `showScramble`, keeping what was typed (§4), refusing what does not parse
+at the field. Everything needed for it already exists. That is worth knowing and
+is not worth building on spec.
+
+#### What V1 is
+
+Scramble · inspect · hold · write · annotate · compare · keep. The tool answers
+*"am I getting better at this scramble?"*, which is the question the whole epic
+was for, and it answers it about scrambles the app itself deals you.
 
 ## 9. Open questions for the operator
 
