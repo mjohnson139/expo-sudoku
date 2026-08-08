@@ -83,7 +83,9 @@ prototype HTML files:
 | Area | Files | Lines | Fate |
 |------|-------|-------|------|
 | Pure engines (`.ts`) | `colorloop/{puzzle,levels,match,colors,storage}`, `numberslide/{logic,storage}`, `utils/{rng,motion,theme,useBoardOrigin}` | 750 | **Move nearly unchanged** |
-| UI (`.tsx`) | `App`, `components/{Confetti,Controls,HubDemos,Motion}`, `colorloop/{Board,ColorLoopGame,LevelSelect}`, `numberslide/NumberSlideGame` | 3,042 | Re-chromed (§4.2), re-rooted (§4.3) |
+| UI (`.tsx`) | `App`, `components/{Confetti,Controls,HubDemos,Motion}`, `colorloop/{Board,ColorLoopGame,LevelSelect}`, `numberslide/NumberSlideGame` | 3,042 | Re-themed (§4.2), re-rooted (§4.3) |
+| `utils/theme.ts` (the walnut/brass `THEME`) | 22 | **Deleted** — only `fmt()` survives (§4.2) |
+| `games/colorloop/colors.ts` (7 hand-picked hues) | 14 | **Retired** for `utils/symbolSets.js` (§4.2) |
 | Tests (`.ts`) | 7 files, **78 test cases** | 671 | Move; 2 files need a pure-core extraction first (§5) |
 | Docs | `game-design.md`, `identity.md`, `testing-plan.md`, `fungiku-plan.md` | — | §8 |
 
@@ -92,7 +94,9 @@ Three numbers worth carrying:
 - **`THEME.` is referenced at about 100 sites**, and they are not spread evenly:
   `ColorLoopGame.tsx` 39, `NumberSlideGame.tsx` 23, `LevelSelect.tsx` 13,
   `Controls.tsx` 12, `App.tsx` 9 — and **`Board.tsx` only 2.** The chrome is
-  themed; the board essentially is not. That asymmetry is what makes §4.2 cheap.
+  themed; the board essentially is not. That asymmetry is what sizes §4.2: the
+  reskin is **chrome work**, which is the cheap kind, and the board changes by
+  swapping which palette it imports rather than by being restyled.
 - **`utils/rng.ts` is nine lines** (`mulberry32`) and both games plus the match
   seeding depend on it. Fungiku has its own generator seeding in
   `games/fungiku/engine.js`. Do **not** unify them in this epic — see §4.5.
@@ -168,43 +172,102 @@ The cost is exactly three things, and none is large:
 files the new games touch. A creeping conversion is how a merge becomes a
 rewrite.
 
-### 4.2 The theme owns the chrome; the board keeps its own palette
+### 4.2 The games adopt this app's themes outright — including the puzzle palette
 
-This is the decision the epic will be judged on.
+**Settled by the operator, 2026-08-08:** *"I want color loop to fit into the
+color themes here. There is no attachment to the walnut and brass."*
 
-Color Loop's fixed dark palette and Puzzle Box's seven themes cannot both win.
-Three options were considered:
+Three options were considered; the answer is the most thorough one:
 
 | Option | What it means | Verdict |
 |---|---|---|
-| **A. Full reskin** | Both games render entirely from `useAppTheme`; walnut and brass are deleted | Rejected — throws away a designed identity for uniformity nobody asked for, and about 100 style sites is the most expensive way to do it |
+| **A. Full theme adoption** | Both games render from `useAppTheme`; walnut and brass are deleted | **Adopted** (operator, 2026-08-08) |
 | **B. Fixed palette** | Both games keep their own chrome and stay dark whatever the theme | Rejected — the theme selector becomes a lie on two of five cards, and the hub would hand off to a screen that looks like a different app |
-| **C. Chrome themed, board not** | Screen background, header, panels, buttons and text come from `useAppTheme`; the tiles, the puzzle colours, and brass-as-reward stay | **Adopted** |
+| **C. Chrome themed, board not** | Only the frame follows the theme; the tiles and brass stay | Rejected — was the plan's first recommendation on the assumption the desk identity was worth preserving. It is not, and A is better on the merits below |
 
-**C is not a compromise, it is what the app already does.** Fungiku's mushrooms,
-region colours, hearts (`#d1495b`) and coins (`#c8952b`) are fixed values chosen
-for the game, sitting inside a themed screen. The cube's stickers are the
-standard colour scheme and are not up for theming. Colour that *carries meaning
-inside the puzzle* is the game's; colour that frames it is the theme's. Color
-Loop's own identity doc states the same rule from the other side: *"saturated
-colour stays on the board; brass = reward."*
+So: screen background, `ScreenHeader`, panels, buttons, labels, sliders, modals,
+win cards, `NumberSlideGame`'s parchment `TILE` faces, and every one of the ~100
+`THEME.` sites resolve through `useAppTheme`. `utils/theme.ts`'s `THEME` object
+is **deleted** rather than ported; only its `fmt()` helper survives, folding into
+`utils/gameProgress.js`'s `formatElapsed`.
 
-Concretely:
+#### And the puzzle hues come from `utils/symbolSets.js`, not from `colors.ts`
 
-- `games/colorloop/colors.ts` (the seven puzzle hues), the tile faces in
-  `NumberSlideGame`'s `TILE`, and the board's own felt/socket surfaces: **keep**.
-- Screen background, `ScreenHeader`, panels, buttons, labels, sliders, modals,
-  the win card's frame: **`useAppTheme`**.
-- **Brass (`#e0a943`) survives as Color Loop's accent** — it is the games'
-  registry `accent`, the same way `#a0522d` is Fungiku's, and it is what the win
-  card and `NEW RECORD!` use. Number Slide gets its own accent.
-- **The contrast floor is not optional.** Step 8 of the cube epic found tinted
-  backgrounds landing ΔE 0.9–2.6 apart on dark themes and had to move the tint to
-  borders and labels. Parchment text (`#f4ecdd`) on the *Classic* theme's
-  `#f8f8f8` background is that bug, already written. Every text colour that
-  currently comes from `THEME` must resolve through the theme or be checked
-  against all seven backgrounds. `utils/color.js`'s `relativeLuminance` is there
-  for it, and the cube's contrast test is the pattern to copy.
+This is what makes A clearly right rather than merely more uniform, and it was
+not obvious until the app's own palette was read properly.
+
+`games/colorloop/colors.ts` is **seven hand-picked hex values** with a glyph
+each. `utils/symbolSets.js` is a **ten-hue Okabe–Ito palette** that this repo has
+already done serious work on:
+
+- Colorblind-safe by construction, with **light and dark variants** whose
+  per-hue tint weights were *searched, not chosen* — maximising worst-pair
+  CIEDE2000 under protan, deutan and tritan simulation, subject to a lightness
+  band and contrast floors.
+- `readableOn()` gives a guaranteed-legible ink for each fill, so a glyph never
+  disappears into its own tile.
+- `utils/__tests__/symbolSets.test.js` pins the ΔE floor, the lightness band, the
+  contrast ratios and the per-dichromacy baselines, so a later "let's soften the
+  palette" tweak fails a test instead of quietly reintroducing a bug.
+- The file's own stated purpose is that there be **"exactly one source of colour
+  truth."** Landing a sixth and seventh independent palette beside it, on the day
+  the app doubles its game count, is the opposite of that.
+
+Color Loop's glyphs (`●▲■◆★✦✚`) are the **same idea as the swatches' `corners`**
+— a non-colour channel of identity so two hues that read alike to someone are
+still distinguishable. Keep the redundancy; align the mechanism with
+`components/Symbol.js` rather than carrying a second one.
+
+Use the palette's **saturated `color`**, not its tinted `background`. Color Loop
+tiles are solid blocks, and full saturation is exactly where Okabe–Ito's
+colorblind safety lives — the `background` tints are tuned for Fungiku's soft
+grid and spend some of it.
+
+#### ⚠️ The trap this creates, and the rule that defuses it
+
+`maxN()` in `puzzle.ts` is **derived from the palette's length**:
+
+```ts
+export function maxN(mode: Mode): number {
+  return mode === 'diag' ? Math.floor((COLORS.length + 1) / 2) : 6;
+}
+```
+
+Seven colours ⇒ `maxN('diag') === 4`. A ten-colour palette would make it **5**.
+And `parseCode` **clamps `n` to `maxN(mode)`** — so the code `5-ABC-D`, which
+today clamps to a 4×4 board, would silently start producing a 5×5 one. That is
+the §2 freeze broken from a file nobody would think to check, and it would not
+fail a single existing test.
+
+**The rule: Color Loop takes the first seven entries of the platform palette, and
+its view of the palette stays length 7.** The palette may hold ten; Color Loop
+may not see them. **Add a test pinning `maxN('diag') === 4` and `maxN('rows') ===
+6`** next to the existing scramble-compatibility test, so the coupling is
+enforced rather than remembered.
+
+#### The contrast floor is not optional
+
+Step 8 of the cube epic found tinted backgrounds landing ΔE 0.9–2.6 apart on dark
+themes and had to move the tint to borders and labels. Parchment text
+(`#f4ecdd`) on the *Classic* theme's `#f8f8f8` background is that bug, already
+written and shipping the moment a `THEME.` site is missed. Every restyled site
+gets checked against all seven themes, `utils/color.js`'s `relativeLuminance` and
+`readableOn` are what to check with, and the cube's contrast test is the pattern
+to copy.
+
+#### What this costs
+
+More than option C did, and the cost is concentrated where the plan already
+measured it: `ColorLoopGame.tsx` 39 sites, `NumberSlideGame.tsx` 23,
+`LevelSelect.tsx` 13, `Controls.tsx` 12. **`Board.tsx` is still only 2** — the
+board draws from `COLORS`, so swapping its palette source is a one-line import
+change plus the glyph alignment, not a restyle. The theming work is chrome work,
+which is the cheap kind.
+
+Brass does not survive as a colour, but it does survive as an idea: Color Loop's
+registry `accent` is the one place a game is allowed its own hue (Fungiku's
+`#a0522d`, the cube's `#c62828`), and picking it from the palette keeps even that
+inside the source of truth.
 
 ### 4.3 Color Loop's inner hub becomes a menu, not a second front door
 
@@ -373,13 +436,27 @@ in every step that touches it.
   are per release, not per step), extended as steps land and made to describe the
   whole feature at merge time.
 - README gains two game sections and the folder-structure list gains two entries.
-- **The web build is the gap worth naming.** `color-loop` deploys to Vercel on
-  every push, and its game-design doc calls the web build the acquisition funnel:
-  a shared code should open a browser straight onto that board. This repo has no
-  web deploy at all — the workflow is named *"EAS Publish & Web Deploy"* and has
-  no deploy job. Merging without one **loses a shipped capability**. It is not in
-  the step list below because it is infrastructure rather than a game; it is open
-  question 5, and it should be answered before the epic merges to `main`.
+- **The web build.** Both apps deploy to Vercel, and **Puzzle Box's deploy is
+  configured in Vercel's dashboard rather than in this repo** (operator,
+  2026-08-08 — it is what most of the functionality has been tested on). There is
+  no `vercel.json` here and no deploy job in the workflow despite its name, which
+  is why a repo-only reading of this misses it; `SudokuApp/web/` (its
+  `index.html`, `manifest.json`, `robots.txt`, apple-touch-icon) is the visible
+  half. **Nothing is lost by merging**, and Color Loop's own Vercel project is
+  retired with the repo.
+
+  Two things follow that do matter. **The build must keep bundling for web at
+  every step** — `npx expo export --platform all` is already a gate and it covers
+  this. And **the deploy's build settings live outside version control**, so if
+  Step 1's TypeScript addition changes what the build command needs, the
+  dashboard is the place that breaks and no PR check will catch it. Verify the
+  Vercel deploy explicitly in the step that adds `tsconfig.json`.
+
+  What is *not* built either side is the piece Color Loop's roadmap called the
+  highest-leverage next step: **a URL that carries a code**
+  (`…/play?code=MS-K7P2Q`) so a shared board opens straight into the game rather
+  than onto a hub. That is open question 5 — genuinely better on a hub that can
+  route to any game, and out of scope for the merge itself.
 
 ## 7. Delivery steps
 
@@ -389,13 +466,17 @@ operator testing in Expo Go.
 - **Step 0 — this plan** and the tracker issue. *(this PR)*
 - **Step 1 — Number Slide on the hub.** The smaller game first, deliberately: it
   has no inner hub, no code system and no ladder, so it proves the whole seam
-  — TypeScript, the Jest transform, the registry entry, `ScreenHeader`, the theme
-  split — against 600 lines instead of 1,700. Ships: `tsconfig.json`, the test
-  transform, `utils/motion.js` + `components/Motion.tsx`, `utils/rng.js`,
-  `expo-clipboard`, `games/numberslide/`, a fourth hub card. **When this lands
-  the platform question is answered and Step 2 is mostly repetition.**
+  — TypeScript, the Jest transform, the registry entry, `ScreenHeader`, and **the
+  full theme adoption of §4.2** — against 600 lines instead of 1,700. Ships:
+  `tsconfig.json`, the test transform, `utils/motion.js` + `components/Motion.tsx`,
+  `utils/rng.js`, `expo-clipboard`, `games/numberslide/` rendering entirely from
+  `useAppTheme`, a fourth hub card. **When this lands the platform question is
+  answered and Step 2 is mostly repetition.** It is also the step that adds
+  `tsconfig.json`, so it is the step that must verify the Vercel deploy (§6).
 - **Step 2 — Color Loop on the hub.** The board, the physics, free play, the code
-  system, `Confetti`, `Controls`. The inner hub becomes the menu (§4.3);
+  system, `Confetti`, `Controls` — all on the theme. **`colors.ts` is retired for
+  `utils/symbolSets.js` here**, with the `maxN` pin from §4.2 landing in the same
+  PR as the palette swap, never after it. The inner hub becomes the menu (§4.3);
   Training and Match are reachable but unpolished. Fifth hub card.
 - **Step 3 — resume, and the badges.** Versioned one-blob saves for both games
   (§4.4), a board that survives a trip to the hub, and both `readProgress`
@@ -405,11 +486,14 @@ operator testing in Expo Go.
   thresholds intact, result cards copying through `expo-clipboard`. The ladder's
   thresholds are still estimates (`color-loop`'s backlog) — this is the step that
   says so out loud rather than the step that tunes them.
-- **Step 5 — the contrast and motion pass.** Every one of the ~100 restyled sites
-  checked against all seven themes with a test as the floor, entrances on the
-  house `STAGGER`, and the two win celebrations reconciled — whether Color Loop's
-  count-up card and Fungiku's win dialog stay two things is decided here, with
-  three callers on the table, not two.
+- **Step 5 — the contrast and motion pass.** Steps 1–2 theme each game as it
+  lands; this step is the one that *proves* it. Every one of the ~100 restyled
+  sites checked against all seven themes with a test as the floor, the puzzle
+  palette's ΔE and contrast guarantees confirmed to still hold with Color Loop as
+  a consumer (the existing `symbolSets.test.js` is the pattern and may simply
+  need extending), entrances on the house `STAGGER`, and the two win celebrations
+  reconciled — whether Color Loop's count-up card and Fungiku's win dialog stay
+  two things is decided here, with three callers on the table, not two.
 - **Step 6 — the architecture review and the merge decision.** Modelled on the
   cube's Step 10, against the same bar, and exempt from the Expo-Go rule for the
   same reason. It answers: is `utils/gameProgress.js`'s inverted dependency now
@@ -448,10 +532,15 @@ At merge:
 
 ## 9. Open questions for the operator
 
-1. **Is §4.2 the right call?** Chrome themed, board and brass kept. The
-   alternative worth reconsidering is *Color Loop keeps its dark desk entirely*
-   and the theme selector simply does not apply to it — defensible if the desk is
-   the point. It is much cheaper, and it makes the app look like two apps.
+1. ~~**Is §4.2 the right call?**~~ **Answered by the operator, 2026-08-08**:
+   *"I want color loop to fit into the color themes here. There is no attachment
+   to the walnut and brass."* Full theme adoption, and the puzzle palette comes
+   from `utils/symbolSets.js` too. §4.2 is rewritten around it. What is still
+   open underneath it is narrow but real: **do Color Loop's glyphs stay as
+   characters (`●▲■◆★✦✚`) or become the swatches' `corners` silhouettes?** Both
+   are valid non-colour cues; the characters are what players of the standalone
+   app know, the silhouettes are what this app already draws. Cheap either way,
+   and better settled by looking at a board than by argument.
 2. **Does Color Loop keep its name on this hub?** *Color Loop* was the app; here
    it is a card. It reads well next to *Fungiku* and *Cube Scramble*, so the
    default is to keep it. Same question, quietly, for *Number Slide* — the
@@ -466,11 +555,14 @@ At merge:
    a *Match* card that is explicitly "race a friend on a code" is the most
    shareable thing in the app, and burying it one tap deep is how it never gets
    used.
-5. **Does Puzzle Box get a web deploy?** §6. Without one the merge loses Color
-   Loop's shipped web build, and a shared code has nowhere friction-free to land.
-   URL-embedded codes (`…/play?code=MS-K7P2Q`) were the highest-leverage next
-   step in the standalone app's own roadmap and are strictly better on a hub that
-   can route to any game.
+5. ~~**Does Puzzle Box get a web deploy?**~~ **It already has one** (operator,
+   2026-08-08) — configured in Vercel's dashboard, not in this repo, which is why
+   the plan first read it as missing. §6 is corrected. **What is still open is
+   the useful half: does a shared code get a URL?** `…/play?code=MS-K7P2Q`
+   landing straight on the board was the highest-leverage next step in the
+   standalone app's own roadmap, and it is strictly better on a hub that can
+   route to any game. Out of scope for the merge; worth deciding whether it is
+   the epic that follows it.
 6. **Do the other games get codes?** Not in this epic (§4.5). But Fungiku already
    stores a seed and its boards are deterministic, so *"here is the exact board I
    just solved"* is nearly free for it, and the cube's scramble string already is
@@ -483,6 +575,11 @@ At merge:
 
 - **`makeScrambled` is frozen.** §2. A "harmless" refactor of the scramble loop
   invalidates every code ever shared. The existing test pins it; do not weaken it.
+- **And the palette is part of that freeze**, which is the least obvious thing in
+  this document. `maxN()` is derived from `COLORS.length` and `parseCode` clamps
+  `n` to it, so **growing Color Loop's palette from 7 to 10 changes which board a
+  code produces** — silently, with every existing test still green. §4.2 has the
+  rule (Color Loop sees seven entries) and the pin to add.
 - **`locationX`/`locationY` is a trap on this architecture**, and both incoming
   games plus their slider were bitten by it on the SDK 54 upgrade. Everything
   resolves touches through `pageX/pageY` minus a measured origin. When

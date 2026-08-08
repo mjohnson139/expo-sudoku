@@ -95,10 +95,14 @@ repetition of settled decisions.
    `components/Motion.tsx`** (`DUR`/`EASE`/`SPRING`/`STAGGER`, and
    `FadeSlideIn`/`PopIn`/`ScalePress`/`useCountUp`). Ported, **not** retrofitted
    onto Fungiku or the cube (plan §3).
-4. **`games/numberslide/`** — `logic.ts` and the game screen, re-chromed:
-   `ScreenHeader` for the back-to-hub affordance, `useAppTheme` for screen
-   background, panels, buttons and text; the tile faces and the lit-tile colours
-   stay as they are (plan §4.2).
+4. **`games/numberslide/`** — `logic.ts` and the game screen, **rendering
+   entirely from `useAppTheme`** (plan §4.2, settled by the operator on
+   2026-08-08: *"I want color loop to fit into the color themes here. There is no
+   attachment to the walnut and brass."*). `ScreenHeader` for the back-to-hub
+   affordance. The parchment `TILE` constants (`bg`, `ink`, `litBg`, `litInk`)
+   are **not** ported as-is — they come from the theme, and the "lit" tile is the
+   theme's own emphasis colour. `utils/theme.ts`'s `THEME` object does not come
+   across at all; only `fmt()` does, folding into `formatElapsed`.
 5. **`components/Confetti.tsx`** and whichever `Controls` primitives the screen
    actually uses — no more.
 6. **`expo-clipboard`**, and `Vibration` → `expo-haptics`.
@@ -128,17 +132,27 @@ JavaScript→TypeScript conversion of existing files.
   own `useWindowDimensions` math does not. Reconcile, or the board and the header
   disagree about where the middle is on web.
 - **Contrast across all seven themes.** Parchment text on the Classic theme's
-  near-white background is the bug this step can ship without noticing. Check it,
-  and leave a test as the floor if the check is not trivial.
+  near-white background is the bug this step can ship without noticing — and
+  after §4.2 it is the *only* failure mode left, since every colour now comes
+  from somewhere. Check it, and leave a test as the floor if the check is not
+  trivial. `utils/color.js`'s `relativeLuminance` and `readableOn` are the tools;
+  `utils/__tests__/symbolSets.test.js` is the pattern.
+- **The Vercel deploy's build settings live in Vercel's dashboard, not in this
+  repo** (plan §6). This is the step that adds `tsconfig.json`, so it is the step
+  where a dashboard build command can start failing with no PR check to catch it.
+  Confirm the web deploy still builds before handing back.
 
 ### Visible in Expo Go when this lands
 
 A fourth card on the hub. Tapping it opens Number Slide under this app's header,
 in the theme the player has chosen, with tiles that slide, a timer, a best time,
-and a win celebration. Back returns to the hub.
+and a win celebration. Back returns to the hub. **No walnut and no brass
+anywhere** — cycling the theme should carry the whole screen with it.
 
 ### How to verify
 
-The four commands above, plus a device pass: slide tiles, win a board, feel the
-haptic, switch the theme in Sudoku's menu and confirm Number Slide follows it,
-and confirm the other three games look exactly as they did.
+The four commands above, plus the web deploy, plus a device pass: slide tiles,
+win a board, feel the haptic, **cycle through all seven themes and confirm every
+part of the screen follows** — that is the step's headline claim and the one
+thing a single screenshot cannot show — and confirm the other three games look
+exactly as they did.
