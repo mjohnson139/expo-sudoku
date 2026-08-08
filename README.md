@@ -141,8 +141,8 @@ npx expo export --platform all    # web + iOS + Android must all bundle
   - `games/numberslide/` – Number Slide: slide logic, seed codes, theme palette
   - `screens/` – The hub and each game's screen
   - `utils/` – Theme system, board generation, symbol sets, app identity, the
-    motion vocabulary, and the `.d.ts` shims that let the TypeScript games read
-    this app's JavaScript
+    motion vocabulary, and the three `.d.ts` files that describe the parts of
+    this app's JavaScript TypeScript cannot infer correctly
   - `assets/` – App icons and images
 - `docs/` – Each epic's plan and its next-step handoff
 

@@ -2,7 +2,7 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
-    "allowJs": false,
+    "allowJs": true,
     "checkJs": false,
     "forceConsistentCasingInFileNames": true
   },

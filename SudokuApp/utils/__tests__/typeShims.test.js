@@ -25,15 +25,39 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 
-/** Each shim, and the module it is speaking for. */
+/**
+ * Each shim, and the module it is speaking for.
+ *
+ * Adding a row is how a new shim gets covered — but the first question is
+ * always whether the shim is needed at all, since `allowJs` means inference
+ * usually handles it. Three shims covered Step 1; `utils/color.js`,
+ * `utils/gameProgress.js` and `hooks/useBoardSize.js` each had one and each
+ * turned out not to need it.
+ */
 const SHIMS = [
-  ['utils/color.d.ts', 'utils/color.js'],
-  ['utils/gameProgress.d.ts', 'utils/gameProgress.js'],
   ['utils/themes.d.ts', 'utils/themes.js'],
   ['hooks/useAppTheme.d.ts', 'hooks/useAppTheme.js'],
-  ['hooks/useBoardSize.d.ts', 'hooks/useBoardSize.js'],
   ['components/ScreenHeader.d.ts', 'components/ScreenHeader.js'],
 ];
+
+/**
+ * Every shim in the tree, so a shim added without a row above fails here rather
+ * than going uncovered. `.d.ts` files that describe a `.ts` module are not
+ * shims and there are none; if that changes, this is the assertion to widen.
+ */
+const findShims = () =>
+  ['utils', 'hooks', 'components', 'games', 'screens']
+    .filter((dir) => fs.existsSync(path.join(ROOT, dir)))
+    .flatMap((dir) =>
+      fs
+        .readdirSync(path.join(ROOT, dir), { recursive: true })
+        .filter((name) => String(name).endsWith('.d.ts'))
+        .map((name) => `${dir}/${String(name).split(path.sep).join('/')}`)
+    );
+
+it('covers every shim in the tree', () => {
+  expect(findShims().sort()).toEqual(SHIMS.map(([shim]) => shim).sort());
+});
 
 const read = (relative) => fs.readFileSync(path.join(ROOT, relative), 'utf8');
 

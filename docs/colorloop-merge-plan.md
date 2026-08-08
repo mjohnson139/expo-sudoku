@@ -173,16 +173,18 @@ The cost is exactly three things, and none is large:
 1. `tsconfig.json` extending `expo/tsconfig.base`, plus `typescript` and
    `@types/react` as devDependencies.
 2. A `typecheck` script (`tsc --noEmit`) added to the pre-merge gates. **New
-   gate — say so in the PR.** Note it only covers the `.ts`/`.tsx` files;
-   `allowJs` is deliberately off so the existing JavaScript is not suddenly
-   under a type checker nobody asked for.
+   gate — say so in the PR.** Note it only checks the `.ts`/`.tsx` files;
+   `checkJs` is deliberately off so the existing JavaScript is not suddenly
+   under a type checker nobody asked for. (The plan first said `allowJs` off,
+   which turned out to be a stronger constraint than the goal needed — see
+   below.)
 3. The Jest transform (§5).
 
 **Do not convert existing JavaScript to TypeScript in this epic**, including
 files the new games touch. A creeping conversion is how a merge becomes a
 rewrite.
 
-#### What Step 1 found: it is four things, and `allowJs: false` has a price
+#### What Step 1 found: it is four things, and the fourth is a judgement call
 
 The list above is right about the shape and wrong about the total. **Built in
 Step 1, the cost came out as:**
@@ -191,37 +193,60 @@ Step 1, the cost came out as:**
    the incoming `.test.ts` files are `.ts` and therefore under the new gate too.
 2. The `typecheck` script.
 3. The Jest transform.
-4. **A `.d.ts` beside every JavaScript module the games import.** This is the one
-   the plan did not see, and it follows directly from `allowJs: false`: with it
-   off, TypeScript does not merely skip type-*checking* the JavaScript — it
-   cannot **resolve** a `.js` module at all, so `import useAppTheme from
-   '../../hooks/useAppTheme'` is `TS2307: Cannot find module`. Every guest game
-   is going to import the platform seam, so something has to bridge it.
+4. **Deciding how TypeScript is allowed to see the JavaScript.** This is the one
+   the plan did not anticipate, and the constraint above forces it: with
+   `allowJs: false`, TypeScript does not merely skip type-*checking* the
+   JavaScript — it cannot **resolve** a `.js` module at all, so
+   `import useAppTheme from '../../hooks/useAppTheme'` is `TS2307: Cannot find
+   module`. Every guest game imports the platform seam, so something has to
+   bridge it.
 
-**The bridge is hand-written declarations, and `allowJs` stays off.** Six shims
-covered all of Step 1: `hooks/useAppTheme`, `hooks/useBoardSize`,
-`components/ScreenHeader`, `utils/color`, `utils/themes`, `utils/gameProgress` —
-which is, exactly, §3's platform-seam table written in types. That is a better
-artefact than `allowJs: true, checkJs: false` would have been, and it is why the
-constraint is worth keeping rather than relaxing.
+**The settled answer is `allowJs: true` with `checkJs: false`, plus three
+hand-written `.d.ts` files.** Step 1 built it the other way first — `allowJs`
+off and six shims, one per JavaScript module the games import — and the operator
+pushed back on exactly the right thing (2026-08-08: *"I'm not sure I understand
+the TypeScript implications here. It's sounding like the platform is fragmented
+between js and ts."*). Measured rather than argued:
 
-It has one real cost, and it is worth stating rather than discovering: **a
-`.d.ts` is trusted absolutely.** TypeScript resolves `utils/color` to
-`utils/color.d.ts` and never opens `utils/color.js`, so renaming an export on the
-JavaScript side breaks the games at runtime with `tsc --noEmit` still green.
-`utils/__tests__/typeShims.test.js` is the floor under that: it reads each shim
-and each module and fails if a shim declares a name the module no longer exports.
-**Extend that list whenever a shim is added** — Step 2 will need at least
-`utils/symbolSets`.
+- **The two languages are not the fragmentation.** Metro compiles `.js` and
+  `.ts` through the same Babel pipeline and the bundle cannot tell them apart.
+  At the end of Step 1 the tree is 124 JavaScript files (30k lines) and 11
+  TypeScript ones (1.7k).
+- **The shims were.** They are the only place the repo carried a second
+  description of something it already had.
+- **`checkJs: false` keeps the guarantee the constraint was written for.** The
+  existing JavaScript is still not under a type checker; `allowJs` only lets
+  TypeScript *read* it and infer.
+- **Three of the six shims were redundant** — `utils/color.js`,
+  `utils/gameProgress.js` and `hooks/useBoardSize.js` infer correctly and their
+  declarations were deleted.
+
+**The three that survive are the places the JavaScript does not say what it
+means**, and each is worth knowing as a repo-wide lesson:
+
+| Shim | Why inference is wrong |
+|---|---|
+| `utils/themes.d.ts` | `SUDOKU_THEMES` infers as an object literal with seven named keys and **no index signature**, so `SUDOKU_THEMES[name]` for a variable `name` is an error |
+| `components/ScreenHeader.d.ts` | props are destructured with a default on `dense` alone, so inference makes `subtitle` and `onMenuPress` **required** — which is not that component's API |
+| `hooks/useAppTheme.d.ts` | its JSDoc says `@returns {{theme: Object, …}}`, and **TypeScript believes JSDoc even with `checkJs` off** — so a well-meant annotation replaces a correctly inferred theme with a type that has no properties |
+
+That last row is the one to carry beyond this epic: **a vague JSDoc type is
+worse than none**, because it overrides inference rather than supplementing it.
+
+Every shim has one standing cost — **a `.d.ts` shadows the `.js` beside it
+absolutely**, so a rename on the JavaScript side breaks the games at runtime with
+`tsc --noEmit` still green. `utils/__tests__/typeShims.test.js` is the floor: it
+checks each shim's declared names against the module's real exports, **and
+fails if a shim exists that it does not list.** The rule for later steps is
+therefore *prefer deleting a shim to adding one* — try inference first, and add
+a declaration only when it is wrong.
 
 Two smaller findings from the same step, both of which will bite Step 2 if they
 are not written down:
 
 - **`utils/rng` and `utils/motion` land as `.ts`, not the `.js` §3 and the Step 1
   scope called for.** §2's own inventory has them under *"Pure engines (`.ts`) —
-  move nearly unchanged"*, and that is the reading to follow: written as `.js`
-  they would each need a shim of their own, which is pure cost for two files this
-  epic owns outright and nothing else imports.
+  move nearly unchanged"*, and that is the reading to follow.
 - **Babel and types pin to versions, not to `latest`.** `@babel/preset-typescript`
   and `@babel/preset-react` must be `^7` (their current majors need
   `@babel/core ^8`; this repo is on 7), and `@types/react` / `@types/jest` must be

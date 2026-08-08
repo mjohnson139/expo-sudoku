@@ -131,8 +131,9 @@ tree that already contains its own brief.
 ## Step 1 — Number Slide on the hub ✅
 
 The fourth card, and the whole platform seam proved against ~600 lines. Landed
-`tsconfig.json` (with `allowJs` off) plus the **six `.d.ts` shims** that turned
-out to be what `allowJs: false` actually costs, a `typecheck` script, the Jest
+`tsconfig.json` (`allowJs: true`, `checkJs: false`) plus the **three `.d.ts`
+shims** that describe the parts of this app's JavaScript TypeScript infers
+wrongly, a `typecheck` script, the Jest
 `.ts`/`.tsx` transform in this repo's node environment, `utils/rng.ts`,
 `utils/motion.ts` + `components/Motion.tsx`, `components/Confetti.tsx`, the two
 `Controls` primitives the screen uses, `expo-clipboard`, `Vibration` →
@@ -148,6 +149,16 @@ and it takes `@NumberSlide` with it — the game persists nothing. See plan §4.
 for why, and note the consequence Step 3 inherits: **Number Slide's Continue
 badge has no fallback to stand on**, so its card stays blank until there is a
 resumable board.
+
+**The TypeScript seam was rebuilt once, mid-step** (operator, 2026-08-08: *"it's
+sounding like the platform is fragmented between js and ts"*). It began as
+`allowJs: false` with six shims, one per JavaScript module the games import;
+measuring showed three of the six merely repeated what inference already knew.
+`allowJs: true` + `checkJs: false` keeps the guarantee the constraint was written
+for — the JavaScript is still not type-checked — and leaves only the three
+declarations that are load-bearing. **Plan §4.1 has the table of why each
+survives; read it before adding a fourth.** The short rule: *prefer deleting a
+shim to adding one.*
 
 §4.1, §4.2, §4.4, §3 and §6 of the plan were all amended with what this step
 found — **read those before Step 2, they are most of its brief.**
@@ -275,9 +286,12 @@ the swap.
   **Two of its findings will recur here** — the contrast push has to search both
   directions, and text on an overlay must be measured against the *composite*
   (scrim over whatever is behind it), not against the page. Plan §4.2 has both.
-- **Adding a `.d.ts` shim means adding it to the list** in
-  `utils/__tests__/typeShims.test.js`. Step 2 will need at least
-  `utils/symbolSets`.
+- **Try inference before writing a `.d.ts`.** `allowJs` is on and `checkJs` is
+  off, so TypeScript reads the JavaScript and types it without any help most of
+  the time — `utils/symbolSets.js` very likely needs nothing. A shim is for the
+  three-in-six case where inference is *wrong* (plan §4.1 tabulates them), and
+  every one added has to join the list in `utils/__tests__/typeShims.test.js`,
+  which now fails if a shim exists that it does not name.
 
 ### Visible in Expo Go when this lands
 
