@@ -26,10 +26,10 @@ in its own app.
 - **Branching: this feature lands on an epic branch, not `main`.**
 
   ```
-  main ─── epic/colorloop ─── feature/colorloop-<step>   (PRs target the epic)
+  main ─── epic/color-loop ─── feature/color-loop-<step>   (PRs target the epic)
   ```
 
-  Pushing `epic/colorloop` publishes an EAS Update branch of the same name
+  Pushing `epic/color-loop` publishes an EAS Update branch of the same name
   (`.github/workflows/eas-publish.yml`), so the epic is always openable in Expo
   Go even with no step PR open.
 - **Every step must ship something the operator can look at in Expo Go.** The
@@ -460,8 +460,25 @@ in every step that touches it.
 
 ## 7. Delivery steps
 
-One branch per step, each PR targeting `epic/colorloop`, each ending with the
-operator testing in Expo Go.
+One branch per step, each PR targeting `epic/color-loop`, each ending with the
+operator testing in Expo Go. **Every step has a branch, a starting prompt and a
+handoff** — the three-part process is written out in
+`docs/colorloop-merge-handoff.md` under *How a step runs*, and each step's
+starting prompt lives in that file's section for it.
+
+| Step | Branch |
+|---|---|
+| 0 — the plan | merged directly to `epic/color-loop` |
+| 1 — Number Slide | `feature/color-loop-numberslide` |
+| 2 — Color Loop | `feature/color-loop-board` |
+| 3 — resume and badges | `feature/color-loop-resume` |
+| 4 — training and match | `feature/color-loop-training` |
+| 5 — contrast and motion | `feature/color-loop-polish` |
+| 6 — review and merge | `feature/color-loop-review` |
+
+A correction that arrives after a step merged is its own branch and PR, numbered
+`Step Na` — the cube's Step 7a and 8a are the precedent. Do not reopen a merged
+step.
 
 - **Step 0 — this plan** and the tracker issue. *(this PR)*
 - **Step 1 — Number Slide on the hub.** The smaller game first, deliberately: it
@@ -499,7 +516,7 @@ operator testing in Expo Go.
   same reason. It answers: is `utils/gameProgress.js`'s inverted dependency now
   bad enough to fix with five games on it; is `useBoardOrigin` one hook or two;
   does the platform own a persistence primitive or does Fungiku; and **can
-  `epic/colorloop` merge to `main`.** Plus storage compatibility, `expo-doctor`
+  `epic/color-loop` merge to `main`.** Plus storage compatibility, `expo-doctor`
   18/18, `expo export --platform all`, `npm test`, `tsc --noEmit`, build notes
   and `app.json`.
 
