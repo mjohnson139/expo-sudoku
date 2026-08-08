@@ -1,31 +1,38 @@
-# Cube Scramble — next-step handoff
+# Cube Scramble — the epic is closed
 
-**If you are a session picking up cube work: this file is your entry point. Read
-it first, then do the step described under "Next step" below.**
+**This epic shipped as V1 on 2026-08-08 and there is no next step.** The delivery
+table in `docs/cube-plan.md` §8 is empty: Steps 1–10 shipped, 10a shipped, and
+the last row — enter a cube by hand — was **dropped** rather than deferred
+(§8.12). The editor is tabled and the solver is outsourced (§8.9).
 
-It always describes **exactly one step — the next one**. It is rewritten at the
-end of every step so the following session can start from a one-line prompt.
+**If you are a session picking up cube work, this file is still your entry
+point** — but it is a record now rather than a brief. Read it, then read
+`docs/cube-review.md`, which is the architecture verdict and the honest list of
+what was deliberately left undone.
 
-## The one-line prompt that starts a session
+## There is no "next step" — so what would a session do?
 
-```
-Work in mjohnson139/expo-sudoku. Continue the Cube Scramble epic: check out
-epic/cube, read docs/cube-handoff.md and do the next step it describes.
-```
+Whatever the operator asks for. What exists, in rough order of how ready it is:
 
-Nothing else needs to be pasted.
+1. **The open questions below.** Nine of them, all needing a decision or a
+   drilling session rather than an implementation plan. **Number 14 is the live
+   one** and it is the cheapest big win left on the solve screen.
+2. **Three findings from the review**, written down with recommendations and
+   deliberately not built: clearing a solve is spelled twice, the List/Compare
+   toggle spells its rule in JSX, and `utils/gameProgress.js` inverts the
+   dependency. Only the third is big enough to be a step, and it is platform
+   tidy rather than cube work.
+3. **The seams no test can see.** Step 10a's lesson, and the one thing the review
+   did not think to ask. `renderTurn` is the first of them pulled into the pure
+   core; the object literals hooks hand to components are the rest of the list.
+4. **"Noted in passing"** below — nine steps of things people spotted and
+   deliberately did not fix.
 
-## Before you finish: rewrite this file
+**Do not start any of these because they are written down here.** Everything in
+this epic that turned out to be worth building came from the operator using the
+tool and finding it wanting; §8.12 is the decision that says so out loud.
 
-**This is part of every step's definition of done.** Before you open your PR,
-replace the "Next step" section with a brief for the step *after* yours, at the
-same level of detail — scope, the files to read, the behaviors that are easy to
-get wrong, what must be visible in Expo Go, and how to verify. Carry the open
-questions forward.
-
----
-
-## Standing context (true for every step)
+## Standing context (still true for anything that touches the cube)
 
 - **Repo:** `mjohnson139/expo-sudoku`. App code is in **`SudokuApp/`**
   (Expo · React Native · JavaScript).
@@ -40,31 +47,33 @@ questions forward.
   someone (§10).
 - **Tracker:** GitHub issue **#82**. Tick your step's checkboxes as you go.
 - **Process:** `.github/dev-process.md` — one delivery step per branch, commit
-  after each step, **prompt the operator to test after each step.**
+  after each step, **prompt the operator to test after each step.** That last
+  clause is the one that mattered most here: nearly every correction this epic
+  made came from the operator using it on a phone between steps.
 
-### Branching
+### Branching — **the epic branch is done**
 
-The cube lands on an epic branch, never straight to `main`:
+The cube was built on an epic branch so `main` never carried a half-built tool:
 
 ```
-main ─── epic/cube ─── feature/cube-<step>   (PRs target epic/cube)
+main ─── epic/cube ─── feature/cube-<step>   (PRs targeted epic/cube)
 ```
 
-Branch from **`epic/cube`**, and open your PR **against `epic/cube`**. The epic
-merges to `main` once the cube is worth shipping, so `main` never carries a
-half-built tool.
+**`epic/cube` merged to `main` on 2026-08-08**, carrying Steps 1–10 and 10a, with
+Step 10's review (`docs/cube-review.md`) as the sign-off. That branch has done its
+job. **Later cube work branches from `main` like anything else** — there is no
+epic to target any more, and re-opening one for a follow-up would be inventing
+ceremony for a change that no longer needs it.
 
-`epic/cube` carries Steps 1 through 10 as of 2026-08-07, and Step 10 signed it
-off for `main` (`docs/cube-review.md`). It is cut from
-`main` and tracks it. (It was briefly cut from
-`epic/fungiku`, because the hub only existed there; Fungiku's Step 13 merged that
+(Historical, so a stale doc does not mislead: the branch was briefly cut from
+`epic/fungiku`, because the hub only existed there. Fungiku's Step 13 merged that
 epic to `main` on 2026-08-01 and this was rebased the same day. **No Fungiku
-dependency remains** — if you find a doc that says otherwise, it is stale.)
+dependency remains.**)
 
-Pushing `epic/cube` publishes an EAS Update branch of the same name, so the epic
-is always openable in Expo Go (project → Branches) even with no step PR open.
+### Golden rules — **these outlive the epic**
 
-### Golden rules
+They are what kept the cube reviewable across ten steps, and they apply to any
+change to it from here.
 
 - **The cube's code lives under `games/cube/`.** Sudoku and Fungiku keep working
   exactly as they do. Outside that directory Step 1 touched three things — a
@@ -119,7 +128,13 @@ is always openable in Expo Go (project → Branches) even with no step PR open.
 ### Every step must be visible in Expo Go
 
 Hard requirement, same as Fungiku's. A step whose only evidence is a passing test
-suite is not done.
+suite is not done. **Step 10 was the single exception and it was written into the
+plan as one** (§8.11), because a review ships a verdict; it did not get to invent
+the exemption for itself.
+
+**Step 10a is why the rule exists.** Nine steps of green tests and 18/18 from
+doctor, and the pad's promotion had been animating backwards on `L`, `D` and `B`
+the whole time. A thumb found it in one session.
 
 ### Verify before handoff (from `SudokuApp/`)
 
@@ -151,116 +166,33 @@ you built, at every stage of the motion, not only at rest.
 
 ---
 
-## Next step: **Step 11 — enter a cube by hand**
+## What V1 is
 
-> **Branch from `epic/cube`, PR against `epic/cube`** — as every step does.
-> Step 10 merged on 2026-08-07, so `epic/cube` now carries Steps 1 through 10
-> and has a signed-off architecture review sitting in `docs/cube-review.md`.
+Scramble · inspect · hold · write · annotate · compare · keep.
 
-**Read `docs/cube-review.md` first.** It is the only step in this epic that
-produced a verdict rather than a feature, and three of its findings are written
-down rather than fixed — deliberately, and two of them are waiting for exactly a
-step like this one that is already opening those files. Then read plan §8, where
-Step 11 is listed and **not specified in detail**: part of this step is deciding
-what it is.
+Get a 20-move scramble on a 3D cube you can turn with a finger. Play it, step it,
+tap any move and the cube turns its way there. Tap **Solve** and inspect — turn
+the cube to how you want to hold it, with a live readout naming the hold in
+colours — then **Set start**, and write the solve on a six-by-three pad laid out
+as a spatial cross. Hold a key for a prime or arm the `′`; tap the same key twice
+for a half turn. Flag the end of your first block and name it, and read
+`First block · 8` back. Write several attempts at one scramble and put them side
+by side, one column per phase, and see whether the number is coming down.
 
-### The scope, as far as it is settled
+Nothing you write is lost. **911 tests**, `expo-doctor` 18/18, all three
+platforms bundling, and every step of it drilled on a real handset.
 
-The generator hands you a random scramble. **This step is about the cube that is
-already in your hand** — one somebody else scrambled, one off a competition
-sheet, one you are half-way through and want to write down. Two routes were
-sketched and only the first is obviously right:
-
-1. **Paste an algorithm.** A scramble is text and this app already parses every
-   token of it. `CubeAlgInputModal` exists, `algError` already names the
-   offending token, and `showScramble` is already the one function that puts a
-   different scramble on the cube. **This is a small step.**
-2. **Set the colours facelet by facelet.** A cube that came off a table has no
-   algorithm — you have 54 stickers and no idea what sequence produced them.
-   This is a real feature: a net to tap on, a colour picker, and — the part that
-   makes it hard — **validating that what was entered is a cube that exists**.
-   Parity, permutation and orientation are all checkable, and a cube that fails
-   them must be rejected with a reason, or the transport will play a solve that
-   cannot be right.
-
-**Decide whether (2) is in this step or is its own**, and say so in the PR. The
-honest reading is that (1) is a couple of hours and (2) is a step of its own with
-a solver-adjacent validation problem in it — and the epic has form for splitting
-exactly this way (Step 5 jumped the queue when Step 3's route turned out to be
-the wrong instrument).
-
-### Read first
-
-- **`docs/cube-review.md`** — the verdict, and findings 4 and 5, which are
-  small, written down, and in the files this step will be in anyway.
-- `games/cube/CubeAlgInputModal.js` — the field, the validation and the Add
-  button already exist for solves; a scramble wants the same thing pointed
-  somewhere else.
-- `games/cube/CubeScreen.js`'s `showScramble` — **the one function that changes
-  the scramble**, and it already does the four things a new scramble has to do
-  (pause, drop half-finished gestures, open that scramble's most recent solve,
-  leave solve mode). Route a pasted scramble through it, not around it.
-- `games/cube/moves.js` — `parseAlg`, `algError`, `isValidAlg`, `normalizeAlg`.
-  **If you find yourself writing a second validator, that is the bug.**
-- `games/cube/cubeState.js` — `facelets` is there, and it is what route (2)
-  would have to invert.
-
-### Behaviors that are easy to get wrong
-
-- **A pasted scramble is a *new scramble*, not an edit.** Everything Step 4
-  learned applies: it changes which solves are yours, it must not be an effect
-  keyed on `scramble` (hydration fires that), and the transport has to read it as
-  a replacement rather than growth — which is what `startingCube`'s identity is
-  for. `showScramble` already gets all of this right. Use it.
-- **Keep what was typed** (plan §4). A scramble pasted as `r U r'` must read back
-  as `r U r'`, never as the canonical `Rw U Rw'`. This is the epic's oldest
-  standing rule and the pad's own `′` inconsistency is already noted below.
-- **A scramble that does not parse must not reach the cube.** Today an unreadable
-  saved scramble falls back to a solved cube; a *pasted* one should be refused at
-  the field with the token named, which is what `solveError` already does for
-  solves.
-- **Where does the control go?** The header's right-hand end is three icons at
-  320 points and **full** (see below), and scramble mode's bottom row is three
-  labelled buttons and also full. There is no spare slot. **Say what it costs the
-  cube, in points, in the PR** — that habit is what made Step 7 legible.
-- **Favorites are keyed by algorithm text.** A pasted scramble that matches one
-  you already saved *is* that favorite, and the star should light up. That falls
-  out of `normalizeAlg` for free — but only if the paste goes through it.
-
-### Visible in Expo Go when this lands
-
-Paste a scramble off a competition sheet, see it on the cube, star it, write a
-solve against it. That is the whole demo and it should be one screen recording.
-
-### How to verify
-
-- `npm test` (889 today) — and the new rules are pure, so they are testable:
-  a pasted scramble that matches a favorite, one that does not parse, one that
-  normalizes to an existing one.
-- `npx expo-doctor` (18/18), `npx expo export --platform all`.
-- A headless driver at 320×568, 375×667 and 393×852: paste, refuse a bad one,
-  confirm the star, confirm the solves list follows the new scramble.
-- **And a device** — as every step of this epic has in fact had, even where the
-  docs only recorded the headless half. **Say in the PR which findings came from
-  the handset**; Step 10 is why that sentence is here.
-
----
-
-## The step after that (for the file you rewrite)
-
-After Step 11 the epic's planned work is **done**, and what is left is the open
-questions below — of which **14 is the live one** and wants a drilling session
-rather than an opinion. `docs/cube-review.md` also leaves three findings written
-down (clearing a solve spelled twice, the List/Compare toggle's rule in JSX, and
-`utils/gameProgress.js` inverting the dependency); the third is the only one big
-enough to be a step, and it is a platform tidy rather than cube work.
+**The question the epic was for** — *am I getting better at this scramble?* — is
+the question the tool answers.
 
 ---
 
 ## Open questions for the operator (carry these forward)
 
-These are plan §9, restated so a session does not have to go looking. **None
-block Step 11**, and Step 10 was the step with standing to write the ones that
+These are plan §9, restated so a session does not have to go looking. **None of
+them blocked shipping V1** — they are what is left *after* it, and every one of
+them wants a decision or a drilling session rather than an implementation plan.
+Step 10 was the step with standing to write the ones that
 were really findings down — it did, in `docs/cube-review.md`. What is left here
 is what it says on the tin: questions only the operator can answer, most of them
 by drilling rather than by deciding.
@@ -273,12 +205,13 @@ is the right trade is a question only the operator can answer by drilling on it.
 answered *and shipped*, including the part that wanted use: the hold threshold
 was drilled on and moved from 180ms to 300ms.
 
-**What is left in the epic after Step 11** is these questions, and nothing else
-that was planned. Two rows left the table on 2026-08-06 rather than moving
-down it — the editor is tabled and the optimizer is outsourced — so the backlog
-is genuinely shorter than it was, not rearranged. Plan §8.9, and **a review that
-recommends building either of them is re-opening a decision the operator already
-made.**
+**These questions are the whole of what is left**, and nothing else that was
+planned. Three rows left the table rather than moving down it — the editor
+tabled, the solver outsourced (§8.9), and manual entry dropped (§8.12) — so the
+backlog is genuinely shorter than it was rather than rearranged. All three are
+**decisions** and not deferrals: plan §8.9 and §8.12 have the reasoning, and
+**proposing any of them again is re-opening something the operator already
+settled.**
 
 1. Scramble length — 20 moves. Leave it?
 2. Other puzzles — 2×2, 4×4, pyraminx, skewb?
@@ -415,6 +348,15 @@ made.**
   it comes back small** — `CubeAlgInputModal` opened with the solve in it,
   `clampPhases` for the markers, no diff arithmetic — and the affordance
   candidates are still listed in plan §8.7, which is kept intact.
+- **There is no way to enter a cube by hand, and that is a decision** (§8.12,
+  2026-08-08). Pasting an algorithm is genuinely small and everything it needs
+  exists — `CubeAlgInputModal`, `algError`, and `showScramble` as the one funnel
+  that changes the scramble. **Setting the colours facelet by facelet is not**:
+  it needs a validator for "is this a cube that can exist" (permutation parity,
+  corner orientation, edge flip), which is the solver-adjacent shape this epic
+  has twice declined to own. The row was dropped because **nothing ever asked for
+  it** — nine steps of drilling and "I have a cube on the table" never came up.
+  If it returns, it returns as the paste field alone.
 - **There is no solver in this repo and there is not going to be one.**
   Outsourced to an API on 2026-08-06 (plan §8.9). This is here because a search
   is the single most tempting thing to helpfully start writing, and because the
