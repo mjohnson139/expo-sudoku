@@ -58,6 +58,23 @@ What the review is signing off:
   field objects and the hub maps over it. **This review proposes none of those
   either** — three games is not evidence for any of them.
 
+> **Postscript, 2026-08-07 — and the one thing this review did not ask.**
+>
+> The operator found a real bug the same day this merged: the pad's promotion
+> animated backwards on `L`, `D` and `B` (Step 10a). It belongs here rather than
+> in a separate note, because it is **the same shape as this review's own finding
+> 2** — a value that is correct everywhere a test can see it and wrong at the one
+> seam a test cannot. Finding 2 was a table the suite already walked, with an
+> assertion too weak to fail. Step 10a was a field dropped inside a hook, which
+> the node runner cannot reach at all.
+>
+> So the bar in §8.11 has a fourth question hiding behind it, and this review did
+> not ask it: **which lines can no test see?** On this codebase that list is
+> short and enumerable — the object literals hooks hand to components — and it is
+> exactly where nine steps of green tests were hiding a reversed animation.
+> `renderTurn` is the first of them pulled into the pure core; the rest are worth
+> an afternoon whenever someone is next in `useScramblePlayer` or `CubeScreen`.
+
 ---
 
 ## The bar, in order

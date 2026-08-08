@@ -250,10 +250,38 @@ export const announcePosition = (index, count, noun = 'scramble') => {
   return `After move ${index} of ${count}`;
 };
 
+/**
+ * The turn the **renderer** gets: the move being played, plus how far through it
+ * is and which way round it is going.
+ *
+ * One line of object-spread, pulled out of `useScramblePlayer` and put here for
+ * the reason the rest of this file is here — **it was the one part of the
+ * transport a test could not reach, and it was wrong** (operator, 2026-08-07:
+ * *"double tapping for moves like L and D, the animation seems to reverse the
+ * direction"*).
+ *
+ * `promotedTurn` computed the signed sweep, `animate` carried it and `turnAngle`
+ * honoured it; the value was then dropped on the way out to `CubeView`, so
+ * `buildScene` fell back to `shortWay(amount)` — always `+2` for a half turn.
+ * `L`, `D` and `B` carry `amount: 3` and turn anticlockwise, so their promotions
+ * snapped 180° and travelled backwards, while `R`, `U` and `F` were fine. Every
+ * unit test passed throughout, because none of them could see this line.
+ *
+ * `turns` is `undefined` for every ordinary turn, and that is a value rather
+ * than a gap: it is what `turnAngle` reads as "go the short way".
+ *
+ * @param {Object|undefined} move the move being played
+ * @param {{at: number, t: number, turns?: number}|null} live the clock's turn
+ * @returns {Object|null} what `CubeView` draws, or null when nothing is turning
+ */
+export const renderTurn = (move, live) =>
+  live && move ? { ...move, t: live.t, turns: live.turns } : null;
+
 export default {
   buildPlayback,
   extendsAlg,
   promotedTurn,
+  renderTurn,
   turnDuration,
   gapDuration,
   nextSpeed,

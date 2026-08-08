@@ -21,6 +21,7 @@ import {
   ease,
   extendsAlg,
   promotedTurn,
+  renderTurn,
   gapDuration,
   nextSpeed,
   turnDuration,
@@ -395,6 +396,63 @@ describe('promotedTurn', () => {
   it('does not confuse a wide turn with its face', () => {
     expect(promotedTurn('r', 'R2', 1)).toBeNull();
     expect(promotedTurn('r', 'r2', 1)).toEqual({ at: 0, turns: 2 });
+  });
+
+  /**
+   * **The seam the sweep was actually lost at.**
+   *
+   * `promotedTurn` has returned the right signed sweep since Step 8 and every
+   * test of it passed — while the promotion animated backwards on a phone,
+   * because `useScramblePlayer` built the renderer's turn with a spread that
+   * left `turns` behind. A line inside a hook is a line no test here can reach,
+   * so it is a function now and this is it.
+   */
+  describe('renderTurn', () => {
+    const move = parseMove('D2');
+
+    it('carries the signed sweep out to the renderer', () => {
+      // Without this the renderer falls back to `shortWay(2)`, which is `+2`,
+      // and a `D` that turned anticlockwise jumps 180° before carrying on.
+      expect(renderTurn(move, { at: 0, t: 0.5, turns: -2 })).toEqual({
+        ...move,
+        t: 0.5,
+        turns: -2,
+      });
+    });
+
+    it('leaves an ordinary turn undefined, which is what "the short way" is', () => {
+      const turn = renderTurn(parseMove('R'), { at: 0, t: 0.25 });
+      expect(turn.t).toBe(0.25);
+      expect(turn.turns).toBeUndefined();
+    });
+
+    it('is null when nothing is turning, or when the move is gone', () => {
+      // A move index left over from a longer algorithm reaches the renderer
+      // before the effect that clears it — as `undefined`.
+      expect(renderTurn(move, null)).toBeNull();
+      expect(renderTurn(undefined, { at: 9, t: 0.5 })).toBeNull();
+    });
+
+    it('hands the move on whole, so the renderer still gets axis and layers', () => {
+      const turn = renderTurn(move, { at: 0, t: 1, turns: -2 });
+      expect(turn.axis).toBe(move.axis);
+      expect(turn.layers).toEqual(move.layers);
+      expect(turn.amount).toBe(move.amount);
+    });
+
+    /**
+     * The round trip that would have caught it: what `promotedTurn` decided has
+     * to be what the renderer is told, for every face on the pad — and the three
+     * that turn anticlockwise are the ones that broke.
+     */
+    it.each(['R', 'U', 'F', 'L', 'D', 'B'])(
+      'preserves the sweep %s2 was promoted with',
+      (face) => {
+        const carry = promotedTurn(face, `${face}2`, 1);
+        const turn = renderTurn(parseMove(`${face}2`), { at: carry.at, t: 0.5, turns: carry.turns });
+        expect(turn.turns).toBe(carry.turns);
+      }
+    );
   });
 
   it('carries on the way the first quarter went', () => {
