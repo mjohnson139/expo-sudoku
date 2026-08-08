@@ -129,6 +129,16 @@ where the second implementation is doing the same job. `useBoardOrigin` is; the
 persistence writers are not (Color Loop stores eleven independent preference
 keys, not one game blob).
 
+**Step 1 closed four of Number Slide's five missing rows** — registry entry,
+`useAppTheme`, `useBoardSize({ fill: true })` and `ScreenHeader` — and left
+`readProgress` for Step 3 on purpose. Its `useBoardOrigin` copy came across as-is
+and now lives at `games/numberslide/useBoardOrigin.ts`: inside the game rather
+than beside the platform's in `hooks/`, because a second `hooks/useBoardOrigin`
+differing only by file extension is the worst available name for it. Step 2 needs
+the same file for Color Loop and should decide then whether to lift it somewhere
+both games can see; **Step 6 still owns whether the platform ends up with one
+hook or two.**
+
 ### One thing the newcomers bring the other way
 
 `color-loop/utils/motion.ts` and `components/Motion.tsx` are a **written motion
@@ -171,6 +181,53 @@ The cost is exactly three things, and none is large:
 **Do not convert existing JavaScript to TypeScript in this epic**, including
 files the new games touch. A creeping conversion is how a merge becomes a
 rewrite.
+
+#### What Step 1 found: it is four things, and `allowJs: false` has a price
+
+The list above is right about the shape and wrong about the total. **Built in
+Step 1, the cost came out as:**
+
+1. `tsconfig.json`, `typescript`, `@types/react` — **and `@types/jest`**, because
+   the incoming `.test.ts` files are `.ts` and therefore under the new gate too.
+2. The `typecheck` script.
+3. The Jest transform.
+4. **A `.d.ts` beside every JavaScript module the games import.** This is the one
+   the plan did not see, and it follows directly from `allowJs: false`: with it
+   off, TypeScript does not merely skip type-*checking* the JavaScript — it
+   cannot **resolve** a `.js` module at all, so `import useAppTheme from
+   '../../hooks/useAppTheme'` is `TS2307: Cannot find module`. Every guest game
+   is going to import the platform seam, so something has to bridge it.
+
+**The bridge is hand-written declarations, and `allowJs` stays off.** Six shims
+covered all of Step 1: `hooks/useAppTheme`, `hooks/useBoardSize`,
+`components/ScreenHeader`, `utils/color`, `utils/themes`, `utils/gameProgress` —
+which is, exactly, §3's platform-seam table written in types. That is a better
+artefact than `allowJs: true, checkJs: false` would have been, and it is why the
+constraint is worth keeping rather than relaxing.
+
+It has one real cost, and it is worth stating rather than discovering: **a
+`.d.ts` is trusted absolutely.** TypeScript resolves `utils/color` to
+`utils/color.d.ts` and never opens `utils/color.js`, so renaming an export on the
+JavaScript side breaks the games at runtime with `tsc --noEmit` still green.
+`utils/__tests__/typeShims.test.js` is the floor under that: it reads each shim
+and each module and fails if a shim declares a name the module no longer exports.
+**Extend that list whenever a shim is added** — Step 2 will need at least
+`utils/symbolSets`.
+
+Two smaller findings from the same step, both of which will bite Step 2 if they
+are not written down:
+
+- **`utils/rng` and `utils/motion` land as `.ts`, not the `.js` §3 and the Step 1
+  scope called for.** §2's own inventory has them under *"Pure engines (`.ts`) —
+  move nearly unchanged"*, and that is the reading to follow: written as `.js`
+  they would each need a shim of their own, which is pure cost for two files this
+  epic owns outright and nothing else imports.
+- **Babel and types pin to versions, not to `latest`.** `@babel/preset-typescript`
+  and `@babel/preset-react` must be `^7` (their current majors need
+  `@babel/core ^8`; this repo is on 7), and `@types/react` / `@types/jest` must be
+  what the SDK expects (`~19.1.10`, `29.5.14`) or **`expo-doctor` drops off 18/18
+  on a version mismatch** — which is exactly the check §10 says to run in the step
+  that adds the dependency rather than at merge time.
 
 ### 4.2 The games adopt this app's themes outright — including the puzzle palette
 
@@ -255,6 +312,46 @@ gets checked against all seven themes, `utils/color.js`'s `relativeLuminance` an
 `readableOn` are what to check with, and the cube's contrast test is the pattern
 to copy.
 
+##### And Step 1 found the shape that makes it cheap: derive, then *construct* the floor
+
+`games/numberslide/palette.ts` is the pattern for Step 2 to copy, and it has three
+properties worth naming, because the third is what turns a checklist into a
+guarantee:
+
+1. **The mapping is one pure function**, `numberSlidePalette(theme, isDark)`, with
+   no React and no React Native in it — so all seven themes are testable in the
+   node runner, the same split `games/*/geometry.js` already uses.
+2. **Every part is played by the token that already plays it in Sudoku**: the
+   tray is `grid.background`, a tile face is `cell.background`, a number on a tile
+   is `cell.initialValueText`, and the accent — solved board, primary button, code
+   chip, record badge — is `cell.userValueText`, the colour each theme prints the
+   *player's own answer* in. That last one is also the only token that differs on
+   all seven, which is what makes cycling the theme visibly carry the screen.
+3. **`ensureContrast(colour, against, min)` blends toward black or white until the
+   ratio clears**, so the floor holds by construction and an *eighth* theme
+   arrives legible instead of arriving as a device bug. The test is the floor
+   under that, not a description of hand-picked hues.
+
+Two traps inside it, both found by the test on its first run rather than by
+reading:
+
+- **The push direction has to be searched in both directions.** Choosing it from
+  the background's luminance is the obvious implementation and it is wrong twice:
+  a dark ink on a mid-tone fill has to get *darker*, and against a mid-tone
+  background neither endpoint is guaranteed to reach a given ratio. Sunrise's
+  amber accent is the live example — 3.97:1 where 4.5 was asked for.
+- **A win card's text does not sit on the background.** It sits on the scrim, over
+  a board that has just turned accent-coloured, and that composite is a third
+  colour. Measured against the page it passes; measured against what is actually
+  behind it, a light theme lands near 3.4:1. Compute the composite
+  (`mix(litTile, background, alpha)`) and hold the text to *that*. The same will
+  be true of every overlay Color Loop brings.
+
+One more, which is a design finding rather than a contrast one: **the scrim must
+not be heavy enough to hide the celebration.** At 0.86 the solved board's accent
+was gone under it; 0.72 — the sibling app's own weight — keeps the board present
+and still clears every text floor.
+
 #### What this costs
 
 More than option C did, and the cost is concentrated where the plan already
@@ -318,6 +415,12 @@ Two consequences to honour:
   than one designed once.
 - **A player's Color Loop board is currently not resumable at all** — the games
   persist bests and settings, never an in-progress board. See §4.6.
+
+Step 1 landed the first of the two blobs: `@NumberSlide`, `_v: 1`, holding
+`best`, with the shape rules in a pure `readNumberSlideSave` that the node runner
+tests — the split `games/cube/solveList.js` and
+`games/fungiku/saveMigration.js` already use. Step 3 adds the in-progress board
+to the same object rather than to a second key.
 
 ### 4.5 Codes are the platform's most interesting idea, and this epic does not build a framework for it
 
@@ -452,6 +555,23 @@ in every step that touches it.
   dashboard is the place that breaks and no PR check will catch it. Verify the
   Vercel deploy explicitly in the step that adds `tsconfig.json`.
 
+  **Step 1 did, and the answer is that nothing about the build command changes.**
+  `npx expo export --platform web` produces the same `dist/` it did before — the
+  new `.ts`/`.tsx` is compiled by `babel-preset-expo` through Metro, which has
+  supported TypeScript without configuration for years and does not read
+  `tsconfig.json` to do it. `typescript` itself is only ever run by the
+  `typecheck` script.
+
+  The one hazard worth naming, because it is the one that could still bite: the
+  new packages are **devDependencies**, so a deploy that installed with
+  `--omit=dev` would not have them. It does not, and this can be settled without
+  the dashboard — `@babel/core` has been a devDependency of this app since before
+  the hub existed and Metro cannot bundle without it, so a production-only install
+  would have been failing the whole time. `typescript` joining that list is
+  therefore free. **What still needs an eye at merge time is only whether the
+  dashboard pins an old Node or an install flag** — the repo cannot answer that
+  one.
+
   What is *not* built either side is the piece Color Loop's roadmap called the
   highest-leverage next step: **a URL that carries a code**
   (`…/play?code=MS-K7P2Q`) so a shared board opens straight into the game rather
@@ -481,15 +601,16 @@ A correction that arrives after a step merged is its own branch and PR, numbered
 step.
 
 - **Step 0 — this plan** and the tracker issue. *(this PR)*
-- **Step 1 — Number Slide on the hub.** The smaller game first, deliberately: it
-  has no inner hub, no code system and no ladder, so it proves the whole seam
+- **Step 1 — Number Slide on the hub.** ✅ The smaller game first, deliberately:
+  it has no inner hub, no code system and no ladder, so it proves the whole seam
   — TypeScript, the Jest transform, the registry entry, `ScreenHeader`, and **the
-  full theme adoption of §4.2** — against 600 lines instead of 1,700. Ships:
-  `tsconfig.json`, the test transform, `utils/motion.js` + `components/Motion.tsx`,
-  `utils/rng.js`, `expo-clipboard`, `games/numberslide/` rendering entirely from
-  `useAppTheme`, a fourth hub card. **When this lands the platform question is
-  answered and Step 2 is mostly repetition.** It is also the step that adds
-  `tsconfig.json`, so it is the step that must verify the Vercel deploy (§6).
+  full theme adoption of §4.2** — against 600 lines instead of 1,700. Shipped:
+  `tsconfig.json` and six `.d.ts` shims, the test transform,
+  `utils/motion.ts` + `components/Motion.tsx`, `utils/rng.ts`, `expo-clipboard`,
+  `Vibration` → `expo-haptics`, `games/numberslide/` rendering entirely from
+  `useAppTheme` through a pure `palette.ts`, a fourth hub card with no
+  `readProgress`. **The platform question is answered and Step 2 is mostly
+  repetition** — §4.1 and §4.2 above carry what it found.
 - **Step 2 — Color Loop on the hub.** The board, the physics, free play, the code
   system, `Confetti`, `Controls` — all on the theme. **`colors.ts` is retired for
   `utils/symbolSets.js` here**, with the `maxN` pin from §4.2 landing in the same
@@ -561,7 +682,9 @@ At merge:
 2. **Does Color Loop keep its name on this hub?** *Color Loop* was the app; here
    it is a card. It reads well next to *Fungiku* and *Cube Scramble*, so the
    default is to keep it. Same question, quietly, for *Number Slide* — the
-   classic's real name is the 15-puzzle.
+   classic's real name is the 15-puzzle. **Step 1 shipped the default** (the card
+   reads *Number Slide*); renaming a card is a one-line change in the registry,
+   so it stays cheap to answer later.
 3. **Do the physics sliders ship?** Friction, flick, magnet and twin are
    currently a dev screen for an unfinished tuning pass. Options: a real setting
    in the menu, a hidden dev surface on the epic branch only, or delete them and

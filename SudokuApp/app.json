@@ -2,7 +2,7 @@
   "expo": {
     "name": "Puzzle Box",
     "slug": "expo-sudoku",
-    "version": "3.1.0",
+    "version": "3.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -32,7 +32,7 @@
       "shortName": "Puzzle Box",
       "backgroundColor": "#ffffff",
       "themeColor": "#000000",
-      "description": "Two logic puzzles and a 3D Rubik's cube behind one hub",
+      "description": "Four puzzles and a 3D Rubik's cube behind one hub",
       "lang": "en",
       "orientation": "portrait"
     },
