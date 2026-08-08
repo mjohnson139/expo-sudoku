@@ -1,6 +1,7 @@
 import GameScreen from '../screens/GameScreen';
 import FungikuScreen from './fungiku/FungikuScreen';
 import CubeScreen from './cube/CubeScreen';
+import NumberSlideScreen from './numberslide/NumberSlideScreen';
 import { readSudokuProgress } from '../utils/storage';
 import { readFungikuProgress } from './fungiku/storage';
 import { readCubeProgress } from './cube/storage';
@@ -58,6 +59,28 @@ export const GAMES = [
     accent: '#c62828',
     Screen: CubeScreen,
     readProgress: readCubeProgress,
+  },
+  {
+    // The first of the two games arriving from the sibling color-loop app
+    // (docs/colorloop-merge-plan.md, Step 1). A *manipulation* puzzle rather
+    // than a deduction one — the board moves under your finger and the
+    // challenge is planning motion, which is a shape the box did not have.
+    //
+    // **No `readProgress`.** Neither incoming game persists a board in flight
+    // yet; Step 3 makes them resumable and gives both cards a badge at the same
+    // time. A Continue affordance with nothing behind it is worse than no
+    // badge, so the key is simply absent — the hub already reads that as
+    // "nothing to continue".
+    id: 'numberslide',
+    title: 'Number Slide',
+    tagline: 'Slide the tiles back into order, 1 to 8, around one gap.',
+    icon: 'view-grid-outline',
+    // The one place a game is allowed its own hue. Brass does not survive the
+    // merge as a colour, but it survives as an idea (plan §4.2) — this is the
+    // amber the standalone app's hardware was, held at arm's length from
+    // Fungiku's `#a0522d` and the cube's `#c62828`.
+    accent: '#b07f26',
+    Screen: NumberSlideScreen,
   },
 ];
 

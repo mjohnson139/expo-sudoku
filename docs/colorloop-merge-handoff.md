@@ -30,7 +30,7 @@ main ─── epic/color-loop ─── feature/color-loop-<step>   (PRs target
 - `epic/color-loop` is cut from `main` and **everything merges into it**, never
   into `main`. `main` never carries a half-merged game.
 - **One delivery step per branch**, named `feature/color-loop-<short-skewer-name>`
-  (`.github/dev-process.md`). Step 1 is `feature/color-loop-numberslide`.
+  (`.github/dev-process.md`). Step 2 is `feature/color-loop-board`.
 - A step PR targets `epic/color-loop`, is squash-merged, and its branch is
   deleted.
 - A follow-up correction that arrives *after* a step merged — the operator using
@@ -94,10 +94,10 @@ start from one line. In order:
 1. **Every step ships something the operator can open in Expo Go.** Step 0 (the
    plan) and the final architecture review are the only exemptions, and both say
    so explicitly.
-2. **Sudoku, Fungiku and Cube Scramble do not change behaviour.** Shared code may
-   be extended; every extension leaves existing callers pixel-identical.
-   `ScreenHeader`'s `dense` prop is the pattern — opt-in, and Fungiku was opened
-   to prove nothing moved.
+2. **Sudoku, Fungiku, Cube Scramble and now Number Slide do not change
+   behaviour.** Shared code may be extended; every extension leaves existing
+   callers pixel-identical. `ScreenHeader`'s `dense` prop is the pattern — opt-in,
+   and Fungiku was opened to prove nothing moved.
 3. **`games/colorloop/puzzle.ts` is frozen.** Every shared code decodes through
    it. A refactor that moves a generated board breaks every code anyone has
    shared. The test pins it; do not weaken the test.
@@ -111,7 +111,7 @@ start from one line. In order:
 
 ```bash
 npm test                          # existing suite must stay green, plus the new tests
-npx tsc --noEmit                  # new gate from Step 1 on
+npm run typecheck                 # tsc --noEmit — the gate Step 1 added
 npx expo-doctor                   # expect 18/18
 npx expo export --platform all    # web + iOS + Android must all bundle
 ```
@@ -128,102 +128,171 @@ this project keeps finding native-only bugs late.
 to `epic/color-loop` as the branch's first commit, so every step branches from a
 tree that already contains its own brief.
 
+## Step 1 — Number Slide on the hub ✅
+
+The fourth card, and the whole platform seam proved against ~600 lines. Landed
+`tsconfig.json` (with `allowJs` off) plus the **six `.d.ts` shims** that turned
+out to be what `allowJs: false` actually costs, a `typecheck` script, the Jest
+`.ts`/`.tsx` transform in this repo's node environment, `utils/rng.ts`,
+`utils/motion.ts` + `components/Motion.tsx`, `components/Confetti.tsx`, the two
+`Controls` primitives the screen uses, `expo-clipboard`, `Vibration` →
+`expo-haptics`, and `games/numberslide/` rendering **entirely** from `useAppTheme` through a pure
+`palette.ts` whose contrast floors hold by construction on all seven themes. A
+fourth registry entry with **no `readProgress`** (Step 3 owns badges). 125 new
+tests: the 17 incoming `logic.test.ts` cases untouched, the palette on every
+theme, and a guard that stops the `.d.ts` shims drifting from the JavaScript
+they speak for.
+
+**The best time came back out before the step shipped** (operator, 2026-08-08),
+and it takes `@NumberSlide` with it — the game persists nothing. See plan §4.4
+for why, and note the consequence Step 3 inherits: **Number Slide's Continue
+badge has no fallback to stand on**, so its card stays blank until there is a
+resumable board.
+
+§4.1, §4.2, §4.4, §3 and §6 of the plan were all amended with what this step
+found — **read those before Step 2, they are most of its brief.**
+
 ---
 
-## Step 1 — Number Slide on the hub *(next)*
+## Step 2 — Color Loop on the hub *(next)*
 
 ### Starting prompt
 
 ```
-Work Step 1 of the Color Loop merge epic in mjohnson139/expo-sudoku.
+Work Step 2 of the Color Loop merge epic in mjohnson139/expo-sudoku.
 
 Read docs/colorloop-merge-handoff.md first — it describes this step and only
 this step — then docs/colorloop-merge-plan.md end to end before writing code.
 
-Branch feature/color-loop-numberslide off epic/color-loop. PR targets
+Branch feature/color-loop-board off epic/color-loop. PR targets
 epic/color-loop, never main. Tracker is issue #103.
 ```
 
-**Bring the smaller of the two games over, and in doing so answer every platform
-question the bigger one will ask.**
+**The game the epic is named after, on the hub as the fifth card — and the
+palette swap, which is the one genuinely dangerous change in the whole epic.**
 
-Number Slide first is a deliberate ordering. It has no inner hub, no code system,
-no training ladder and no match mode, so the seam — TypeScript, the Jest
-transform, the registry entry, `ScreenHeader`, the theme split — gets proven
-against ~600 lines instead of ~1,700. When this lands, Step 2 is mostly
-repetition of settled decisions.
+Step 1 answered every platform question: TypeScript, the shims, the Jest
+transform, the registry entry, `ScreenHeader`, `useBoardSize`, the theme
+adoption, haptics, clipboard, storage shape. **This step is mostly repetition of
+settled decisions applied to 2,200 lines instead of 600** — plus two things that
+are new, and they are where the care goes.
 
 ### Scope — ONLY this
 
-1. **TypeScript in `SudokuApp/`** — `tsconfig.json` extending
-   `expo/tsconfig.base`, `typescript` + `@types/react` as devDependencies, a
-   `typecheck` script. **`allowJs` stays off**: the existing JavaScript is not
-   going under a type checker in this epic (plan §4.1).
-2. **The Jest transform** — `testMatch` extended to `*.test.{js,ts}`, a
-   `^.+\\.tsx?$` transform with `@babel/preset-typescript`. Same node
-   environment, no `jest-expo`, no jsdom (plan §5).
-3. **`utils/rng.js`** (`mulberry32`, nine lines) and **`utils/motion.js` +
-   `components/Motion.tsx`** (`DUR`/`EASE`/`SPRING`/`STAGGER`, and
-   `FadeSlideIn`/`PopIn`/`ScalePress`/`useCountUp`). Ported, **not** retrofitted
-   onto Fungiku or the cube (plan §3).
-4. **`games/numberslide/`** — `logic.ts` and the game screen, **rendering
-   entirely from `useAppTheme`** (plan §4.2, settled by the operator on
-   2026-08-08: *"I want color loop to fit into the color themes here. There is no
-   attachment to the walnut and brass."*). `ScreenHeader` for the back-to-hub
-   affordance. The parchment `TILE` constants (`bg`, `ink`, `litBg`, `litInk`)
-   are **not** ported as-is — they come from the theme, and the "lit" tile is the
-   theme's own emphasis colour. `utils/theme.ts`'s `THEME` object does not come
-   across at all; only `fmt()` does, folding into `formatElapsed`.
-5. **`components/Confetti.tsx`** and whichever `Controls` primitives the screen
-   actually uses — no more.
-6. **`expo-clipboard`**, and `Vibration` → `expo-haptics`.
-7. **A fourth registry entry** with `id`, `title`, `tagline`, `icon`, `accent`,
-   `Screen`. **No `readProgress` yet** — Step 3 owns saves and badges, and a
-   badge with nothing behind it is worse than no badge.
-8. **The 17 incoming `logic.test.ts` cases**, green in the node environment.
+1. **The engines, unchanged:** `games/colorloop/{puzzle,levels,match}.ts`.
+   `puzzle.ts` is **frozen** (golden rule 3) — it arrives byte-identical apart
+   from its `colors` import.
+2. **The palette swap.** `games/colorloop/colors.ts` is **retired** for
+   `utils/symbolSets.js` (plan §4.2). Use the saturated `color`, not the tinted
+   `background` — full saturation is where Okabe–Ito's colorblind safety lives,
+   and the tints are tuned for Fungiku's soft grid.
+3. **The `maxN` pin, in the same PR as the swap and never after it.** See *the
+   trap*, below. It is the most important paragraph in this file.
+4. **`games/colorloop/geometry.ts`** — `computeGeom` and `linesAt` extracted out
+   of `Board.tsx` so `board.test.ts` runs in the node environment, exactly what
+   `games/fungiku/geometry.js` and `games/cube/geometry.js` already are (plan §5).
+5. **`games/colorloop/saveShape.ts`** — `sanitizeTraining` / `sanitizeMatchBest`
+   extracted out of `storage.ts` for the same reason, and `@ColorLoop` as one
+   versioned blob (plan §4.4). `games/numberslide/storage.ts` is the shape to
+   copy.
+6. **`Board.tsx` and the board's physics**, on the platform's touch rules.
+7. **The inner hub becomes a menu** (plan §4.3): tapping the hub card lands on a
+   **playable board**, and Free play / Training / Match are chosen from
+   `ScreenHeader`'s menu button — where Fungiku's difficulty menu is.
+   `FungikuMenuModal` is the shape to follow.
+8. **Free play and the code system**, complete: generate, copy, paste, load.
+9. **A fifth registry entry**, again with **no `readProgress`**.
+10. **The rest of the incoming tests** — `puzzle`, `levels`, `match`, `board`,
+    `storage`. Five of the seven files pass untouched once the two extractions
+    exist.
 
 ### Explicitly out of scope
 
-Color Loop (all of it). Resumable boards and hub badges (Step 3). Any change to
-Fungiku's or the cube's celebration, confetti or motion. Converging
-`useBoardOrigin` — Number Slide's copy comes along as-is and Step 6 decides. Any
+Resumable boards and hub badges (Step 3). Training's ladder and Match's gauntlets
+as *finished* screens (Step 4) — they need only be reachable and not broken.
+The proving pass over all ~100 restyled sites (Step 5). Converging
+`useBoardOrigin` or the two confetti implementations (Step 6 decides both). Any
 JavaScript→TypeScript conversion of existing files.
 
-### Behaviors that are easy to get wrong
+### ⚠️ The trap: the palette swap is part of the `puzzle.ts` freeze
 
-- **`UIManager.setLayoutAnimationEnabledExperimental(true)` at module scope**
-  must survive the move — without it the tile slide animation silently does
-  nothing on Android.
-- **`USE_NATIVE = Platform.OS !== 'web'`** is not a workaround to simplify away;
-  react-native-web only has the JS driver, and mixing `setValue()` with
-  `useNativeDriver: true` is a known trap here (`docs/fungiku-plan.md` §2).
+This is the least obvious thing in the plan and it will not fail a single
+existing test.
+
+```ts
+export function maxN(mode: Mode): number {
+  return mode === 'diag' ? Math.floor((COLORS.length + 1) / 2) : 6;
+}
+```
+
+`maxN` is **derived from the palette's length**, and `parseCode` **clamps `n` to
+`maxN(mode)`**. Seven colours ⇒ `maxN('diag') === 4`. `utils/symbolSets.js` holds
+**ten**, which would make it **5** — so the code `5-ABC-D`, which today clamps to
+a 4×4 board, would silently start producing a 5×5 one. Every code anyone has
+shared would decode to a different puzzle, and nothing in either suite would say
+a word.
+
+**The rule: Color Loop takes the first seven entries of the platform palette and
+its view of the palette stays length 7.** The palette may hold ten; Color Loop
+may not see them. **Add a test pinning `maxN('diag') === 4` and `maxN('rows') ===
+6`** next to the scramble-compatibility test, and land it in the same commit as
+the swap.
+
+### Behaviours that are easy to get wrong
+
+- **The glyphs.** Color Loop's `●▲■◆★✦✚` are the same idea as the swatches'
+  `corners` — a non-colour channel of identity. **Keep the redundancy**; align
+  the mechanism with `components/Symbol.js` rather than carrying a second one.
+  Whether they stay characters or become the silhouettes is **open question 1**,
+  and it is better settled by looking at a board than by argument — so build one
+  and ask the operator.
 - **Touches resolve through `pageX/pageY` minus a measured origin**, never
-  `locationX/locationY`.
-- **`useBoardSize`** knows about the 600pt centred web container; Number Slide's
-  own `useWindowDimensions` math does not. Reconcile, or the board and the header
-  disagree about where the middle is on web.
-- **Contrast across all seven themes.** Parchment text on the Classic theme's
-  near-white background is the bug this step can ship without noticing — and
-  after §4.2 it is the *only* failure mode left, since every colour now comes
-  from somewhere. Check it, and leave a test as the floor if the check is not
-  trivial. `utils/color.js`'s `relativeLuminance` and `readableOn` are the tools;
-  `utils/__tests__/symbolSets.test.js` is the pattern.
-- **The Vercel deploy's build settings live in Vercel's dashboard, not in this
-  repo** (plan §6). This is the step that adds `tsconfig.json`, so it is the step
-  where a dashboard build command can start failing with no PR check to catch it.
-  Confirm the web deploy still builds before handing back.
+  `locationX/locationY`. Color Loop's board, its slider and Number Slide were all
+  bitten by this on the SDK 54 upgrade.
+- **`useBoardOrigin` is currently two hooks** — the platform's in `hooks/` and the
+  copy Step 1 parked at `games/numberslide/useBoardOrigin.ts`. Color Loop needs
+  the same thing. **Decide where the guest copy lives now that there are two
+  callers** and write down what you chose; the real convergence with the platform
+  hook is still Step 6's.
+- **`USE_NATIVE = Platform.OS !== 'web'`** is not a workaround to simplify away,
+  and it now lives in `utils/motion.ts` for you.
+- **`useBoardSize({ fill: true })`** knows about the 600pt centred web container;
+  Color Loop's `computeGeom` sizing off `useWindowDimensions` capped at 440 does
+  not. Reconcile them the way `NumberSlideScreen` did, or the board and the header
+  disagree about the middle of the page on web.
+- **A row wider than the board widens the ScrollView's content container** and
+  pushes every centred sibling off-screen — Fungiku shipped that bug with a row of
+  hearts, and Color Loop's controls and match splits are exactly that shape of
+  row.
+- **The `dev` screen (friction, flick, magnet, twin) does not ship on the hub.**
+  Keep the sliders behind the menu on the epic branch and decide before the merge
+  to `main` whether they become a real setting or come out — **open question 3**.
+  `Controls.tsx`'s `Slider` and `Seg` were deliberately not ported in Step 1; they
+  arrive with this step if the sliders do.
+- **New colours go through `palette.ts`'s pattern, not into styles.** Step 1's
+  `games/numberslide/palette.ts` is the template: one pure function, floors that
+  hold by construction via `ensureContrast`, and a test over all seven themes.
+  **Two of its findings will recur here** — the contrast push has to search both
+  directions, and text on an overlay must be measured against the *composite*
+  (scrim over whatever is behind it), not against the page. Plan §4.2 has both.
+- **Adding a `.d.ts` shim means adding it to the list** in
+  `utils/__tests__/typeShims.test.js`. Step 2 will need at least
+  `utils/symbolSets`.
 
 ### Visible in Expo Go when this lands
 
-A fourth card on the hub. Tapping it opens Number Slide under this app's header,
-in the theme the player has chosen, with tiles that slide, a timer, a best time,
-and a win celebration. Back returns to the hub. **No walnut and no brass
-anywhere** — cycling the theme should carry the whole screen with it.
+A fifth card. Tapping **Color Loop** lands straight on a playable board — no
+second front door — under this app's header, in the player's theme, with tiles in
+the Okabe–Ito hues the rest of the app uses. Drag a row or a column and it wraps.
+Solve it and it celebrates. The menu button opens Free play / Training / Match.
+The code chip copies, and a pasted code loads the same board it loads on the
+sibling app. **No walnut and no brass anywhere**, on either game.
 
 ### How to verify
 
-The four commands above, plus the web deploy, plus a device pass: slide tiles,
-win a board, feel the haptic, **cycle through all seven themes and confirm every
-part of the screen follows** — that is the step's headline claim and the one
-thing a single screenshot cannot show — and confirm the other three games look
-exactly as they did.
+The four commands above, plus a device pass. **The gesture is the whole game and
+a browser will not tell you how it feels** — drag rows and columns, flick them,
+check the magnet settle, and say so in the PR. Then: cycle all seven themes on
+both new cards, load a code that was generated by the standalone app and confirm
+it produces the same board, and confirm the other four games look exactly as they
+did.
