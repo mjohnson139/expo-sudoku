@@ -287,6 +287,13 @@ the swap.
 - **Touches resolve through `pageX/pageY` minus a measured origin**, never
   `locationX/locationY`. Color Loop's board, its slider and Number Slide were all
   bitten by this on the SDK 54 upgrade.
+- **An effect cannot depend on a ref**, and Color Loop's screen has the same
+  timer-plus-once-created-`PanResponder` shape that hid this in Number Slide: its
+  clock was frozen after every restore, because "is the clock running" was a ref
+  and the interval's effect could not see it change. It typechecked and passed
+  the whole suite. Plan §4.4 has the full account; the rule is that anything an
+  effect must react to is **state**, with a ref beside it only for the closures
+  created once.
 - **`useBoardOrigin` is currently two hooks** — the platform's in `hooks/` and the
   copy Step 1 parked at `games/numberslide/useBoardOrigin.ts`. Color Loop needs
   the same thing. **Decide where the guest copy lives now that there are two

@@ -485,9 +485,24 @@ Two smaller decisions inside it, both of which Color Loop will face:
   *code* — the thing the player can share — and it cannot be recovered from a
   scrambled board.
 - **The clock resumes rather than restarts, and time on the hub is not
-  counted.** The timer's anchor is recomputed as `Date.now() - secs * 1000` at
-  the *next move* rather than at restore, so a board left open on the front door
-  does not quietly accrue minutes.
+  counted.** The anchor is recomputed as `Date.now() - secs * 1000` when a
+  started board is restored, so the clock picks up from where it stopped. Hub
+  time does not accrue because the screen is unmounted there — that falls out of
+  the architecture rather than needing a rule.
+
+  **Getting this wrong is worth a paragraph, because the bug was invisible to
+  every check this repo has.** "Is the clock running" started as a `useRef`, and
+  the effect that owns the `setInterval` cannot depend on a ref — its dependency
+  was `moves > 0`. On a *fresh* board the first move flips that from false to
+  true and the effect re-runs after the ref has been set, so the interval starts
+  **by accident**. On a *restored* board `moves` is already above zero, nothing
+  in the dependency list ever changes again, and the interval is never created:
+  the clock is frozen for the rest of the game. It typechecks, it passes 1,059
+  tests, and it survives every browser check that does not sit and watch a
+  restored board for three seconds. The rule: **anything an effect must react to
+  is state; a ref alongside it is only for closures that were created once**
+  (this screen's `PanResponder`). Color Loop's screen has a timer, refs and a
+  once-created `PanResponder` in exactly the same arrangement — check it.
 
 ### 4.5 Codes are the platform's most interesting idea, and this epic does not build a framework for it
 
@@ -836,6 +851,10 @@ At merge:
 - **`useNativeDriver` and `setValue`** must not mix (`docs/fungiku-plan.md`
   §2). The incoming code uses `USE_NATIVE = Platform.OS !== 'web'`, which is the
   same rule spelled differently — do not "simplify" it to `true`.
+- **An effect cannot depend on a ref**, and a restored game is where that
+  stops being academic. Number Slide's clock was frozen after every restore for
+  exactly this reason (§4.4). Color Loop's screen has the same timer-plus-refs
+  shape.
 - **Nothing buzzes, anywhere.** `expo-haptics` was removed from the app
   entirely (§6), so a `Vibration` or `Haptics` call arriving with Color Loop is
   deleted rather than translated. This also takes a whole class of

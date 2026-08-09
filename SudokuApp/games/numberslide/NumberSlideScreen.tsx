@@ -94,8 +94,25 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
   const [showCodeEntry, setShowCodeEntry] = useState(false);
   const [codeInput, setCodeInput] = useState('');
 
+  /**
+   * Whether the clock is ticking — **state, and deliberately not just a ref.**
+   *
+   * It was a ref, and that was a real bug: the effect below owns the interval,
+   * and an effect cannot depend on a ref. Its dependency was `moves > 0`, so on
+   * a *fresh* board the first move flipped that from false to true and re-ran
+   * the effect after the ref had been set — the interval started by accident.
+   * On a **restored** board `moves` is already above zero, nothing in the
+   * dependency list ever changes again, and the interval is never created: the
+   * clock sits frozen for the rest of the game.
+   *
+   * `runningRef` stays alongside it, mirrored on every render, because
+   * `applyResult` is reached through a `PanResponder` created once — that
+   * closure would read the `running` of the first render forever.
+   */
+  const [running, setRunning] = useState(false);
   const startTimeRef = useRef(0);
   const runningRef = useRef(false);
+  runningRef.current = running;
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -109,6 +126,16 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
         setState({ board: saved.board, empty: saved.empty });
         setMoves(saved.moves);
         setSecs(saved.secs);
+        // A board that was already under way starts its clock again on arrival,
+        // from where it stopped. **Time on the hub is still not counted** — the
+        // screen is unmounted there, so nothing accrues; what resumes is the
+        // clock for time spent looking at *this* board, which is the same rule
+        // it follows during play.
+        if (saved.moves > 0) {
+          startTimeRef.current = Date.now() - saved.secs * 1000;
+          runningRef.current = true;
+          setRunning(true);
+        }
       } else {
         // First visit, or a board that was finished and cleared.
         const sd = randomSeed();
@@ -123,14 +150,13 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
     };
   }, []);
 
-  const started = moves > 0;
   useEffect(() => {
-    if (!runningRef.current || solved) return undefined;
+    if (!running || solved) return undefined;
     const id = setInterval(() => {
       setSecs(Math.floor((Date.now() - startTimeRef.current) / 1000));
     }, 250);
     return () => clearInterval(id);
-  }, [solved, started]);
+  }, [running, solved]);
 
   // Leaving the screen mid-toast must not leave a timer holding a setState.
   useEffect(
@@ -194,6 +220,7 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
     if (!res || res.moved.length === 0) return;
     if (!runningRef.current) {
       runningRef.current = true;
+      setRunning(true);
       // **Not `Date.now()`** — the clock resumes from whatever the restored
       // board had already spent. Anchoring the start that far back is what makes
       // elapsed time keep counting from where it stopped, and reading it from a
@@ -302,6 +329,7 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
   const onSolved = () => {
     const t = Math.floor((Date.now() - startTimeRef.current) / 1000);
     runningRef.current = false;
+    setRunning(false);
     setSecs(t);
     setSolved(true);
     // The win is announced by the board — the solve wave, then the card. There
@@ -355,6 +383,7 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
     setSecs(0);
     setSolved(false);
     runningRef.current = false;
+    setRunning(false);
   };
 
   const copyCode = async () => {
