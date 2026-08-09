@@ -15,7 +15,6 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import * as Haptics from 'expo-haptics';
 
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
@@ -305,14 +304,8 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
     runningRef.current = false;
     setSecs(t);
     setSolved(true);
-
-    // `expo-haptics`, not RN's `Vibration` — one API for one thing, and
-    // `Vibration` has no iOS intensity control (plan §6). Web has no haptics and
-    // resolves to a no-op, so the platform guard is belt and braces. **This is a
-    // device-only check**: no browser pass covers it.
-    if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    }
+    // The win is announced by the board — the solve wave, then the card. There
+    // is deliberately no haptic: the app has none anywhere (plan §6).
   };
 
   const tapPoint = useRef<{ px: number; py: number } | null>(null);

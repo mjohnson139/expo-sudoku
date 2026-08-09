@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import * as Haptics from 'expo-haptics';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ALG_FONT } from './algText';
 import CubeGlyph from './CubeGlyph';
 import { padPalette } from './padPalette';
@@ -58,7 +57,7 @@ const REPEAT_AFTER_MS = 400;
  *   make every prime a double entry, and there would be no way to abandon one.
  * - **The fill starts at 0ms.** A hold with no feedback until it completes is a
  *   hidden gesture. The hairline across the key's foot means the key is telling
- *   you what will happen *before* it happens; the ring, the `′` and the haptic
+ *   you what will happen *before* it happens; the ring and the `′` filling in
  *   at the threshold are the confirmation, not the first news.
  * - **While `′` is armed, every move key relabels itself** to `R'`, `U'`, `M'` …
  *   so the second of the two taps is aimed at a key that already reads the move
@@ -106,7 +105,7 @@ const CubeMovePad = ({
   }, []);
 
   // A pad that unmounts mid-press — switching to the scramble, or the solve
-  // being deleted under it — must not leave a timer holding a haptic.
+  // being deleted under it — must not leave a timer holding a setState.
   useEffect(() => clearTimers, [clearTimers]);
 
   const pressIn = useCallback(
@@ -122,14 +121,10 @@ const CubeMovePad = ({
         // Width, so it cannot go on the native driver.
         useNativeDriver: false,
       }).start();
-      armTimer.current = setTimeout(() => {
-        setArmed(true);
-        // The confirmation you get without looking. Web has no haptics and
-        // throws nothing — `impactAsync` resolves to a no-op there.
-        if (Platform.OS !== 'web') {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-        }
-      }, HOLD_MS);
+      // Reaching the threshold is confirmed on screen — the ring closes and the
+      // `′` key fills — and **not by a haptic**: the app has none anywhere
+      // (operator, 2026-08-09; plan §6). This was the one buzz in the box.
+      armTimer.current = setTimeout(() => setArmed(true), HOLD_MS);
     },
     [fill]
   );

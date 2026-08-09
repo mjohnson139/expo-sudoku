@@ -598,11 +598,28 @@ and result cards. Everything else the incoming code imports is already here:
 here the way it is in `color-loop` (this app has no `babel.config.js` and resolves
 it through Expo's metro transformer).
 
-**Dependency to converge:** the incoming games buzz with RN's `Vibration`; this
-app uses `expo-haptics` (added by the cube's Step 8). Move them to
-`expo-haptics` — one API for one thing, and `Vibration` has no iOS intensity
-control. It fires in a place only a device can judge, so it is a device-test line
-in every step that touches it.
+**Dependency to converge:** ~~the incoming games buzz with RN's `Vibration`;
+this app uses `expo-haptics` (added by the cube's Step 8). Move them to
+`expo-haptics`.~~ **Reversed — the app has no haptics at all** (operator,
+2026-08-09: *"I want to remove all haptics"*).
+
+The convergence was done first and then undone, which is the more useful record:
+**there was nothing to converge *to*.** Once Number Slide's buzz came out, the
+only remaining call site in the whole app was one `impactAsync` in the cube's
+move pad, at the hold-to-prime threshold. A dependency carried for a single
+`catch(() => {})` on one gesture is a dependency to remove, not a convention to
+spread — so `expo-haptics` is gone from `package.json` and the cube's buzz with
+it.
+
+Two consequences for the rest of the epic:
+
+- **Nothing arriving from the sibling app buzzes.** Color Loop's win celebration
+  calls `Vibration` upstream; Step 2 drops that call rather than translating it.
+- **The confirmation has to be on the screen.** The cube's hold already closed a
+  ring and filled the `′` key at the threshold, so removing the buzz cost it
+  nothing that was not drawn — check that before removing a buzz anywhere else,
+  because a gesture whose *only* feedback was the haptic becomes a hidden
+  gesture.
 
 **Identity and release:**
 
@@ -684,7 +701,8 @@ step.
   full theme adoption of §4.2** — against 600 lines instead of 1,700. Shipped:
   `tsconfig.json` and six `.d.ts` shims, the test transform,
   `utils/motion.ts` + `components/Motion.tsx`, `utils/rng.ts`, `expo-clipboard`,
-  `Vibration` → `expo-haptics`, `games/numberslide/` rendering entirely from
+  `Vibration` dropped rather than translated (§6), `games/numberslide/`
+  rendering entirely from
   `useAppTheme` through a pure `palette.ts`, a fourth hub card with no
   `readProgress`. **The platform question is answered and Step 2 is mostly
   repetition** — §4.1 and §4.2 above carry what it found.
@@ -818,8 +836,11 @@ At merge:
 - **`useNativeDriver` and `setValue`** must not mix (`docs/fungiku-plan.md`
   §2). The incoming code uses `USE_NATIVE = Platform.OS !== 'web'`, which is the
   same rule spelled differently — do not "simplify" it to `true`.
-- **`Vibration` fires on win in both games.** After the move to `expo-haptics`,
-  this is device-test-only. No browser check covers it.
+- **Nothing buzzes, anywhere.** `expo-haptics` was removed from the app
+  entirely (§6), so a `Vibration` or `Haptics` call arriving with Color Loop is
+  deleted rather than translated. This also takes a whole class of
+  device-only checks off the list — there is no longer anything on these screens
+  that a browser pass cannot see.
 - **The web container is 600pt wide and centred** on this app's screens
   (`HubScreen`, `useBoardSize`). Color Loop's board sizes itself off
   `useWindowDimensions` capped at 440. They will disagree; `useBoardSize({ fill:

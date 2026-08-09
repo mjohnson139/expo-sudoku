@@ -122,9 +122,10 @@ npx expo-doctor                   # expect 18/18
 npx expo export --platform all    # web + iOS + Android must all bundle
 ```
 
-Then **prompt the operator to test in Expo Go.** Anything touching a gesture,
-a haptic, or a layout that a browser renders differently is device-only —
-this project keeps finding native-only bugs late.
+Then **prompt the operator to test in Expo Go.** Anything touching a gesture or
+a layout that a browser renders differently is device-only — this project keeps
+finding native-only bugs late. (Haptics used to be on that list and are not:
+**the app has none**, and `expo-haptics` is no longer a dependency — plan §6.)
 
 ---
 
@@ -142,8 +143,8 @@ shims** that describe the parts of this app's JavaScript TypeScript infers
 wrongly, a `typecheck` script, the Jest
 `.ts`/`.tsx` transform in this repo's node environment, `utils/rng.ts`,
 `utils/motion.ts` + `components/Motion.tsx`, `components/Confetti.tsx`, the two
-`Controls` primitives the screen uses, `expo-clipboard`, `Vibration` →
-`expo-haptics`, and `games/numberslide/` rendering **entirely** from `useAppTheme` through a pure
+`Controls` primitives the screen uses, `expo-clipboard`, and
+`games/numberslide/` rendering **entirely** from `useAppTheme` through a pure
 `palette.ts` whose contrast floors hold by construction on all seven themes. A
 fourth registry entry, **with** a `readProgress` — see below. 148 new tests: the
 incoming `logic.test.ts` cases untouched, the palette on every theme, the save's

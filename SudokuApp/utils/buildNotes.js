@@ -25,8 +25,8 @@ const BUILD_NOTES = {
       'Number Slide wears whichever theme you picked — the tray, the tiles, the numbers and the accent all follow it',
       'Every colour on the screen is checked against all seven themes for contrast, so nothing goes faint on Classic or wash out on Twilight',
       'The solved board lights up in the theme\'s own accent, the colour it prints your answers in everywhere else',
-      'Solving buzzes',
       'The board sizes itself to the room the page has, so a short phone gets a smaller board rather than a cut-off one',
+      'Nothing in Puzzle Box buzzes any more — the cube\'s move pad was the last of it, and its keys still show you the hold on screen',
     ],
   },
   '3.1.0': {
