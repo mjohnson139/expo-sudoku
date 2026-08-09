@@ -10,10 +10,16 @@ Tracker: **issue #103**.
 ## Standing context
 
 Two games — **Color Loop** (wrapping row/column slider) and **Number Slide**
-(3×3 fifteen-puzzle) — move from the sibling app `mjohnson139/color-loop` onto
-this hub as the fourth and fifth cards. Same Expo SDK, same RN version, same
-operator. The plan is `docs/colorloop-merge-plan.md`; read it end to end before
-writing code.
+(the sliding-tile classic at 3×3, 4×4 and 5×5) — move from the sibling app
+`mjohnson139/color-loop` onto this hub as the fourth and fifth cards. Same Expo
+SDK, same RN version, same operator. The plan is
+`docs/colorloop-merge-plan.md`; read it end to end before writing code.
+
+**⚠️ Fetch `mjohnson139/color-loop` and diff its `main` before porting
+anything.** It is a live repo, not an archive, and the plan's inventory pins a
+revision (`e07eb82`) that `main` has already moved past — Step 1 shipped a
+3×3-only Number Slide before the operator pointed out that 4×4 and 5×5 had
+landed upstream. Plan §2 has the warning in full.
 
 ## How a step runs
 
@@ -144,6 +150,15 @@ tests: the 17 incoming `logic.test.ts` cases untouched, the palette on every
 theme, and a guard that stops the `.d.ts` shims drifting from the JavaScript
 they speak for.
 
+**Number Slide arrived with three board sizes, not one** (operator, 2026-08-09).
+The port was written against the plan's pinned `e07eb82`; upstream `main` had
+moved to `708d59a`, which makes the whole engine size-generic and adds 3×3 / 4×4
+/ 5×5 chips and a size-carrying code (`4-K7P2Q`, with bare five-character codes
+still meaning the 3×3 they always did). It is ported in full, including the
+`scrambleSteps` freeze that keeps 3×3 at its historical 160 steps so every code
+ever shared still reproduces byte-for-byte — **check `main` before porting
+Step 2's 2,200 lines.**
+
 **The best time came back out before the step shipped** (operator, 2026-08-08),
 and it takes `@NumberSlide` with it — the game persists nothing. See plan §4.4
 for why, and note the consequence Step 3 inherits: **Number Slide's Continue
@@ -190,6 +205,10 @@ are new, and they are where the care goes.
 
 ### Scope — ONLY this
 
+0. **Diff upstream `main` first.** `git fetch` in `mjohnson139/color-loop` and
+   read what has landed since the plan's `e07eb82`. Step 1 shipped a stale port
+   because it trusted the pinned revision; Color Loop is nine times the code and
+   has had the same time to move.
 1. **The engines, unchanged:** `games/colorloop/{puzzle,levels,match}.ts`.
    `puzzle.ts` is **frozen** (golden rule 3) — it arrives byte-identical apart
    from its `colors` import.

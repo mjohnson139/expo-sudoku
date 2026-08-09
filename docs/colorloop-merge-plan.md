@@ -3,7 +3,7 @@
 **Two games from a sibling app move onto this hub as peers of Sudoku, Fungiku
 and Cube Scramble.** Color Loop is a wrapping row/column slider — drag any row
 or column and it wraps around the edge until every row is one solid colour.
-Number Slide is the classic 15-puzzle at 3×3. Both come from
+Number Slide is the sliding-tile classic at 3×3, 4×4 and 5×5. Both come from
 `mjohnson139/color-loop`, a standalone Expo app of the same SDK, the same React
 Native version and the same architecture, written by the same operator.
 
@@ -79,6 +79,15 @@ settled, and it is the decision most likely to be wrong.
 
 `mjohnson139/color-loop` at `e07eb82`, excluding `node_modules` and the two
 prototype HTML files:
+
+> **⚠️ That revision is already stale, and this is the plan's most reusable
+> mistake.** The sibling app is *live*, not an archive — `main` moved to
+> `708d59a` while Step 1 was being written, adding Number Slide's 4×4 and 5×5
+> boards, and the port had shipped the 3×3-only version before the operator
+> pointed at it. **Fetch `mjohnson139/color-loop` and diff `main` against the
+> revision below before porting anything**, in every remaining step. Step 2's
+> cargo is nine times the size of Step 1's and has had the same amount of time
+> to drift.
 
 | Area | Files | Lines | Fate |
 |------|-------|-------|------|
@@ -741,8 +750,15 @@ At merge:
    just solved"* is nearly free for it, and the cube's scramble string already is
    a code. Worth knowing whether that is where the box is heading, because it
    changes what Step 6 should recommend.
-7. **Number Slide at 4×4?** It is hardcoded to 3×3 and the logic is size-generic
-   in most places. Out of scope for the merge; cheap afterwards.
+7. ~~**Number Slide at 4×4?**~~ **Answered upstream, and ported in Step 1.**
+   The sibling app added 3×3 / 4×4 / 5×5 in its `708d59a`, after this plan was
+   written, and the merge takes it as it stands — size chips over the board, and
+   a code that carries its own size (`4-K7P2Q`), with bare five-character codes
+   still meaning the 3×3 they always did. Left open underneath it: **6×6 does not
+   exist** and would want a look at whether a 35-tile board is still fun on a
+   phone. The pattern to copy if it ever ships is the `scrambleSteps` freeze —
+   3×3 keeps its historical 160 steps *by name* so old codes reproduce
+   byte-for-byte, and the test pins three known boards.
 
 ## 10. Edge cases and things that are easy to get wrong
 

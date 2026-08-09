@@ -24,6 +24,8 @@ import { FadeSlideIn, PopIn, useCountUp } from '../../components/Motion';
 import { EASE, SPRING, USE_NATIVE } from '../../utils/motion';
 import { formatElapsed } from '../../utils/gameProgress';
 import {
+  NS_SIZES,
+  NSSize,
   NSState,
   nsCellAt,
   nsIsSolved,
@@ -70,8 +72,9 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
   const { theme, isDark } = useAppTheme();
   const palette = useMemo(() => numberSlidePalette(theme, isDark), [theme, isDark]);
 
+  const [size, setSize] = useState<NSSize>(3);
   const [seed, setSeed] = useState(randomSeed);
-  const [state, setState] = useState<NSState>(() => nsShuffle(seed));
+  const [state, setState] = useState<NSState>(() => nsShuffle(seed, size));
   const [moves, setMoves] = useState(0);
   const [secs, setSecs] = useState(0);
   const [solved, setSolved] = useState(false);
@@ -123,16 +126,18 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
   const widthAllowance = useBoardSize({ fill: true });
   const SIZE = Math.max(200, Math.min(widthAllowance, height - CHROME_HEIGHT));
   const PAD = Math.round(SIZE * 0.05);
-  const GAP = Math.round(SIZE * 0.035);
-  const CELL = Math.round((SIZE - PAD * 2 - GAP * 2) / 3);
+  // The gap shrinks as the grid grows, so 3×3 and 5×5 fill the same square
+  // rather than 5×5 spilling out of it.
+  const GAP = Math.round((SIZE * 0.105) / size);
+  const CELL = Math.round((SIZE - PAD * 2 - GAP * (size - 1)) / size);
   const step = CELL + GAP;
 
   const stateRef = useRef(state);
   stateRef.current = state;
   const solvedRef = useRef(solved);
   solvedRef.current = solved;
-  const geomRef = useRef({ PAD, step });
-  geomRef.current = { PAD, step };
+  const geomRef = useRef({ PAD, step, size });
+  geomRef.current = { PAD, step, size };
   const { ref: boardRef, origin, measure } = useBoardOrigin();
 
   const applyResult = (res: { state: NSState; moved: number[] } | null) => {
@@ -152,7 +157,10 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
   // Solve wave: a scale pop cascading across the tiles when the board locks in.
   // The board celebrates first and the chrome arrives after — the third rule of
   // the motion language in utils/motion.ts.
-  const wave = useRef(Array.from({ length: 9 }, () => new Animated.Value(1))).current;
+  const wave = useMemo(
+    () => Array.from({ length: size * size }, () => new Animated.Value(1)),
+    [size]
+  );
   useEffect(() => {
     if (!solved) {
       wave.forEach((v) => v.setValue(1));
@@ -161,7 +169,7 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
     Animated.parallel(
       wave.map((v, i) =>
         Animated.sequence([
-          Animated.delay((Math.floor(i / 3) + (i % 3)) * 55),
+          Animated.delay((Math.floor(i / size) + (i % size)) * 55),
           Animated.timing(v, {
             toValue: 1.12,
             duration: 130,
@@ -222,8 +230,16 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
         if (Math.max(adx, ady) < 16) {
           const t = tapPoint.current;
           if (t) {
-            const { PAD: pad, step: st } = geomRef.current;
-            const { r, c } = nsCellAt(t.px, t.py, origin.current.x, origin.current.y, pad, st);
+            const { PAD: pad, step: st, size: sz } = geomRef.current;
+            const { r, c } = nsCellAt(
+              t.px,
+              t.py,
+              origin.current.x,
+              origin.current.y,
+              pad,
+              st,
+              sz
+            );
             applyResult(nsSlideAt(stateRef.current, r, c));
           }
         } else if (adx > ady) {
@@ -236,10 +252,11 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
     })
   ).current;
 
-  const shuffle = (newSeed?: number | null) => {
+  const shuffle = (newSeed?: number | null, newSize: NSSize = size) => {
     const sd = (newSeed ?? randomSeed()) >>> 0;
+    if (newSize !== size) setSize(newSize);
     setSeed(sd);
-    setState(nsShuffle(sd));
+    setState(nsShuffle(sd, newSize));
     setMoves(0);
     setSecs(0);
     setSolved(false);
@@ -247,31 +264,35 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
   };
 
   const copyCode = async () => {
-    await Clipboard.setStringAsync(nsSeedCode(seed));
+    await Clipboard.setStringAsync(nsSeedCode(seed, size));
     showToast('Puzzle code copied — share it to race');
   };
 
   const handleCode = () => {
-    const sd = nsParseCode(codeInput);
-    if (sd === null) {
+    // A code now carries its board size — `4-0K3JZ` is a 4×4, a bare five
+    // characters is the 3×3 the format has always meant — so loading one can
+    // change the size out from under the screen. That is deliberate: the code
+    // *is* the puzzle, and a code that opened the wrong-sized board would not be.
+    const parsed = nsParseCode(codeInput);
+    if (parsed === null) {
       showToast("Couldn't read that code");
       return;
     }
     setCodeInput('');
     setShowCodeEntry(false);
-    shuffle(sd);
-    showToast('Loaded Puzzle ' + nsSeedCode(sd) + ' — good luck');
+    shuffle(parsed.seed, parsed.size);
+    showToast('Loaded Puzzle ' + nsSeedCode(parsed.seed, parsed.size) + ' — good luck');
   };
 
   const tiles: React.ReactNode[] = [];
   const sockets: React.ReactNode[] = [];
-  for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < 3; c++) {
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
       const x = PAD + c * step;
       const y = PAD + r * step;
       sockets.push(
         <View
-          key={`s${r}${c}`}
+          key={`s${r}-${c}`}
           style={[
             styles.socket,
             { left: x, top: y, width: CELL, height: CELL, backgroundColor: palette.socket },
@@ -293,7 +314,7 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
                 backgroundColor: solved ? palette.litTile : palette.tile,
                 borderColor: palette.tileBorder,
               },
-              solved && { transform: [{ scale: wave[r * 3 + c] }] },
+              solved && { transform: [{ scale: wave[r * size + c] }] },
             ]}
           >
             <Text
@@ -322,8 +343,40 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
       <ScreenHeader title="Number Slide" theme={theme} onHomePress={onExitToHub} dense />
 
       <Text style={[styles.goalLine, { color: palette.muted }]}>
-        Order the tiles 1 to 8 — tap or swipe toward the gap
+        Order the tiles 1 to {size * size - 1} — tap or swipe toward the gap
       </Text>
+
+      {/* Changing size deals a fresh board of that size — there is nothing to
+          preserve across the change, and asking would be a dialog in front of a
+          one-tap decision. */}
+      <View style={styles.sizeRow}>
+        {NS_SIZES.map((n) => {
+          const on = n === size;
+          return (
+            <Pressable
+              key={n}
+              onPress={() => !on && shuffle(null, n)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              accessibilityLabel={`${n} by ${n} board`}
+              style={[
+                styles.sizeChip,
+                {
+                  backgroundColor: on ? palette.inputBackground : palette.panel,
+                  borderColor: on ? palette.accent : palette.panelBorder,
+                },
+              ]}
+            >
+              <Text
+                selectable={false}
+                style={[styles.sizeChipText, { color: on ? palette.accent : palette.panelLabel }]}
+              >
+                {n}×{n}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       <View style={styles.stats}>
         <Stat label="MOVES" value={String(moves)} palette={palette} />
@@ -397,10 +450,10 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
           ]}
           onPress={copyCode}
           accessibilityRole="button"
-          accessibilityLabel={`Copy puzzle code ${nsSeedCode(seed)}`}
+          accessibilityLabel={`Copy puzzle code ${nsSeedCode(seed, size)}`}
         >
           <Text selectable={false} style={[styles.codeChipText, { color: palette.accent }]}>
-            {nsSeedCode(seed)}
+            {nsSeedCode(seed, size)}
           </Text>
         </Pressable>
         <LinkBtn
@@ -457,11 +510,12 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
 
 /**
  * The vertical room everything that is not the board takes: the container's
- * padding, the dense header, the goal line, the stat row, the button row, the
- * share row and the gaps between them. The board gets what is left, so a short
- * phone gets a smaller board rather than a share row it cannot see.
+ * padding, the dense header, the goal line, the size chips, the stat row, the
+ * button row, the share row and the gaps between them. The board gets what is
+ * left, so a short phone gets a smaller board rather than a share row it cannot
+ * see.
  */
-const CHROME_HEIGHT = 300;
+const CHROME_HEIGHT = 345;
 
 function randomSeed(): number {
   return Math.floor(Math.random() * 60466176);
@@ -514,6 +568,14 @@ const styles = StyleSheet.create({
       : {}),
   },
   goalLine: { fontSize: 12.5, textAlign: 'center' },
+  sizeRow: { flexDirection: 'row', gap: 8 },
+  sizeChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 9,
+    borderWidth: 1,
+  },
+  sizeChipText: { fontSize: 13, fontWeight: '600', letterSpacing: 1 },
   stats: { flexDirection: 'row', gap: 10 },
   stat: {
     minWidth: 110,

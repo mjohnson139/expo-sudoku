@@ -57,14 +57,17 @@ always described in [`docs/cube-handoff.md`](docs/cube-handoff.md).
 
 ### Number Slide
 
-The classic 15-puzzle at 3×3 — and the first of two games arriving from the
+The sliding-tile classic — and the first of two games arriving from the
 sibling `color-loop` app.
 
+- **Three sizes, one tap apart.** 3×3, 4×4 and 5×5; the board keeps the same
+  footprint as the grid grows.
 - **Tap or swipe toward the gap.** A tap slides a whole line of tiles at once;
   a swipe moves the one tile beside the gap.
 - **A shareable puzzle code.** Every board is a pure function of its seed, so
-  the five characters on the chip *are* the puzzle — copy one, send it, and race
-  the same board on someone else's phone.
+  the chip *is* the puzzle — copy one, send it, and race the same board on
+  someone else's phone. The code carries the size (`4-K7P2Q` is a 4×4), and a
+  bare five-character code still means the 3×3 it always did.
 - **It wears whichever theme you picked.** There is no colour of its own
   anywhere on the screen: the tray, the tiles, the numbers and the accent all
   come from the theme, so cycling it carries the whole game with it.

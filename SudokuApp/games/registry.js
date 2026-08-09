@@ -73,7 +73,7 @@ export const GAMES = [
     // "nothing to continue".
     id: 'numberslide',
     title: 'Number Slide',
-    tagline: 'Slide the tiles back into order, 1 to 8, around one gap.',
+    tagline: 'Slide the tiles back into order around the one gap — 3×3 to 5×5.',
     icon: 'view-grid-outline',
     // The one place a game is allowed its own hue. Brass does not survive the
     // merge as a colour, but it survives as an idea (plan §4.2) — this is the
