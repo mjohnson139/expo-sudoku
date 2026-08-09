@@ -64,6 +64,9 @@ sibling `color-loop` app.
   footprint as the grid grows.
 - **Tap or swipe toward the gap.** A tap slides a whole line of tiles at once;
   a swipe moves the one tile beside the gap.
+- **Your board is kept as you play it.** Leave for the hub or close the app and
+  the tiles, the move count and the clock are where you left them — and the card
+  carries a *Continue* badge like every other game.
 - **A shareable puzzle code.** Every board is a pure function of its seed, so
   the chip *is* the puzzle — copy one, send it, and race the same board on
   someone else's phone. The code carries the size (`4-K7P2Q` is a 4×4), and a

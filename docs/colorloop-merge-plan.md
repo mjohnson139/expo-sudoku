@@ -138,9 +138,11 @@ where the second implementation is doing the same job. `useBoardOrigin` is; the
 persistence writers are not (Color Loop stores eleven independent preference
 keys, not one game blob).
 
-**Step 1 closed four of Number Slide's five missing rows** — registry entry,
-`useAppTheme`, `useBoardSize({ fill: true })` and `ScreenHeader` — and left
-`readProgress` for Step 3 on purpose. Its `useBoardOrigin` copy came across as-is
+**Step 1 closed all five of Number Slide's missing rows** — registry entry,
+`useAppTheme`, `useBoardSize({ fill: true })`, `ScreenHeader`, and
+`readProgress` once the operator asked for the board to persist (§4.4). Its
+persistence row is now "own writer", like the cube's and unlike the two reducer
+games. Its `useBoardOrigin` copy came across as-is
 and now lives at `games/numberslide/useBoardOrigin.ts`: inside the game rather
 than beside the platform's in `hooks/`, because a second `hooks/useBoardOrigin`
 differing only by file extension is the worst available name for it. Step 2 needs
@@ -450,18 +452,42 @@ Two consequences to honour:
 - **A player's Color Loop board is currently not resumable at all** — the games
   persist bests and settings, never an in-progress board. See §4.6.
 
-**Step 1 built `@NumberSlide` and then removed it again** (operator, 2026-08-08:
-*"let's remove the high score portion of the number slide"*), and the removal is
-the more useful record. A personal best on a game whose whole point is a
-*shareable* code is the wrong scoreboard — the board is the same board on
-everyone's phone, so the interesting comparison is against the person you sent
-the code to, not against yourself last Tuesday. Number Slide therefore persists
-**nothing** as of Step 1, and its card carries no badge.
+**Step 1 landed the first blob, and what it holds changed twice under the
+operator.** Both changes are worth the record, because between them they say what
+a save on this hub is *for*.
 
-The consequence for §4.6 is real: **`describeNumberSlideProgress` has no standing
-to fall back to.** Number Slide's Continue badge now depends entirely on the
-resumable board Step 3 adds — there is no "best time" second-best answer. Color
-Loop still has `Training · 7 of 18 · 14★`.
+First the personal best came out (2026-08-08: *"let's remove the high score
+portion of the number slide"*). A personal best on a game whose whole point is a
+**shareable code** is the wrong scoreboard — the board is the same board on
+everyone's phone, so the interesting comparison is against the person you sent
+the code to, not against yourself last Tuesday.
+
+Then the board went in (2026-08-09: *"the number slide should act like the other
+games storing progress continually"*), which is **§4.6's Step 3 work for this
+game, pulled forward**. So `@NumberSlide` holds `{ size, seed, board, empty,
+moves, secs }` at `_v: 1`: written on every move, flushed on unmount and on
+backgrounding, cleared on a solve, and restored behind a hydration gate.
+
+The shape of that is the pattern Color Loop's `@ColorLoop` should copy in Step 3,
+and it is not `usePersistentReducer` — **this screen is not a reducer.** What it
+borrows from that hook is the two arrangements that actually matter, and both are
+easy to leave out:
+
+- **Flush on unmount.** A game screen unmounts the instant the player taps home,
+  and a 500ms debounce with no flush drops the move they made just before
+  leaving.
+- **Flush on background.** `App.js` remounts game screens on foreground, so an
+  unflushed write is a lost board rather than a late one.
+
+Two smaller decisions inside it, both of which Color Loop will face:
+
+- **The seed is stored even though the board is stored outright.** It is the
+  *code* — the thing the player can share — and it cannot be recovered from a
+  scrambled board.
+- **The clock resumes rather than restarts, and time on the hub is not
+  counted.** The timer's anchor is recomputed as `Date.now() - secs * 1000` at
+  the *next move* rather than at restore, so a board left open on the front door
+  does not quietly accrue minutes.
 
 ### 4.5 Codes are the platform's most interesting idea, and this epic does not build a framework for it
 
@@ -495,16 +521,25 @@ board in flight is lost the moment you leave.
 
 Two ways out, and the epic takes both, in order:
 
-1. **Make the boards resumable** (Step 3). It is genuinely cheap — a Color Loop
-   board is `{ seed, n, mode, grid, moves, secs, phase }` and a Number Slide
-   board is `{ seed, tiles, moves, secs }`. Once saved, "Continue" means on these
-   cards exactly what it means on the other three, and leaving for the hub stops
-   costing the player their run — which is the platform behaviour Fungiku's §6
-   established and a guest game should not quietly break.
+1. **Make the boards resumable.** It is genuinely cheap — a Color Loop board is
+   `{ seed, n, mode, grid, moves, secs, phase }` and a Number Slide board is
+   `{ size, seed, board, empty, moves, secs }`. Once saved, "Continue" means on
+   these cards exactly what it means on the other three, and leaving for the hub
+   stops costing the player their run — which is the platform behaviour
+   Fungiku's §6 established and a guest game should not quietly break.
+
+   **Number Slide's landed in Step 1** on the operator's ask rather than waiting
+   for Step 3 (§4.4 has the shape). Its badge reads `4×4 · 01:24` over
+   `12 moves`, and `describeNumberSlideProgress` lives in
+   `games/numberslide/saveShape.ts` — next to the game, pure, and importing
+   `formatElapsed` *from* `utils/gameProgress.js` rather than being added to it.
+   **That is the direction to keep**: the shared helper flows outward, the
+   game-specific rule stays home. Color Loop's is Step 3's.
 2. **Fall back to standing**, the way the cube does when there is no solve to
-   return to: `Training · 7 of 18 · 14★` for Color Loop. **Number Slide has no
-   fallback** — its best time was removed in Step 1 (§4.4), so its card is
-   blank until there is a board to resume.
+   return to: `Training · 7 of 18 · 14★` for Color Loop. Number Slide needs no
+   fallback now that its board resumes — and an *untouched* board deliberately
+   draws no badge at all, since every visit deals one and a permanent "Continue"
+   would mean nothing.
 
 `describeColorLoopProgress` and `describeNumberSlideProgress` go **next to the
 games**, not into `utils/gameProgress.js`. The cube's review named that file's
@@ -658,9 +693,11 @@ step.
   `utils/symbolSets.js` here**, with the `maxN` pin from §4.2 landing in the same
   PR as the palette swap, never after it. The inner hub becomes the menu (§4.3);
   Training and Match are reachable but unpolished. Fifth hub card.
-- **Step 3 — resume, and the badges.** Versioned one-blob saves for both games
-  (§4.4), a board that survives a trip to the hub, and both `readProgress`
-  implementations living next to their games (§4.6).
+- **Step 3 — resume, and the badges.** ~~Both games~~ **Color Loop's half only**
+  — Number Slide's versioned blob, resumable board and `readProgress` landed in
+  Step 1 on the operator's ask (§4.4, §4.6). What is left is `@ColorLoop`, a
+  board that survives a trip to the hub, and `describeColorLoopProgress` next to
+  its game. Copy Number Slide's arrangement, including the two flushes.
 - **Step 4 — Training and Match, at home.** The 18-rung ladder and the match
   gauntlets under this app's chrome: `LevelSelect` on `ScreenHeader`, star
   thresholds intact, result cards copying through `expo-clipboard`. The ladder's

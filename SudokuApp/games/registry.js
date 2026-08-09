@@ -5,6 +5,7 @@ import NumberSlideScreen from './numberslide/NumberSlideScreen';
 import { readSudokuProgress } from '../utils/storage';
 import { readFungikuProgress } from './fungiku/storage';
 import { readCubeProgress } from './cube/storage';
+import { readNumberSlideProgress } from './numberslide/storage';
 
 /**
  * The game registry — the single list of games the hub knows about
@@ -66,11 +67,11 @@ export const GAMES = [
     // than a deduction one — the board moves under your finger and the
     // challenge is planning motion, which is a shape the box did not have.
     //
-    // **No `readProgress`.** Neither incoming game persists a board in flight
-    // yet; Step 3 makes them resumable and gives both cards a badge at the same
-    // time. A Continue affordance with nothing behind it is worse than no
-    // badge, so the key is simply absent — the hub already reads that as
-    // "nothing to continue".
+    // It carries a Continue badge like every other card: the board is written on
+    // every move and restored on the way back in, so leaving for the hub costs
+    // the player nothing. That was Step 3's work, pulled forward on the
+    // operator's ask — a guest game that quietly loses your board is not
+    // behaving like the rest of the box (plan §4.6).
     id: 'numberslide',
     title: 'Number Slide',
     tagline: 'Slide the tiles back into order around the one gap — 3×3 to 5×5.',
@@ -81,6 +82,7 @@ export const GAMES = [
     // Fungiku's `#a0522d` and the cube's `#c62828`.
     accent: '#b07f26',
     Screen: NumberSlideScreen,
+    readProgress: readNumberSlideProgress,
   },
 ];
 

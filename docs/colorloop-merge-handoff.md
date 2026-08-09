@@ -145,10 +145,10 @@ wrongly, a `typecheck` script, the Jest
 `Controls` primitives the screen uses, `expo-clipboard`, `Vibration` →
 `expo-haptics`, and `games/numberslide/` rendering **entirely** from `useAppTheme` through a pure
 `palette.ts` whose contrast floors hold by construction on all seven themes. A
-fourth registry entry with **no `readProgress`** (Step 3 owns badges). 125 new
-tests: the 17 incoming `logic.test.ts` cases untouched, the palette on every
-theme, and a guard that stops the `.d.ts` shims drifting from the JavaScript
-they speak for.
+fourth registry entry, **with** a `readProgress` — see below. 148 new tests: the
+incoming `logic.test.ts` cases untouched, the palette on every theme, the save's
+shape, and a guard that stops the `.d.ts` shims drifting from the JavaScript they
+speak for.
 
 **Number Slide arrived with three board sizes, not one** (operator, 2026-08-09).
 The port was written against the plan's pinned `e07eb82`; upstream `main` had
@@ -159,11 +159,15 @@ still meaning the 3×3 they always did). It is ported in full, including the
 ever shared still reproduces byte-for-byte — **check `main` before porting
 Step 2's 2,200 lines.**
 
-**The best time came back out before the step shipped** (operator, 2026-08-08),
-and it takes `@NumberSlide` with it — the game persists nothing. See plan §4.4
-for why, and note the consequence Step 3 inherits: **Number Slide's Continue
-badge has no fallback to stand on**, so its card stays blank until there is a
-resumable board.
+**What the save holds changed twice under the operator, and both changes are in
+plan §4.4.** The personal best came out (2026-08-08) — the wrong scoreboard for a
+game whose whole point is a shareable code — and then the **board itself went
+in** (2026-08-09: *"the number slide should act like the other games storing
+progress continually"*). So `@NumberSlide` holds `{ size, seed, board, empty,
+moves, secs }`, written on every move, flushed on unmount and on backgrounding,
+cleared on a solve, restored behind a hydration gate — and the card carries a
+Continue badge reading `4×4 · 01:24` over `12 moves`. **That is Step 3's Number
+Slide half, done; only Color Loop's is left.**
 
 **The TypeScript seam was rebuilt once, mid-step** (operator, 2026-08-08: *"it's
 sounding like the platform is fragmented between js and ts"*). It began as
@@ -238,7 +242,10 @@ are new, and they are where the care goes.
 
 ### Explicitly out of scope
 
-Resumable boards and hub badges (Step 3). Training's ladder and Match's gauntlets
+Color Loop's resumable board and hub badge (Step 3 — Number Slide's landed in
+Step 1, and `games/numberslide/{storage,saveShape}.ts` is the arrangement to
+copy, including the flush on unmount *and* on backgrounding). Training's ladder
+and Match's gauntlets
 as *finished* screens (Step 4) — they need only be reachable and not broken.
 The proving pass over all ~100 restyled sites (Step 5). Converging
 `useBoardOrigin` or the two confetti implementations (Step 6 decides both). Any

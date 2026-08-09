@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Animated,
+  AppState,
   LayoutAnimation,
   PanResponder,
   Platform,
@@ -36,6 +38,12 @@ import {
   nsSlideAt,
 } from './logic';
 import { numberSlidePalette } from './palette';
+import {
+  NSSave,
+  clearNumberSlideState,
+  loadNumberSlideState,
+  saveNumberSlideState,
+} from './storage';
 import { useBoardOrigin } from './useBoardOrigin';
 
 /**
@@ -72,9 +80,14 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
   const { theme, isDark } = useAppTheme();
   const palette = useMemo(() => numberSlidePalette(theme, isDark), [theme, isDark]);
 
+  // Hydration gate. Until the saved board is read there is nothing honest to
+  // draw: dealing one immediately would flash a puzzle the player never asked
+  // for and then replace it with theirs. `games/cube/CubeScreen.js` gates the
+  // same way, for the same reason.
+  const [hydrated, setHydrated] = useState(false);
   const [size, setSize] = useState<NSSize>(3);
   const [seed, setSeed] = useState(randomSeed);
-  const [state, setState] = useState<NSState>(() => nsShuffle(seed, size));
+  const [state, setState] = useState<NSState>(() => nsShuffle(3, 3));
   const [moves, setMoves] = useState(0);
   const [secs, setSecs] = useState(0);
   const [solved, setSolved] = useState(false);
@@ -85,6 +98,31 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
   const startTimeRef = useRef(0);
   const runningRef = useRef(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadNumberSlideState().then((saved) => {
+      if (cancelled) return;
+      if (saved) {
+        setSize(saved.size);
+        setSeed(saved.seed);
+        setState({ board: saved.board, empty: saved.empty });
+        setMoves(saved.moves);
+        setSecs(saved.secs);
+      } else {
+        // First visit, or a board that was finished and cleared.
+        const sd = randomSeed();
+        setSeed(sd);
+        setState(nsShuffle(sd, 3));
+      }
+      setHydrated(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const started = moves > 0;
   useEffect(() => {
@@ -136,6 +174,19 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
   stateRef.current = state;
   const solvedRef = useRef(solved);
   solvedRef.current = solved;
+  const secsRef = useRef(secs);
+  secsRef.current = secs;
+
+  /**
+   * The save as of this render, for the handlers that have to write *now*.
+   *
+   * A ref rather than an argument because the two callers — unmount and
+   * backgrounding — both fire from effects that must not re-subscribe on every
+   * move, and a stale closure there would persist the board as it was when the
+   * screen mounted.
+   */
+  const saveRef = useRef<NSSave | null>(null);
+  saveRef.current = { size, seed, board: state.board, empty: state.empty, moves, secs };
   const geomRef = useRef({ PAD, step, size });
   geomRef.current = { PAD, step, size };
   const { ref: boardRef, origin, measure } = useBoardOrigin();
@@ -144,7 +195,12 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
     if (!res || res.moved.length === 0) return;
     if (!runningRef.current) {
       runningRef.current = true;
-      startTimeRef.current = Date.now();
+      // **Not `Date.now()`** — the clock resumes from whatever the restored
+      // board had already spent. Anchoring the start that far back is what makes
+      // elapsed time keep counting from where it stopped, and reading it from a
+      // ref is what stops this closure (created once, inside the PanResponder)
+      // from resuming a board at the zero it saw on the first render.
+      startTimeRef.current = Date.now() - secsRef.current * 1000;
     }
     animateSlide();
     setState(res.state);
@@ -153,6 +209,51 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
       return m + res.moved.length;
     });
   };
+
+  /**
+   * Persist the board in flight.
+   *
+   * Debounced in `storage.ts`, and driven by the board rather than by the clock:
+   * an effect on `secs` would write once a second for as long as the screen is
+   * open, to record a number the next move is about to update anyway. The
+   * seconds still land, because every write carries the current value and the
+   * flushes below carry the last one.
+   */
+  useEffect(() => {
+    if (!hydrated) return;
+    if (solved) {
+      // Nothing to continue about a finished puzzle — and a save left behind
+      // would give the hub card a Continue badge that reopens a win screen.
+      clearNumberSlideState();
+      return;
+    }
+    if (saveRef.current) saveNumberSlideState(saveRef.current);
+  }, [hydrated, solved, state, moves, size, seed]);
+
+  /**
+   * Write the pending save immediately.
+   *
+   * Both callers need this and neither can wait 500ms: a game screen unmounts
+   * the instant the player taps home, and a backgrounded app may not get
+   * another turn. `flush()` alone would replay the *previous* arguments, so the
+   * current save is queued first and flushed second.
+   */
+  const persistNow = useCallback(() => {
+    if (!hydrated || solvedRef.current || !saveRef.current) return;
+    saveNumberSlideState(saveRef.current);
+    saveNumberSlideState.flush();
+  }, [hydrated]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'background' || next === 'inactive') persistNow();
+    });
+    return () => subscription.remove();
+  }, [persistNow]);
+
+  // Leaving for the hub is not quitting the game (docs/fungiku-plan.md §6), so
+  // the last move has to reach storage before the screen goes away.
+  useEffect(() => () => persistNow(), [persistNow]);
 
   // Solve wave: a scale pop cascading across the tiles when the board locks in.
   // The board celebrates first and the chrome arrives after — the third rule of
@@ -333,6 +434,17 @@ const NumberSlideScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
         );
       }
     }
+  }
+
+  if (!hydrated) {
+    return (
+      <View style={[styles.container, { backgroundColor: palette.background }]}>
+        <ScreenHeader title="Number Slide" theme={theme} onHomePress={onExitToHub} dense />
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color={palette.accent} />
+        </View>
+      </View>
+    );
   }
 
   return (
@@ -567,6 +679,7 @@ const styles = StyleSheet.create({
         }
       : {}),
   },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   goalLine: { fontSize: 12.5, textAlign: 'center' },
   sizeRow: { flexDirection: 'row', gap: 8 },
   sizeChip: {
