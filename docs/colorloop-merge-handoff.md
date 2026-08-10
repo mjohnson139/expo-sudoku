@@ -180,7 +180,28 @@ declarations that are load-bearing. **Plan §4.1 has the table of why each
 survives; read it before adding a fourth.** The short rule: *prefer deleting a
 shim to adding one.*
 
-§4.1, §4.2, §4.4, §3 and §6 of the plan were all amended with what this step
+**The app has no haptics at all** (operator, 2026-08-09: *"I want to remove all
+haptics"*). Plan §6 had called for converging the incoming games' `Vibration`
+onto this app's `expo-haptics`; doing it and then undoing it showed there was
+nothing to converge *to* — once Number Slide's buzz came out, the whole app's
+haptic surface was one `impactAsync` on the cube's hold-to-prime gesture. Both
+are gone and so is the dependency. **The cube's is a behaviour change to a
+shipped game**, made knowingly: its hold already closed a ring and filled the `′`
+key at the threshold, so nothing that was only felt is now unsignalled. Apply
+that test before removing a buzz anywhere else.
+
+**And one real bug, found by the operator on the device, worth the whole
+paragraph plan §4.4 gives it:** Number Slide's clock stayed frozen for the whole
+of every *restored* game. "Is the clock running" was a `useRef`, and the effect
+that owns the `setInterval` cannot depend on a ref — its dependency was
+`moves > 0`, which on a fresh board flips with the first move and starts the
+interval **by accident**, and on a restored board never changes at all. It
+typechecked and passed every one of the 1,059 tests. The rule it generalises to:
+**anything an effect must react to is state; a ref beside it is only for closures
+created once** — and Color Loop's screen has the same timer-plus-`PanResponder`
+shape.
+
+§4.1, §4.2, §4.4, §3, §6 and §10 of the plan were all amended with what this step
 found — **read those before Step 2, they are most of its brief.**
 
 ---
