@@ -2,6 +2,33 @@
 // Each version's notes are stored in this file
 
 const BUILD_NOTES = {
+  // Build notes are per release, not per step — this entry is extended as each
+  // step of the Color Loop merge epic lands (docs/colorloop-merge-plan.md §6)
+  // and describes the whole feature by the time the epic merges.
+  '3.2.0': {
+    title: 'Number Slide — the sliding-tile classic joins the hub',
+    date: '2026-08-08',
+    notes: [
+      'New on the hub: Number Slide, the classic sliding-tile puzzle',
+      'Three board sizes — 3×3, 4×4 and 5×5 — one tap apart, each dealing a fresh board',
+      'Tap a tile to slide it — and every tile between it and the gap — toward the gap in one move',
+      'Or swipe in any direction to slide the single tile beside the gap',
+      'A moves counter and a timer that starts on your first move, not on arrival',
+      'Solve it and the card counts your moves and your time up in front of you',
+      'Every board has a puzzle code, and the code *is* the puzzle — it carries the size too, so 4-K7P2Q opens a 4×4',
+      'Tap the code chip to copy it and send it to someone to race the same board',
+      'Paste a code into "Play a code" to load exactly the board a friend just played',
+      'Your board is kept as you play it: leave for the hub, close the app, come back — the tiles, the moves and the clock are where you left them',
+      'The hub card shows a Continue badge with the size, the clock and your move count',
+      'The clock stops when you leave and picks up where it stopped, so time spent on the hub is not counted against you',
+      'The board celebrates first: a wave of tiles pops across the grid before the win card arrives',
+      'Number Slide wears whichever theme you picked — the tray, the tiles, the numbers and the accent all follow it',
+      'Every colour on the screen is checked against all seven themes for contrast, so nothing goes faint on Classic or wash out on Twilight',
+      'The solved board lights up in the theme\'s own accent, the colour it prints your answers in everywhere else',
+      'The board sizes itself to the room the page has, so a short phone gets a smaller board rather than a cut-off one',
+      'Nothing in Puzzle Box buzzes any more — the cube\'s move pad was the last of it, and its keys still show you the hold on screen',
+    ],
+  },
   '3.1.0': {
     title: 'Cube Scramble — a 3D cube on the hub',
     date: '2026-08-07',

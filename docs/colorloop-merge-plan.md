@@ -3,7 +3,7 @@
 **Two games from a sibling app move onto this hub as peers of Sudoku, Fungiku
 and Cube Scramble.** Color Loop is a wrapping row/column slider — drag any row
 or column and it wraps around the edge until every row is one solid colour.
-Number Slide is the classic 15-puzzle at 3×3. Both come from
+Number Slide is the sliding-tile classic at 3×3, 4×4 and 5×5. Both come from
 `mjohnson139/color-loop`, a standalone Expo app of the same SDK, the same React
 Native version and the same architecture, written by the same operator.
 
@@ -80,6 +80,15 @@ settled, and it is the decision most likely to be wrong.
 `mjohnson139/color-loop` at `e07eb82`, excluding `node_modules` and the two
 prototype HTML files:
 
+> **⚠️ That revision is already stale, and this is the plan's most reusable
+> mistake.** The sibling app is *live*, not an archive — `main` moved to
+> `708d59a` while Step 1 was being written, adding Number Slide's 4×4 and 5×5
+> boards, and the port had shipped the 3×3-only version before the operator
+> pointed at it. **Fetch `mjohnson139/color-loop` and diff `main` against the
+> revision below before porting anything**, in every remaining step. Step 2's
+> cargo is nine times the size of Step 1's and has had the same amount of time
+> to drift.
+
 | Area | Files | Lines | Fate |
 |------|-------|-------|------|
 | Pure engines (`.ts`) | `colorloop/{puzzle,levels,match,colors,storage}`, `numberslide/{logic,storage}`, `utils/{rng,motion,theme,useBoardOrigin}` | 750 | **Move nearly unchanged** |
@@ -129,6 +138,18 @@ where the second implementation is doing the same job. `useBoardOrigin` is; the
 persistence writers are not (Color Loop stores eleven independent preference
 keys, not one game blob).
 
+**Step 1 closed all five of Number Slide's missing rows** — registry entry,
+`useAppTheme`, `useBoardSize({ fill: true })`, `ScreenHeader`, and
+`readProgress` once the operator asked for the board to persist (§4.4). Its
+persistence row is now "own writer", like the cube's and unlike the two reducer
+games. Its `useBoardOrigin` copy came across as-is
+and now lives at `games/numberslide/useBoardOrigin.ts`: inside the game rather
+than beside the platform's in `hooks/`, because a second `hooks/useBoardOrigin`
+differing only by file extension is the worst available name for it. Step 2 needs
+the same file for Color Loop and should decide then whether to lift it somewhere
+both games can see; **Step 6 still owns whether the platform ends up with one
+hook or two.**
+
 ### One thing the newcomers bring the other way
 
 `color-loop/utils/motion.ts` and `components/Motion.tsx` are a **written motion
@@ -163,14 +184,86 @@ The cost is exactly three things, and none is large:
 1. `tsconfig.json` extending `expo/tsconfig.base`, plus `typescript` and
    `@types/react` as devDependencies.
 2. A `typecheck` script (`tsc --noEmit`) added to the pre-merge gates. **New
-   gate — say so in the PR.** Note it only covers the `.ts`/`.tsx` files;
-   `allowJs` is deliberately off so the existing JavaScript is not suddenly
-   under a type checker nobody asked for.
+   gate — say so in the PR.** Note it only checks the `.ts`/`.tsx` files;
+   `checkJs` is deliberately off so the existing JavaScript is not suddenly
+   under a type checker nobody asked for. (The plan first said `allowJs` off,
+   which turned out to be a stronger constraint than the goal needed — see
+   below.)
 3. The Jest transform (§5).
 
 **Do not convert existing JavaScript to TypeScript in this epic**, including
 files the new games touch. A creeping conversion is how a merge becomes a
 rewrite.
+
+#### What Step 1 found: it is four things, and the fourth is a judgement call
+
+The list above is right about the shape and wrong about the total. **Built in
+Step 1, the cost came out as:**
+
+1. `tsconfig.json`, `typescript`, `@types/react` — **and `@types/jest`**, because
+   the incoming `.test.ts` files are `.ts` and therefore under the new gate too.
+2. The `typecheck` script.
+3. The Jest transform.
+4. **Deciding how TypeScript is allowed to see the JavaScript.** This is the one
+   the plan did not anticipate, and the constraint above forces it: with
+   `allowJs: false`, TypeScript does not merely skip type-*checking* the
+   JavaScript — it cannot **resolve** a `.js` module at all, so
+   `import useAppTheme from '../../hooks/useAppTheme'` is `TS2307: Cannot find
+   module`. Every guest game imports the platform seam, so something has to
+   bridge it.
+
+**The settled answer is `allowJs: true` with `checkJs: false`, plus three
+hand-written `.d.ts` files.** Step 1 built it the other way first — `allowJs`
+off and six shims, one per JavaScript module the games import — and the operator
+pushed back on exactly the right thing (2026-08-08: *"I'm not sure I understand
+the TypeScript implications here. It's sounding like the platform is fragmented
+between js and ts."*). Measured rather than argued:
+
+- **The two languages are not the fragmentation.** Metro compiles `.js` and
+  `.ts` through the same Babel pipeline and the bundle cannot tell them apart.
+  At the end of Step 1 the tree is 124 JavaScript files (30k lines) and 11
+  TypeScript ones (1.7k).
+- **The shims were.** They are the only place the repo carried a second
+  description of something it already had.
+- **`checkJs: false` keeps the guarantee the constraint was written for.** The
+  existing JavaScript is still not under a type checker; `allowJs` only lets
+  TypeScript *read* it and infer.
+- **Three of the six shims were redundant** — `utils/color.js`,
+  `utils/gameProgress.js` and `hooks/useBoardSize.js` infer correctly and their
+  declarations were deleted.
+
+**The three that survive are the places the JavaScript does not say what it
+means**, and each is worth knowing as a repo-wide lesson:
+
+| Shim | Why inference is wrong |
+|---|---|
+| `utils/themes.d.ts` | `SUDOKU_THEMES` infers as an object literal with seven named keys and **no index signature**, so `SUDOKU_THEMES[name]` for a variable `name` is an error |
+| `components/ScreenHeader.d.ts` | props are destructured with a default on `dense` alone, so inference makes `subtitle` and `onMenuPress` **required** — which is not that component's API |
+| `hooks/useAppTheme.d.ts` | its JSDoc says `@returns {{theme: Object, …}}`, and **TypeScript believes JSDoc even with `checkJs` off** — so a well-meant annotation replaces a correctly inferred theme with a type that has no properties |
+
+That last row is the one to carry beyond this epic: **a vague JSDoc type is
+worse than none**, because it overrides inference rather than supplementing it.
+
+Every shim has one standing cost — **a `.d.ts` shadows the `.js` beside it
+absolutely**, so a rename on the JavaScript side breaks the games at runtime with
+`tsc --noEmit` still green. `utils/__tests__/typeShims.test.js` is the floor: it
+checks each shim's declared names against the module's real exports, **and
+fails if a shim exists that it does not list.** The rule for later steps is
+therefore *prefer deleting a shim to adding one* — try inference first, and add
+a declaration only when it is wrong.
+
+Two smaller findings from the same step, both of which will bite Step 2 if they
+are not written down:
+
+- **`utils/rng` and `utils/motion` land as `.ts`, not the `.js` §3 and the Step 1
+  scope called for.** §2's own inventory has them under *"Pure engines (`.ts`) —
+  move nearly unchanged"*, and that is the reading to follow.
+- **Babel and types pin to versions, not to `latest`.** `@babel/preset-typescript`
+  and `@babel/preset-react` must be `^7` (their current majors need
+  `@babel/core ^8`; this repo is on 7), and `@types/react` / `@types/jest` must be
+  what the SDK expects (`~19.1.10`, `29.5.14`) or **`expo-doctor` drops off 18/18
+  on a version mismatch** — which is exactly the check §10 says to run in the step
+  that adds the dependency rather than at merge time.
 
 ### 4.2 The games adopt this app's themes outright — including the puzzle palette
 
@@ -255,6 +348,46 @@ gets checked against all seven themes, `utils/color.js`'s `relativeLuminance` an
 `readableOn` are what to check with, and the cube's contrast test is the pattern
 to copy.
 
+##### And Step 1 found the shape that makes it cheap: derive, then *construct* the floor
+
+`games/numberslide/palette.ts` is the pattern for Step 2 to copy, and it has three
+properties worth naming, because the third is what turns a checklist into a
+guarantee:
+
+1. **The mapping is one pure function**, `numberSlidePalette(theme, isDark)`, with
+   no React and no React Native in it — so all seven themes are testable in the
+   node runner, the same split `games/*/geometry.js` already uses.
+2. **Every part is played by the token that already plays it in Sudoku**: the
+   tray is `grid.background`, a tile face is `cell.background`, a number on a tile
+   is `cell.initialValueText`, and the accent — solved board, primary button, code
+   chip, SOLVED badge — is `cell.userValueText`, the colour each theme prints the
+   *player's own answer* in. That last one is also the only token that differs on
+   all seven, which is what makes cycling the theme visibly carry the screen.
+3. **`ensureContrast(colour, against, min)` blends toward black or white until the
+   ratio clears**, so the floor holds by construction and an *eighth* theme
+   arrives legible instead of arriving as a device bug. The test is the floor
+   under that, not a description of hand-picked hues.
+
+Two traps inside it, both found by the test on its first run rather than by
+reading:
+
+- **The push direction has to be searched in both directions.** Choosing it from
+  the background's luminance is the obvious implementation and it is wrong twice:
+  a dark ink on a mid-tone fill has to get *darker*, and against a mid-tone
+  background neither endpoint is guaranteed to reach a given ratio. Sunrise's
+  amber accent is the live example — 3.97:1 where 4.5 was asked for.
+- **A win card's text does not sit on the background.** It sits on the scrim, over
+  a board that has just turned accent-coloured, and that composite is a third
+  colour. Measured against the page it passes; measured against what is actually
+  behind it, a light theme lands near 3.4:1. Compute the composite
+  (`mix(litTile, background, alpha)`) and hold the text to *that*. The same will
+  be true of every overlay Color Loop brings.
+
+One more, which is a design finding rather than a contrast one: **the scrim must
+not be heavy enough to hide the celebration.** At 0.86 the solved board's accent
+was gone under it; 0.72 — the sibling app's own weight — keeps the board present
+and still clears every text floor.
+
 #### What this costs
 
 More than option C did, and the cost is concentrated where the plan already
@@ -319,6 +452,58 @@ Two consequences to honour:
 - **A player's Color Loop board is currently not resumable at all** — the games
   persist bests and settings, never an in-progress board. See §4.6.
 
+**Step 1 landed the first blob, and what it holds changed twice under the
+operator.** Both changes are worth the record, because between them they say what
+a save on this hub is *for*.
+
+First the personal best came out (2026-08-08: *"let's remove the high score
+portion of the number slide"*). A personal best on a game whose whole point is a
+**shareable code** is the wrong scoreboard — the board is the same board on
+everyone's phone, so the interesting comparison is against the person you sent
+the code to, not against yourself last Tuesday.
+
+Then the board went in (2026-08-09: *"the number slide should act like the other
+games storing progress continually"*), which is **§4.6's Step 3 work for this
+game, pulled forward**. So `@NumberSlide` holds `{ size, seed, board, empty,
+moves, secs }` at `_v: 1`: written on every move, flushed on unmount and on
+backgrounding, cleared on a solve, and restored behind a hydration gate.
+
+The shape of that is the pattern Color Loop's `@ColorLoop` should copy in Step 3,
+and it is not `usePersistentReducer` — **this screen is not a reducer.** What it
+borrows from that hook is the two arrangements that actually matter, and both are
+easy to leave out:
+
+- **Flush on unmount.** A game screen unmounts the instant the player taps home,
+  and a 500ms debounce with no flush drops the move they made just before
+  leaving.
+- **Flush on background.** `App.js` remounts game screens on foreground, so an
+  unflushed write is a lost board rather than a late one.
+
+Two smaller decisions inside it, both of which Color Loop will face:
+
+- **The seed is stored even though the board is stored outright.** It is the
+  *code* — the thing the player can share — and it cannot be recovered from a
+  scrambled board.
+- **The clock resumes rather than restarts, and time on the hub is not
+  counted.** The anchor is recomputed as `Date.now() - secs * 1000` when a
+  started board is restored, so the clock picks up from where it stopped. Hub
+  time does not accrue because the screen is unmounted there — that falls out of
+  the architecture rather than needing a rule.
+
+  **Getting this wrong is worth a paragraph, because the bug was invisible to
+  every check this repo has.** "Is the clock running" started as a `useRef`, and
+  the effect that owns the `setInterval` cannot depend on a ref — its dependency
+  was `moves > 0`. On a *fresh* board the first move flips that from false to
+  true and the effect re-runs after the ref has been set, so the interval starts
+  **by accident**. On a *restored* board `moves` is already above zero, nothing
+  in the dependency list ever changes again, and the interval is never created:
+  the clock is frozen for the rest of the game. It typechecks, it passes 1,059
+  tests, and it survives every browser check that does not sit and watch a
+  restored board for three seconds. The rule: **anything an effect must react to
+  is state; a ref alongside it is only for closures that were created once**
+  (this screen's `PanResponder`). Color Loop's screen has a timer, refs and a
+  once-created `PanResponder` in exactly the same arrangement — check it.
+
 ### 4.5 Codes are the platform's most interesting idea, and this epic does not build a framework for it
 
 Color Loop's whole product concept (`color-loop/docs/game-design.md`) rests on
@@ -351,15 +536,25 @@ board in flight is lost the moment you leave.
 
 Two ways out, and the epic takes both, in order:
 
-1. **Make the boards resumable** (Step 3). It is genuinely cheap — a Color Loop
-   board is `{ seed, n, mode, grid, moves, secs, phase }` and a Number Slide
-   board is `{ seed, tiles, moves, secs }`. Once saved, "Continue" means on these
-   cards exactly what it means on the other three, and leaving for the hub stops
-   costing the player their run — which is the platform behaviour Fungiku's §6
-   established and a guest game should not quietly break.
+1. **Make the boards resumable.** It is genuinely cheap — a Color Loop board is
+   `{ seed, n, mode, grid, moves, secs, phase }` and a Number Slide board is
+   `{ size, seed, board, empty, moves, secs }`. Once saved, "Continue" means on
+   these cards exactly what it means on the other three, and leaving for the hub
+   stops costing the player their run — which is the platform behaviour
+   Fungiku's §6 established and a guest game should not quietly break.
+
+   **Number Slide's landed in Step 1** on the operator's ask rather than waiting
+   for Step 3 (§4.4 has the shape). Its badge reads `4×4 · 01:24` over
+   `12 moves`, and `describeNumberSlideProgress` lives in
+   `games/numberslide/saveShape.ts` — next to the game, pure, and importing
+   `formatElapsed` *from* `utils/gameProgress.js` rather than being added to it.
+   **That is the direction to keep**: the shared helper flows outward, the
+   game-specific rule stays home. Color Loop's is Step 3's.
 2. **Fall back to standing**, the way the cube does when there is no solve to
-   return to: `Training · 7 of 18 · 14★` for Color Loop, the best time for
-   Number Slide.
+   return to: `Training · 7 of 18 · 14★` for Color Loop. Number Slide needs no
+   fallback now that its board resumes — and an *untouched* board deliberately
+   draws no badge at all, since every visit deals one and a permanent "Continue"
+   would mean nothing.
 
 `describeColorLoopProgress` and `describeNumberSlideProgress` go **next to the
 games**, not into `utils/gameProgress.js`. The cube's review named that file's
@@ -418,11 +613,28 @@ and result cards. Everything else the incoming code imports is already here:
 here the way it is in `color-loop` (this app has no `babel.config.js` and resolves
 it through Expo's metro transformer).
 
-**Dependency to converge:** the incoming games buzz with RN's `Vibration`; this
-app uses `expo-haptics` (added by the cube's Step 8). Move them to
-`expo-haptics` — one API for one thing, and `Vibration` has no iOS intensity
-control. It fires in a place only a device can judge, so it is a device-test line
-in every step that touches it.
+**Dependency to converge:** ~~the incoming games buzz with RN's `Vibration`;
+this app uses `expo-haptics` (added by the cube's Step 8). Move them to
+`expo-haptics`.~~ **Reversed — the app has no haptics at all** (operator,
+2026-08-09: *"I want to remove all haptics"*).
+
+The convergence was done first and then undone, which is the more useful record:
+**there was nothing to converge *to*.** Once Number Slide's buzz came out, the
+only remaining call site in the whole app was one `impactAsync` in the cube's
+move pad, at the hold-to-prime threshold. A dependency carried for a single
+`catch(() => {})` on one gesture is a dependency to remove, not a convention to
+spread — so `expo-haptics` is gone from `package.json` and the cube's buzz with
+it.
+
+Two consequences for the rest of the epic:
+
+- **Nothing arriving from the sibling app buzzes.** Color Loop's win celebration
+  calls `Vibration` upstream; Step 2 drops that call rather than translating it.
+- **The confirmation has to be on the screen.** The cube's hold already closed a
+  ring and filled the `′` key at the threshold, so removing the buzz cost it
+  nothing that was not drawn — check that before removing a buzz anywhere else,
+  because a gesture whose *only* feedback was the haptic becomes a hidden
+  gesture.
 
 **Identity and release:**
 
@@ -451,6 +663,23 @@ in every step that touches it.
   Step 1's TypeScript addition changes what the build command needs, the
   dashboard is the place that breaks and no PR check will catch it. Verify the
   Vercel deploy explicitly in the step that adds `tsconfig.json`.
+
+  **Step 1 did, and the answer is that nothing about the build command changes.**
+  `npx expo export --platform web` produces the same `dist/` it did before — the
+  new `.ts`/`.tsx` is compiled by `babel-preset-expo` through Metro, which has
+  supported TypeScript without configuration for years and does not read
+  `tsconfig.json` to do it. `typescript` itself is only ever run by the
+  `typecheck` script.
+
+  The one hazard worth naming, because it is the one that could still bite: the
+  new packages are **devDependencies**, so a deploy that installed with
+  `--omit=dev` would not have them. It does not, and this can be settled without
+  the dashboard — `@babel/core` has been a devDependency of this app since before
+  the hub existed and Metro cannot bundle without it, so a production-only install
+  would have been failing the whole time. `typescript` joining that list is
+  therefore free. **What still needs an eye at merge time is only whether the
+  dashboard pins an old Node or an install flag** — the repo cannot answer that
+  one.
 
   What is *not* built either side is the piece Color Loop's roadmap called the
   highest-leverage next step: **a URL that carries a code**
@@ -481,23 +710,27 @@ A correction that arrives after a step merged is its own branch and PR, numbered
 step.
 
 - **Step 0 — this plan** and the tracker issue. *(this PR)*
-- **Step 1 — Number Slide on the hub.** The smaller game first, deliberately: it
-  has no inner hub, no code system and no ladder, so it proves the whole seam
+- **Step 1 — Number Slide on the hub.** ✅ The smaller game first, deliberately:
+  it has no inner hub, no code system and no ladder, so it proves the whole seam
   — TypeScript, the Jest transform, the registry entry, `ScreenHeader`, and **the
-  full theme adoption of §4.2** — against 600 lines instead of 1,700. Ships:
-  `tsconfig.json`, the test transform, `utils/motion.js` + `components/Motion.tsx`,
-  `utils/rng.js`, `expo-clipboard`, `games/numberslide/` rendering entirely from
-  `useAppTheme`, a fourth hub card. **When this lands the platform question is
-  answered and Step 2 is mostly repetition.** It is also the step that adds
-  `tsconfig.json`, so it is the step that must verify the Vercel deploy (§6).
+  full theme adoption of §4.2** — against 600 lines instead of 1,700. Shipped:
+  `tsconfig.json` and six `.d.ts` shims, the test transform,
+  `utils/motion.ts` + `components/Motion.tsx`, `utils/rng.ts`, `expo-clipboard`,
+  `Vibration` dropped rather than translated (§6), `games/numberslide/`
+  rendering entirely from
+  `useAppTheme` through a pure `palette.ts`, a fourth hub card with no
+  `readProgress`. **The platform question is answered and Step 2 is mostly
+  repetition** — §4.1 and §4.2 above carry what it found.
 - **Step 2 — Color Loop on the hub.** The board, the physics, free play, the code
   system, `Confetti`, `Controls` — all on the theme. **`colors.ts` is retired for
   `utils/symbolSets.js` here**, with the `maxN` pin from §4.2 landing in the same
   PR as the palette swap, never after it. The inner hub becomes the menu (§4.3);
   Training and Match are reachable but unpolished. Fifth hub card.
-- **Step 3 — resume, and the badges.** Versioned one-blob saves for both games
-  (§4.4), a board that survives a trip to the hub, and both `readProgress`
-  implementations living next to their games (§4.6).
+- **Step 3 — resume, and the badges.** ~~Both games~~ **Color Loop's half only**
+  — Number Slide's versioned blob, resumable board and `readProgress` landed in
+  Step 1 on the operator's ask (§4.4, §4.6). What is left is `@ColorLoop`, a
+  board that survives a trip to the hub, and `describeColorLoopProgress` next to
+  its game. Copy Number Slide's arrangement, including the two flushes.
 - **Step 4 — Training and Match, at home.** The 18-rung ladder and the match
   gauntlets under this app's chrome: `LevelSelect` on `ScreenHeader`, star
   thresholds intact, result cards copying through `expo-clipboard`. The ladder's
@@ -561,7 +794,9 @@ At merge:
 2. **Does Color Loop keep its name on this hub?** *Color Loop* was the app; here
    it is a card. It reads well next to *Fungiku* and *Cube Scramble*, so the
    default is to keep it. Same question, quietly, for *Number Slide* — the
-   classic's real name is the 15-puzzle.
+   classic's real name is the 15-puzzle. **Step 1 shipped the default** (the card
+   reads *Number Slide*); renaming a card is a one-line change in the registry,
+   so it stays cheap to answer later.
 3. **Do the physics sliders ship?** Friction, flick, magnet and twin are
    currently a dev screen for an unfinished tuning pass. Options: a real setting
    in the menu, a hidden dev surface on the epic branch only, or delete them and
@@ -585,8 +820,15 @@ At merge:
    just solved"* is nearly free for it, and the cube's scramble string already is
    a code. Worth knowing whether that is where the box is heading, because it
    changes what Step 6 should recommend.
-7. **Number Slide at 4×4?** It is hardcoded to 3×3 and the logic is size-generic
-   in most places. Out of scope for the merge; cheap afterwards.
+7. ~~**Number Slide at 4×4?**~~ **Answered upstream, and ported in Step 1.**
+   The sibling app added 3×3 / 4×4 / 5×5 in its `708d59a`, after this plan was
+   written, and the merge takes it as it stands — size chips over the board, and
+   a code that carries its own size (`4-K7P2Q`), with bare five-character codes
+   still meaning the 3×3 they always did. Left open underneath it: **6×6 does not
+   exist** and would want a look at whether a 35-tile board is still fun on a
+   phone. The pattern to copy if it ever ships is the `scrambleSteps` freeze —
+   3×3 keeps its historical 160 steps *by name* so old codes reproduce
+   byte-for-byte, and the test pins three known boards.
 
 ## 10. Edge cases and things that are easy to get wrong
 
@@ -609,8 +851,15 @@ At merge:
 - **`useNativeDriver` and `setValue`** must not mix (`docs/fungiku-plan.md`
   §2). The incoming code uses `USE_NATIVE = Platform.OS !== 'web'`, which is the
   same rule spelled differently — do not "simplify" it to `true`.
-- **`Vibration` fires on win in both games.** After the move to `expo-haptics`,
-  this is device-test-only. No browser check covers it.
+- **An effect cannot depend on a ref**, and a restored game is where that
+  stops being academic. Number Slide's clock was frozen after every restore for
+  exactly this reason (§4.4). Color Loop's screen has the same timer-plus-refs
+  shape.
+- **Nothing buzzes, anywhere.** `expo-haptics` was removed from the app
+  entirely (§6), so a `Vibration` or `Haptics` call arriving with Color Loop is
+  deleted rather than translated. This also takes a whole class of
+  device-only checks off the list — there is no longer anything on these screens
+  that a browser pass cannot see.
 - **The web container is 600pt wide and centred** on this app's screens
   (`HubScreen`, `useBoardSize`). Color Loop's board sizes itself off
   `useWindowDimensions` capped at 440. They will disagree; `useBoardSize({ fill:

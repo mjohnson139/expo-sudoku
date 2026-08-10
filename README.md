@@ -1,6 +1,6 @@
 # Puzzle Box
 
-Two logic puzzles and a Rubik's cube behind one hub, built with
+Four puzzles and a Rubik's cube behind one hub, built with
 [Expo](https://expo.dev/) and React Native — playable on Android, iOS, and web.
 
 The app opens on a hub. Each card is a peer, and a game you left half-finished
@@ -55,6 +55,31 @@ Where this is going — stepping through a scramble, then through a **solve** in
 CFOP or Roux — is in [`docs/cube-plan.md`](docs/cube-plan.md), with the next step
 always described in [`docs/cube-handoff.md`](docs/cube-handoff.md).
 
+### Number Slide
+
+The sliding-tile classic — and the first of two games arriving from the
+sibling `color-loop` app.
+
+- **Three sizes, one tap apart.** 3×3, 4×4 and 5×5; the board keeps the same
+  footprint as the grid grows.
+- **Tap or swipe toward the gap.** A tap slides a whole line of tiles at once;
+  a swipe moves the one tile beside the gap.
+- **Your board is kept as you play it.** Leave for the hub or close the app and
+  the tiles, the move count and the clock are where you left them — and the card
+  carries a *Continue* badge like every other game.
+- **A shareable puzzle code.** Every board is a pure function of its seed, so
+  the chip *is* the puzzle — copy one, send it, and race the same board on
+  someone else's phone. The code carries the size (`4-K7P2Q` is a 4×4), and a
+  bare five-character code still means the 3×3 it always did.
+- **It wears whichever theme you picked.** There is no colour of its own
+  anywhere on the screen: the tray, the tiles, the numbers and the accent all
+  come from the theme, so cycling it carries the whole game with it.
+
+The merge that brings it and Color Loop across is planned in
+[`docs/colorloop-merge-plan.md`](docs/colorloop-merge-plan.md), with the next
+step always described in
+[`docs/colorloop-merge-handoff.md`](docs/colorloop-merge-handoff.md).
+
 ## Getting Started
 
 ### Prerequisites
@@ -101,6 +126,7 @@ From `SudokuApp/`:
 
 ```bash
 npm test                          # Jest
+npm run typecheck                 # tsc --noEmit — the TypeScript games
 npx expo-doctor                   # expect 18/18
 npx expo export --platform all    # web + iOS + Android must all bundle
 ```
@@ -118,8 +144,11 @@ npx expo export --platform all    # web + iOS + Android must all bundle
   - `components/` – Shared and Sudoku UI components (Grid, Cell, NumberPad, …)
   - `games/fungiku/` – Fungiku: engine, reducer, board, menus, wallet
   - `games/cube/` – Cube Scramble: cube model, notation, scrambler, 3D renderer
+  - `games/numberslide/` – Number Slide: slide logic, seed codes, theme palette
   - `screens/` – The hub and each game's screen
-  - `utils/` – Theme system, board generation, symbol sets, app identity
+  - `utils/` – Theme system, board generation, symbol sets, app identity, the
+    motion vocabulary, and the three `.d.ts` files that describe the parts of
+    this app's JavaScript TypeScript cannot infer correctly
   - `assets/` – App icons and images
 - `docs/` – Each epic's plan and its next-step handoff
 
@@ -132,3 +161,6 @@ npx expo export --platform all    # web + iOS + Android must all bundle
 - Cube Scramble's model, scrambler and renderer are the app's own
   (`SudokuApp/games/cube/`); the reference for the screen is
   [scramble.cubing.net](https://scramble.cubing.net/)
+- Number Slide comes from the sibling
+  [`mjohnson139/color-loop`](https://github.com/mjohnson139/color-loop) app, with
+  its boards seeded by `mulberry32` (`SudokuApp/utils/rng.ts`)
