@@ -19,7 +19,9 @@ SDK, same RN version, same operator. The plan is
 anything.** It is a live repo, not an archive, and the plan's inventory pins a
 revision (`e07eb82`) that `main` has already moved past — Step 1 shipped a
 3×3-only Number Slide before the operator pointed out that 4×4 and 5×5 had
-landed upstream. Plan §2 has the warning in full.
+landed upstream. Plan §2 has the warning in full. **Step 2 checked and found no
+drift** (`main` is still `708d59a`, and its diff against `e07eb82` touches only
+Number Slide files) — which is a result of the check, not a reason to skip it.
 
 ## How a step runs
 
@@ -36,7 +38,7 @@ main ─── epic/color-loop ─── feature/color-loop-<step>   (PRs target
 - `epic/color-loop` is cut from `main` and **everything merges into it**, never
   into `main`. `main` never carries a half-merged game.
 - **One delivery step per branch**, named `feature/color-loop-<short-skewer-name>`
-  (`.github/dev-process.md`). Step 2 is `feature/color-loop-board`.
+  (`.github/dev-process.md`). Step 3 is `feature/color-loop-resume`.
 - A step PR targets `epic/color-loop`, is squash-merged, and its branch is
   deleted.
 - A follow-up correction that arrives *after* a step merged — the operator using
@@ -206,162 +208,182 @@ found — **read those before Step 2, they are most of its brief.**
 
 ---
 
-## Step 2 — Color Loop on the hub *(next)*
+## Step 2 — Color Loop on the hub ✅
+
+The game the epic is named after, as the fifth card, and **the palette swap that
+was the one genuinely dangerous change in the epic**. Landed: the three engines
+(`puzzle.ts` **byte-identical**, `levels.ts` unchanged, `match.ts` changed only
+where it formats a clock), the two pure-core extractions `geometry.ts` and
+`saveShape.ts`, `Board.tsx` with its physics untouched and its two colours themed,
+`ColorLoopScreen` + `ColorLoopMenuModal` + `LevelSelect`, `Seg` and `Slider` in
+`components/Controls.tsx`, the `@ColorLoop` blob, and a fifth registry entry with
+no `readProgress`. 187 new tests (1,246 total).
+
+**The palette swap is pinned, not remembered.** `colors.ts` takes
+`REGION_COLORS.slice(0, PALETTE_SIZE)` — slicing rather than spreading, so an
+eleventh platform hue *cannot* reach Color Loop and move `maxN('diag')` from 4 to
+5. The pin that matters is `parseCode('5-ABC-D')` still yielding a 4×4: that is
+the actual failure — a code decoding to a different board — rather than the
+arithmetic behind it.
+
+**Three decisions the step was asked to make, all in plan §3, §4.2 and §4.5:**
+
+- **`useBoardOrigin` is now one guest copy, at `utils/useBoardOrigin.ts`**, with
+  three callers (both boards and the `Slider`). It carries the platform hook's
+  non-finite guard and `toLocal`, so **Step 6 has no behavioural difference left
+  to reconcile** — only the `.js`/`.ts` split, which §4.1 forbids closing here.
+- **`ensureContrast` and `withAlpha` moved to `utils/contrast.ts`** on their
+  second caller; `games/numberslide/palette.ts` re-exports both and is otherwise
+  untouched.
+- **The glyphs stay characters** (operator, 2026-08-11), which closes the narrow
+  half of open question 1.
+
+**Two findings, both about contrast, both in plan §4.2:**
+
+1. **A colour fixed up against the worst member of a set is not fixed up against
+   the set.** The glyph is drawn on all seven hues; pushed dark enough for
+   yellow it fails on blue. `ensureContrastAll` searches once over the whole set,
+   and it is one nested loop.
+2. **Sometimes there is no composite.** Step 1's rule — hold overlay text to the
+   scrim-over-board composite — has no single answer when the board under the
+   scrim is seven colours. The win card is therefore **opaque by construction**,
+   which satisfies the rule rather than dodging it. Where translucency is
+   genuinely unavoidable (the armed cover, at 0.97) the ink is held against all
+   *eight* composites and the test measures all eight.
+
+Also: nothing buzzes (the detent and settle vibrations were deleted, and both
+are still confirmed on screen), the result card now reads `00:12` rather than
+`0:12` because `formatElapsed` is the app's one clock format, and
+**no fourth `.d.ts` shim was needed** — inference typed all five newly-imported
+JavaScript modules correctly.
+
+§2, §3, §4.1, §4.2, §5, §7, §9 and §10 of the plan were amended with what this
+step found.
+
+---
+
+## Step 3 — the board that survives the hub *(next)*
 
 ### Starting prompt
 
 ```
-Work Step 2 of the Color Loop merge epic in mjohnson139/expo-sudoku.
+Work Step 3 of the Color Loop merge epic in mjohnson139/expo-sudoku.
 
 Read docs/colorloop-merge-handoff.md first — it describes this step and only
 this step — then docs/colorloop-merge-plan.md end to end before writing code.
 
-Branch feature/color-loop-board off epic/color-loop. PR targets
+Branch feature/color-loop-resume off epic/color-loop. PR targets
 epic/color-loop, never main. Tracker is issue #103.
 ```
 
-**The game the epic is named after, on the hub as the fifth card — and the
-palette swap, which is the one genuinely dangerous change in the whole epic.**
+**Color Loop's board is still lost the moment you tap home, and its card is the
+only one on the hub with no Continue badge.** This step closes both — the last
+row of plan §3's platform-contract table, and the half of §4.6 that Step 1 did
+not pull forward.
 
-Step 1 answered every platform question: TypeScript, the shims, the Jest
-transform, the registry entry, `ScreenHeader`, `useBoardSize`, the theme
-adoption, haptics, clipboard, storage shape. **This step is mostly repetition of
-settled decisions applied to 2,200 lines instead of 600** — plus two things that
-are new, and they are where the care goes.
+It is a **small step with one genuinely dangerous corner**, and the corner is not
+the storage. Read *the trap* below before writing the effect.
 
 ### Scope — ONLY this
 
-0. **Diff upstream `main` first.** `git fetch` in `mjohnson139/color-loop` and
-   read what has landed since the plan's `e07eb82`. Step 1 shipped a stale port
-   because it trusted the pinned revision; Color Loop is nine times the code and
-   has had the same time to move.
-1. **The engines, unchanged:** `games/colorloop/{puzzle,levels,match}.ts`.
-   `puzzle.ts` is **frozen** (golden rule 3) — it arrives byte-identical apart
-   from its `colors` import.
-2. **The palette swap.** `games/colorloop/colors.ts` is **retired** for
-   `utils/symbolSets.js` (plan §4.2). Use the saturated `color`, not the tinted
-   `background` — full saturation is where Okabe–Ito's colorblind safety lives,
-   and the tints are tuned for Fungiku's soft grid.
-3. **The `maxN` pin, in the same PR as the swap and never after it.** See *the
-   trap*, below. It is the most important paragraph in this file.
-4. **`games/colorloop/geometry.ts`** — `computeGeom` and `linesAt` extracted out
-   of `Board.tsx` so `board.test.ts` runs in the node environment, exactly what
-   `games/fungiku/geometry.js` and `games/cube/geometry.js` already are (plan §5).
-5. **`games/colorloop/saveShape.ts`** — `sanitizeTraining` / `sanitizeMatchBest`
-   extracted out of `storage.ts` for the same reason, and `@ColorLoop` as one
-   versioned blob (plan §4.4). `games/numberslide/storage.ts` is the shape to
-   copy.
-6. **`Board.tsx` and the board's physics**, on the platform's touch rules.
-7. **The inner hub becomes a menu** (plan §4.3): tapping the hub card lands on a
-   **playable board**, and Free play / Training / Match are chosen from
-   `ScreenHeader`'s menu button — where Fungiku's difficulty menu is.
-   `FungikuMenuModal` is the shape to follow.
-8. **Free play and the code system**, complete: generate, copy, paste, load.
-9. **A fifth registry entry**, again with **no `readProgress`**.
-10. **The rest of the incoming tests** — `puzzle`, `levels`, `match`, `board`,
-    `storage`. Five of the seven files pass untouched once the two extractions
-    exist.
+1. **The board in flight, in `@ColorLoop`.** The blob, the version and both
+   flushes already exist (`games/colorloop/{storage,saveShape}.ts`), so this is
+   an addition to a shape that was designed for it, not a reshape. What goes in:
+   `{ seed, n, mode, grid, moves, secs, phase }` — plan §4.6 names exactly that
+   set. `games/numberslide/saveShape.ts` is the reader to copy, including its
+   **validate-by-shape** rule: a grid whose values are not the multiset the mode
+   implies is a board that renders happily and cannot be solved.
+2. **The hydration gate already exists** and the screen already waits behind it;
+   what changes is that a restored board is dealt instead of a fresh one.
+3. **Cleared on a solve.** A finished puzzle is not something to continue, and a
+   save left behind gives the card a badge that reopens a win screen.
+4. **A `describeColorLoopProgress` in `games/colorloop/saveShape.ts`** — *next to
+   the game*, importing `formatElapsed` **from** `utils/gameProgress.js` rather
+   than being added to it. The cube's review named that file's inverted
+   dependency as its headline finding and a sixth import would ship it again.
+5. **`readProgress` on the fifth registry entry**, reading through that
+   describer.
+6. **The fallback badge.** Plan §4.6 offers `Training · 7 of 18 · 14★` for when
+   there is no board to return to. **Decide whether it ships**: Number Slide
+   deliberately draws *no* badge for an untouched board, because every visit
+   deals one and a permanent "Continue" means nothing — and Color Loop has the
+   same property. A standing badge is a different claim from a Continue badge,
+   and the card has one line for both.
+7. **Tests**: the reader's shape rules, the describer's output including the
+   nothing-to-continue case, and a round trip proving a restored board is the
+   board that was saved.
 
 ### Explicitly out of scope
 
-Color Loop's resumable board and hub badge (Step 3 — Number Slide's landed in
-Step 1, and `games/numberslide/{storage,saveShape}.ts` is the arrangement to
-copy, including the flush on unmount *and* on backgrounding). Training's ladder
-and Match's gauntlets
-as *finished* screens (Step 4) — they need only be reachable and not broken.
-The proving pass over all ~100 restyled sites (Step 5). Converging
-`useBoardOrigin` or the two confetti implementations (Step 6 decides both). Any
-JavaScript→TypeScript conversion of existing files.
+Training and Match as *finished* screens (Step 4 — they are reachable and
+unpolished, which is what Step 2 scoped). The proving pass over the restyled
+sites (Step 5). Converging `useBoardOrigin` or the two confetti implementations
+(Step 6 decides both, and Step 2 left it exactly one decision each). Any
+JavaScript→TypeScript conversion.
 
-### ⚠️ The trap: the palette swap is part of the `puzzle.ts` freeze
+### ⚠️ The trap: this is the step where the clock bug becomes reachable
 
-This is the least obvious thing in the plan and it will not fail a single
-existing test.
+`ColorLoopScreen`'s header carries a note saying the clock was checked against
+Step 1's frozen-clock bug and is clear — **and it says, in as many words, that
+this is the step where that has to be read again.** Do read it.
 
-```ts
-export function maxN(mode: Mode): number {
-  return mode === 'diag' ? Math.floor((COLORS.length + 1) / 2) : 6;
-}
-```
+The bug (plan §4.4): "is the clock running" was a `useRef`, and **the effect that
+owns the `setInterval` cannot depend on a ref**. On a fresh board the first move
+flips some *other* state and the interval starts by accident; on a **restored**
+board nothing in the dependency list ever changes and the clock sits frozen for
+the whole game. It typechecked and passed 1,059 tests.
 
-`maxN` is **derived from the palette's length**, and `parseCode` **clamps `n` to
-`maxN(mode)`**. Seven colours ⇒ `maxN('diag') === 4`. `utils/symbolSets.js` holds
-**ten**, which would make it **5** — so the code `5-ABC-D`, which today clamps to
-a 4×4 board, would silently start producing a 5×5 one. Every code anyone has
-shared would decode to a different puzzle, and nothing in either suite would say
-a word.
+Color Loop is currently safe for a reason that this step removes: its interval
+depends on `phase`, which is state, **and there is nothing to restore**. Once a
+started board comes back from storage, the restore path has to set `phase` to
+`'live'` and re-anchor `startTimeRef` to `Date.now() - secs * 1000` — and if
+either of those is done through a ref, or the effect is given a cleverer
+dependency list, the clock freezes exactly as Number Slide's did.
 
-**The rule: Color Loop takes the first seven entries of the platform palette and
-its view of the palette stays length 7.** The palette may hold ten; Color Loop
-may not see them. **Add a test pinning `maxN('diag') === 4` and `maxN('rows') ===
-6`** next to the scramble-compatibility test, and land it in the same commit as
-the swap.
+**The check is thirty seconds and no test substitutes for it:** start a board,
+make a move, go to the hub, come back, and watch the clock for five seconds.
 
 ### Behaviours that are easy to get wrong
 
-- **The glyphs.** Color Loop's `●▲■◆★✦✚` are the same idea as the swatches'
-  `corners` — a non-colour channel of identity. **Keep the redundancy**; align
-  the mechanism with `components/Symbol.js` rather than carrying a second one.
-  Whether they stay characters or become the silhouettes is **open question 1**,
-  and it is better settled by looking at a board than by argument — so build one
-  and ask the operator.
-- **Touches resolve through `pageX/pageY` minus a measured origin**, never
-  `locationX/locationY`. Color Loop's board, its slider and Number Slide were all
-  bitten by this on the SDK 54 upgrade.
-- **An effect cannot depend on a ref**, and Color Loop's screen has the same
-  timer-plus-once-created-`PanResponder` shape that hid this in Number Slide: its
-  clock was frozen after every restore, because "is the clock running" was a ref
-  and the interval's effect could not see it change. It typechecked and passed
-  the whole suite. Plan §4.4 has the full account; the rule is that anything an
-  effect must react to is **state**, with a ref beside it only for the closures
-  created once.
-- **`useBoardOrigin` is currently two hooks** — the platform's in `hooks/` and the
-  copy Step 1 parked at `games/numberslide/useBoardOrigin.ts`. Color Loop needs
-  the same thing. **Decide where the guest copy lives now that there are two
-  callers** and write down what you chose; the real convergence with the platform
-  hook is still Step 6's.
-- **`USE_NATIVE = Platform.OS !== 'web'`** is not a workaround to simplify away,
-  and it now lives in `utils/motion.ts` for you.
-- **`useBoardSize({ fill: true })`** knows about the 600pt centred web container;
-  Color Loop's `computeGeom` sizing off `useWindowDimensions` capped at 440 does
-  not. Reconcile them the way `NumberSlideScreen` did, or the board and the header
-  disagree about the middle of the page on web.
-- **A row wider than the board widens the ScrollView's content container** and
-  pushes every centred sibling off-screen — Fungiku shipped that bug with a row of
-  hearts, and Color Loop's controls and match splits are exactly that shape of
-  row.
-- **The `dev` screen (friction, flick, magnet, twin) does not ship on the hub.**
-  Keep the sliders behind the menu on the epic branch and decide before the merge
-  to `main` whether they become a real setting or come out — **open question 3**.
-  `Controls.tsx`'s `Slider` and `Seg` were deliberately not ported in Step 1; they
-  arrive with this step if the sliders do.
-- **New colours go through `palette.ts`'s pattern, not into styles.** Step 1's
-  `games/numberslide/palette.ts` is the template: one pure function, floors that
-  hold by construction via `ensureContrast`, and a test over all seven themes.
-  **Two of its findings will recur here** — the contrast push has to search both
-  directions, and text on an overlay must be measured against the *composite*
-  (scrim over whatever is behind it), not against the page. Plan §4.2 has both.
-- **Try inference before writing a `.d.ts`.** `allowJs` is on and `checkJs` is
-  off, so TypeScript reads the JavaScript and types it without any help most of
-  the time — `utils/symbolSets.js` very likely needs nothing. A shim is for the
-  three-in-six case where inference is *wrong* (plan §4.1 tabulates them), and
-  every one added has to join the list in `utils/__tests__/typeShims.test.js`,
-  which now fails if a shim exists that it does not name.
+- **`phase` is three-valued and only one of them is resumable.** An `armed` board
+  has not been started, a `won` board is finished. Restoring either is a Continue
+  badge that means nothing — and `armed` is the state a *fresh* board is in, so
+  "no save" and "saved but unstarted" must not be told apart by the player.
+- **The clock resumes; time on the hub is not counted.** That falls out of the
+  screen being unmounted there rather than needing a rule (plan §4.4).
+- **Only free play persists its size and goal.** `ColorLoopScreen` holds `prefs`
+  separately from the live `n`/`mode` for exactly this reason. A restored *board*
+  carries its own `n`/`mode`, which may be a level's or a match's — do not write
+  those back into `prefs` on restore.
+- **A match in flight is more than a board.** `PlayCtx` for a match carries the
+  code, the preset, the per-board seeds, the index and the splits. Either persist
+  the whole context or **deliberately do not resume matches** and say which — a
+  half-restored match that forgets your first two splits is worse than one that
+  starts again.
+- **The `_v` is already 1.** Adding fields to a version nothing branches on is
+  the intended use; `readColorLoopSave` reads by shape, because a key that is
+  absent and a key that is corrupt want the same answer.
+- **`readColorLoopSave` never returns null** — it falls back field by field,
+  because losing a physics value must not cost the player eighteen training
+  stars. The *board* is the opposite: it is all-or-nothing, so it wants its own
+  reader that can refuse. Do not weaken the blob reader to accommodate it.
 
 ### Visible in Expo Go when this lands
 
-A fifth card. Tapping **Color Loop** lands straight on a playable board — no
-second front door — under this app's header, in the player's theme, with tiles in
-the Okabe–Ito hues the rest of the app uses. Drag a row or a column and it wraps.
-Solve it and it celebrates. The menu button opens Free play / Training / Match.
-The code chip copies, and a pasted code loads the same board it loads on the
-sibling app. **No walnut and no brass anywhere**, on either game.
+Start a Color Loop board, make a few moves, tap home. The card reads something
+like `4×4 · 01:24` over `9 moves`. Tap it and the board is the board you left —
+same tiles, same clock, still running. Solve it and the badge goes away.
 
 ### How to verify
 
-The four commands above, plus a device pass. **The gesture is the whole game and
-a browser will not tell you how it feels** — drag rows and columns, flick them,
-check the magnet settle, and say so in the PR. Then: cycle all seven themes on
-both new cards, load a code that was generated by the standalone app and confirm
-it produces the same board, and confirm the other four games look exactly as they
-did.
+```bash
+npm test                          # existing suite must stay green, plus the new tests
+npm run typecheck                 # tsc --noEmit
+npx expo-doctor                   # expect 18/18
+npx expo export --platform all    # web + iOS + Android must all bundle
+```
+
+Then the device pass, and **the clock check above is the one that matters** — it
+is the only failure in this step that every automated gate will miss. Also:
+leave mid-board by backgrounding the app rather than by tapping home (a different
+flush path), and confirm the other five cards are unchanged.

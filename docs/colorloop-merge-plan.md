@@ -88,6 +88,14 @@ prototype HTML files:
 > revision below before porting anything**, in every remaining step. Step 2's
 > cargo is nine times the size of Step 1's and has had the same amount of time
 > to drift.
+>
+> **Step 2 checked, and this time it had not.** `mjohnson139/color-loop`'s
+> `main` is still `708d59a`, whose only diff against `e07eb82` is the Number
+> Slide work Step 1 already absorbed — `git diff e07eb82 origin/main` touches
+> five files and none of them is under `games/colorloop/`. So the Color Loop
+> inventory below is accurate as it stands. **That is a result of the check, not
+> a reason to stop making it**: the sibling repo is still live, and Steps 3–5
+> have the same paragraph to obey.
 
 | Area | Files | Lines | Fate |
 |------|-------|-------|------|
@@ -123,13 +131,16 @@ see the work:
 
 | Platform seam | Sudoku | Fungiku | Cube | Color Loop | Number Slide |
 |---|---|---|---|---|---|
-| `games/registry.js` entry | ✅ | ✅ | ✅ | **missing** | **missing** |
-| `hooks/useAppTheme` | own reducer | ✅ | ✅ | **fixed palette** | **fixed palette** |
-| `hooks/useBoardSize` | ✅ | ✅ | ✅ | own `computeGeom` | own inline math |
-| `components/ScreenHeader` | own `GameHeader` | ✅ | ✅ | **own back link** | **own back link** |
-| `readProgress` → hub badge | ✅ | ✅ | ✅ | **missing** | **missing** |
-| `hooks/useBoardOrigin` | — | ✅ | — | own copy (identical intent) | own copy |
+| `games/registry.js` entry | ✅ | ✅ | ✅ | ✅ (Step 2) | ✅ (Step 1) |
+| `hooks/useAppTheme` | own reducer | ✅ | ✅ | ✅ (Step 2) | ✅ (Step 1) |
+| `hooks/useBoardSize` | ✅ | ✅ | ✅ | ✅ `{fill}` + own `computeGeom` | ✅ `{fill}` |
+| `components/ScreenHeader` | own `GameHeader` | ✅ | ✅ | ✅ `dense` + menu | ✅ `dense` |
+| `readProgress` → hub badge | ✅ | ✅ | ✅ | **Step 3** | ✅ (Step 1) |
+| `hooks/useBoardOrigin` | — | ✅ | — | `utils/useBoardOrigin.ts` | same file |
 | Persistence | `usePersistentReducer` | `usePersistentReducer` | own writer | own writer | own writer |
+
+*(The Color Loop and Number Slide columns are as of the end of Step 2; the
+original "missing" column is what the epic started from.)*
 
 Read that table as the step list in miniature. Five rows are genuinely missing
 and are what Steps 1–3 build. Two rows — `useBoardOrigin` and persistence — are
@@ -143,12 +154,23 @@ keys, not one game blob).
 `readProgress` once the operator asked for the board to persist (§4.4). Its
 persistence row is now "own writer", like the cube's and unlike the two reducer
 games. Its `useBoardOrigin` copy came across as-is
-and now lives at `games/numberslide/useBoardOrigin.ts`: inside the game rather
-than beside the platform's in `hooks/`, because a second `hooks/useBoardOrigin`
-differing only by file extension is the worst available name for it. Step 2 needs
-the same file for Color Loop and should decide then whether to lift it somewhere
-both games can see; **Step 6 still owns whether the platform ends up with one
-hook or two.**
+and lived at `games/numberslide/useBoardOrigin.ts` for the length of that step.
+
+**Step 2 lifted it to `utils/useBoardOrigin.ts`**, which was the decision that
+step was asked to make. There are three callers now, not two — Color Loop's
+board, Number Slide's, and the `Slider` in `components/Controls.tsx` — and
+promoting a function with three real callers is what §4.5 says to do with
+`mulberry32`, for the same reason. It is still knowingly the *second*
+implementation in the repo, and merging it with `hooks/useBoardOrigin.js` is
+still **Step 6's** call: doing it now would mean either converting a JavaScript
+hook to TypeScript, which §4.1 forbids in this epic, or importing a `.js` hook
+whose `useRef(null)` infers as `MutableRefObject<null>` and will not typecheck
+against a `View`'s `ref`.
+
+What Step 2 *did* converge is the behaviour, so Step 6 has no difference left to
+reconcile: the TypeScript copy now carries the platform hook's non-finite guard
+and its `toLocal`. Nothing Number Slide draws moves — a `NaN` origin was never a
+working case.
 
 ### One thing the newcomers bring the other way
 
@@ -244,6 +266,15 @@ means**, and each is worth knowing as a repo-wide lesson:
 That last row is the one to carry beyond this epic: **a vague JSDoc type is
 worse than none**, because it overrides inference rather than supplementing it.
 
+**Step 2 added no fourth shim**, which is the outcome the rule was written for.
+It brought 2,200 lines of TypeScript across five new imports of this app's
+JavaScript — `utils/symbolSets.js`, `utils/color.js`, `utils/debounce.js`,
+`hooks/useBoardSize.js` and `utils/gameProgress.js` — and inference typed every
+one of them correctly. `debounce.js` is the interesting case: its generic JSDoc
+(`@template {(...args: any[]) => any} F`) was written in Step 1 precisely so
+`.flush()` would survive inference, and it did. **`utils/symbolSets.js` needed
+nothing at all**, exactly as the Step 2 brief predicted.
+
 Every shim has one standing cost — **a `.d.ts` shadows the `.js` beside it
 absolutely**, so a rename on the JavaScript side breaks the games at runtime with
 `tsc --noEmit` still green. `utils/__tests__/typeShims.test.js` is the floor: it
@@ -338,6 +369,27 @@ may not see them. **Add a test pinning `maxN('diag') === 4` and `maxN('rows') ==
 6`** next to the existing scramble-compatibility test, so the coupling is
 enforced rather than remembered.
 
+##### Done in Step 2, and the shape of the fix is worth copying
+
+`games/colorloop/colors.ts` is the rule made mechanical: it exports
+`PALETTE_SIZE = 7` and builds `COLORS` as `REGION_COLORS.slice(0, PALETTE_SIZE)`,
+so **adding an eleventh hue to `utils/symbolSets.js` cannot reach Color Loop.**
+Slicing rather than spreading is what turns "remember not to grow this" into
+"this does not grow"; a `COLORS` assembled hue by hue would have been correct on
+the day and wrong the first time somebody extended the palette.
+
+The pin is five cases in `__tests__/puzzle.test.ts`, and one of them is worth
+more than the other four: it asserts `parseCode('5-ABC-D')` still yields a 4×4.
+That is the actual failure — a code decoding to a different board — rather than
+the arithmetic that would cause it, and it would fail even if `maxN` were
+rewritten to compute the cap some other way.
+
+The glyphs stay characters — `●▲■◆★✦✚` — **settled by the operator on
+2026-08-11**, which closes the narrow half of open question 1. They live in
+`colors.ts` as one array of `{ c, g, name }` rather than a glyph list beside a
+colour list, because the pairing is positional and nothing else would keep the
+two in step.
+
 #### The contrast floor is not optional
 
 Step 8 of the cube epic found tinted backgrounds landing ΔE 0.9–2.6 apart on dark
@@ -387,6 +439,32 @@ One more, which is a design finding rather than a contrast one: **the scrim must
 not be heavy enough to hide the celebration.** At 0.86 the solved board's accent
 was gone under it; 0.72 — the sibling app's own weight — keeps the board present
 and still clears every text floor.
+
+##### And Step 2 found the limit of the composite rule: sometimes there is no composite
+
+Color Loop's solved board is **seven colours**, not one, so "compute the
+composite and hold the text to it" has no single answer — the pixel behind a
+word depends on which tile it lands over. Holding every string to the worst of
+seven composites would push the card's ink to near-black or near-white on most
+themes and throw the theme away.
+
+The answer is **construction rather than measurement: the win card is opaque.**
+Every string on it then measures against one known colour, and the scrim only
+has to dim the board. That is not an evasion of Step 1's finding, it is the
+cheapest way of satisfying it — the rule still binds anything drawn *directly*
+on a scrim, and this screen now draws nothing there.
+
+Where a translucent surface genuinely is unavoidable, the rule is applied in
+full. The armed cover sits at 0.97 over a scrambled board, so its text lands on
+eight surfaces (seven hues and the tray) that differ by a few percent — the exact
+size of gap that tempts you to skip the measurement. `ensureContrastAll` holds
+the ink against all eight, and the test measures all eight.
+
+That helper is the second Step 2 finding: **a colour fixed up against the worst
+member of a set is not fixed up against the set.** The glyph on a tile is the
+live case — pushed dark enough for yellow, it fails on blue. Searching once over
+the whole set is the only thing that lands a colour that reads on all of them,
+and it costs one nested loop.
 
 #### What this costs
 
@@ -600,6 +678,20 @@ convention rather than a concession:
 Both extractions are worth doing on their own merits, and doing them buys the
 whole suite in a plain node environment with no `jest-expo` and no jsdom.
 
+**Both landed in Step 2 and the prediction held**: five of the seven files pass
+untouched, and the two that needed the extractions needed nothing but a changed
+import path. Both were renamed to match the module they now test —
+`board.test.ts` → `geometry.test.ts`, `storage.test.ts` → `saveShape.test.ts` —
+since a file called `storage.test.ts` that never touches storage is a small lie
+that costs a future reader a minute.
+
+One incoming expectation did change, and it is not an extraction: **the match
+result card formats through `formatElapsed`**, so `0:12` became `00:12`. §4.2
+retires `utils/theme.ts` and folds its `fmt()` into that helper, and a time
+should read the same on every screen of this app. The part of the card that has
+to be exact is the **code**, which is what a rival pastes back in, and the code
+grammar is untouched.
+
 **Add, at minimum:** a round trip proving every `LEVELS` seed still generates the
 same board after the move (the §2 freeze, pinned rather than asserted), and the
 contrast floor from §4.2 across all seven themes.
@@ -721,16 +813,23 @@ step.
   `useAppTheme` through a pure `palette.ts`, a fourth hub card with no
   `readProgress`. **The platform question is answered and Step 2 is mostly
   repetition** — §4.1 and §4.2 above carry what it found.
-- **Step 2 — Color Loop on the hub.** The board, the physics, free play, the code
-  system, `Confetti`, `Controls` — all on the theme. **`colors.ts` is retired for
-  `utils/symbolSets.js` here**, with the `maxN` pin from §4.2 landing in the same
-  PR as the palette swap, never after it. The inner hub becomes the menu (§4.3);
-  Training and Match are reachable but unpolished. Fifth hub card.
+- **Step 2 — Color Loop on the hub.** ✅ The board, the physics, free play, the
+  code system, `Confetti`, `Controls` — all on the theme. `colors.ts` retired for
+  `utils/symbolSets.js`, with the `maxN` pin in the same commit as the swap. The
+  inner hub became the menu (§4.3); Training and Match are reachable and
+  unpolished, as scoped. Fifth hub card, no `readProgress`. Also landed:
+  `utils/useBoardOrigin.ts` (§3), `utils/contrast.ts` with the new
+  `ensureContrastAll` (§4.2), `Seg` and `Slider` in `components/Controls.tsx`,
+  and the `@ColorLoop` blob's *preference* half (§4.4). 187 new tests.
 - **Step 3 — resume, and the badges.** ~~Both games~~ **Color Loop's half only**
   — Number Slide's versioned blob, resumable board and `readProgress` landed in
-  Step 1 on the operator's ask (§4.4, §4.6). What is left is `@ColorLoop`, a
-  board that survives a trip to the hub, and `describeColorLoopProgress` next to
-  its game. Copy Number Slide's arrangement, including the two flushes.
+  Step 1 on the operator's ask (§4.4, §4.6). Step 2 then landed `@ColorLoop`
+  itself, versioned, with both flushes already wired, so what is left is
+  narrower than this entry first said: **the board in flight**, and
+  `describeColorLoopProgress` next to its game. The version number exists so
+  that is an addition rather than a reshape. This is also the step that has to
+  re-read `ColorLoopScreen`'s clock note — restoring a started board is exactly
+  the case that hid Number Slide's frozen-clock bug.
 - **Step 4 — Training and Match, at home.** The 18-rung ladder and the match
   gauntlets under this app's chrome: `LevelSelect` on `ScreenHeader`, star
   thresholds intact, result cards copying through `expo-clipboard`. The ladder's
@@ -786,11 +885,14 @@ At merge:
    *"I want color loop to fit into the color themes here. There is no attachment
    to the walnut and brass."* Full theme adoption, and the puzzle palette comes
    from `utils/symbolSets.js` too. §4.2 is rewritten around it. What is still
-   open underneath it is narrow but real: **do Color Loop's glyphs stay as
-   characters (`●▲■◆★✦✚`) or become the swatches' `corners` silhouettes?** Both
-   are valid non-colour cues; the characters are what players of the standalone
-   app know, the silhouettes are what this app already draws. Cheap either way,
-   and better settled by looking at a board than by argument.
+   open underneath it was narrow but real: **do Color Loop's glyphs stay as
+   characters (`●▲■◆★✦✚`) or become the swatches' `corners` silhouettes?**
+   ~~Open.~~ **Answered by the operator, 2026-08-11: they stay characters.**
+   They live in `games/colorloop/colors.ts` paired positionally with the platform
+   hue each decorates, and `palette.ts` holds the glyph ink to WCAG's 3:1
+   graphics floor against all seven hues at once — because the glyph is the
+   non-colour channel of identity, not decoration, and the flat
+   `rgba(0,0,0,0.28)` the sibling app drew it in was the latter.
 2. **Does Color Loop keep its name on this hub?** *Color Loop* was the app; here
    it is a card. It reads well next to *Fungiku* and *Cube Scramble*, so the
    default is to keep it. Same question, quietly, for *Number Slide* — the
@@ -800,7 +902,10 @@ At merge:
 3. **Do the physics sliders ship?** Friction, flick, magnet and twin are
    currently a dev screen for an unfinished tuning pass. Options: a real setting
    in the menu, a hidden dev surface on the epic branch only, or delete them and
-   ship the tuned constants. §4.3.
+   ship the tuned constants. §4.3. **Step 2 made it answerable on a phone**: it
+   is *Touch feel…* at the bottom of the menu, each slider labelled with what it
+   changes ("how far a flicked line keeps going"), values clamped by
+   `PHYSICS_RANGE` and saved as they are set. Still to decide before `main`.
 4. **Are training and match one game or two cards?** The hub currently promises
    *"a puzzle"* per card, and Color Loop would arrive carrying three modes behind
    a menu. That is Fungiku's shape (difficulty menu) and is probably right — but
@@ -864,6 +969,10 @@ At merge:
   (`HubScreen`, `useBoardSize`). Color Loop's board sizes itself off
   `useWindowDimensions` capped at 440. They will disagree; `useBoardSize({ fill:
   true })` is the platform answer and knows about the 600pt container.
+  **Reconciled in Step 2** the way `NumberSlideScreen` did it: the hook supplies
+  the width allowance, the screen subtracts the "in order" colour key and its own
+  chrome height, and `computeGeom`'s 440 cap applies on top of that rather than
+  instead of it.
 - **A row wider than the board widens the ScrollView's content container** and
   pushes every centred sibling off-screen — Fungiku shipped that bug with a row
   of hearts. Color Loop's controls and match splits are exactly that shape of
@@ -873,7 +982,13 @@ At merge:
   source of truth.
 - **Two confetti implementations will exist** (`games/fungiku/confetti.js` and
   the incoming `components/Confetti.tsx`). That is acceptable through Step 4 and
-  is Step 5's to decide. Do not merge them in passing.
+  is Step 5's to decide. Do not merge them in passing. **Step 2 gave the second
+  one its third caller** without touching either, which is the state Step 5 was
+  meant to decide from.
+- **A `.tsx` style object cannot carry `marginHorizontal: 'auto'` on native.**
+  It is a web-only value; `NumberSlideScreen` already guarded its 600pt centred
+  column behind `Platform.OS === 'web'`, and every new screen has to do the same
+  or Yoga rejects the style. Two of Step 2's three screens needed the guard.
 - **`expo-doctor` expects 18/18.** Adding `typescript` and `expo-clipboard`
   is exactly the kind of change that moves it; run it in the step that adds them,
   not at merge time.
