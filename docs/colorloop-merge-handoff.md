@@ -89,6 +89,18 @@ start from one line. In order:
 3. **The tracker's checkboxes are ticked** (issue #103), and anything the step
    settled or discovered is written into the plan — a decision that lives only in
    a PR description is lost.
+
+   **And when a step *qualifies* an earlier one's rule, amend the paragraph where
+   that rule is stated — not only the section where the exception turned up.**
+   This one was learned the expensive way twice over. Plan §4.4 opened by saying
+   `@ColorLoop` holds "name, bests", then recorded the operator removing exactly
+   that from Number Slide four paragraphs later, and never went back over the
+   first line — so Step 2 read the stale half and shipped a scoreboard the epic
+   looked like it had abandoned. The same trap was then set a second time *in
+   this file*, where Step 1's record states the rule flatly and Step 2's carries
+   the exception ninety lines below it. **A cold session reads top-down and stops
+   when it has an answer.** A rule and its exception in different sections is a
+   rule that will be misapplied.
 4. **The `3.2.0` build-notes entry is extended** in `utils/buildNotes.js` (build
    notes are per release, not per step).
 5. **This file is rewritten for the next step** — its scope, its traps, its
@@ -113,7 +125,10 @@ start from one line. In order:
    own them. Plan §4.5, and the cube's review is the precedent.
 5. **One rule, one function.** Where the incoming code and this repo both solve
    something (touch origins, persistence, confetti), either converge deliberately
-   and say why, or leave both and write down that you chose to.
+   and say why, or leave both and write down that you chose to. **This covers
+   what the games *do*, not only what they share** — the two guest games score a
+   free-play solve differently on purpose, and that is a decision under this rule
+   rather than an inconsistency escaping it (Step 1's record, and plan §4.4).
 
 ### Verify before you hand back (from `SudokuApp/`)
 
@@ -171,6 +186,21 @@ moves, secs }`, written on every move, flushed on unmount and on backgrounding,
 cleared on a solve, restored behind a hydration gate — and the card carries a
 Continue badge reading `4×4 · 01:24` over `12 moves`. **That is Step 3's Number
 Slide half, done; only Color Loop's is left.**
+
+> **⚠️ The first of those two is Number Slide's, not the platform's.** Read on
+> its own, *"a personal best is the wrong scoreboard for a game whose point is a
+> shareable code"* sounds like a rule for both incoming games — and Color Loop
+> ships **with** a free-play best, deliberately (operator, 2026-08-11; plan §4.4
+> and the note on `BestEntry` in `games/colorloop/saveShape.ts`). Number Slide's
+> free play is one board shape at a time and its code carries the size, so every
+> board is directly comparable to everyone else's; Color Loop's is a fifteen-way
+> settings space, where *"my best 4×4 diagonal"* is a claim about a category of
+> puzzle rather than about the board you played last Tuesday.
+>
+> This is golden rule 5 doing its job rather than an exception to it: two games
+> solve one problem differently, and the choice **not** to converge them is
+> written down instead of left to be rediscovered. **Do not tidy it away in a
+> later step without a decision and a date of its own.**
 
 **The TypeScript seam was rebuilt once, mid-step** (operator, 2026-08-08: *"it's
 sounding like the platform is fragmented between js and ts"*). It began as
