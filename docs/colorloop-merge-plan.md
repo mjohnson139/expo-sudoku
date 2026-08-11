@@ -524,9 +524,10 @@ Two consequences to honour:
 
 - Consolidate the eleven keys into **one blob per game**, matching the platform
   (`@ColorLoop` holding size, mode, name, bests, physics, training, matchBest;
-  `@NumberSlide` holding the best). Write it versioned (`_v`) from the first
-  commit — the cube's §7.2 lesson is that a save file reshaped twice costs more
-  than one designed once.
+  ~~`@NumberSlide` holding the best~~ — `@NumberSlide` holds a board and no best
+  at all, see below). Write it versioned (`_v`) from the first commit — the
+  cube's §7.2 lesson is that a save file reshaped twice costs more than one
+  designed once.
 - **A player's Color Loop board is currently not resumable at all** — the games
   persist bests and settings, never an in-progress board. See §4.6.
 
@@ -539,6 +540,44 @@ portion of the number slide"*). A personal best on a game whose whole point is a
 **shareable code** is the wrong scoreboard — the board is the same board on
 everyone's phone, so the interesting comparison is against the person you sent
 the code to, not against yourself last Tuesday.
+
+##### ⚠️ And that did **not** carry over to Color Loop — decided, not overlooked
+
+**Settled by the operator, 2026-08-11.** The parallel is exact enough that it
+has to be written down or it will be "fixed": Color Loop shipped in Step 2 with
+the same four things Step 1 deleted from Number Slide — a `bestMap`, a `BEST`
+stat block, a *"Best to beat"* line, and a name prompt on a solve. It was raised,
+looked at against Step 1's diff, and **kept**.
+
+The bullet above is the trap that produced the question: it was written before
+the 2026-08-08 decision, it still lists *"name, bests"* under `@ColorLoop`, and
+nobody propagated the decision back over it. A reader who finds the two halves
+of this section in the wrong order concludes Step 2 followed a stale line. It
+did — and the answer happens to be right anyway, for a reason the sibling game
+does not have:
+
+- **Number Slide's free play is one board shape at a time**, and a code carries
+  the size, so every board a player sees is directly comparable to everyone
+  else's. A personal best is genuinely the wrong axis there.
+- **Color Loop's free play is a settings space**, not a board: `bestKey(n, mode)`
+  spans up to fifteen combinations of size and goal. *"My best 4×4 diagonal"* is
+  a claim about a **category of puzzle**, which is what Sudoku's per-difficulty
+  badge already is one card away — not a claim about the same board you played
+  last Tuesday.
+- **And the name has a second job here.** Number Slide has no result card, so
+  removing its name cost nothing. Color Loop's match card is the artifact that
+  goes in a group chat and the name is what signs it, so the name has to be
+  asked for *somewhere* — and a free-play solve is the natural first moment.
+
+Two things that were never in question, and should not be lumped in with this
+when it comes up again: **`matchBest` is keyed by match code** — "my time on the
+run you sent me", which is precisely the comparison the operator called the
+interesting one — and **`training.best` is progression**, since its stars gate
+which rung unlocks next.
+
+What a device can still change: whether the `BEST` block earns its third of the
+stat row, and whether the name prompt lands well on a first solve. That is a
+Step 5 question, not a Step 3 one.
 
 Then the board went in (2026-08-09: *"the number slide should act like the other
 games storing progress continually"*), which is **§4.6's Step 3 work for this

@@ -257,6 +257,17 @@ are still confirmed on screen), the result card now reads `00:12` rather than
 **no fourth `.d.ts` shim was needed** — inference typed all five newly-imported
 JavaScript modules correctly.
 
+**⚠️ And one thing that looks like an oversight and is not.** Color Loop keeps a
+free-play personal best — a `bestMap`, a `BEST` stat, a *"Best to beat"* line and
+a name prompt on a solve — which is precisely the set of four things Step 1
+**deleted** from Number Slide. It was raised on 2026-08-11, checked against Step
+1's diff, and **kept by the operator**. Plan §4.4 has the reasoning (free play is
+one board shape in Number Slide and a fifteen-way settings space in Color Loop,
+and the name has to be asked for somewhere because the match card is signed with
+it). **Do not reconcile the two games in a later step without a decision and a
+date** — §4.4's own opening bullet is what made this look wrong, and it is now
+corrected.
+
 §2, §3, §4.1, §4.2, §5, §7, §9 and §10 of the plan were amended with what this
 step found.
 
@@ -314,6 +325,11 @@ the storage. Read *the trap* below before writing the effect.
    board that was saved.
 
 ### Explicitly out of scope
+
+**Color Loop's free-play personal best.** It looks like Step 1's deleted
+leaderboard and it is not a leftover — kept by the operator on 2026-08-11, with
+the reasoning in plan §4.4 and a note on `BestEntry` in `saveShape.ts`. Whether
+the `BEST` block earns its third of the stat row is a **Step 5** question.
 
 Training and Match as *finished* screens (Step 4 — they are reachable and
 unpolished, which is what Step 2 scoped). The proving pass over the restyled

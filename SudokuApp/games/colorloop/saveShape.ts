@@ -40,6 +40,28 @@ import { EMPTY_TRAINING, LEVELS, type TrainingProgress } from './levels';
 /** 1 — the first shape. */
 export const COLOR_LOOP_STORAGE_VERSION = 1;
 
+/**
+ * A free-play personal best, one per board shape.
+ *
+ * ### ⚠️ Number Slide has none of this, and that is deliberate on both sides
+ *
+ * Step 1 **deleted** the sibling app's `NSBest` — the operator's call, 2026-08-08:
+ * a personal best on a game whose whole point is a shareable code is the wrong
+ * scoreboard, because the board is the same board on everyone's phone. Step 2
+ * then shipped Color Loop *with* a best, which looks exactly like the decision
+ * having been missed. **It was raised on 2026-08-11, checked against Step 1's
+ * diff, and kept** (plan §4.4).
+ *
+ * The distinction is what free play *is* in each game. Number Slide's is one
+ * board shape at a time and its code carries the size, so every board is
+ * directly comparable to everyone else's. Color Loop's is a settings space —
+ * `bestKey(n, mode)` spans up to fifteen combinations — so *"my best 4×4
+ * diagonal"* is a claim about a **category of puzzle**, which is what Sudoku's
+ * per-difficulty badge already is one card away.
+ *
+ * Do not "reconcile" the two games here. If it should go, it goes as a decision
+ * with a date on it, like the one that removed Number Slide's.
+ */
 export interface BestEntry {
   secs: number;
   name: string;
