@@ -3,6 +3,7 @@ import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import ScreenHeader from '../../components/ScreenHeader';
 import { FadeSlideIn, ScalePress } from '../../components/Motion';
+import { LinkBtn } from '../../components/Controls';
 import { STAGGER } from '../../utils/motion';
 import type { AppTheme } from '../../utils/themes';
 import type { ColorLoopPalette } from './palette';
@@ -50,11 +51,11 @@ export default function LevelSelect({
         onHomePress={onExitToHub}
         dense
         actions={
-          <ScalePress style={styles.starPill} onPress={onBackToBoard}>
+          <View style={styles.starPill}>
             <Text selectable={false} style={[styles.starPillText, { color: palette.accent }]}>
               ★ {totalStars(progress)}/{LEVELS.length * 3}
             </Text>
-          </ScalePress>
+          </View>
         }
       />
 
@@ -77,6 +78,14 @@ export default function LevelSelect({
               ))}
             </FadeSlideIn>
           ))}
+        </View>
+
+        {/* The ladder's back affordance returns to the **board**, not to the hub
+            (plan §4.3) — the home button one row up is what leaves the game.
+            Without this the only ways off this screen are picking a level or
+            leaving Color Loop entirely. */}
+        <View style={styles.backRow}>
+          <LinkBtn label="Back to the board" onPress={onBackToBoard} color={palette.link} />
         </View>
       </ScrollView>
     </View>
@@ -162,6 +171,7 @@ const styles = StyleSheet.create({
   scrollBody: { alignItems: 'center', paddingBottom: 12, width: '100%' },
   sub: { fontSize: 12.5, textAlign: 'center' },
   starPill: { paddingHorizontal: 6, paddingVertical: 2 },
+  backRow: { marginTop: 16, alignItems: 'center' },
   starPillText: { fontSize: 12, fontWeight: '600' },
   grid: { width: '100%', maxWidth: 400, gap: 9 },
   row: { flexDirection: 'row', gap: 9 },

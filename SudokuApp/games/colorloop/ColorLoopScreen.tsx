@@ -490,11 +490,25 @@ const ColorLoopScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
 
   /* ---------- menu actions ---------- */
 
+  /**
+   * Change the goal.
+   *
+   * **`rows` ↔ `in order` keep the board**, which is the sibling app's rule and
+   * worth preserving: the two goals use the same colours in the same counts, so
+   * the board you are looking at is a valid — and usually harder — puzzle under
+   * the other one, and re-dealing would throw away the position you were reading.
+   * Crossing into or out of `diagonal` does not, because a diagonal board is
+   * built from 2n−1 colours rather than n.
+   */
   const changeMode = (m: Mode) => {
     setMenuOpen(false);
-    if (m === prefs.mode && playCtx.kind === 'free') {
-      // rows ↔ in order share a board: same colours, different goal. Crossing
-      // into or out of diagonal does not, because the colour counts differ.
+    if (m === prefs.mode && playCtx.kind === 'free') return;
+    const crossingDiag = m === 'diag' || prefs.mode === 'diag';
+    const keepable =
+      playCtx.kind === 'free' && phase !== 'won' && !crossingDiag && prefs.n <= maxN(m);
+    if (keepable) {
+      setMode(m);
+      setPrefs({ n: prefs.n, mode: m });
       return;
     }
     startNew(null, Math.min(prefs.n, maxN(m)), m);
