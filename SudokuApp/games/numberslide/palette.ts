@@ -1,5 +1,15 @@
 import type { AppTheme } from '../../utils/themes';
-import { contrastRatio, hexToRgb, mix, readableOn, relativeLuminance } from '../../utils/color';
+import { mix, readableOn, relativeLuminance } from '../../utils/color';
+import { ensureContrast, withAlpha } from '../../utils/contrast';
+
+/**
+ * `ensureContrast` and `withAlpha` were written here in Step 1 and **moved to
+ * `utils/contrast.ts` in Step 2**, when Color Loop's palette became their second
+ * caller. Nothing about them changed; they are re-exported so this module's own
+ * tests and importers see exactly the surface they saw before (plan §4.5's rule
+ * about promoting a function with two callers).
+ */
+export { ensureContrast, withAlpha };
 
 /**
  * Every colour Number Slide draws, derived from the app theme the player chose.
@@ -58,47 +68,6 @@ const MUTED_CONTRAST = 4.5;
  * the sibling app's own weight, kept.
  */
 export const BACKDROP_ALPHA = 0.72;
-
-/**
- * `color`, blended toward black or white until it clears `min` against
- * `against` — the nearest colour to the one asked for that is legible on it.
- *
- * **Both directions are searched, at each distance, and that is not
- * over-engineering.** Picking a direction from the background's luminance is the
- * obvious implementation and it is wrong twice over: a dark ink on a mid-tone
- * fill has to get *darker*, not lighter, and against a mid-tone background
- * neither endpoint is guaranteed to reach a given ratio, so the direction that
- * can succeed is not always the one a rule of thumb names. Sunrise's amber
- * accent is a live example — it caught this the first time the test ran, at
- * 3.97:1 where 4.5 was asked for.
- *
- * Terminates: weight reaches 1 in twenty steps, and the worst case returns
- * whichever endpoint got closest.
- */
-export function ensureContrast(color: string, against: string, min: number): string {
-  let best = color;
-  let bestRatio = contrastRatio(color, against);
-  if (bestRatio >= min) return color;
-
-  for (let weight = 0.05; weight <= 1.0001; weight += 0.05) {
-    for (const target of ['#000000', '#ffffff']) {
-      const candidate = mix(color, target, Math.min(1, weight));
-      const ratio = contrastRatio(candidate, against);
-      if (ratio >= min) return candidate;
-      if (ratio > bestRatio) {
-        best = candidate;
-        bestRatio = ratio;
-      }
-    }
-  }
-  return best;
-}
-
-/** `hex` at `alpha`, as an `rgba()` string — for the one translucent surface. */
-export function withAlpha(hex: string, alpha: number): string {
-  const { r, g, b } = hexToRgb(hex);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
 
 export interface NSPalette {
   /** The page. */
