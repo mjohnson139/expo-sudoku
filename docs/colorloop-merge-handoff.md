@@ -19,9 +19,10 @@ SDK, same RN version, same operator. The plan is
 anything.** It is a live repo, not an archive, and the plan's inventory pins a
 revision (`e07eb82`) that `main` has already moved past — Step 1 shipped a
 3×3-only Number Slide before the operator pointed out that 4×4 and 5×5 had
-landed upstream. Plan §2 has the warning in full. **Step 2 checked and found no
-drift** (`main` is still `708d59a`, and its diff against `e07eb82` touches only
-Number Slide files) — which is a result of the check, not a reason to skip it.
+landed upstream. Plan §2 has the warning in full. **Steps 2 and 3 both checked
+and found no drift** (`main` is still `708d59a`, and its diff against `e07eb82`
+touches only the Number Slide files Step 1 already absorbed) — which is a result
+of the check, not a reason to skip it.
 
 ## How a step runs
 
@@ -38,7 +39,7 @@ main ─── epic/color-loop ─── feature/color-loop-<step>   (PRs target
 - `epic/color-loop` is cut from `main` and **everything merges into it**, never
   into `main`. `main` never carries a half-merged game.
 - **One delivery step per branch**, named `feature/color-loop-<short-skewer-name>`
-  (`.github/dev-process.md`). Step 3 is `feature/color-loop-resume`.
+  (`.github/dev-process.md`). Step 4 is `feature/color-loop-training`.
 - A step PR targets `epic/color-loop`, is squash-merged, and its branch is
   deleted.
 - A follow-up correction that arrives *after* a step merged — the operator using
@@ -303,157 +304,196 @@ step found.
 
 ---
 
-## Step 3 — the board that survives the hub *(next)*
+## Step 3 — the board that survives the hub ✅
+
+Color Loop's board now survives a trip to the hub, and its card is no longer the
+only one of five without a Continue badge. `ColorLoopBoard` — `{ seed, n, mode,
+grid, moves, secs, phase, ctx }` — went **inside** the existing `@ColorLoop`
+blob at `_v: 1`, which is what Step 2 designed the version for: an addition, not
+a reshape. `describeColorLoopProgress` lives next to the game and imports
+`formatElapsed` *from* `utils/gameProgress.js`, so the fifth `readProgress` did
+not add a sixth import to the file whose inverted dependency the cube's review
+named. 37 new tests (1,283 total); typecheck, `expo-doctor` 18/18 and
+`expo export --platform all` all clean.
+
+**All three `PlayCtx` kinds resume, and the badge names which.** The step was
+offered "persist the whole match context or deliberately do not resume matches",
+and the whole context turned out to be **three fields** — `parseMatchCode`
+recovers the preset from the code and `matchSeeds` the per-board seeds, both
+already pinned by `match.test.ts`, so only `{ code, boardIdx, splits }` is
+written down. So the card reads `4×4 in order · 01:24`, `Level 9 · 00:41` or
+`Sprint · 2/3 · 01:07`, and a match — the longest thing this game asks of a
+player — is the one case where an *untouched* board still earns a badge, because
+the legs behind it are the progress. Free play names its goal because free play
+here is a fifteen-way settings space; a level and a leg are named by the thing
+that chose their shape.
+
+**The multiset check is derived, not written out.** `colorCounts(n, mode)`
+builds the initial grid from the same expression `makeScrambled` deals from
+(`r` for rows/ordered, `r + c` for diag) and counts it, so the triangular
+diagonal counts exist nowhere as a formula and the two cannot drift. The context
+is cross-checked against the board too: a level's size and goal are fixed by
+`LEVELS`, a leg's by its preset, and `splits.length` must equal `boardIdx`.
+
+**The standing `Training · 7 of 18 · 14★` badge does not ship** — decided, and
+the reason is in `screens/HubScreen.js` rather than in the game. The hub's
+affordance is a **pill with a play glyph reading _Continue_**, not a neutral
+progress line; `label` and `detail` are the two halves of the sentence after it.
+Stars are an achievement and, unlike a board, they never go away — so the card
+would say *Continue* permanently and mean nothing by it, which is the exact
+failure the untouched-board rule names, arriving through a different door. A
+standing line is a **hub** change for all five cards, not a Color Loop one.
+Plan §4.6.
+
+**The clock survived the step that made the bug reachable**, and needed no change
+to do it: the interval already depended on `phase`, which is state. What had to
+be right was ordering — `startTimeRef` is re-anchored to `Date.now() - secs *
+1000` **before** the `setPhase('live')`, so the first tick reads a start time
+that already accounts for the time the board had spent. The header note that
+Step 2 wrote *"has to be read again in Step 3"* was read, and rewritten to say
+what holds now.
+
+Two smaller things settled, both in plan §4.6: **clearing a solved board is
+`board: null`, not `removeItem`** (the board shares its blob with eighteen
+training stars and the best map, and a solve is not a reason to forget those);
+and **`phase === 'won'` means two different things during a match** — for the
+850ms between a mid-match solve and the next leg arming, the screen holds
+`saveRef` still rather than writing either a null or a solved grid, so leaving
+inside that window costs one move rather than a Marathon.
+
+§3, §4.4, §4.6, §7 and §10 of the plan were amended with what this step found.
+
+> **⚠️ Not tested on a device yet.** The clock check — start a board, move, go
+> to the hub, come back, watch for five seconds — is the one failure in this
+> step that every automated gate misses, and it is still outstanding along with
+> the diagonal-board restore, the background-rather-than-home flush, and Step
+> 2's own gesture pass. **They carry into Step 4's device pass**, which is on the
+> same screens.
+
+---
+
+## Step 4 — Training and Match, at home *(next)*
 
 ### Starting prompt
 
 ```
-Work Step 3 of the Color Loop merge epic in mjohnson139/expo-sudoku.
+Work Step 4 of the Color Loop merge epic in mjohnson139/expo-sudoku.
 
 Read docs/colorloop-merge-handoff.md first — it describes this step and only
 this step — then docs/colorloop-merge-plan.md end to end before writing code.
 
-Branch feature/color-loop-resume off epic/color-loop. PR targets
+Branch feature/color-loop-training off epic/color-loop. PR targets
 epic/color-loop, never main. Tracker is issue #103.
 ```
 
-**Color Loop's board is still lost the moment you tap home, and its card is the
-only one of five on the hub with no Continue badge.** This step closes both —
-the one row of plan §3's platform-contract table Color Loop still fails, and the
-half of §4.6 that Step 1 did not pull forward. (The two rows below it,
-`useBoardOrigin` and persistence, are *duplication* rather than gaps, and Step 6
-owns them.)
+**Training and Match are reachable and unpolished, which is exactly what Step 2
+scoped and Step 3 left alone.** This is the step that makes them feel like they
+belong to this app rather than like two screens that came with a box. Both
+already work: the ladder unlocks, the stars stick, a match deals everyone the
+same boards, and the result card copies. Nothing here is a rescue.
 
-It is a **small step with one genuinely dangerous corner**, and the corner is not
-the storage. Read *the trap* below before writing the effect.
+It is the **first step in the epic whose subject is product judgement rather than
+plumbing**, and the honest risk is scope: three modes and a code system offer
+endless polish. Scope below is the contract.
 
 ### Scope — ONLY this
 
-1. **The board in flight, in `@ColorLoop`.** The blob, the version and both
-   flushes already exist (`games/colorloop/{storage,saveShape}.ts`), so this is
-   an addition to a shape that was designed for it, not a reshape. What goes in:
-   `{ seed, n, mode, grid, moves, secs, phase }` — plan §4.6 names exactly that
-   set. `games/numberslide/saveShape.ts` is the reader to copy, including its
-   **validate-by-shape** rule: a grid whose values are not the multiset its mode
-   implies is a board that renders happily and cannot be solved.
-
-   ⚠️ **And that multiset is not "n of each" — it depends on the mode, which is
-   the one place Number Slide's reader cannot be copied literally.** Its check is
-   "the flat board is a permutation of `0…n²−1`", because every tile is distinct.
-   Color Loop's tiles repeat, and how they repeat differs:
-
-   - **`rows` and `ordered`** start as `grid[r][c] = r`, so the multiset is
-     **n of each colour `0…n−1`**.
-   - **`diag`** starts as `grid[r][c] = r + c`, so colours run `0…2n−2` with
-     **triangular** counts — `1, 2, … n, … 2, 1`. A 4×4 diagonal board holds one
-     `0`, two `1`s, three `2`s, four `3`s, three `4`s, two `5`s, one `6`.
-
-   Rotations only permute cells, so both multisets are invariant under every legal
-   move — which is exactly what makes them worth checking. Writing "n of each"
-   would reject **every** valid diagonal board, and a reader that skips the check
-   restores unsolvable ones. Derive the expected counts from `mode` and `n`
-   rather than hardcoding either.
-2. **The hydration gate already exists** and the screen already waits behind it;
-   what changes is that a restored board is dealt instead of a fresh one.
-3. **Cleared on a solve.** A finished puzzle is not something to continue, and a
-   save left behind gives the card a badge that reopens a win screen.
-4. **A `describeColorLoopProgress` in `games/colorloop/saveShape.ts`** — *next to
-   the game*, importing `formatElapsed` **from** `utils/gameProgress.js` rather
-   than being added to it. The cube's review named that file's inverted
-   dependency as its headline finding and a sixth import would ship it again.
-5. **`readProgress` on the fifth registry entry**, reading through that
-   describer.
-6. **The fallback badge.** Plan §4.6 offers `Training · 7 of 18 · 14★` for when
-   there is no board to return to. **Decide whether it ships**: Number Slide
-   deliberately draws *no* badge for an untouched board, because every visit
-   deals one and a permanent "Continue" means nothing — and Color Loop has the
-   same property. A standing badge is a different claim from a Continue badge,
-   and the card has one line for both.
-7. **Tests**: the reader's shape rules, the describer's output including the
-   nothing-to-continue case, and a round trip proving a restored board is the
-   board that was saved.
+1. **The ladder as a finished screen.** `LevelSelect.tsx` says so in its own
+   header: *"Step 4 is the step that makes this ladder feel finished; here it
+   needs to be reachable, themed and not broken."* What is actually missing is
+   worth listing rather than eyeballing — go and look, but at minimum: eighteen
+   chips in three rows of six with no sense of the *shape* of the ladder (it goes
+   3×3 rows → in order → 4×4 → diagonal → 5×5 → 6×6, and a player cannot see
+   that); a locked chip that says nothing about what unlocks it; and no time on a
+   chip you have already beaten, only stars.
+2. **Coming back to the ladder, now that the board resumes.** Step 3 made a
+   half-finished rung a thing the hub offers to continue (`Level 9 · 00:41`).
+   The ladder screen does not know that: it draws the same chip for *"unlocked,
+   never played"* and *"you are in the middle of this one right now"*. One of
+   them is the chip the player came for.
+3. **A match you can leave and a match you can lose, told apart.** This is the
+   sharpest thing Step 3 exposed and it is a **behaviour** question, not a
+   styling one. Backgrounding the app mid-Marathon now resumes it; tapping
+   *"Leave the match"* — which calls `startNew()` — discards the splits with no
+   warning and no way back. Those two are the same intent from the player's side.
+   Decide and write it down: confirm before leaving, offer to come back to it,
+   or say plainly on the screen that leaving ends the run.
+4. **The match's own scoreboard, before the run rather than after it.**
+   `matchBest` is keyed by match code — plan §4.4 calls that *"the comparison
+   that is the interesting one"* — and it is currently shown in exactly one
+   place: a *"Your best"* line on the win card, and only when you did not beat
+   it. A player pasting a rival's code is told nothing about whether they have
+   run it before.
+5. **The result card is the acquisition loop, so look at what it actually
+   pastes.** `formatMatchResult` is three lines of plain text with the code
+   inside it twice. It works. Whether it reads like something a person sends a
+   group chat is a judgement to make with it in front of you, not from the
+   source — paste one somewhere real. The **code grammar is frozen**; the prose
+   around it is not.
+6. **Say out loud that the star thresholds are estimates.** Plan §7: *"this is
+   the step that says so out loud rather than the step that tunes them."* The
+   values in `games/colorloop/levels.ts` are the sibling app's guesses and
+   tuning them needs the operator playing eighteen rungs on a phone. Leave them,
+   and make sure the epic's backlog and the tracker both say they are untuned so
+   nobody later reads them as measured.
+7. **Tests** at the tier that would catch it, per this repo's standing rule.
+   Most of this step is layout and copy, so expect fewer new tests than Step 3 —
+   but anything that becomes a *rule* (what a chip's state means, whether a match
+   can be abandoned) is pure logic and belongs in `levels.ts` / `match.ts` /
+   `saveShape.ts` with a test, not in a component.
 
 ### Explicitly out of scope
 
-**Color Loop's free-play personal best.** It looks like Step 1's deleted
-leaderboard and it is not a leftover — kept by the operator on 2026-08-11, with
-the reasoning in plan §4.4 and a note on `BestEntry` in `saveShape.ts`. Whether
-the `BEST` block earns its third of the stat row is a **Step 5** question.
+**The contrast and motion proving pass (Step 5)** — every restyled site against
+all seven themes with a test as the floor, and the two confetti implementations
+reconciled with three callers on the table. Step 5 also owns the two Step 2
+leftovers: whether the `BEST` block earns its third of the stat row, and whether
+the name prompt lands well on a first solve. If this step restyles something, it
+adds a site for Step 5 to check rather than doing Step 5's checking.
 
-Training and Match as *finished* screens (Step 4 — they are reachable and
-unpolished, which is what Step 2 scoped). The proving pass over the restyled
-sites (Step 5). Converging `useBoardOrigin` or the two confetti implementations
-(Step 6 decides both, and Step 2 left it exactly one decision each). Any
-JavaScript→TypeScript conversion.
+**Color Loop's free-play personal best.** Kept by the operator on 2026-08-11
+against the fact that Step 1 deleted exactly that from Number Slide — plan §4.4
+and the note on `BestEntry` in `saveShape.ts` have the reasoning. It is not a
+leftover and it is not this step's to tidy.
 
-### ⚠️ The trap: this is the step where the clock bug becomes reachable
+**`useBoardOrigin`, the two confetti implementations, and any JavaScript→
+TypeScript conversion.** Step 6 decides the first two and §4.1 forbids the third.
 
-`ColorLoopScreen`'s header carries a note saying the clock was checked against
-Step 1's frozen-clock bug and is clear — **and it says, in as many words, that
-this is the step where that has to be read again.** Do read it.
+**Open question 3 (do the physics sliders ship?)** and **open question 4 (is
+Match its own card?)**. Both are the operator's, both are now answerable on a
+phone, and neither is decided by writing code. If the operator answers question 4
+in this step, acting on it is a registry entry and belongs here; do not pre-empt
+it.
 
-The bug (plan §4.4): "is the clock running" was a `useRef`, and **the effect that
-owns the `setInterval` cannot depend on a ref**. On a fresh board the first move
-flips some *other* state and the interval starts by accident; on a **restored**
-board nothing in the dependency list ever changes and the clock sits frozen for
-the whole game. It typechecked and passed 1,059 tests.
+### Traps
 
-Color Loop is currently safe for a reason that this step removes: its interval
-depends on `phase`, which is state, **and there is nothing to restore**. Once a
-started board comes back from storage, the restore path has to set `phase` to
-`'live'` and re-anchor `startTimeRef` to `Date.now() - secs * 1000` — and if
-either of those is done through a ref, or the effect is given a cleverer
-dependency list, the clock freezes exactly as Number Slide's did.
-
-**The check is thirty seconds and no test substitutes for it:** start a board,
-make a move, go to the hub, come back, and watch the clock for five seconds.
-
-### Behaviours that are easy to get wrong
-
-- **`phase` is three-valued and only one of them is resumable.** An `armed` board
-  has not been started, a `won` board is finished. Restoring either is a Continue
-  badge that means nothing — and `armed` is the state a *fresh* board is in, so
-  "no save" and "saved but unstarted" must not be told apart by the player.
-- **The clock resumes; time on the hub is not counted.** That falls out of the
-  screen being unmounted there rather than needing a rule (plan §4.4).
-- **Only free play persists its size and goal.** `ColorLoopScreen` holds `prefs`
-  separately from the live `n`/`mode` for exactly this reason. A restored *board*
-  carries its own `n`/`mode`, which may be a level's or a match's — do not write
-  those back into `prefs` on restore.
-- **A board is not the whole of what you were doing — `PlayCtx` is, and it has
-  three kinds.** Decide for all three and write down what you chose:
-  - **free** — just the board. The easy case, and the one the badge is for.
-  - **level** — the board plus `{ id }`. Cheap, and a half-finished rung is worth
-    coming back to.
-  - **match** — the board plus the code, the preset, the per-board seeds, the
-    index *and* the splits. Either persist the whole context or **deliberately do
-    not resume matches**; a half-restored match that forgets your first two
-    splits is worse than one that starts again.
-
-  Whatever is decided, the badge has to say which — `Level 7` and `Sprint · 2/3`
-  are different offers from `4×4 · 01:24`, and a card that says the last while
-  reopening a match is a card that lied.
-- **The `_v` is already 1.** Adding fields to a version nothing branches on is
-  the intended use; `readColorLoopSave` reads by shape, because a key that is
-  absent and a key that is corrupt want the same answer.
-- **`readColorLoopSave` never returns null** — it falls back field by field,
-  because losing a physics value must not cost the player eighteen training
-  stars. The *board* is the opposite: it is all-or-nothing, so it wants its own
-  reader that can refuse. Do not weaken the blob reader to accommodate it.
-- **`secs` must not be in the write effect's dependency list**, and this is
-  already solved next door rather than a judgement call. The save effect
-  currently fires on the preference fields; adding the board means it also fires
-  on `grid`, `moves` and `phase`. Adding `secs` too is the obvious next keystroke
-  and it makes the screen write **once a second for as long as it is open**, to
-  record a number the next move updates anyway. The seconds still land, because
-  every write carries the current value and the two flushes carry the last one —
-  `NumberSlideScreen`'s comment on its own effect spells this out.
+- **Do not reopen the resume work.** If a Step 3 device check fails — the clock,
+  a diagonal restore, a match coming back on the wrong leg — that is a
+  **Step 3a** branch and PR of its own, numbered like the cube's Step 7a. Do not
+  fold a correction to a merged step into this one.
+- **`games/colorloop/puzzle.ts` is frozen and so is the code grammar.** A rung's
+  `seed` and `scramble` in `levels.ts` are part of that freeze in practice:
+  changing one changes which board every player trains on, and `puzzle.test.ts`
+  pins the round trip. Restyling the ladder must not touch the numbers in it.
+- **A row wider than the board widens the ScrollView's content container** and
+  pushes every centred sibling off-screen — Fungiku shipped that bug with a row
+  of hearts (plan §10). `LevelSelect`'s grid, the match splits row and anything
+  new here are exactly that shape of row.
+- **`marginHorizontal: 'auto'` is web-only.** Every new screen guards its 600pt
+  centred column behind `Platform.OS === 'web'` or Yoga rejects the style; two of
+  Step 2's three screens needed it.
+- **Nothing buzzes** (plan §6). A `Vibration` or `Haptics` call is deleted, not
+  translated.
 
 ### Visible in Expo Go when this lands
 
-Start a Color Loop board, make a few moves, tap home. The card reads something
-like `4×4 · 01:24` over `9 moves`. Tap it and the board is the board you left —
-same tiles, same clock, still running. Solve it and the badge goes away.
+Open Color Loop's menu and tap Training: the ladder reads as a ladder — you can
+see where it is taking you, a locked rung tells you what opens it, and the rung
+you are in the middle of is the one your eye lands on. Start a Marathon, run two
+boards, and both ways out — backgrounding the app and tapping *"Leave the
+match"* — do what you would expect, which is not the same thing as doing the
+same thing. Paste a result into a real chat and it reads like a brag with an
+invitation in it.
 
 ### How to verify
 
@@ -464,9 +504,18 @@ npx expo-doctor                   # expect 18/18
 npx expo export --platform all    # web + iOS + Android must all bundle
 ```
 
-Then the device pass, and **the clock check above is the one that matters** — it
-is the only failure in this step that every automated gate will miss. Also:
-leave mid-board by backgrounding the app rather than by tapping home (a different
-flush path), restore a **diagonal** board specifically (its multiset is the one a
-reader is most likely to get wrong), and confirm the other four cards are
-unchanged.
+Then the device pass — and it carries **Step 3's outstanding checks as well as
+this step's**, because they are the same screens and nobody has held Step 3 in a
+hand yet:
+
+- **The clock, which no test substitutes for**: start a board, make a move, go to
+  the hub, come back, watch the clock for five seconds.
+- **Restore a diagonal board specifically** — its multiset is the one a reader is
+  most likely to get wrong.
+- **Leave by backgrounding the app**, not only by tapping home; it is a different
+  flush path.
+- **A match across both exits**: background it mid-run and come back, and
+  separately tap *"Leave the match"*.
+- **Step 2's gesture pass, still unheld**: drag, flick, the magnet settle, the
+  seam grab, and the seven themes on both new cards.
+- **The other four cards are unchanged.**

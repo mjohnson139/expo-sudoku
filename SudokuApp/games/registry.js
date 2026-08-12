@@ -7,6 +7,7 @@ import { readSudokuProgress } from '../utils/storage';
 import { readFungikuProgress } from './fungiku/storage';
 import { readCubeProgress } from './cube/storage';
 import { readNumberSlideProgress } from './numberslide/storage';
+import { readColorLoopProgress } from './colorloop/storage';
 
 /**
  * The game registry — the single list of games the hub knows about
@@ -92,11 +93,12 @@ export const GAMES = [
     // solid colour — the other *manipulation* puzzle, where the challenge is
     // planning motion rather than deducing a placement.
     //
-    // **No `readProgress`.** Nothing it stores is a board to come back to yet:
-    // this step persists settings, bests and training stars, and making the
-    // board itself survive a trip to the hub — with the Continue badge that
-    // follows from it — is Step 3 (plan §4.6). A card that offered to continue
-    // something it cannot restore would be worse than no badge.
+    // It carries a Continue badge like every other card (Step 3, plan §4.6):
+    // the board is written on every move and restored on the way back in, so
+    // leaving for the hub costs the player nothing. The badge names which offer
+    // it is — `4×4 in order · 01:24`, `Level 9 · 00:41` or `Sprint · 2/3 ·
+    // 01:07` — because free play, a training rung and a match leg are three
+    // different things to come back to and the card has one line for all three.
     id: 'colorloop',
     title: 'Color Loop',
     tagline: 'Drag a row or column — it wraps — until every row is one colour.',
@@ -107,6 +109,7 @@ export const GAMES = [
     // cube's red and Number Slide's amber (plan §4.2).
     accent: '#009E73',
     Screen: ColorLoopScreen,
+    readProgress: readColorLoopProgress,
   },
 ];
 

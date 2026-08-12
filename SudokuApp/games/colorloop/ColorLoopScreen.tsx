@@ -54,10 +54,12 @@ import {
 } from './puzzle';
 import {
   BestEntry,
+  ColorLoopBoard,
   ColorLoopSave,
   MatchBestEntry,
   PHYSICS_RANGE,
   Physics,
+  SavedPlay,
   bestKey,
   emptyColorLoopSave,
 } from './saveShape';
@@ -77,6 +79,35 @@ type PlayCtx =
       boardIdx: number;
       splits: MatchSplit[];
     };
+
+/**
+ * What of a `PlayCtx` reaches storage, and how it comes back.
+ *
+ * A match's `preset` and `seeds` are dropped on the way out and rebuilt on the
+ * way in, because both are pure functions of the code — which is the whole
+ * reason a match is cheap enough to resume at all (`saveShape.ts`'s note on
+ * `SavedPlay`). `parseMatchCode` returning null cannot happen against a record
+ * the reader accepted; the branch is here because it is the only honest way to
+ * type it, and a fresh board is the right answer if it ever fires.
+ */
+const savedPlayOf = (ctx: PlayCtx): SavedPlay =>
+  ctx.kind === 'match'
+    ? { kind: 'match', code: ctx.code, boardIdx: ctx.boardIdx, splits: ctx.splits }
+    : ctx;
+
+const playCtxOf = (saved: SavedPlay): PlayCtx | null => {
+  if (saved.kind !== 'match') return saved;
+  const parsed = parseMatchCode(saved.code);
+  if (!parsed) return null;
+  return {
+    kind: 'match',
+    code: saved.code,
+    preset: parsed.preset,
+    seeds: matchSeeds(parsed.seed, parsed.preset.boards.length),
+    boardIdx: saved.boardIdx,
+    splits: saved.splits,
+  };
+};
 
 /**
  * Color Loop — drag any row or column and it wraps until every row is one solid
@@ -109,16 +140,30 @@ type PlayCtx =
  * lost once on Fungiku's board. It is a fixed column, and the board is sized
  * from the room the page has rather than from the window alone.
  *
- * ### The clock was checked against Step 1's bug and is clear
+ * ### The clock, and the bug that only a restored board can show you
  *
- * Number Slide's clock froze after every restore because "is it running" was a
- * `useRef` and the effect that owns the interval cannot depend on one (plan
- * §4.4). This screen has the same timer-plus-once-created-`PanResponder` shape,
- * so it is worth saying explicitly: the interval below depends on **`phase`,
- * which is state**, and the only refs beside it are read from closures rather
- * than reacted to. There is also nothing to restore yet — the board in flight
- * is Step 3's — so the failing case cannot arise here even in principle. **That
- * changes in Step 3**, which is where this comment has to be read again.
+ * Number Slide's clock froze for the whole of every *restored* game because "is
+ * it running" was a `useRef`, and the effect that owns the `setInterval` cannot
+ * depend on a ref (plan §4.4). On a fresh board an unrelated dependency flipped
+ * and started the interval **by accident**; on a restored one nothing in the
+ * dependency list ever changed again. It typechecked and passed 1,059 tests.
+ *
+ * Step 2 left this note saying the failing case could not arise here because
+ * there was nothing to restore. **Step 3 is where that stopped being true**, so
+ * this is what holds instead:
+ *
+ * - The interval below depends on **`phase`, which is state**, and on nothing
+ *   else. A restored board that was under way sets `phase` to `'live'`, so the
+ *   effect re-runs and creates the interval the same way a `Start` tap does.
+ * - `startTimeRef` is re-anchored to `Date.now() - secs * 1000` **before** that
+ *   `setPhase`, so the first tick reads a start time that already accounts for
+ *   the time the board had spent. It is a ref because it is read from closures,
+ *   never reacted to — which is the only job a ref beside an effect may have.
+ * - Time on the hub is not counted, and that falls out of the screen being
+ *   unmounted there rather than needing a rule.
+ *
+ * No test substitutes for the thirty-second check: start a board, make a move,
+ * go to the hub, come back, watch the clock for five seconds.
  */
 const ColorLoopScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
   const { theme, isDark } = useAppTheme();
@@ -185,9 +230,36 @@ const ColorLoopScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
       setPhysics(saved.physics);
       setTraining(saved.training);
       setMatchBest(saved.matchBest);
-      const sd = randomSeed();
-      setSeed(sd);
-      setGrid(makeScrambled(sd, saved.n, saved.mode));
+
+      // The board the player left, if there is one this build can trust.
+      //
+      // **Its `n`/`mode` are not written back into `prefs`** — the two are held
+      // apart for exactly this case: a restored board may be a training rung's
+      // or a match leg's, and playing one must not silently become the shape
+      // "New board" deals.
+      const restored = saved.board;
+      const restoredCtx = restored ? playCtxOf(restored.ctx) : null;
+      if (restored && restoredCtx) {
+        setPlayCtx(restoredCtx);
+        setN(restored.n);
+        setMode(restored.mode);
+        setSeed(restored.seed);
+        setGrid(restored.grid);
+        setMoves(restored.moves);
+        setSecs(restored.secs);
+        if (restored.phase === 'live') {
+          // Anchored *before* the phase changes, so the interval's first tick
+          // already reads a start time that accounts for the time this board
+          // had spent. See the note in this file's header — the ref is read
+          // from closures, and `phase` is what the effect reacts to.
+          startTimeRef.current = Date.now() - restored.secs * 1000;
+          setPhase('live');
+        }
+      } else {
+        const sd = randomSeed();
+        setSeed(sd);
+        setGrid(makeScrambled(sd, saved.n, saved.mode));
+      }
       setHydrated(true);
     });
     return () => {
@@ -217,7 +289,36 @@ const ColorLoopScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
     []
   );
 
+  /* ---------- what the board currently is ---------- */
+
+  // Ahead of persistence rather than beside the lifecycle handlers below,
+  // because the save reads `matchMid` and a `const` cannot be read above its
+  // own declaration. Every one of these is a pure derivation of state already
+  // in hand.
+  const code = encodeCode(n, seed, mode);
+  const bk = bestKey(n, mode);
+  const best = bestMap[bk];
+
+  const levelDef = playCtx.kind === 'level' ? LEVELS[playCtx.id - 1] : undefined;
+  const matchCount = playCtx.kind === 'match' ? playCtx.preset.boards.length : 0;
+  // Mid-match solves get the solve wave only; the celebration waits for the last
+  // board.
+  const matchMid = playCtx.kind === 'match' && playCtx.boardIdx < matchCount - 1;
+
   /* ---------- persistence ---------- */
+
+  /**
+   * The board in flight, or null when there is nothing to come back to.
+   *
+   * A finished puzzle is not something to continue, and a save left behind would
+   * give the hub card a badge that reopens a win screen — so a solve writes null
+   * rather than a solved grid. **`won` is never stored**, which is why
+   * `SavedPhase` does not have it.
+   */
+  const boardSave: ColorLoopBoard | null =
+    phase === 'won'
+      ? null
+      : { seed, n, mode, grid, moves, secs, phase, ctx: savedPlayOf(playCtx) };
 
   const save: ColorLoopSave = {
     // Only free play writes the size and goal back, for the reason `prefs`
@@ -229,14 +330,50 @@ const ColorLoopScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
     physics,
     training,
     matchBest,
+    board: boardSave,
   };
-  const saveRef = useRef(save);
-  saveRef.current = save;
 
+  /**
+   * Between two match boards the run is not over and this board is done.
+   *
+   * `phase` is `'won'` for the 850ms the solve wave runs before the next leg
+   * arms itself, and neither answer the branch above can give is right for that
+   * moment: null throws the match away, and the solved grid is not a board
+   * anyone can play. So the ref simply keeps the last board that *was* worth
+   * returning to — the previous leg, one move from solved, with its splits — and
+   * the next `loadBoard` overwrites it a moment later.
+   */
+  const midMatchHandoff = phase === 'won' && matchMid;
+  const saveRef = useRef(save);
+  if (!midMatchHandoff) saveRef.current = save;
+
+  /**
+   * Driven by the board rather than by the clock. **`secs` is deliberately not a
+   * dependency**: an effect on it would write once a second for as long as the
+   * screen is open, to record a number the next move updates anyway. The seconds
+   * still land, because every write carries the current value and the two
+   * flushes below carry the last one — `NumberSlideScreen`'s comment on its own
+   * effect spells out the same arrangement.
+   */
   useEffect(() => {
     if (!hydrated) return;
     saveColorLoop(saveRef.current);
-  }, [hydrated, prefs, playerName, bestMap, physics, training, matchBest]);
+  }, [
+    hydrated,
+    prefs,
+    playerName,
+    bestMap,
+    physics,
+    training,
+    matchBest,
+    grid,
+    moves,
+    phase,
+    playCtx,
+    n,
+    mode,
+    seed,
+  ]);
 
   /**
    * Write the pending save immediately.
@@ -271,16 +408,6 @@ const ColorLoopScreen = ({ onExitToHub }: { onExitToHub: () => void }) => {
   };
 
   /* ---------- board lifecycle ---------- */
-
-  const code = encodeCode(n, seed, mode);
-  const bk = bestKey(n, mode);
-  const best = bestMap[bk];
-
-  const levelDef = playCtx.kind === 'level' ? LEVELS[playCtx.id - 1] : undefined;
-  const matchCount = playCtx.kind === 'match' ? playCtx.preset.boards.length : 0;
-  // Mid-match solves get the solve wave only; the celebration waits for the last
-  // board.
-  const matchMid = playCtx.kind === 'match' && playCtx.boardIdx < matchCount - 1;
 
   /** Reset board state for a specific puzzle, without touching free-play prefs. */
   const loadBoard = (nn: number, mm: Mode, sd: number, scramble?: number) => {

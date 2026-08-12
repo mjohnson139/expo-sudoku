@@ -135,15 +135,16 @@ see the work:
 | `hooks/useAppTheme` | own reducer | ✅ | ✅ | ✅ (Step 2) | ✅ (Step 1) |
 | `hooks/useBoardSize` | ✅ | ✅ | ✅ | ✅ `{fill}` + own `computeGeom` | ✅ `{fill}` |
 | `components/ScreenHeader` | own `GameHeader` | ✅ | ✅ | ✅ `dense` + menu | ✅ `dense` |
-| `readProgress` → hub badge | ✅ | ✅ | ✅ | **Step 3** | ✅ (Step 1) |
+| `readProgress` → hub badge | ✅ | ✅ | ✅ | ✅ (Step 3) | ✅ (Step 1) |
 | `hooks/useBoardOrigin` | — | ✅ | — | `utils/useBoardOrigin.ts` | same file |
 | Persistence | `usePersistentReducer` | `usePersistentReducer` | own writer | own writer | own writer |
 
-*(The Color Loop and Number Slide columns are as of the end of Step 2; the
+*(The Color Loop and Number Slide columns are as of the end of Step 3; the
 original "missing" column is what the epic started from.)*
 
 Read that table as the step list in miniature. Five rows are genuinely missing
-and are what Steps 1–3 build. Two rows — `useBoardOrigin` and persistence — are
+and are what Steps 1–3 build — **all five are closed as of Step 3**, whose whole
+job was the last of them. Two rows — `useBoardOrigin` and persistence — are
 *duplication*, and the review already ruled on that shape of thing: converge only
 where the second implementation is doing the same job. `useBoardOrigin` is; the
 persistence writers are not (Color Loop stores eleven independent preference
@@ -523,13 +524,16 @@ only ever be dead. Say this in the PR rather than leaving it to be re-derived.
 Two consequences to honour:
 
 - Consolidate the eleven keys into **one blob per game**, matching the platform
-  (`@ColorLoop` holding size, mode, name, bests, physics, training, matchBest;
-  ~~`@NumberSlide` holding the best~~ — `@NumberSlide` holds a board and no best
-  at all, see below). Write it versioned (`_v`) from the first commit — the
-  cube's §7.2 lesson is that a save file reshaped twice costs more than one
-  designed once.
-- **A player's Color Loop board is currently not resumable at all** — the games
-  persist bests and settings, never an in-progress board. See §4.6.
+  (`@ColorLoop` holding size, mode, name, bests, physics, training, matchBest
+  **and, since Step 3, the board in flight**; ~~`@NumberSlide` holding the best~~
+  — `@NumberSlide` holds a board and no best at all, see below). Write it
+  versioned (`_v`) from the first commit — the cube's §7.2 lesson is that a save
+  file reshaped twice costs more than one designed once. It paid off exactly as
+  advertised: Step 3 added the board at `_v: 1`, because nothing branches on the
+  version and both readers read by shape.
+- ~~**A player's Color Loop board is currently not resumable at all**~~ — **both
+  games resume as of Step 3**; Number Slide's landed in Step 1 and Color Loop's
+  in Step 3. See §4.6.
 
 **Step 1 landed the first blob, and what it holds changed twice under the
 operator.** Both changes are worth the record, because between them they say what
@@ -621,6 +625,16 @@ Two smaller decisions inside it, both of which Color Loop will face:
   (this screen's `PanResponder`). Color Loop's screen has a timer, refs and a
   once-created `PanResponder` in exactly the same arrangement — check it.
 
+  **Step 3 checked it, and Color Loop needed no change to stay clear.** Its
+  interval already depended on `phase`, which is state; the restore path sets
+  `phase` to `'live'` and the effect re-runs exactly as a `Start` tap makes it.
+  What the step had to get right was the *ordering*: `startTimeRef` is
+  re-anchored to `Date.now() - secs * 1000` **before** that `setPhase`, so the
+  first tick reads a start time that already accounts for the time the board had
+  spent. The ref is read from closures and never reacted to, which is the only
+  job the rule leaves it. The check is still thirty seconds on a device and no
+  test substitutes for it.
+
 ### 4.5 Codes are the platform's most interesting idea, and this epic does not build a framework for it
 
 Color Loop's whole product concept (`color-loop/docs/game-design.md`) rests on
@@ -666,12 +680,13 @@ Two ways out, and the epic takes both, in order:
    `games/numberslide/saveShape.ts` — next to the game, pure, and importing
    `formatElapsed` *from* `utils/gameProgress.js` rather than being added to it.
    **That is the direction to keep**: the shared helper flows outward, the
-   game-specific rule stays home. Color Loop's is Step 3's.
-2. **Fall back to standing**, the way the cube does when there is no solve to
-   return to: `Training · 7 of 18 · 14★` for Color Loop. Number Slide needs no
-   fallback now that its board resumes — and an *untouched* board deliberately
-   draws no badge at all, since every visit deals one and a permanent "Continue"
-   would mean nothing.
+   game-specific rule stays home. **Color Loop's landed in Step 3**, same shape.
+2. ~~**Fall back to standing**, the way the cube does when there is no solve to
+   return to: `Training · 7 of 18 · 14★` for Color Loop.~~ **Decided in Step 3:
+   it does not ship**, and the reason is in the hub rather than in the game — see
+   below. Number Slide needs no fallback now that its board resumes — and an
+   *untouched* board deliberately draws no badge at all, since every visit deals
+   one and a permanent "Continue" would mean nothing.
 
 `describeColorLoopProgress` and `describeNumberSlideProgress` go **next to the
 games**, not into `utils/gameProgress.js`. The cube's review named that file's
@@ -679,6 +694,91 @@ inverted dependency as its headline finding — a shared util importing three
 games' internals — and adding a fourth and fifth import to it would be shipping
 the known bug twice. `formatElapsed` is the shared part and stays; Color Loop's
 own `fmt()` collapses into it.
+
+#### The standing badge does not ship, because the hub has no standing badge
+
+**Decided in Step 3.** `Training · 7 of 18 · 14★` was written into option 2 above
+on the strength of the cube's fallback, and reading `screens/HubScreen.js` rather
+than the plan is what settled it: **the hub's affordance is not a neutral
+progress line.** It is a pill with a play glyph reading *Continue*, and `label`
+and `detail` are the two halves of the sentence after it. Training stars are an
+achievement, not something to continue — and unlike a board they never go away,
+so the card would say *Continue* permanently and mean nothing by it. That is the
+exact failure the untouched-board rule above names, arriving through a different
+door.
+
+The cube's fallback is not the counter-example it looks like: *"continue looking
+at this scramble"* is literally what its card offers, and it still needs a saved
+scramble to exist before it draws anything at all.
+
+So the only badge Color Loop draws is a board it can genuinely reopen. If a
+standing progress line is wanted it is a **hub** change — a second badge style,
+for all five cards — not a Color Loop one, and the rule that shared-code
+extensions leave existing callers pixel-identical is what keeps that out of a
+game step.
+
+#### A board is not the whole of what you were doing, and all three kinds resume
+
+The field list above describes a *board*, and the same 4×4 grid is free play,
+rung 9 of the ladder, or the second leg of a Marathon. A card reading `4×4 ·
+01:24` that reopens a match is a card that lied, so `ColorLoopBoard` carries a
+`ctx` as well and the badge names which offer it is: `4×4 in order · 01:24`,
+`Level 9 · 00:41`, `Sprint · 2/3 · 01:07`.
+
+The choice Step 3 was handed was "persist the whole match context or deliberately
+do not resume matches", on the grounds that a half-restored match forgetting your
+first two splits is worse than one that starts again. **The whole context turned
+out to be three fields**, which is what made it easy: `parseMatchCode` recovers
+the preset from the code and `matchSeeds` recovers the per-board seeds, both
+already pinned by `match.test.ts`, so only `{ code, boardIdx, splits }` is
+written down. A match is the longest thing this game asks of a player and the
+most expensive to lose — it would have been the wrong one to drop.
+
+Three consequences worth carrying:
+
+- **Free play names its goal; the other two do not.** `4×4` alone does not tell
+  two half-finished free boards apart, because free play here is the fifteen-way
+  settings space §4.4 describes. A level and a match leg are named by the thing
+  that chose their shape.
+- **A match badges an untouched board; free play and a level do not.** The legs
+  already behind you are the progress, so the clock and the move count on the
+  badge are the *run's* rather than this leg's.
+- **The context is cross-checked against the board.** A level's size and goal are
+  fixed by `LEVELS` and a leg's by its preset, so a stored board disagreeing with
+  the context it claims is refused rather than restored — as is a match whose
+  splits do not account for the legs behind it (`splits.length` and `boardIdx`
+  advance together on every solve, so a pair that disagrees is a half-written
+  record).
+
+#### The multiset is derived from the mode — and from the line that deals it
+
+Number Slide's reader asks whether the flat board is a permutation of `0…n²−1`,
+because every tile there is distinct. **Color Loop's tiles repeat, and how they
+repeat depends on the mode:** `rows` and `ordered` start as `grid[r][c] = r`, so
+n of each of `0…n−1`; `diag` starts as `grid[r][c] = r + c`, so `0…2n−2` with
+triangular counts — a 4×4 diagonal board holds one `0`, two `1`s, three `2`s,
+four `3`s, three `4`s, two `5`s, one `6`. Rotations only permute cells, so both
+multisets are invariant under every legal move, which is exactly what makes them
+worth checking. "n of each" would reject **every** valid diagonal board; no check
+at all would restore unsolvable ones.
+
+`colorCounts(n, mode)` therefore **builds the initial grid from the same
+expression `makeScrambled` builds it from, and counts that.** There is no
+triangular-number formula anywhere in the file, and the two cannot drift.
+
+#### Two smaller things Step 3 settled
+
+- **Clearing a solved board is `board: null`, not `removeItem`.** The board
+  shares `@ColorLoop` with the eighteen training stars, the best map and the
+  physics, and a solve is not a reason to forget those. Number Slide's
+  `removeItem` is right for Number Slide because its blob holds nothing else.
+- **`phase === 'won'` means two different things during a match**, and the 850ms
+  between a mid-match solve and the next leg arming itself is the one moment when
+  neither answer the save can give is correct: null throws the run away, and the
+  solved grid is not a board anyone can play. So the screen holds `saveRef`
+  *still* for that window — what stays on disk is the previous leg one move from
+  solved, with its splits, and the next `loadBoard` overwrites it. Leaving inside
+  that window costs the player one move rather than a Marathon.
 
 ## 5. Tests: 78 cases, two runners, one node environment
 
@@ -860,15 +960,23 @@ step.
   `utils/useBoardOrigin.ts` (§3), `utils/contrast.ts` with the new
   `ensureContrastAll` (§4.2), `Seg` and `Slider` in `components/Controls.tsx`,
   and the `@ColorLoop` blob's *preference* half (§4.4). 187 new tests.
-- **Step 3 — resume, and the badges.** ~~Both games~~ **Color Loop's half only**
-  — Number Slide's versioned blob, resumable board and `readProgress` landed in
-  Step 1 on the operator's ask (§4.4, §4.6). Step 2 then landed `@ColorLoop`
-  itself, versioned, with both flushes already wired, so what is left is
-  narrower than this entry first said: **the board in flight**, and
-  `describeColorLoopProgress` next to its game. The version number exists so
-  that is an addition rather than a reshape. This is also the step that has to
-  re-read `ColorLoopScreen`'s clock note — restoring a started board is exactly
-  the case that hid Number Slide's frozen-clock bug.
+- **Step 3 — resume, and the badges.** ✅ ~~Both games~~ **Color Loop's half
+  only** — Number Slide's versioned blob, resumable board and `readProgress`
+  landed in Step 1 on the operator's ask (§4.4, §4.6). Step 2 then landed
+  `@ColorLoop` itself, versioned, with both flushes already wired, so what was
+  left was narrower than this entry first said: **the board in flight**, and
+  `describeColorLoopProgress` next to its game. The version number is still 1 —
+  it was an addition rather than a reshape, exactly as intended.
+
+  Shipped: `ColorLoopBoard` inside the blob with its own refusing reader (the
+  blob reader still never returns null), `colorCounts` deriving the mode's
+  multiset from the line `makeScrambled` deals from, **all three `PlayCtx` kinds
+  resuming** with a badge that names which, a fifth `readProgress`, and 37 new
+  tests (1,283 total). Decided and written into §4.6: **the standing
+  `Training · … ★` badge does not ship** — the hub's affordance is a *Continue*
+  pill, not a progress line. The clock note in `ColorLoopScreen`'s header was
+  re-read and rewritten, and the screen needed no change to stay clear of Step
+  1's frozen-clock bug (§4.4).
 - **Step 4 — Training and Match, at home.** The 18-rung ladder and the match
   gauntlets under this app's chrome: `LevelSelect` on `ScreenHeader`, star
   thresholds intact, result cards copying through `expo-clipboard`. The ladder's
@@ -998,7 +1106,16 @@ At merge:
 - **An effect cannot depend on a ref**, and a restored game is where that
   stops being academic. Number Slide's clock was frozen after every restore for
   exactly this reason (§4.4). Color Loop's screen has the same timer-plus-refs
-  shape.
+  shape, and **Step 3 is where it became reachable** — its interval depends on
+  `phase` (state), and the restore re-anchors `startTimeRef` before setting that
+  phase. Both screens now carry the note; a sixth game with a clock should read
+  §4.4 before writing its restore.
+- **Validating a restored board means validating it against itself**, and the
+  check does not transfer between games. Number Slide's tiles are all distinct,
+  so "a permutation of `0…n²−1`" is the whole rule; Color Loop's repeat by a
+  multiset that depends on the mode, triangular for `diag` (§4.6). Derive the
+  expected counts from the same expression the game deals from rather than
+  writing the arithmetic out twice.
 - **Nothing buzzes, anywhere.** `expo-haptics` was removed from the app
   entirely (§6), so a `Vibration` or `Haptics` call arriving with Color Loop is
   deleted rather than translated. This also takes a whole class of

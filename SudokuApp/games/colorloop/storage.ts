@@ -2,7 +2,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import debounce from '../../utils/debounce';
 import {
   COLOR_LOOP_STORAGE_VERSION,
+  ColorLoopBoard,
   ColorLoopSave,
+  describeColorLoopProgress,
   emptyColorLoopSave,
   readColorLoopSave,
 } from './saveShape';
@@ -21,16 +23,23 @@ import {
  * for the same two reasons: a game screen unmounts the instant the player taps
  * home, and a backgrounded app may not get another turn.
  *
- * **There is no `readColorLoopProgress` here yet.** The hub card gets no
- * Continue badge in this step, because nothing in this blob is a board to
- * continue — that is Step 3 (plan §4.6), which adds both the in-flight board and
- * the `describeColorLoopProgress` that reads it, next to the game rather than in
- * `utils/gameProgress.js`.
+ * ### The board is kept, continually — Step 3
+ *
+ * Step 2 wrote settings, bests and stars and let the board go. It does not any
+ * more: `save.board` carries `{ seed, n, mode, grid, moves, secs, phase, ctx }`,
+ * written on every move, flushed on unmount and on backgrounding, and set to
+ * null on a solve. Sudoku, Fungiku, the cube and Number Slide all survive a trip
+ * to the front door, and Fungiku's §6 established that as platform behaviour
+ * rather than a per-game choice — a guest game does not get to quietly break it.
+ *
+ * **Clearing means writing `board: null`, not `removeItem`.** The board shares a
+ * blob with the eighteen training stars and the best times, and a finished
+ * puzzle is not a reason to forget those.
  */
 
 export const COLOR_LOOP_STORAGE_KEY = '@ColorLoop';
 
-export type { ColorLoopSave };
+export type { ColorLoopBoard, ColorLoopSave };
 export { COLOR_LOOP_STORAGE_VERSION };
 
 /**
@@ -68,3 +77,21 @@ export const saveColorLoop = debounce(async (save: ColorLoopSave) => {
     console.error('Error saving Color Loop state:', error);
   }
 }, 500);
+
+/**
+ * Summary for the hub's Continue affordance, or null when there is nothing to
+ * come back to (see `./saveShape.ts` for the pure logic).
+ */
+export async function readColorLoopProgress(): Promise<{
+  label: string;
+  detail: string;
+} | null> {
+  try {
+    const serialized = await AsyncStorage.getItem(COLOR_LOOP_STORAGE_KEY);
+    if (serialized === null) return null;
+    return describeColorLoopProgress(readColorLoopSave(JSON.parse(serialized)).board);
+  } catch (error) {
+    console.error('Error reading Color Loop progress:', error);
+    return null;
+  }
+}
