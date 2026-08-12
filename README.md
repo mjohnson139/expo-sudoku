@@ -1,6 +1,6 @@
 # Puzzle Box
 
-Four puzzles and a Rubik's cube behind one hub, built with
+Five puzzles and a Rubik's cube behind one hub, built with
 [Expo](https://expo.dev/) and React Native — playable on Android, iOS, and web.
 
 The app opens on a hub. Each card is a peer, and a game you left half-finished
@@ -75,7 +75,31 @@ sibling `color-loop` app.
   anywhere on the screen: the tray, the tiles, the numbers and the accent all
   come from the theme, so cycling it carries the whole game with it.
 
-The merge that brings it and Color Loop across is planned in
+### Color Loop
+
+Drag any row or column and it wraps around the edge — the second game arriving
+from the sibling `color-loop` app, and a *manipulation* puzzle rather than a
+deduction one.
+
+- **Three goals.** Make every row one solid colour, match each row to the colour
+  key beside the board, or make every diagonal one colour — either direction
+  counts.
+- **The board follows your finger.** A line slides with the drag, wraps around
+  the edge, and clicks into its slot; flick it and it coasts. A grab near a seam
+  takes both neighbours at once.
+- **Boards from 3×3 to 6×6.** Diagonal stops at 4×4, because a diagonal board
+  needs 2n−1 colours and the palette holds seven.
+- **A shareable puzzle code.** Every board is a pure function of its code, so
+  `4-K7P2Q` *is* the puzzle on anyone's phone. `-O` and `-D` name the other two
+  goals.
+- **Training and Match.** An eighteen-rung ladder with three stars a rung, and
+  preset gauntlets — Sprint, Classic, Marathon — where one code deals everybody
+  the same run of boards and the result card carries the code back out.
+- **The tiles are the app's own palette.** The seven hues are the Okabe–Ito set
+  Fungiku's swatches use, each with its own glyph so colour is never the only
+  thing telling two tiles apart. Everything around them follows your theme.
+
+The merge that brings both games across is planned in
 [`docs/colorloop-merge-plan.md`](docs/colorloop-merge-plan.md), with the next
 step always described in
 [`docs/colorloop-merge-handoff.md`](docs/colorloop-merge-handoff.md).
@@ -145,6 +169,8 @@ npx expo export --platform all    # web + iOS + Android must all bundle
   - `games/fungiku/` – Fungiku: engine, reducer, board, menus, wallet
   - `games/cube/` – Cube Scramble: cube model, notation, scrambler, 3D renderer
   - `games/numberslide/` – Number Slide: slide logic, seed codes, theme palette
+  - `games/colorloop/` – Color Loop: the frozen puzzle engine and its codes, the
+    board's physics, the training ladder, the match presets, theme palette
   - `screens/` – The hub and each game's screen
   - `utils/` – Theme system, board generation, symbol sets, app identity, the
     motion vocabulary, and the three `.d.ts` files that describe the parts of
@@ -161,6 +187,8 @@ npx expo export --platform all    # web + iOS + Android must all bundle
 - Cube Scramble's model, scrambler and renderer are the app's own
   (`SudokuApp/games/cube/`); the reference for the screen is
   [scramble.cubing.net](https://scramble.cubing.net/)
-- Number Slide comes from the sibling
+- Number Slide and Color Loop come from the sibling
   [`mjohnson139/color-loop`](https://github.com/mjohnson139/color-loop) app, with
-  its boards seeded by `mulberry32` (`SudokuApp/utils/rng.ts`)
+  their boards seeded by `mulberry32` (`SudokuApp/utils/rng.ts`)
+- Color Loop's tile hues are the Okabe–Ito colorblind-safe palette
+  (`SudokuApp/utils/symbolSets.js`), shared with Fungiku

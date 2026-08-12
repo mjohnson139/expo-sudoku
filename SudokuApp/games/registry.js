@@ -2,6 +2,7 @@ import GameScreen from '../screens/GameScreen';
 import FungikuScreen from './fungiku/FungikuScreen';
 import CubeScreen from './cube/CubeScreen';
 import NumberSlideScreen from './numberslide/NumberSlideScreen';
+import ColorLoopScreen from './colorloop/ColorLoopScreen';
 import { readSudokuProgress } from '../utils/storage';
 import { readFungikuProgress } from './fungiku/storage';
 import { readCubeProgress } from './cube/storage';
@@ -83,6 +84,29 @@ export const GAMES = [
     accent: '#b07f26',
     Screen: NumberSlideScreen,
     readProgress: readNumberSlideProgress,
+  },
+  {
+    // The second of the two games arriving from the sibling color-loop app, and
+    // the one the epic is named after (docs/colorloop-merge-plan.md, Step 2).
+    // Drag any row or column and it wraps around the edge until every row is one
+    // solid colour — the other *manipulation* puzzle, where the challenge is
+    // planning motion rather than deducing a placement.
+    //
+    // **No `readProgress`.** Nothing it stores is a board to come back to yet:
+    // this step persists settings, bests and training stars, and making the
+    // board itself survive a trip to the hub — with the Continue badge that
+    // follows from it — is Step 3 (plan §4.6). A card that offered to continue
+    // something it cannot restore would be worse than no badge.
+    id: 'colorloop',
+    title: 'Color Loop',
+    tagline: 'Drag a row or column — it wraps — until every row is one colour.',
+    icon: 'palette-swatch',
+    // The one place a game is allowed its own hue, and it comes from the source
+    // of colour truth rather than from beside it: Okabe–Ito's green, which is
+    // the palette entry furthest from Sudoku's blue, Fungiku's sienna, the
+    // cube's red and Number Slide's amber (plan §4.2).
+    accent: '#009E73',
+    Screen: ColorLoopScreen,
   },
 ];
 

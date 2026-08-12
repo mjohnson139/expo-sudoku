@@ -43,7 +43,7 @@ import {
   loadNumberSlideState,
   saveNumberSlideState,
 } from './storage';
-import { useBoardOrigin } from './useBoardOrigin';
+import { useBoardOrigin } from '../../utils/useBoardOrigin';
 
 /**
  * Without this the tile slide animation silently does nothing on Android — no
