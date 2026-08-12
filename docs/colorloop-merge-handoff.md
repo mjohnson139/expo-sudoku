@@ -299,6 +299,19 @@ it). **Do not reconcile the two games in a later step without a decision and a
 date** — §4.4's own opening bullet is what made this look wrong, and it is now
 corrected.
 
+**The operator tested it in Expo Go and signed off** (2026-08-11) — drag, flick,
+the magnet settle, the seven themes on both new cards, and a code from the
+standalone app producing the same board. All fine, and no correction followed.
+
+That is worth more than a ticked box, because **the gesture is the one thing in
+this epic no automated gate can speak to**. `Board.tsx`'s physics constants came
+across untouched on the argument that they were the product of a tuning pass on a
+real device; that argument is now checked rather than assumed, on *this* app's
+board sizing and inside this app's chrome. Later steps may treat the port's feel
+as verified — what remains open is the sibling repo's own unfinished **tuning**
+pass (its backlog: *"dial in touch feel on device"*), which is a different
+question and is what open question 3's sliders exist to answer.
+
 §2, §3, §4.1, §4.2, §5, §7, §9 and §10 of the plan were amended with what this
 step found.
 

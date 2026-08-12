@@ -952,8 +952,9 @@ step.
   `useAppTheme` through a pure `palette.ts`, a fourth hub card with no
   `readProgress`. **The platform question is answered and Step 2 is mostly
   repetition** — §4.1 and §4.2 above carry what it found.
-- **Step 2 — Color Loop on the hub.** ✅ The board, the physics, free play, the
-  code system, `Confetti`, `Controls` — all on the theme. `colors.ts` retired for
+- **Step 2 — Color Loop on the hub.** ✅ *(operator signed off on a device,
+  2026-08-11 — the gesture survived the port unchanged.)* The board, the physics,
+  free play, the code system, `Confetti`, `Controls` — all on the theme. `colors.ts` retired for
   `utils/symbolSets.js`, with the `maxN` pin in the same commit as the swap. The
   inner hub became the menu (§4.3); Training and Match are reachable and
   unpolished, as scoped. Fifth hub card, no `readProgress`. Also landed:
