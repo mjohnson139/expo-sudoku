@@ -379,9 +379,10 @@ inside that window costs one move rather than a Marathon.
 > **⚠️ Not tested on a device yet.** The clock check — start a board, move, go
 > to the hub, come back, watch for five seconds — is the one failure in this
 > step that every automated gate misses, and it is still outstanding along with
-> the diagonal-board restore, the background-rather-than-home flush, and Step
-> 2's own gesture pass. **They carry into Step 4's device pass**, which is on the
-> same screens.
+> the diagonal-board restore, the background-rather-than-home flush and the
+> mid-run match. **They carry into Step 4's device pass**, which is on the same
+> screens. Step 2's *gesture* pass is not among them: the operator signed that
+> off on 2026-08-11, and nothing in this step touched `Board.tsx`.
 
 ---
 
@@ -529,6 +530,8 @@ hand yet:
   flush path.
 - **A match across both exits**: background it mid-run and come back, and
   separately tap *"Leave the match"*.
-- **Step 2's gesture pass, still unheld**: drag, flick, the magnet settle, the
-  seam grab, and the seven themes on both new cards.
 - **The other four cards are unchanged.**
+
+Step 2's own gesture pass — drag, flick, the magnet settle, the seam grab, the
+seven themes on both new cards — was **signed off on a device on 2026-08-11** and
+does not need repeating; what is listed above is what Step 3 added on top of it.
