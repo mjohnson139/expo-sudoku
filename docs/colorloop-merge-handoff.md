@@ -318,9 +318,11 @@ epic/color-loop, never main. Tracker is issue #103.
 ```
 
 **Color Loop's board is still lost the moment you tap home, and its card is the
-only one on the hub with no Continue badge.** This step closes both — the last
-row of plan §3's platform-contract table, and the half of §4.6 that Step 1 did
-not pull forward.
+only one of five on the hub with no Continue badge.** This step closes both —
+the one row of plan §3's platform-contract table Color Loop still fails, and the
+half of §4.6 that Step 1 did not pull forward. (The two rows below it,
+`useBoardOrigin` and persistence, are *duplication* rather than gaps, and Step 6
+owns them.)
 
 It is a **small step with one genuinely dangerous corner**, and the corner is not
 the storage. Read *the trap* below before writing the effect.
@@ -332,8 +334,25 @@ the storage. Read *the trap* below before writing the effect.
    an addition to a shape that was designed for it, not a reshape. What goes in:
    `{ seed, n, mode, grid, moves, secs, phase }` — plan §4.6 names exactly that
    set. `games/numberslide/saveShape.ts` is the reader to copy, including its
-   **validate-by-shape** rule: a grid whose values are not the multiset the mode
+   **validate-by-shape** rule: a grid whose values are not the multiset its mode
    implies is a board that renders happily and cannot be solved.
+
+   ⚠️ **And that multiset is not "n of each" — it depends on the mode, which is
+   the one place Number Slide's reader cannot be copied literally.** Its check is
+   "the flat board is a permutation of `0…n²−1`", because every tile is distinct.
+   Color Loop's tiles repeat, and how they repeat differs:
+
+   - **`rows` and `ordered`** start as `grid[r][c] = r`, so the multiset is
+     **n of each colour `0…n−1`**.
+   - **`diag`** starts as `grid[r][c] = r + c`, so colours run `0…2n−2` with
+     **triangular** counts — `1, 2, … n, … 2, 1`. A 4×4 diagonal board holds one
+     `0`, two `1`s, three `2`s, four `3`s, three `4`s, two `5`s, one `6`.
+
+   Rotations only permute cells, so both multisets are invariant under every legal
+   move — which is exactly what makes them worth checking. Writing "n of each"
+   would reject **every** valid diagonal board, and a reader that skips the check
+   restores unsolvable ones. Derive the expected counts from `mode` and `n`
+   rather than hardcoding either.
 2. **The hydration gate already exists** and the screen already waits behind it;
    what changes is that a restored board is dealt instead of a fresh one.
 3. **Cleared on a solve.** A finished puzzle is not something to continue, and a
@@ -401,11 +420,19 @@ make a move, go to the hub, come back, and watch the clock for five seconds.
   separately from the live `n`/`mode` for exactly this reason. A restored *board*
   carries its own `n`/`mode`, which may be a level's or a match's — do not write
   those back into `prefs` on restore.
-- **A match in flight is more than a board.** `PlayCtx` for a match carries the
-  code, the preset, the per-board seeds, the index and the splits. Either persist
-  the whole context or **deliberately do not resume matches** and say which — a
-  half-restored match that forgets your first two splits is worse than one that
-  starts again.
+- **A board is not the whole of what you were doing — `PlayCtx` is, and it has
+  three kinds.** Decide for all three and write down what you chose:
+  - **free** — just the board. The easy case, and the one the badge is for.
+  - **level** — the board plus `{ id }`. Cheap, and a half-finished rung is worth
+    coming back to.
+  - **match** — the board plus the code, the preset, the per-board seeds, the
+    index *and* the splits. Either persist the whole context or **deliberately do
+    not resume matches**; a half-restored match that forgets your first two
+    splits is worse than one that starts again.
+
+  Whatever is decided, the badge has to say which — `Level 7` and `Sprint · 2/3`
+  are different offers from `4×4 · 01:24`, and a card that says the last while
+  reopening a match is a card that lied.
 - **The `_v` is already 1.** Adding fields to a version nothing branches on is
   the intended use; `readColorLoopSave` reads by shape, because a key that is
   absent and a key that is corrupt want the same answer.
@@ -413,6 +440,14 @@ make a move, go to the hub, come back, and watch the clock for five seconds.
   because losing a physics value must not cost the player eighteen training
   stars. The *board* is the opposite: it is all-or-nothing, so it wants its own
   reader that can refuse. Do not weaken the blob reader to accommodate it.
+- **`secs` must not be in the write effect's dependency list**, and this is
+  already solved next door rather than a judgement call. The save effect
+  currently fires on the preference fields; adding the board means it also fires
+  on `grid`, `moves` and `phase`. Adding `secs` too is the obvious next keystroke
+  and it makes the screen write **once a second for as long as it is open**, to
+  record a number the next move updates anyway. The seconds still land, because
+  every write carries the current value and the two flushes carry the last one —
+  `NumberSlideScreen`'s comment on its own effect spells this out.
 
 ### Visible in Expo Go when this lands
 
@@ -432,4 +467,6 @@ npx expo export --platform all    # web + iOS + Android must all bundle
 Then the device pass, and **the clock check above is the one that matters** — it
 is the only failure in this step that every automated gate will miss. Also:
 leave mid-board by backgrounding the app rather than by tapping home (a different
-flush path), and confirm the other five cards are unchanged.
+flush path), restore a **diagonal** board specifically (its multiset is the one a
+reader is most likely to get wrong), and confirm the other four cards are
+unchanged.
