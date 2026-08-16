@@ -1,36 +1,80 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { SafeAreaView, AppState, DeviceEventEmitter, NativeEventEmitter, NativeModules, Platform } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { SafeAreaView, AppState, DeviceEventEmitter, Platform } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import HubScreen from './screens/HubScreen';
-import { HUB_ROUTE, getGame } from './games/registry';
+import { HUB_ROUTE, GAMES } from './games/registry';
 
 /**
- * App shell and screen router.
+ * App shell and navigator.
  *
- * The route is either the hub or a game id from `games/registry.js`
- * (docs/fungiku-plan.md §6). Deliberately not a navigation library: two games
- * don't justify react-navigation's native setup, and this matches the sibling
- * color-loop app, whose hub also lives in its root component. Revisit if the app
- * ever grows genuinely deep navigation.
+ * A native stack over `games/registry.js`: the hub is the root route and each
+ * game is a route pushed on top of it (docs/cube-flow-plan.md §3.1). This
+ * replaced a hand-rolled `useState` route in Cube Flow Step 1, because Step 2
+ * pushes a solve screen onto a stack and the hand-rolled router had no answer
+ * for Android hardware back or the iOS edge swipe.
  *
- * Each game screen owns its own state and persistence, so leaving for the hub
- * unmounts it — which is also what guarantees its timer stops. Progress survives
- * because the screen hydrates from the same saved snapshot on the way back in.
+ * `headerShown: false` throughout — every screen already draws its own
+ * `ScreenHeader`.
+ *
+ * Two behaviours the old router got for free and this one has to arrange:
+ *
+ *  - **A game screen dies when you leave it.** Each game owns its state and its
+ *    persistence, and unmounting is what guarantees its timer stops; progress
+ *    survives because the screen hydrates from the same saved snapshot on the
+ *    way back in. Leaving is always `popToTop()`, which pops the game off the
+ *    stack and unmounts it. A `navigate` back to the hub would not.
+ *  - **The hub re-reads progress when you return to it.** It reads on mount,
+ *    which was enough when it unmounted behind an open game; on a stack it
+ *    stays mounted underneath, so `HubRoute` remounts it on the way back.
  */
+const Stack = createNativeStackNavigator();
+
+/**
+ * The hub, remounted whenever it is returned to.
+ *
+ * `HubScreen` reads each game's Continue badge on mount and nothing else
+ * refreshes it, so without this the badges would show the state you *started*
+ * the game with. Keyed off a blur→focus round trip rather than focus alone:
+ * the initial route is focused as it mounts, and reacting to that would remount
+ * the hub for nothing on every cold start.
+ */
+function HubRoute({ navigation }) {
+  const [visit, setVisit] = useState(0);
+  const leftForAGame = useRef(false);
+
+  useEffect(() => {
+    const stopBlur = navigation.addListener('blur', () => {
+      leftForAGame.current = true;
+    });
+    const stopFocus = navigation.addListener('focus', () => {
+      if (!leftForAGame.current) return;
+      leftForAGame.current = false;
+      setVisit((previous) => previous + 1);
+    });
+
+    return () => {
+      stopBlur();
+      stopFocus();
+    };
+  }, [navigation]);
+
+  return <HubScreen key={visit} onSelectGame={(id) => navigation.navigate(id)} />;
+}
+
 export default function App() {
   const [appKey, setAppKey] = useState(0);
-  const [route, setRoute] = useState(HUB_ROUTE);
-
-  const goToHub = useCallback(() => setRoute(HUB_ROUTE), []);
 
   useEffect(() => {
     // Handle app state changes
     const appStateSubscription = AppState.addEventListener('change', nextState => {
       if (nextState === 'active') {
-        // Remount GameScreen to restore UI on resume
+        // Remount the open game screen to restore UI on resume
         setAppKey(prev => prev + 1);
       }
     });
-    
+
     // Setup touch event interception for simulator taps
     // This helps with displaying the debug taps
     let lastTouchEvent = null;
@@ -40,20 +84,20 @@ export default function App() {
         // For web, handle mouse clicks
         const pageX = e.nativeEvent.pageX || e.nativeEvent.clientX;
         const pageY = e.nativeEvent.pageY || e.nativeEvent.clientY;
-        
+
         if (pageX && pageY) {
           // Don't emit duplicate events for the same touch
           const touchKey = `${pageX}-${pageY}`;
           if (lastTouchEvent !== touchKey) {
             lastTouchEvent = touchKey;
-            
+
             // Use a custom event for web
             if (typeof window !== 'undefined') {
               window.dispatchEvent(new CustomEvent('simulatorTap', {
                 detail: { x: pageX, y: pageY }
               }));
             }
-            
+
             // Reset after a short delay to prevent duplicate filtering
             setTimeout(() => {
               lastTouchEvent = null;
@@ -68,13 +112,13 @@ export default function App() {
           const touchKey = `${touch.pageX}-${touch.pageY}`;
           if (lastTouchEvent !== touchKey) {
             lastTouchEvent = touchKey;
-            
+
             // Emit event for DebugCrosshair to pick up
             DeviceEventEmitter.emit('simulatorTap', {
               x: touch.pageX,
               y: touch.pageY
             });
-            
+
             // Reset after a short delay to prevent duplicate filtering
             setTimeout(() => {
               lastTouchEvent = null;
@@ -83,10 +127,10 @@ export default function App() {
         }
       }
     };
-    
+
     // Make this listener available globally
     global.touchHandler = handleTouch;
-    
+
     return () => {
       appStateSubscription.remove();
       global.touchHandler = null;
@@ -101,21 +145,38 @@ export default function App() {
     }
   };
 
-  // An unknown route falls back to the hub rather than rendering nothing.
-  const activeGame = route === HUB_ROUTE ? null : getGame(route);
-  const ActiveGameScreen = activeGame?.Screen;
-
   return (
-    <SafeAreaView
-      style={{ flex: 1 }}
-      onTouchStart={handleTouchStart}
-      onClick={Platform.OS === 'web' ? handleTouchStart : undefined}
-    >
-      {ActiveGameScreen ? (
-        <ActiveGameScreen key={`${activeGame.id}-${appKey}`} onExitToHub={goToHub} />
-      ) : (
-        <HubScreen onSelectGame={setRoute} />
-      )}
-    </SafeAreaView>
+    <SafeAreaProvider>
+      {/* The tap interception wraps the whole tree, navigator included, exactly
+          as it did around the hand-rolled router. */}
+      <SafeAreaView
+        style={{ flex: 1 }}
+        onTouchStart={handleTouchStart}
+        onClick={Platform.OS === 'web' ? handleTouchStart : undefined}
+      >
+        <NavigationContainer>
+          <Stack.Navigator
+            initialRouteName={HUB_ROUTE}
+            screenOptions={{ headerShown: false }}
+          >
+            <Stack.Screen name={HUB_ROUTE} component={HubRoute} />
+
+            {/* A route per registry entry, so adding a game stays a registry
+                edit. `onExitToHub` keeps its name: nothing in `games/` changes
+                for the navigator, it is adapted here at the call site. */}
+            {GAMES.map((game) => (
+              <Stack.Screen key={game.id} name={game.id}>
+                {({ navigation }) => (
+                  <game.Screen
+                    key={`${game.id}-${appKey}`}
+                    onExitToHub={() => navigation.popToTop()}
+                  />
+                )}
+              </Stack.Screen>
+            ))}
+          </Stack.Navigator>
+        </NavigationContainer>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }

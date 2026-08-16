@@ -63,9 +63,9 @@ open.
 ### Golden rules
 
 - **The cube's code lives under `games/cube/`.** Sudoku and Fungiku keep working
-  exactly as they do. **This epic has exactly one sanctioned exception and it is
-  Step 1**: `App.js` and `package.json`, for the navigator. A step that needs to
-  touch anything else outside `games/cube/` should say why in its PR.
+  exactly as they do. **The epic's one sanctioned exception was Step 1** —
+  `App.js` and `package.json`, for the navigator — and it is now spent. A step
+  that needs to touch anything outside `games/cube/` should say why in its PR.
 - **`editOpen` is the only edit funnel** for the open solve, and `withMoves` is
   the only sanctioned moves-edit patch. Two writers is how the file and the
   screen learn to disagree.
@@ -83,96 +83,132 @@ open.
 
 ---
 
-## Next step — Step 1: put the app on a real stack
+## What landed in Step 1 (read this before Step 2)
 
-**Adopt `react-navigation` (native-stack), and change nothing else.** The app
-must look and behave exactly as it does today. This step exists to separate a
-native dependency change from every design change that follows, so that a
-regression has one suspect.
+The app is on `@react-navigation/native` + `native-stack` (v7) with
+`react-native-screens`. `App.js` is now `SafeAreaProvider` → the existing
+`SafeAreaView` that carries the simulator-tap interception →
+`NavigationContainer` → `Stack.Navigator` with `headerShown: false`. The hub is
+the root route (`HUB_ROUTE`) and each `games/registry.js` entry is a route
+pushed on top of it. **Nothing inside `games/` changed.**
 
-This is an **operator decision already taken** (2026-08-16) against the
-hand-rolled alternative. `App.js:6-18` says "Deliberately not a navigation
-library… Revisit if the app ever grows genuinely deep navigation." This is that
-moment: Step 2 pushes a solve screen onto a stack.
+Three things Step 2 inherits and should not rediscover:
+
+- **`onExitToHub` is `navigation.popToTop()`**, adapted in `App.js` at the call
+  site. Popping unmounts the game screen, which is what keeps the old router's
+  "a game screen dies when you leave it" guarantee — verified in a browser: after
+  returning to the hub, the game's DOM is gone.
+- **The `appKey` remount on `AppState → 'active'` survives** as a `key` built
+  from the game id and `appKey`, set on the screen element inside the route's
+  children function. It remounts *the open game*, not the navigator, so resuming
+  does not disturb the stack.
+- **The hub is remounted on the way back**, by `HubRoute` in `App.js`.
+  `HubScreen` reads each game's Continue badge on mount and nothing else
+  refreshes it; the old router made that sufficient by unmounting the hub behind
+  an open game, and a stack keeps it mounted underneath. The remount is keyed
+  off a **blur→focus round trip**, not focus alone — the initial route is focused
+  as it mounts.
+
+---
+
+## Next step — Step 2: split `CubeScreen`, push the solve
+
+`docs/cube-flow-plan.md` §3.2 is the brief. `CubeScreen.js` is **1525 lines** and
+every step after this one adds to it. Split it now, while the split is still
+mechanical rather than a rewrite — and turn the `solving` flag into a route,
+which is the epic's whole thesis made real.
 
 ### Scope
 
-- `npx expo install @react-navigation/native @react-navigation/native-stack
-  react-native-screens`
-- Rewrite `App.js` as `SafeAreaProvider` → `NavigationContainer` →
-  `createNativeStackNavigator`, `headerShown: false` (every screen already draws
-  its own `ScreenHeader`). Routes: `Hub`, plus one per `games/registry.js` entry.
-- **Nothing inside `games/` changes.** `HubScreen`'s `onSelectGame` and each
-  game's `onExitToHub` keep their prop names; adapt at the call site only.
+- **`games/cube/CubeContext.js` is new and owns everything persisted** —
+  `scramble`, `favorites`, `solves`, `openId`, the hydration gate
+  (`CubeScreen.js:283-310`), the debounced save effect (`:320-332`) and the
+  `AppState` flush (`:355-359`). One provider above a **nested stack** of
+  `CubeHome` and `CubeSolve`, so both screens read one list and there is exactly
+  one writer.
+- **`editOpen` (`:528`) moves into the context intact and stays the only edit
+  funnel.** V1 put every edit through it deliberately; this epic does not get to
+  add a second door.
+- **The route replaces the flag.** `solving` (`:173`) retires from state *and*
+  from the save file's `workspace` (`:326`). `openId` stays persisted.
+  `writing = solving && openSolve !== null` (`:400`) becomes "the solve route is
+  mounted and has a solve".
+- **`inspecting = writing && orientation === null` (`:920`) survives unchanged**
+  as the solve screen's first state. The hold is panned to, not typed (V1 §8.3),
+  and `orientation`'s three states — `null`, `''`, notation — must stay three.
+- **Header split.** Home keeps the home button and the view actions. Solve gets
+  the back chevron, `title="Solve 3"` and `subtitle` = the scramble, mono and
+  truncated — which is what retires the `solveBar` (`:1301-1328`, styles at
+  `:1486-1512`). `ScreenHeader.js:18-20` warns that a *conditional* subtitle
+  changes header height, so **the solve header always carries it**.
+- `startSolving` (`:547`) / `stopSolving` (`:554`) collapse into a navigate and a
+  `goBack`. `openSolveById` (`:602`), `startNewSolve` (`:613`) and `copySolve`
+  (`:623`) keep their bodies and end in a navigate.
 
 ### The files to read first
 
-- `App.js` — the whole current router is lines 19–121, and the doc comment at
-  6–18 explains what the current design is buying.
-- `games/registry.js` — `HUB_ROUTE`, `getGame`, and the three entries.
-- `screens/HubScreen.js` — takes `onSelectGame` and nothing else.
+- `games/cube/CubeScreen.js` — all of it, once, before moving anything.
+- `games/cube/storage.js` — `readCubeSave` reads every version **by shape**, so
+  dropping `workspace.solving` needs no `_v` bump; check `sanitizeWorkspace`
+  tolerates its absence rather than assuming it does.
+- `App.js` — how the cube route is mounted, and the `appKey` remount above it.
+- `components/ScreenHeader.js` — the subtitle height warning at `:18-20`, and
+  the whole-style-variant rule at `:112-126`.
 
 ### Easy to get wrong
 
-1. **Unmount on leave is load-bearing.** `App.js:6-18` relies on it to stop
-   timers and to force re-hydration from storage — a game screen's state is
-   *supposed* to die when you leave. A native-stack **pop** unmounts the popped
-   screen, so `popToTop()` for the home button is equivalent. A `navigate` to an
-   already-mounted route is **not**. Verify by leaving a game mid-timer and
-   returning.
-2. **Remount on resume.** The `appKey` bump on `AppState → 'active'`
-   (`App.js:25-32`) exists to restore the UI after a background. It must survive
-   the rewrite as a `key` somewhere.
-3. **Simulator tap interception.** `handleTouchStart` / `global.touchHandler`,
-   the `DeviceEventEmitter.emit('simulatorTap', …)` native path and the web
-   `CustomEvent('simulatorTap')` path currently wrap the entire tree. Keep them
-   wrapping the container.
-4. **A style variant must be a whole style.** Not new here, but
-   `react-native-web` and Yoga disagree about flattened `[base, variant]` arrays
-   and this repo has shipped a phone-only bug because of it.
+1. **The `appKey` remount resets the nested stack.** On resume, `App.js`
+   remounts the whole cube screen — so a nested navigator inside it starts back
+   at `CubeHome`, losing a pushed solve. This is exactly what persisted `openId`
+   is for: **restore the pushed route from `openId` after hydration**, and check
+   it on a real background/resume rather than reasoning about it.
+2. **Two writers is the failure mode.** The provider owns the state and the
+   debounced write; a screen that calls `saveCubeState` itself is the bug.
+   `editOpen` in, `withMoves` for anything touching moves.
+3. **`saveCubeState.flush()` on unmount (`:332`) has to move up with the state.**
+   If it stays on a screen that now unmounts on every `goBack`, it fires far more
+   often than intended; if it is dropped, the last 400ms of authored work dies
+   with a background. It belongs to the provider's lifetime.
+4. **The hydration gate guards the writer.** Writing before the read lands
+   overwrites the player's solves with an empty list. Whatever shape the provider
+   takes, `hydrated` still gates the save effect.
+5. **`removePhase` does not clamp or re-sort** (`solveList.js:377`). Not this
+   step's problem, but do not make it one.
+6. **A style *variant* must be a whole style.** `[base, variant]` flattens to
+   something Yoga and `react-native-web` disagree about, and this repo shipped a
+   phone-only bug because of it.
 
 ### What must be visible in Expo Go
 
-Nothing new. That is the test: **the app is indistinguishable from `main`**,
-except that Android hardware back and the iOS edge swipe now leave a game.
-
-`react-native-screens` **is included in Expo Go** (checked against the Expo SDK
-docs, `inExpoGo: true`), and `react-native-safe-area-context` and
-`react-native-gesture-handler` are already dependencies — so the EAS Update / PR
-preview loop keeps working and no custom dev build is needed.
+The cube's V1 behaviour, unchanged, with the mode flip replaced by a push: tap a
+solve and the solve screen slides in with a back chevron and the scramble under
+its title; back returns to the scramble screen. Nothing else on the screen moves
+yet — the card list is Step 3.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/` — green, unchanged. No new tests: this is
-  component wiring and the runner cannot render components.
-- All three games open from the hub and return to it.
-- **Android hardware back** returns to the hub from each game.
-- **iOS edge-swipe** returns to the hub from each game.
-- Background and resume inside each game — progress restores as before.
-- **The gh-pages web preview still routes.** `react-native-screens` no-ops under
-  `react-native-web`, but this is the part of the decision that is assumption
-  rather than knowledge, so check it rather than reasoning about it.
-- A **device pass**, not just a browser.
+- `npm test` from `SudokuApp/` — green. No new tests: the risk is entirely in
+  wiring, and the pure modules are untouched. That is the argument for doing this
+  as its own step.
+- Every V1 behaviour still reachable: write a solve, back out, return to it,
+  **background and resume mid-solve**, delete the open solve, change the scramble
+  with a solve open, load a favorite with solves against it.
+- Android hardware back and the iOS edge swipe leave the solve screen — and from
+  the scramble screen they leave the cube for the hub.
+- The web preview still routes.
+- **A device pass**, and write down which findings came from the device.
 
-### After it merges — do not skip this
+### Then rewrite this file for Step 3
 
-**Rebuild the `preview` and `production` EAS channels.** An EAS Update cannot
-ship native code, and `app.json` pins `runtimeVersion.policy: "sdkVersion"`, so
-an existing binary will **silently keep serving the old bundle** rather than
-failing loudly. This is the one operational cost of adopting a navigator and it
-is easy to forget precisely because nothing appears to break.
-
-### Then rewrite this file for Step 2
-
-Step 2 splits `CubeScreen.js` (1525 lines) into `CubeHomeScreen` and
-`CubeSolveScreen` over a `CubeContext` that owns the persisted state, and turns
-the `solving` flag into a route. `docs/cube-flow-plan.md` §3.2 is the brief.
+Step 3 puts the solves on the scramble screen: the card list, New scramble and
+Save move into the header, and `games/cube/recency.js` arrives pure and tested.
+`docs/cube-flow-plan.md` §3.3 is the brief.
 
 ---
 
 ## Open questions being carried forward
 
-From `docs/cube-flow-plan.md` §6 — none of these block Step 1, and all of them
+From `docs/cube-flow-plan.md` §6 — none of these block Step 2, and all of them
 want a drilling session rather than an opinion:
 
 1. Does the rail want a "no method" option for a scratch attempt?
