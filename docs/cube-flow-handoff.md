@@ -43,7 +43,11 @@ questions forward.
   `design-decisions.md` has the settled summary in prose.
 - **Tracker:** GitHub issue **#107**. Tick your step's checkboxes as you go.
 - **Process:** `.github/dev-process.md` — one delivery step per branch, commit
-  after each step, **prompt the operator to test after each step.**
+  after each step, **open the PR as soon as the step is pushed**, and **prompt
+  the operator to test after each step.** The PR is what triggers the automatic
+  build: `.github/workflows/eas-publish.yml` publishes an EAS Update preview to
+  `pr-<N>` and comments the QR code, and that build is what the operator tests.
+  Holding the PR back leaves them nothing to open.
 
 ### Branching
 

@@ -20,7 +20,9 @@ sequence of stages — and puts it on the screen instead of behind a flag.
   first) are load-bearing here and are **not** overturned.
 - **Tracker:** GitHub issue **#107**. Tick your step's checkboxes as you go.
 - **Process:** follow `.github/dev-process.md` — one delivery step per branch,
-  commit after each step, and **prompt the operator to test after each step.**
+  commit after each step, **open the PR as soon as the step is pushed** so the
+  workflow publishes its `pr-<N>` preview build, and **prompt the operator to
+  test after each step**, against that build.
 - **The design:** `Cube Flow.dc.html` in the Claude Design project
   `2acc14f2-7f7e-434f-a29d-e0fe29fa876a` ("Expo Sudoku design system"), settled
   2026-08-16. That project's `design-decisions.md` carries the settled summary.
