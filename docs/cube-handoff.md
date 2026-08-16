@@ -5,10 +5,19 @@ table in `docs/cube-plan.md` §8 is empty: Steps 1–10 shipped, 10a shipped, an
 the last row — enter a cube by hand — was **dropped** rather than deferred
 (§8.12). The editor is tabled and the solver is outsourced (§8.9).
 
-**If you are a session picking up cube work, this file is still your entry
-point** — but it is a record now rather than a brief. Read it, then read
-`docs/cube-review.md`, which is the architecture verdict and the honest list of
-what was deliberately left undone.
+> **Superseded as an entry point on 2026-08-16.** Cube work continues in a
+> second epic, **Cube Flow**, which restructures this one's navigation and
+> annotation model — scramble becomes home, a solve becomes a navigation push,
+> method is chosen at creation, and the phase rail replaces the flag key.
+> **If you are a session picking up cube work, read
+> `docs/cube-flow-handoff.md` instead**; its plan is `docs/cube-flow-plan.md`
+> and its tracker is issue #107.
+
+This file is a **record** now rather than a brief, and it is still worth reading
+before you edit V1's code — along with `docs/cube-review.md`, the architecture
+verdict and the honest list of what was deliberately left undone. The open
+questions and the "noted in passing" list below are unaffected by the new epic
+and still stand.
 
 ## There is no "next step" — so what would a session do?
 
