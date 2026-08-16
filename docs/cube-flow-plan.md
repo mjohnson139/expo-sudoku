@@ -20,7 +20,9 @@ sequence of stages — and puts it on the screen instead of behind a flag.
   first) are load-bearing here and are **not** overturned.
 - **Tracker:** GitHub issue **#107**. Tick your step's checkboxes as you go.
 - **Process:** follow `.github/dev-process.md` — one delivery step per branch,
-  commit after each step, and **prompt the operator to test after each step.**
+  commit after each step, **open the PR as soon as the step is pushed** so the
+  workflow publishes its `pr-<N>` preview build, and **prompt the operator to
+  test after each step**, against that build.
 - **The design:** `Cube Flow.dc.html` in the Claude Design project
   `2acc14f2-7f7e-434f-a29d-e0fe29fa876a` ("Expo Sudoku design system"), settled
   2026-08-16. That project's `design-decisions.md` carries the settled summary.
@@ -162,6 +164,15 @@ one suspect.
 **Operator tests:** all three games open and return to the hub; Android hardware
 back returns to the hub; iOS edge-swipe returns to the hub; backgrounding and
 resuming restores each game; the gh-pages preview still routes.
+
+**Landed 2026-08-16** (PR #108, merged to `epic/cube-flow`). Three behaviours
+above held as written. **A fourth was found in the build and is the one worth
+remembering:** `HubScreen` reads each game's Continue badge *on mount and never
+again* — which the old router made sufficient by unmounting the hub behind an
+open game. A stack keeps it mounted underneath, so the badges would have shown
+the state you *started* the game with. `HubRoute` in `App.js` remounts it on a
+**blur→focus round trip** (not focus alone: the initial route is focused as it
+mounts). See §5's entry — the same trap is waiting for `CubeHome` in Step 2.
 
 ### 3.2 Step 2 — split `CubeScreen`, push the solve
 
@@ -412,6 +423,15 @@ scrolls**, horizontally, as `CubePhaseStrip` already does
 
 ## 5. Things that are easy to get wrong
 
+- **A screen under a push stays mounted, so "read it on mount" stops being
+  enough.** This is what the navigator changed about the app, and it cost Step 1
+  a fix the brief had not predicted: the hub read its Continue badges on mount
+  and nothing refreshed them once a game was pushed over it rather than
+  replacing it. **Step 2 inherits the same trap** — anything `CubeHome` computes
+  once at mount is stale the moment a solve is pushed and backed out of. The
+  answer is either state that lives above both screens (which is what
+  `CubeContext` is for) or an explicit remount on a blur→focus round trip, as
+  `HubRoute` does. It is never "it worked before".
 - **`editOpen` is the only edit funnel and must stay so.** Two writers to the
   solve list is how the file and the screen learn to disagree.
 - **`withMoves` is a contract, not enforcement.** Anything calling `updateSolve`
