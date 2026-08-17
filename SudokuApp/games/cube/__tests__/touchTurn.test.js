@@ -706,3 +706,47 @@ describe('shouldCommit', () => {
     expect(shouldCommit(0, 4000)).toBe(false);
   });
 });
+
+describe('the guards against a fast finger', () => {
+  it('never reads a single sample as turning backward', () => {
+    // A sample that spans more than half a turn is ambiguous — `atan2` cannot
+    // tell 190° one way from 170° the other — and believing it would lurch the
+    // face the wrong way. Three points doubling back sharply:
+    const back = arcSweep([
+      [0, 0],
+      [40, 0],
+      [8, 6],
+    ]);
+    expect(Math.abs((back * 180) / Math.PI)).toBeLessThanOrEqual(TUNING.ARC_MAX_TURN + 1);
+  });
+
+  it('holds the drawn sweep still rather than letting it shrink', () => {
+    // The renderer keys every polygon by where the move sends it, so a `turns`
+    // that flips between one and two as the reading wobbles across a quarter
+    // boundary re-keys all 54 faces and they blink. `atLeast` pins it.
+    const wide = circleMove({ sweep: (200 * Math.PI) / 180, yaw: 0, pitch: 0 });
+    const wobbledBack = circleMove({
+      sweep: (150 * Math.PI) / 180,
+      yaw: 0,
+      pitch: 0,
+      atLeast: Math.abs(wide.turns),
+    });
+    expect(Math.abs(wobbledBack.turns)).toBe(Math.abs(wide.turns));
+  });
+
+  it('draws the same angle whichever sweep it is split across', () => {
+    // Which is why pinning `turns` is free: the picture is `turns × t`, and that
+    // is the finger's angle however the split is made.
+    const sweep = (150 * Math.PI) / 180;
+    const plain = circleMove({ sweep, yaw: 0, pitch: 0 });
+    const pinned = circleMove({ sweep, yaw: 0, pitch: 0, atLeast: 3 });
+    expect(pinned.turns * pinned.t).toBeCloseTo(plain.turns * plain.t, 10);
+  });
+
+  it('commits the same move whether or not the sweep was pinned', () => {
+    const sweep = (150 * Math.PI) / 180;
+    expect(circleMove({ sweep, yaw: 0, pitch: 0, atLeast: 3 }).commit.token).toBe(
+      circleMove({ sweep, yaw: 0, pitch: 0 }).commit.token
+    );
+  });
+});

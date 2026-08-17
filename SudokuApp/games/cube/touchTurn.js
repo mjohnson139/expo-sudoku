@@ -87,9 +87,48 @@ export const TUNING = {
    */
   ARC_STEP: 4,
   ARC_SMOOTH: 0.3,
+  /**
+   * The most a single sample may turn, in degrees.
+   *
+   * A fast finger is sampled once a frame, so one sample can span a lot of arc —
+   * and `atan2` cannot tell 190° one way from 170° the other. Past that the
+   * reading does not just lose a little, it comes back **with the wrong sign**,
+   * and the face lurches backward. Clamping under-counts a very fast tight
+   * circle; reversing it is far worse than under-counting it.
+   */
+  ARC_MAX_TURN: 115,
   CIRCLE_ENGAGE: 20,
   CIRCLE_GAIN: 1.5,
 };
+
+/**
+ * The knobs, described well enough to put on screen (`CubeTuningPanel`).
+ *
+ * A spike's numbers are guesses until they have been in a hand, and this one has
+ * now been round the loop four times on feel alone. Handing the operator the
+ * dials directly is cheaper than another round trip per number.
+ */
+export const TUNABLES = [
+  { key: 'CIRCLE_ENGAGE', label: 'Circle catch', step: 2, min: 4, max: 60, unit: '°',
+    hint: 'Arc before the front face catches. Lower is easier to trigger.' },
+  { key: 'CIRCLE_GAIN', label: 'Circle gain', step: 0.1, min: 0.3, max: 4, unit: '×',
+    hint: 'Face turn per finger turn. Higher needs less finger.' },
+  { key: 'ARC_SMOOTH', label: 'Smoothing', step: 0.05, min: 0.05, max: 1, unit: '',
+    hint: 'How fast the drawn angle chases the measured one. Lower is smoother.' },
+  { key: 'ARC_STEP', label: 'Sample step', step: 1, min: 1, max: 16, unit: 'pt',
+    hint: 'Finger travel between direction samples. Higher is less noisy.' },
+  { key: 'ARC_MAX_TURN', label: 'Max per sample', step: 5, min: 30, max: 179, unit: '°',
+    hint: 'Guard against a fast flick reading backward.' },
+  { key: 'QUARTER_POINTS', label: 'Drag per quarter', step: 5, min: 40, max: 260, unit: 'pt',
+    hint: 'How far a straight drag turns a layer a quarter.' },
+  { key: 'COMMIT_T', label: 'Detent', step: 0.02, min: 0.05, max: 0.9, unit: '',
+    hint: 'How far round before letting go writes the move.' },
+  { key: 'WIDE_BAND', label: 'Wide band', step: 0.05, min: 0.05, max: 0.6, unit: '',
+    hint: 'How near the line between two pieces counts as on it.' },
+];
+
+/** The values this file shipped with, so the panel can put them back. */
+export const TUNING_DEFAULTS = { ...TUNING };
 
 const QUARTER_RADIANS = Math.PI / 2;
 
@@ -531,11 +570,14 @@ export const advanceSweep = (state, point, tuning = TUNING) => {
   if (length < tuning.ARC_STEP) return state;
 
   const direction = [step[0] / length, step[1] / length];
-  return {
-    node: point,
-    direction,
-    sweep: state.direction ? state.sweep + signedAngle(state.direction, direction) : state.sweep,
-  };
+  if (!state.direction) return { node: point, direction, sweep: state.sweep };
+
+  // Clamped, because `atan2` cannot tell a big turn one way from a small one the
+  // other. See `ARC_MAX_TURN`.
+  const limit = (tuning.ARC_MAX_TURN * Math.PI) / 180;
+  const turned = Math.max(-limit, Math.min(limit, signedAngle(state.direction, direction)));
+
+  return { node: point, direction, sweep: state.sweep + turned };
 };
 
 /** How far a whole path turns, in radians, clockwise-positive. The fold of
@@ -575,7 +617,7 @@ export const arcSweep = (path, tuning = TUNING) => {
  *   what gets written if the finger comes up now. `commit` is null while the
  *   circle is still nearer to where it started than to a quarter turn.
  */
-export const circleMove = ({ sweep, yaw, pitch, tuning = TUNING }) => {
+export const circleMove = ({ sweep, yaw, pitch, atLeast = 0, tuning = TUNING }) => {
   const engaged = Math.abs(sweep) - (tuning.CIRCLE_ENGAGE * Math.PI) / 180;
   if (engaged <= 0) return null;
 
@@ -595,7 +637,15 @@ export const circleMove = ({ sweep, yaw, pitch, tuning = TUNING }) => {
   // What to draw: the whole quarter turn currently being travelled into, and how
   // far along it. Crossing from one quarter to the next is continuous — the
   // angle `turnAngle` works out is the same on both sides of the boundary.
-  const drawn = Math.max(1, Math.ceil(quarters));
+  //
+  // **`atLeast` is what stops the cube flickering.** The drawn angle is
+  // `turns × t`, which is `unit × quarters` however this is split — so the
+  // *picture* does not care what `drawn` is. The renderer does: it keys every
+  // polygon by where the move sends it, so a `drawn` that flips between one and
+  // two as the reading wobbles across a quarter boundary re-keys all 54 faces,
+  // twice a frame, and they visibly blink. Never letting it shrink within a
+  // gesture costs nothing and holds the keys still.
+  const drawn = Math.max(1, Math.ceil(quarters), atLeast);
   const turns = unit * drawn;
 
   const landed = Math.round(quarters);
