@@ -67,9 +67,13 @@ export const TUNING = {
   /**
    * Circling a finger to turn the face you are looking at (§3.3c).
    *
-   * - `ARC_STEP` — how far the finger travels between direction samples. Long
-   *   enough that the jitter in a slow drag does not read as curvature, short
-   *   enough that a *small* curve still gets several samples.
+   * - `ARC_STEP` — how far the finger travels between direction samples. Short,
+   *   so the reading advances often; the jitter that comes with a short baseline
+   *   cancels in the total and is smoothed out of the picture by `ARC_SMOOTH`.
+   * - `ARC_SMOOTH` — how much of the gap to the measured sweep the **drawn**
+   *   angle closes each frame, 0 to 1. This is a display filter and nothing else
+   *   (see `advanceSweep` for why it must not be applied to the measurement).
+   *   Lower is smoother and laggier.
    * - `CIRCLE_ENGAGE` — degrees of arc before the face catches, and the whole of
    *   the protection against an ordinary straight drag being read as a curve.
    * - `CIRCLE_GAIN` — degrees of face per degree of finger, after it has caught.
@@ -82,6 +86,7 @@ export const TUNING = {
    * two directions" — is comfortably one. Keep circling and it keeps turning.
    */
   ARC_STEP: 4,
+  ARC_SMOOTH: 0.3,
   CIRCLE_ENGAGE: 20,
   CIRCLE_GAIN: 1.5,
 };
@@ -506,10 +511,19 @@ export const startSweep = (point) => ({ node: point, direction: null, sweep: 0 }
  * nothing at all. So the same number tells a circle from a push *and* says how
  * far round the circle has got.
  *
- * Samples are taken every `ARC_STEP` points rather than every frame. A slow drag
- * reports a lot of nearly-identical positions, and the angle between two of them
- * is noise — accumulating that noise is what would make a straight drag slowly
- * read as a curve.
+ * ### This measures; it does not smooth. The two are not the same job
+ *
+ * A finger's heading is noisy, and the noise alternates in sign. **The total
+ * does not care** — this sum telescopes, so a wobble one way and back cancels
+ * exactly — but every value along the way does, and a face following them rocks
+ * backward and forward as it advances. That was the operator's "jerky".
+ *
+ * The fix belongs on the *display* and not here (`useCubeTouch`), and the
+ * difference is not cosmetic: easing the heading before accumulating loses real
+ * rotation, because a heading that lags a finger still turning is a heading that
+ * never catches up. Measured against a 90° curve it read 75°, and against a full
+ * circle 285° — which would have made the gesture harder to trigger all over
+ * again. So the measurement stays exact and the picture gets the smoothing.
  */
 export const advanceSweep = (state, point, tuning = TUNING) => {
   const step = [point[0] - state.node[0], point[1] - state.node[1]];

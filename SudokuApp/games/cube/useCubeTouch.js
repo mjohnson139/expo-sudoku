@@ -116,6 +116,13 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
     // How much the finger's own direction has turned so far — a circle's worth
     // of arc, or nothing at all for a straight drag.
     sweep: null,
+    // The same number, chasing it. Drawing the measurement raw is what made the
+    // face jerk: the measurement is exact but its noise alternates in sign, so
+    // the face advanced in steps and rocked back between them. This closes a
+    // fraction of the gap each frame, which is smooth to watch and — because it
+    // is what the face is drawn from — is also what gets committed. What you see
+    // is what you get.
+    shown: 0,
     // Once the circle has caught, it keeps the gesture: the face is following
     // the finger and a straight-drag reading must not take it back.
     angular: false,
@@ -207,6 +214,7 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         g.from = [locationX, locationY];
         g.polygons = frame.polygons;
         g.sweep = startSweep([locationX, locationY]);
+        g.shown = 0;
         g.angular = false;
 
         // Turning switched off, or a second finger already down: orbit, and do
@@ -262,6 +270,7 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
 
         const to = [g.from[0] + dx, g.from[1] + dy];
         g.sweep = advanceSweep(g.sweep, to);
+        g.shown += (g.sweep.sweep - g.shown) * TUNING.ARC_SMOOTH;
 
         // **The circle is asked first, and it is asked for as long as the finger
         // is down.** It is the only way to name the face pointing at the camera
@@ -274,9 +283,7 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         // of what is on screen, and requiring the curve to begin inside it was
         // half of why this was hard to invoke. A curve is deliberate wherever it
         // starts; a straight drag on a side face still means what it meant.
-        const circle = g.pick
-          ? circleMove({ sweep: g.sweep.sweep, yaw: y, pitch: p })
-          : null;
+        const circle = g.pick ? circleMove({ sweep: g.shown, yaw: y, pitch: p }) : null;
 
         if (circle) {
           if (g.mode === 'undecided') {

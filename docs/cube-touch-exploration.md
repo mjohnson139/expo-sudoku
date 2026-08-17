@@ -377,6 +377,18 @@ after ninety degrees, so it still works.
   nearly-identical positions and the angle between two of them is noise;
   accumulating that noise is what would make a straight drag slowly read as a
   curve.
+- **Measuring and smoothing are separate jobs, and mixing them is a real bug.**
+  The measurement is exact: the sum telescopes, so a wobble one way and back
+  cancels. But every value *along the way* is noisy and steps forward only when a
+  sample lands, so a face drawn straight from it advances in jumps and rocks
+  backward between them — the operator's "jerky". The fix is a filter on the
+  **drawn** angle (`ARC_SMOOTH`, in the hook), chasing the measurement a fraction
+  of the gap per frame. Easing the *heading* before accumulating looks like the
+  same idea and is not: a heading that lags a finger still turning never catches
+  up, and it measured a 90° curve as 75° and a full circle as 285°, which would
+  have made the gesture hard to trigger all over again. The sweep tests pin this.
+  Because the drawn angle is also what gets committed, what you see is what you
+  get.
 - **Screen coordinates run y-down**, so a positive turn is *clockwise on the
   glass* — the direction the operator sees themselves drawing.
 - **Clockwise on the glass is `amount` +1 only for the three faces on the
