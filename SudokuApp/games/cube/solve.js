@@ -12,7 +12,7 @@
  * canonical `Rw` spelling stays an implementation detail of the move.
  */
 
-import { algError, moveCount, tokenize, tryTokenize } from './moves';
+import { algError, moveCount, parseMove, tokenize, tryTokenize } from './moves';
 
 /**
  * The pad, as a **spatial cross** (docs/cube-plan.md §8.8, Step 8).
@@ -193,6 +193,61 @@ export const promoteLastToken = (alg, key) => {
   if (!tokens || tokens.length === 0) return null;
   if (tokens[tokens.length - 1] !== key) return null;
   return [...tokens.slice(0, -1), `${key}2`].join(' ');
+};
+
+/** A token split into the letter it turns and the modifiers on it. */
+const TOKEN_PARTS = /^([UDLRFBMESudlrfbxyz]w?)([2'’]*)$/;
+
+/**
+ * Fold a move into the one already written when they are the same turn twice —
+ * `… R` plus another `R` becomes `… R2`.
+ *
+ * The sibling of `promoteLastToken`, for moves that arrive by **gesture** rather
+ * than by a second tap on a key. It cannot reuse that one: the pad knows it was
+ * pressed twice and can work on the key's name, while a turned layer knows only
+ * what it is, so this has to compare the *moves* — same axis, same layers — and
+ * then spell the result. That also makes it right about the things a pad key
+ * cannot say: `r` folds into `r2`, and `R'` twice is `R2` rather than the `R'2`
+ * a string concatenation would produce.
+ *
+ * Returns `null` when there is nothing to fold, which the caller reads as
+ * "append instead".
+ *
+ * ### Only two quarters, and only into a half
+ *
+ * A quarter turn either side, and nothing else. Three in a row leaves `R2 R`
+ * rather than becoming `R'`, which is what the pad's third tap does and keeps
+ * the two routes telling the same story; and a quarter followed by its own
+ * inverse is left as `R R'` rather than cancelling to nothing, because silently
+ * eating both halves of a move the operator can still see is a worse surprise
+ * than a redundant pair they can undo.
+ *
+ * **The guard is the text**, as it is for `promoteLastToken` and for the same
+ * reason: an undo in flight has not removed its token yet, and a fold that
+ * rewrote a move which was about to be dropped would resurrect it.
+ */
+export const condenseRepeat = (alg, token) => {
+  const tokens = tryTokenize(alg);
+  if (!tokens || tokens.length === 0) return null;
+
+  const last = tokens[tokens.length - 1];
+  const before = parseMove(last);
+  const added = parseMove(token);
+  if (!before || !added) return null;
+
+  if (before.axis !== added.axis) return null;
+  if (before.layers.length !== added.layers.length) return null;
+  if (before.layers.some((layer, i) => layer !== added.layers[i])) return null;
+
+  // Quarters only. A half turn on either side is a third move, not a second.
+  if (before.amount === 2 || added.amount === 2) return null;
+  // The two undo each other. Leave them both and let the operator decide.
+  if ((before.amount + added.amount) % 4 !== 2) return null;
+
+  const parts = TOKEN_PARTS.exec(last);
+  if (!parts) return null;
+
+  return [...tokens.slice(0, -1), `${parts[1]}2`].join(' ');
 };
 
 /**

@@ -18,6 +18,7 @@ import {
   appendAlg,
   appendToken,
   applyPadPress,
+  condenseRepeat,
   describeSolve,
   describeToken,
   dropLastToken,
@@ -27,7 +28,7 @@ import {
   solveError,
 } from '../solve';
 import { cubeFromAlg } from '../cubeState';
-import { isValidAlg, parseMove, tokenize } from '../moves';
+import { isValidAlg, parseAlg, parseMove, tokenize } from '../moves';
 
 describe('PAD_LAYOUT', () => {
   it('fills a six-by-three grid exactly', () => {
@@ -437,5 +438,60 @@ describe('describeToken', () => {
   it('names the two slices the pad only just gained', () => {
     expect(describeToken('E')).toBe('E slice');
     expect(describeToken("S'")).toBe('S slice prime');
+  });
+});
+
+describe('condenseRepeat', () => {
+  it('folds the same quarter turn twice into a half turn', () => {
+    expect(condenseRepeat('R', 'R')).toBe('R2');
+    expect(condenseRepeat('F U R', 'R')).toBe('F U R2');
+  });
+
+  it('folds two primes the same way, and spells it without the prime', () => {
+    // Two counter-clockwise quarters are a half turn, and a half turn has no
+    // direction — `R'2` would parse, but nobody writes it.
+    expect(condenseRepeat("R'", "R'")).toBe('R2');
+  });
+
+  it('folds a wide turn into its own half turn', () => {
+    expect(condenseRepeat('r', 'r')).toBe('r2');
+    expect(condenseRepeat("l'", "l'")).toBe('l2');
+  });
+
+  it('folds slices too', () => {
+    expect(condenseRepeat('M', 'M')).toBe('M2');
+  });
+
+  it('leaves a move and its inverse alone rather than eating both', () => {
+    expect(condenseRepeat('R', "R'")).toBeNull();
+    expect(condenseRepeat("R'", 'R')).toBeNull();
+  });
+
+  it('does not fold a third turn — that is a new move, as it is on the pad', () => {
+    expect(condenseRepeat('R2', 'R')).toBeNull();
+    expect(condenseRepeat('R', 'R2')).toBeNull();
+  });
+
+  it('refuses anything that is not the same layer of the same axis', () => {
+    expect(condenseRepeat('R', 'L')).toBeNull();
+    expect(condenseRepeat('R', 'U')).toBeNull();
+    expect(condenseRepeat('R', 'M')).toBeNull();
+    // A face and its wide turn are different layers, whatever the letter.
+    expect(condenseRepeat('R', 'r')).toBeNull();
+  });
+
+  it('has nothing to fold into on an empty solve', () => {
+    expect(condenseRepeat('', 'R')).toBeNull();
+  });
+
+  it('leaves the rest of the algorithm exactly as it was written', () => {
+    expect(condenseRepeat("r U r' F", 'F')).toBe("r U r' F2");
+  });
+
+  it('produces something the parser reads back as the same two turns', () => {
+    const folded = condenseRepeat('R', 'R');
+    expect(parseAlg(folded)).toHaveLength(1);
+    expect(parseAlg(folded)[0].amount).toBe(2);
+    expect(parseAlg(folded)[0].axis).toBe(parseMove('R').axis);
   });
 });

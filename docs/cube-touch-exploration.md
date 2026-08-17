@@ -532,8 +532,19 @@ Open, and only a hand can close them:
    feedback. That may be enough — it is the feedback a real cube gives — or the
    first thing to add. §5.5's warning about style variants applies the moment it
    is.
-5. **Two gesture turns in a row are `R R`, not `R2`.** The pad promotes on a
-   second tap; the gesture does not. Honest, and possibly wrong.
+5. ~~**Two gesture turns in a row are `R R`, not `R2`.**~~ **Done** — turning the
+   same layer the same way twice folds into a half turn (`condenseRepeat`, beside
+   the pad's `promoteLastToken` in `solve.js`). It compares the *moves* rather
+   than a key's name, so `r` folds into `r2` and `R'` twice comes out `R2` rather
+   than the `R'2` a string concatenation would give. Quarters only: three in a
+   row leaves `R2 R`, exactly as a third tap on the pad does, and `R R'` is left
+   alone rather than silently eating a move that is still on screen.
+
+   The transport needed one line for it. A fold *rewrites* the last token instead
+   of adding one, which `promotedTurn` already recognises as the pad's second tap
+   — but a gesture has carried the layer part-way into that second quarter
+   before letting go, so the handoff's `t` is folded into where the half turn
+   picks up rather than the pad's flat halfway.
 
 ## 6. How to know it worked
 

@@ -27,6 +27,7 @@ import {
   appendAlg,
   appendToken,
   applyPadPress,
+  condenseRepeat,
   dropLastToken,
   promoteLastToken,
 } from './solve';
@@ -287,7 +288,14 @@ const CubeSolve = ({ navigation }) => {
   const commitTurn = useCallback(
     (move, t) => {
       handoff(t);
-      editOpen((current) => withMoves(current, appendToken(current.alg, move.token)));
+      editOpen((current) =>
+        withMoves(
+          current,
+          // Turning the same layer the same way twice is one half turn, not two
+          // quarters — the gesture's version of the pad's second tap.
+          condenseRepeat(current.alg, move.token) ?? appendToken(current.alg, move.token)
+        )
+      );
       requestAnimationFrame(() => setGestureTurn(null));
     },
     [handoff, editOpen]
