@@ -247,6 +247,54 @@ The reasoning above is an argument, and this document's whole thesis is that
 arguments about this repo's animation and orientation code have been wrong
 before.
 
+### 3.3a Which face — decided by the whole gesture, not the first pixel
+
+*Added 2026-08-17, after the first build was on a phone.* §3.3 answers "given
+this sticker, what does this drag mean". Asking that once, of the sticker the
+finger landed on, is not enough, and the operator found both reasons in one
+session:
+
+> "I might put my finger kind of in the middle on the left and then kind of
+> round up and over which would be moving the front face … we should make a
+> little vector of like touchdown and then direction and the angle and that
+> should determine which face, and it can change."
+
+- **A fingertip is wider than the edge between two faces.** Land near a corner
+  meaning the front face and the pick may well be the left one.
+- **A drag is not a straight line and does not arrive all at once.** Push up,
+  then curve over, and what you meant changed while your finger was down.
+
+So `chooseMove` reads the gesture rather than the landing: the sticker under the
+**start** and the sticker under the **finger now** are both asked what the drag
+means, and the question is asked again on every frame until the turn passes the
+detent.
+
+**The tie-break is the whole design, and picking the best-looking reading is not
+it.** Two faces that share an edge frequently read a drag along that edge
+*identically* — slide horizontally across the seam between the top face and the
+front one and both readings are built from the same `+x` direction, so their
+scores differ only by perspective rounding. Deciding by score there is a coin
+flip that lands differently frame to frame, which is the wobble this was meant to
+remove.
+
+So the **sticker you started on holds the gesture**, and a rival takes it only by
+beating it by `SWITCH_MARGIN`. Near-ties stay put, which is also what a real cube
+does — your fingertip stays on the sticker it pushed and the layer carries it
+onto the next face — while a genuinely better reading still wins, which is the
+fat-finger landing: start just inside the left face, sweep well onto the front
+one, and the front face wins by a mile rather than by a rounding error. Once a
+layer is turning it becomes the holder, on the same margin.
+
+**Past the detent the reading is locked.** A layer that swapped for another one
+that far round would be taking back a turn the operator has already watched
+happen.
+
+One consequence worth knowing before you go hunting for bugs: **adjacent faces
+usually agree.** A drag near a shared edge lies in the plane of both faces, so
+most of the time the two readings name the same move and the tie-break never
+runs. The cases where they differ are the ones where the drag runs *along* the
+seam.
+
 ### 3.4 Committing, and taking it back
 
 - Release past ~50% of a quarter turn (or fast enough): **commit** — write the
@@ -273,7 +321,10 @@ Two new files, and the smallest edits that would do to four existing ones.
     polygon containing the point. The plastic rim counts as part of its own face,
     so there is no dead gutter between stickers where a fingertip lands.
   - `moveForDrag({ pos, normal }, drag, { size, yaw, pitch })` →
-    `{ axis, layers, amount, token, screen }`.
+    `{ axis, layers, amount, token, screen, alignment }`.
+  - `chooseMove({ polygons, from, to, view, current })` → the move the *gesture*
+    means, re-asked every frame and free to change (§3.3a). This is the one that
+    the screen actually calls.
   - `turnProgress(drag, screen)` → `t`, and `shouldCommit(t, speed)`.
   - `TUNING` — the four numbers of §3.2, in one place to be argued with.
 - **`games/cube/useCubeTouch.js` — new.** The `PanResponder` that owns the
@@ -351,6 +402,9 @@ Settled, with tests behind them:
   positions per face, checked against the model rather than by eye.
 - The frame (§5.2). §3.3 above.
 - The commit not replaying itself — `handoff`, §3.2.
+- **Which face a gesture is about** (§3.3a), including the nine front-face drags
+  spelled out as a table you can check against a cube in your hand, and the
+  operator's own case: top-left corner, dragged right, turns the front layer.
 
 Open, and only a hand can close them:
 

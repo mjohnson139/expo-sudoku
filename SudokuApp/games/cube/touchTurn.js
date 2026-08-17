@@ -47,6 +47,13 @@ export const TUNING = {
   QUARTER_POINTS: 118,
   COMMIT_T: 0.22,
   FLING_SPEED: 520,
+  /**
+   * How much better a different reading of the drag has to be before the cube
+   * changes its mind (§3.3a). Zero would flicker between two moves every time
+   * the finger wandered across the angle that separates them; too high and the
+   * gesture stops listening once it has decided.
+   */
+  SWITCH_MARGIN: 0.12,
 };
 
 /**
@@ -158,8 +165,11 @@ const tokenFor = (axis, layer, turns) => {
  * @param {number[]} drag `[dx, dy]` in screen points, y down
  * @param {{size: number, yaw: number, pitch: number}} view what the cube is drawn with
  * @returns {{axis: number, layers: number[], amount: number, token: string,
- *   screen: number[]}|null} `screen` is the unit arrow the chosen direction
- *   points along, which is what `turnProgress` measures the drag against.
+ *   screen: number[], alignment: number}|null} `screen` is the unit arrow the
+ *   chosen direction points along, which is what `turnProgress` measures the
+ *   drag against. `alignment` is the cosine between the drag and that arrow —
+ *   *how much this reading looks like what the finger did*, which is what lets
+ *   `chooseMove` compare two of them.
  */
 export const moveForDrag = (pick, drag, view) => {
   const { pos, normal } = pick;
@@ -215,7 +225,104 @@ export const moveForDrag = (pick, drag, view) => {
     amount: normalizeAmount(turns),
     token,
     screen: best.unit,
+    alignment: best.alignment,
   };
+};
+
+/** How much a move already in progress still looks like the drag, now that the
+ *  drag has grown. The same number `moveForDrag` reports as `alignment`, asked
+ *  of a reading that was chosen a moment ago. */
+const alignmentOf = (move, drag, reach) =>
+  (drag[0] * move.screen[0] + drag[1] * move.screen[1]) / reach;
+
+/**
+ * The move a *gesture* means — start point, finger now, and the freedom to
+ * change its mind (§3.3a).
+ *
+ * `moveForDrag` answers "given this sticker, what does this drag mean". That is
+ * the wrong question to ask only once, and only of the sticker the finger landed
+ * on, for two reasons the operator hit immediately:
+ *
+ * - **A fingertip is wider than the edge between two faces.** Land near the
+ *   corner meaning the front face, and the pick may well be the left one. The
+ *   direction you then drag says which face you meant far more clearly than the
+ *   pixel you started on did.
+ * - **A drag is not a straight line and does not arrive all at once.** Push up,
+ *   then curve over, and the move you meant changed while your finger was down.
+ *
+ * So both the sticker under the **start** and the sticker under the **finger
+ * now** are read as candidates, each is asked what the drag means, and it is
+ * asked again on every frame until the turn locks, so it can change.
+ *
+ * ### Everything here is a tie-break, and the tie-break is what matters
+ *
+ * Picking whichever reading merely *looks* most like the drag is not enough, and
+ * the reason is worth keeping: **two faces that share an edge often read a drag
+ * along that edge identically.** Slide horizontally across the seam between the
+ * top face and the front one and both readings are built from the same `+x`
+ * direction, so their scores differ only by perspective rounding — a coin flip,
+ * landing differently from one frame to the next. That is exactly the wobble
+ * this function exists to remove, so it cannot be decided by score alone.
+ *
+ * The order is therefore: **the sticker you started on holds the gesture**, and
+ * a rival only takes it by beating it by `SWITCH_MARGIN`. That keeps the
+ * near-ties stable and matches what a real cube does — your fingertip stays on
+ * the sticker it pushed, and the layer carries it onto the next face — while
+ * still letting a genuinely better reading win, which is the fat-finger landing
+ * the operator hit: start just inside the left face, sweep well onto the front
+ * one, and the front face's reading wins by a mile rather than by a rounding
+ * error.
+ *
+ * `current` takes over as the holder once a layer is actually turning, for the
+ * same reason and with the same margin.
+ *
+ * @param {Object} options
+ * @param {Array} options.polygons the **still** cube's polygons — see the note
+ *   in `useCubeTouch` about why this must not be the frame with the turn in it
+ * @param {number[]} options.from where the finger went down
+ * @param {number[]} options.to where the finger is now
+ * @param {{size: number, yaw: number, pitch: number}} options.view
+ * @param {Object|null} [options.current] the move being turned, if any
+ * @returns {Object|null} the move to turn, `current` if nothing better is on
+ *   offer, or null if the drag is still too short to mean anything
+ */
+export const chooseMove = ({ polygons, from, to, view, current = null, tuning = TUNING }) => {
+  const drag = [to[0] - from[0], to[1] - from[1]];
+  const reach = Math.hypot(drag[0], drag[1]);
+  if (reach < tuning.DECIDE_POINTS) return current;
+
+  const readings = [];
+  const seen = new Set();
+
+  // The start goes in first, so it is the one that holds the gesture when
+  // nothing is turning yet.
+  [pickFace(polygons, from[0], from[1]), pickFace(polygons, to[0], to[1])].forEach((pick) => {
+    if (!pick) return;
+    // The finger usually has not left the sticker it started on, and asking the
+    // same question twice would only cost time.
+    const key = `${pick.pos.join(',')}|${pick.normal.join(',')}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    const move = moveForDrag(pick, drag, view);
+    if (move) readings.push(move);
+  });
+
+  if (readings.length === 0) return current;
+
+  let best = readings[0];
+  readings.forEach((move) => {
+    if (move.alignment > best.alignment) best = move;
+  });
+
+  // Whoever has to be beaten: the layer already turning, or failing that the
+  // reading taken where the finger went down.
+  const holder = current || readings[0];
+  if (best.token === holder.token) return holder;
+
+  return best.alignment > alignmentOf(holder, drag, reach) + tuning.SWITCH_MARGIN
+    ? best
+    : holder;
 };
 
 /**
@@ -243,4 +350,12 @@ export const turnProgress = (drag, screen, quarter = TUNING.QUARTER_POINTS) => {
 export const shouldCommit = (t, speed = 0, tuning = TUNING) =>
   t >= tuning.COMMIT_T || (t > 0.05 && speed >= tuning.FLING_SPEED);
 
-export default { TUNING, pickFace, moveForDrag, turnProgress, shouldCommit, AXIS };
+export default {
+  TUNING,
+  pickFace,
+  moveForDrag,
+  chooseMove,
+  turnProgress,
+  shouldCommit,
+  AXIS,
+};
