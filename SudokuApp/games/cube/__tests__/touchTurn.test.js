@@ -614,28 +614,44 @@ describe('circleMove', () => {
     expect(move.commit).toBeNull();
   });
 
-  it('keeps turning as the finger keeps circling', () => {
-    const half = circleMove({ sweep: arcSweep(curve([150, 150], [0, -20], 150)), ...front });
-    expect(half.commit.token).toBe('F2');
-
-    const three = circleMove({ sweep: arcSweep(curve([150, 150], [0, -20], 220)), ...front });
-    expect(three.commit.token).toBe("F'");
+  it('pins at one quarter however far the finger keeps circling', () => {
+    // It used to keep going -- `F2`, then `F'` -- and drawing that meant the
+    // quarter-turn count changed mid-turn, which re-keys every polygon in the
+    // renderer and makes the cube blink. One quarter per gesture is the shape
+    // every other gesture draws, and the shape that does not flash.
+    [150, 220, 400].forEach((sweptDegrees) => {
+      const move = circleMove({
+        sweep: arcSweep(curve([150, 150], [0, -20], sweptDegrees)),
+        ...front,
+      });
+      expect(move.commit.token).toBe('F');
+      expect(move.turns).toBe(1);
+      expect(move.t).toBe(1);
+    });
   });
 
   it('never asks for a whole rotation, which would be no move at all', () => {
     const move = circleMove({ sweep: arcSweep(curve([150, 150], [0, -20], 720)), ...front });
     expect(move.commit).not.toBeNull();
-    expect(Math.abs(move.turns)).toBeLessThanOrEqual(3);
+    expect(Math.abs(move.turns)).toBe(1);
   });
 
-  it('draws the face exactly where the finger has put it', () => {
-    const move = circleMove({ sweep: arcSweep(curve([150, 150], [0, -20], 150)), ...front });
-    // `turns` is the whole sweep being travelled and `t` how far along it, so
-    // their product is the angle in quarter turns — continuous across the
-    // boundary where one quarter becomes two.
-    const quarters = move.turns * move.t;
-    expect(Math.abs(quarters)).toBeGreaterThan(1);
-    expect(Math.abs(quarters)).toBeLessThan(3);
+  it('holds the quarter-turn count still for the whole gesture', () => {
+    // The property the flashing cost us. `amount` is what `buildScene` keys its
+    // polygons from, so if it ever differs between two frames of one gesture,
+    // all 54 faces remount and blink.
+    const amounts = new Set();
+    const turns = new Set();
+    for (let swept = 25; swept <= 400; swept += 5) {
+      const move = circleMove({ sweep: (swept * Math.PI) / 180, ...front });
+      if (!move) continue;
+      amounts.add(move.amount);
+      turns.add(move.turns);
+      expect(move.t).toBeGreaterThan(0);
+      expect(move.t).toBeLessThanOrEqual(1);
+    }
+    expect(amounts.size).toBe(1);
+    expect(turns.size).toBe(1);
   });
 
   it('turns whichever face the camera is looking at', () => {

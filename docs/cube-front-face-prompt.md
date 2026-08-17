@@ -110,6 +110,36 @@ the two legs to be near-square. It worked in tests and was *"a little successful
 but still really hard"* on a phone. Curvature accumulation subsumes it — an L is
 a curve that stopped after ninety degrees — and needs no corner to find.
 
+### 3.0 Drawing more than one quarter turn at a time — **this was the flashing**
+
+> "The turning isn't really that bad, it's working mostly… but the animation is
+> really bad. The colors flash and abruptly change and it's not a good turning
+> experience."
+
+The circle gesture originally let the face keep going round as you kept
+circling — `turns = ±ceil(quarters)`, so a long circle drew `F2` and then `F'`
+live. **That is what makes the cube blink**, and the cause is in the renderer
+rather than in the gesture: `buildScene` keys every polygon by *where the move
+sends it*, which depends on the quarter-turn count. A count that changes
+mid-gesture re-keys all fifty-four faces at once, React remounts every one of
+them, and they flash.
+
+Circles were the first gesture in this app ever to change that count while a
+finger was down. Every gesture before them held one quarter from beginning to
+end, and none of them flashed — which is why this looked fine in tests and was
+the worst thing in the app in a hand.
+
+`circleMove` now draws **one quarter, fixed, for the whole gesture** — the same
+shape a straight drag renders. Circling past a quarter pins the face there and
+waits. Multiple turns per gesture is what that gives up, and it should come back,
+but **the prerequisite is a renderer that can be handed a changing sweep without
+remounting** — a question about what a polygon's key should be, in `geometry.js`,
+not a question about gestures. Do not re-open it from the gesture side.
+
+Note this also retires the `atLeast` idea from §3.3: it was a patch on the same
+wound (pinning a count that should not have been varying) and is unnecessary once
+the count never varies.
+
 ### 3.3 The last pass, `1c9ecc1` — **reverted, animation broken**
 
 This is the one to be careful about, because it was aimed at a **real** problem

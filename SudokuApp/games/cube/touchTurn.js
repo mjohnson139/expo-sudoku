@@ -640,31 +640,49 @@ export const circleMove = ({ sweep, yaw, pitch, tuning = TUNING }) => {
   // cube, which is `amount` +1 only when that side is the axis's positive end.
   const unit = (sweep > 0 ? 1 : -1) * layer;
 
-  // Four quarters is a full rotation, which is no move at all — so a very
-  // enthusiastic circle stops at three rather than quietly coming to nothing.
-  const quarters = Math.min(3, (engaged * tuning.CIRCLE_GAIN) / QUARTER_RADIANS);
+  /**
+   * **One quarter turn, and only one, for the whole gesture.**
+   *
+   * This used to grow — `ceil(quarters)` — so that circling further kept the
+   * face going round and a long circle could draw `F2` or `F'` live. It looked
+   * right in a test and was the worst thing in the app on a phone: *"the colors
+   * flash and abruptly change, it's not a good turning experience"*.
+   *
+   * The reason is in the renderer, not here. `buildScene` keys every polygon by
+   * **where the move sends it**, which depends on the quarter-turn count — so a
+   * count that changes mid-turn re-keys all fifty-four faces at once, React
+   * remounts every one of them, and they blink. Circles were the first gesture
+   * ever to change that count while a finger was down; every gesture before them
+   * held one quarter from beginning to end, and none of them flashed.
+   *
+   * So this is back to the shape that works, and it is the same shape a straight
+   * drag renders: `turns` fixed at ±1, `t` from 0 to 1, one quarter committed.
+   * Circling further than a quarter pins the face at a quarter rather than
+   * carrying on — keep circling and it waits for you, which is undramatic and
+   * does not blink.
+   *
+   * **Multiple turns per gesture is what this gives up**, and it should come
+   * back — but only after the renderer can be handed a changing sweep without
+   * remounting, which is a `geometry.js` question about what a polygon's key
+   * should be, not a gesture question.
+   */
+  const quarters = Math.min(1, (engaged * tuning.CIRCLE_GAIN) / QUARTER_RADIANS);
+  const turns = unit;
 
-  // What to draw: the whole quarter turn currently being travelled into, and how
-  // far along it. Crossing from one quarter to the next is continuous — the
-  // angle `turnAngle` works out is the same on both sides of the boundary.
-  const drawn = Math.max(1, Math.ceil(quarters));
-  const turns = unit * drawn;
-
-  const landed = Math.round(quarters);
-  const token = landed > 0 ? tokenFor(axis, layer, unit * landed) : null;
+  // Half-way round is far enough to mean it, which is the same detent every
+  // other gesture uses, expressed as an angle.
+  const token = quarters >= 0.5 ? tokenFor(axis, layer, unit) : null;
 
   return {
     axis,
     layers: [layer],
     amount: normalizeAmount(turns),
     turns,
-    t: quarters / drawn,
+    t: quarters,
     // The gesture is an angle, so its progress is not a distance along an arrow
     // and `turnProgress` must not be asked about it.
     angular: true,
-    commit: token
-      ? { turns: unit * landed, amount: normalizeAmount(unit * landed), token }
-      : null,
+    commit: token ? { turns, amount: normalizeAmount(turns), token } : null,
   };
 };
 
