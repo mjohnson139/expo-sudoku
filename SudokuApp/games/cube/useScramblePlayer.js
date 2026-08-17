@@ -100,6 +100,8 @@ const useScramblePlayer = (alg, from) => {
   // The caller's half of an undo — dropping the move — held until the backwards
   // turn has run. See `retract`.
   const retractRef = useRef(null);
+  // How far round the *next* appended move already is. See `handoff`.
+  const handoffRef = useRef(null);
 
   movesRef.current = moves;
 
@@ -369,6 +371,25 @@ const useScramblePlayer = (alg, from) => {
     [pause, setIndex]
   );
 
+  /**
+   * "The next move appended is already `t` of the way round."
+   *
+   * A move entered by *dragging the layer* (`useCubeTouch`) has been turning
+   * under a finger before it was ever a token, and it arrives here the way every
+   * other edit does — as a longer algorithm. Without this the growth below would
+   * animate it from zero, which snaps the layer back to where the drag started
+   * and turns it a second time.
+   *
+   * It is one call rather than an argument to `playTo` because it describes one
+   * *edit*, not a mode: the caller says it immediately before the append that it
+   * belongs to, and anything else that changes the algorithm first clears it. The
+   * sweep itself is `animate`'s existing `from` — the same option the pad's
+   * promotion carries the second quarter of an `R2` on, for the same reason.
+   */
+  const handoff = useCallback((t) => {
+    handoffRef.current = Number.isFinite(t) ? Math.max(0, Math.min(1, t)) : null;
+  }, []);
+
   // A new scramble — or a favorite loaded back — opens fully applied, which is
   // the cube this screen showed before it could play anything. Where you were
   // in the last scramble is not somewhere to be in this one.
@@ -397,7 +418,22 @@ const useScramblePlayer = (alg, from) => {
       previousFrom === from &&
       extendsAlg(previousAlg, alg, heading);
 
+    // Claimed by whichever change arrives next, and spent by that one only: a
+    // handoff left lying around would start some later, unrelated move part-way
+    // through itself.
+    const resumeFrom = handoffRef.current;
+    handoffRef.current = null;
+
     if (growing) {
+      // One move, added on the end, already part-way round because a finger put
+      // it there. Carry on from where the drag left it instead of starting over.
+      if (resumeFrom !== null && moves.length === heading + 1) {
+        goalRef.current = moves.length;
+        setPlaying(false);
+        animate(moves.length - 1, true, undefined, { from: resumeFrom });
+        return;
+      }
+
       // Settles the in-flight turn and walks on from there; if nothing was
       // added after all, it is a no-op.
       playTo(moves.length);
@@ -466,6 +502,7 @@ const useScramblePlayer = (alg, from) => {
     stepBack,
     retract,
     seek,
+    handoff,
     cycleSpeed,
   };
 };

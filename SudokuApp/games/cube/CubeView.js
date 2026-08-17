@@ -1,15 +1,9 @@
-import React, { useMemo, useRef } from 'react';
-import { PanResponder, View, StyleSheet } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, StyleSheet } from 'react-native';
 import Svg, { Polygon } from 'react-native-svg';
-import {
-  DEFAULT_PITCH,
-  DEFAULT_YAW,
-  RADIANS_PER_POINT,
-  buildScene,
-  isUpsideDown,
-  wrapAngle,
-} from './geometry';
+import { DEFAULT_PITCH, DEFAULT_YAW, buildScene } from './geometry';
 import { STICKER_COLORS } from './cubeState';
+import useCubeTouch from './useCubeTouch';
 
 /**
  * The 3D cube, drawn as SVG polygons and turned with a finger
@@ -29,6 +23,15 @@ import { STICKER_COLORS } from './cubeState';
  * The component is **controlled**: `yaw`/`pitch` come from the screen so a
  * "reset view" button is a state change like any other, and so the angle the
  * player left the cube at survives a new scramble.
+ *
+ * ### The gesture lives in a hook, not here
+ *
+ * Dragging used to mean one thing — orbit — and the responder that did it was
+ * twenty lines in this file. `useCubeTouch` owns it now, because a drag can also
+ * mean *turn this layer* (docs/cube-touch-exploration.md), and telling those
+ * apart is enough logic to be worth testing away from a renderer. **Passing no
+ * `turning` prop gives back exactly the old behaviour**, which is what keeps the
+ * spike one prop away from being switched off.
  */
 const CubeView = ({
   cube,
@@ -37,63 +40,11 @@ const CubeView = ({
   pitch = DEFAULT_PITCH,
   onOrbit,
   turn = null,
+  turning = null,
   colors = STICKER_COLORS,
   accessibilityLabel,
+  accessibilityHint,
 }) => {
-  // The pan handlers are created once, so they must not close over `yaw`,
-  // `pitch` or `onOrbit` — the first render's values would be frozen into them
-  // and every drag would start from the cube's opening angle. A ref updated on
-  // each render is what keeps them current.
-  const live = useRef({ yaw, pitch, onOrbit });
-  live.current = { yaw, pitch, onOrbit };
-
-  // Where the cube was when this drag started. `gestureState.dx/dy` are measured
-  // from the touch-down point, so anchoring here means no accumulated drift and
-  // no jump when a second finger lands.
-  const grabbed = useRef({ yaw, pitch });
-
-  const panResponder = useRef(
-    PanResponder.create({
-      // Claim the gesture outright. The cube owns its whole square, there is
-      // nothing scrollable underneath it on this screen, and a threshold would
-      // only cost the first few degrees of every turn.
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
-      onPanResponderTerminationRequest: () => false,
-
-      onPanResponderGrant: () => {
-        grabbed.current = { yaw: live.current.yaw, pitch: live.current.pitch };
-      },
-
-      onPanResponderMove: (_event, gesture) => {
-        const handler = live.current.onOrbit;
-        if (!handler) return;
-
-        // Drag right and the cube turns right, bringing the left face round;
-        // drag down and it tips its top toward you. Both are "push the surface
-        // under your finger", which is the only mapping that needs no learning.
-        //
-        // **The cube turns all the way over**, and that is load-bearing: pitch
-        // used to be clamped short of ±90° so it could never go past its pole,
-        // which quietly made yellow-up impossible to pick (see
-        // `geometry.isUpsideDown`). So the pole is crossed, and the horizontal
-        // drag is reversed on the far side of it to keep pushing the surface
-        // under the finger rather than away from it.
-        //
-        // The flip is read from the pitch this drag *started* at, not the live
-        // one: a drag that crosses the pole halfway through would otherwise
-        // reverse under the finger mid-gesture, which is a worse thing to feel
-        // than the slight horizontal drift it avoids.
-        const flip = isUpsideDown(grabbed.current.pitch) ? -1 : 1;
-
-        const nextYaw = grabbed.current.yaw + flip * gesture.dx * RADIANS_PER_POINT;
-        const nextPitch = grabbed.current.pitch + gesture.dy * RADIANS_PER_POINT;
-
-        handler(wrapAngle(nextYaw), wrapAngle(nextPitch));
-      },
-    })
-  ).current;
-
   // Rebuilt on every frame of a turn, which is the whole cost of the animation
   // and the reason the polygon budget is worth keeping small: 27 faces at rest,
   // and a dozen more plastic seams while a layer is part-way round.
@@ -102,9 +53,14 @@ const CubeView = ({
     [cube, size, yaw, pitch, colors, turn]
   );
 
+  // The scene goes in because picking a sticker is a point-in-polygon test
+  // against the frame on screen — the cube the finger can see is the cube it is
+  // allowed to grab.
+  const panHandlers = useCubeTouch({ scene, size, yaw, pitch, onOrbit, turning });
+
   return (
     <View
-      {...panResponder.panHandlers}
+      {...panHandlers}
       // Android flattens views it thinks are inert; a view that exists only to
       // catch touches is exactly the kind it gets wrong.
       collapsable={false}
@@ -112,7 +68,9 @@ const CubeView = ({
       accessible
       accessibilityRole="image"
       accessibilityLabel={accessibilityLabel || 'Scrambled cube'}
-      accessibilityHint="Drag to turn the cube and see the other faces"
+      accessibilityHint={
+        accessibilityHint || 'Drag to turn the cube and see the other faces'
+      }
     >
       <Svg width={size} height={size}>
         {/* No backdrop: every visible cubie face is drawn plastic-first, edge to

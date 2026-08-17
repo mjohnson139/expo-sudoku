@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Platform, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
@@ -25,6 +25,7 @@ import {
 import {
   PROMOTE_MS,
   appendAlg,
+  appendToken,
   applyPadPress,
   dropLastToken,
   promoteLastToken,
@@ -247,7 +248,7 @@ const CubeSolve = ({ navigation }) => {
   const startingCube = useMemo(() => orientedCube, [orientedCube, openId]);
 
   const player = useScramblePlayer(solve, startingCube);
-  const { pause, playTo, retract, seek } = player;
+  const { handoff, pause, playTo, retract, seek } = player;
 
   const onOrbit = useCallback(
     (nextYaw, nextPitch) => {
@@ -255,6 +256,59 @@ const CubeSolve = ({ navigation }) => {
       turnTo(nextYaw, nextPitch);
     },
     [pause, turnTo]
+  );
+
+  // ——— Writing a move by turning the layer (docs/cube-touch-exploration.md) ——
+
+  /**
+   * The layer a finger is part-way through turning.
+   *
+   * It sits *in front of* the transport's own turn while a drag is live, because
+   * for those few hundred milliseconds the finger is the clock. There is never
+   * one of each: engaging pauses playback, exactly as a tap on the pad does.
+   */
+  const [gestureTurn, setGestureTurn] = useState(null);
+
+  /**
+   * A drag that earned its move.
+   *
+   * The order matters and is the whole of the handoff: **tell the transport how
+   * far round the move already is, then append it.** The append is what makes it
+   * a move — through `editOpen` and `withMoves`, the same two doors every other
+   * edit goes through, so a gesture-entered move is undoable, phase-clamped,
+   * persisted and comparable like any other. The handoff is what stops the
+   * transport animating it from zero, which would snap the layer back under the
+   * finger that had just turned it.
+   *
+   * Dropping the gesture's own frame waits a frame: the transport's first frame
+   * is at exactly the `t` this one is frozen at, so handing over on the next tick
+   * swaps two identical pictures.
+   */
+  const commitTurn = useCallback(
+    (move, t) => {
+      handoff(t);
+      editOpen((current) => withMoves(current, appendToken(current.alg, move.token)));
+      requestAnimationFrame(() => setGestureTurn(null));
+    },
+    [handoff, editOpen]
+  );
+
+  /**
+   * What the cube does with a finger on it, or `null` for orbit-only.
+   *
+   * Two phases say no. **Inspecting** is panning to *find the hold* — the cube
+   * is not a cube you are writing on yet, and a layer turning during it would
+   * change the very thing being chosen (`CubeSolve` §"Two phases"). **Web** gets
+   * mouse events with no second finger, so there would be no way left to orbit
+   * that is not a button; the exploration doc §5.4 calls degrading to today's
+   * behaviour there a legitimate answer, and this is it.
+   */
+  const turning = useMemo(
+    () =>
+      orientation === null || Platform.OS === 'web'
+        ? null
+        : { onTurn: setGestureTurn, onCommit: commitTurn, onPause: pause },
+    [orientation, commitTurn, pause]
   );
 
   /**
@@ -667,12 +721,20 @@ const CubeSolve = ({ navigation }) => {
       <View style={styles.stage} onLayout={measureStage}>
         <CubeView
           cube={player.cube}
-          turn={player.turn}
+          // The finger in front of the clock: while a layer is being dragged it
+          // *is* what the cube is doing, and playback has already been paused.
+          turn={gestureTurn || player.turn}
           size={cubeSize}
           yaw={yaw}
           pitch={pitch}
           onOrbit={onOrbit}
+          turning={turning}
           accessibilityLabel={`Cube — ${announcePosition(player.index, player.count, 'solve')}`}
+          accessibilityHint={
+            turning
+              ? 'Drag a sticker to turn that layer, or drag with two fingers to turn the whole cube'
+              : undefined
+          }
         />
       </View>
 
