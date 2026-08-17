@@ -262,7 +262,7 @@ injected-clock convention.
 counts and recency; the in-progress one is top and accented; a new scramble
 empties it; long-press reaches every management action.
 
-**Landed 2026-08-17** (PR #110, against `epic/cube-flow`). `CubeSolveList`,
+**Landed 2026-08-17** (PR #111, against `epic/cube-flow`). `CubeSolveList`,
 `CubeSolveMenu`, `recency.js` and `solveCards.js` are new; `CubeSolvesModal`
 became `CubeCompareModal`, the Compare half of itself. **Three calls the brief
 did not make, all forced by measurement or by the browser:**

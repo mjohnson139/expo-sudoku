@@ -146,7 +146,7 @@ Six things Step 4 inherits and should not rediscover:
   leave first.
 - **The title is `Scramble`, and `Reset the view` was removed** to make the four
   fit. That is the one V1 affordance this step dropped; it is flagged for the
-  operator in PR #110 and may come back if they miss it.
+  operator in PR #111 and may come back if they miss it.
 - **Compare is a button beside `+ New solve`, not a header icon** — open question
   2 answered with its own alternative, because a sixth control did not fit. It is
   also still on the solve screen, where the notebook button used to be. Both
