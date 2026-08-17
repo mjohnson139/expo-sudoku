@@ -415,6 +415,21 @@ rather than only on the face it turns: at the angle the cube opens at, the front
 face is only part of what is on screen, and requiring the curve to begin inside
 it was the other half of why this was hard to invoke.
 
+### 3.3d Where this stands, and where to pick it up
+
+*2026-08-17.* §3.3c is where the spike stopped, at `5707ae6` — the front face
+triggers reliably and the turn follows the finger smoothly, which is the best
+this has been. **One problem is open: fast movement.** The turn goes wrong at
+speed and the colours flicker, and an attempt to fix it by reasoning
+(`1c9ecc1` — a per-sample angle clamp and a pin on the drawn sweep, shipped
+together) made the animation worse and was reverted.
+
+**`docs/cube-front-face-prompt.md` is the brief for the next attempt.** It
+carries what is settled, the three things that have been tried and failed, and
+why each failed — including the one that looks most like the obvious fix and is
+not (smoothing the measurement rather than the picture). Read it before touching
+this area again.
+
 ### 3.4 Committing, and taking it back
 
 - Release past ~50% of a quarter turn (or fast enough): **commit** — write the
