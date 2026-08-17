@@ -41,6 +41,7 @@ const CubeView = ({
   onOrbit,
   turn = null,
   turning = null,
+  onDebug = null,
   colors = STICKER_COLORS,
   accessibilityLabel,
   accessibilityHint,
@@ -56,7 +57,7 @@ const CubeView = ({
   // The scene goes in because picking a sticker is a point-in-polygon test
   // against the frame on screen — the cube the finger can see is the cube it is
   // allowed to grab.
-  const panHandlers = useCubeTouch({ scene, size, yaw, pitch, onOrbit, turning });
+  const panHandlers = useCubeTouch({ scene, size, yaw, pitch, onOrbit, turning, onDebug });
 
   return (
     <View

@@ -84,9 +84,9 @@ import {
  *   `{ onTurn, onCommit }` — `onTurn(turn|null)` every frame the layer moves,
  *   `onCommit(move, t)` once, when the drag has earned the move.
  */
-const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
-  const live = useRef({ scene, size, yaw, pitch, onOrbit, turning });
-  live.current = { scene, size, yaw, pitch, onOrbit, turning };
+const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null, onDebug = null }) => {
+  const live = useRef({ scene, size, yaw, pitch, onOrbit, turning, onDebug });
+  live.current = { scene, size, yaw, pitch, onOrbit, turning, onDebug };
 
   /**
    * The gesture in flight.
@@ -134,6 +134,14 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
     // partway through has to subtract the travel that meant something else.
     grabbed: { yaw: 0, pitch: 0 },
     offset: { dx: 0, dy: 0 },
+    // Readout only, and never read back by anything that decides — see
+    // `CubeTouchDebug`. Peaks rather than instants, because the values worth
+    // seeing during a fast flick are gone before the eye arrives.
+    peakSpeed: 0,
+    tickAt: 0,
+    tickAtPoint: [0, 0],
+    gap: 0,
+    fingerSpeed: 0,
   });
 
   const springRef = useRef(null);
@@ -193,6 +201,193 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
     if (t) t.onTurn(null);
   }, [stopSpring]);
 
+  /**
+   * Hand the readout a snapshot. Costs nothing when nobody is looking, which is
+   * the whole reason it is a callback rather than state in here.
+   */
+  const report = useCallback((extra) => {
+    const send = live.current.onDebug;
+    if (!send) return;
+
+    const g = gesture.current;
+    send({
+      mode: g.mode,
+      angular: g.angular,
+      touches: g.touches,
+      pos: g.pick ? g.pick.pos.join(',') : null,
+      normal: g.pick ? g.pick.normal.join(',') : null,
+      dx: g.dx,
+      dy: g.dy,
+      reach: Math.hypot(g.dx, g.dy),
+      speed: g.fingerSpeed,
+      peakSpeed: g.peakSpeed,
+      samples: g.sweep ? g.sweep.samples : 0,
+      gap: g.gap,
+      turned: g.sweep ? g.sweep.turned : 0,
+      peak: g.sweep ? g.sweep.peak : 0,
+      sweep: g.sweep ? g.sweep.sweep : 0,
+      shown: g.shown,
+      turns: g.move ? g.move.turns ?? null : null,
+      t: g.t,
+      token: g.move ? g.move.token || (g.move.commit && g.move.commit.token) : null,
+      ...extra,
+    });
+  }, []);
+
+  /**
+   * One frame of a drag.
+   *
+   * Pulled out of the responder so the readout can be handed a snapshot on
+   * *every* path through it — this returns early in half a dozen places, and a
+   * `report()` before each one is a line waiting to be forgotten.
+   */
+  const handleMove = useCallback((event, state) => {
+    const g = gesture.current;
+    const { turning: turns, size: edge, yaw: y, pitch: p, onOrbit: orbitTo } = live.current;
+    const touches = event.nativeEvent.touches;
+
+    // Readout bookkeeping, kept before every early return below so the numbers
+    // are true whichever way this frame goes.
+    g.touches = touches ? touches.length : 1;
+    g.dx = state.dx;
+    g.dy = state.dy;
+    {
+      const tick = Date.now();
+      const here = [g.from[0] + state.dx, g.from[1] + state.dy];
+      const span = tick - g.tickAt;
+      if (span > 0) {
+        const travelled = Math.hypot(here[0] - g.tickAtPoint[0], here[1] - g.tickAtPoint[1]);
+        g.gap = span;
+        g.fingerSpeed = (travelled * 1000) / span;
+        g.peakSpeed = Math.max(g.peakSpeed, g.fingerSpeed);
+        g.tickAt = tick;
+        g.tickAtPoint = here;
+      }
+    }
+
+    // **Two fingers is always orbit.** It arrives here rather than at grant
+    // because the second finger usually lands a moment after the first, and
+    // a turn that had already begun has to be given back.
+    if (touches && touches.length > 1 && g.mode !== 'orbit') {
+      if (g.mode === 'turn') abandonTurn();
+      g.mode = 'orbit';
+      g.pick = null;
+      g.move = null;
+      g.grabbed = { yaw: y, pitch: p };
+      g.offset = { dx: state.dx, dy: state.dy };
+    }
+
+    const dx = state.dx - g.offset.dx;
+    const dy = state.dy - g.offset.dy;
+
+    if (g.mode === 'orbit') {
+      if (!orbitTo) return;
+      // Unchanged from `CubeView`'s own responder, flip and all: drag right
+      // and the cube turns right, and the horizontal drag reverses once the
+      // cube is over its own pole so it still pushes the surface under the
+      // finger.
+      const flip = isUpsideDown(g.grabbed.pitch) ? -1 : 1;
+      orbitTo(
+        wrapAngle(g.grabbed.yaw + flip * dx * RADIANS_PER_POINT),
+        wrapAngle(g.grabbed.pitch + dy * RADIANS_PER_POINT)
+      );
+      return;
+    }
+
+    if (!turns) return;
+
+    const to = [g.from[0] + dx, g.from[1] + dy];
+    g.sweep = advanceSweep(g.sweep, to);
+    g.shown += (g.sweep.sweep - g.shown) * TUNING.ARC_SMOOTH;
+
+    // **The circle is asked first, and it is asked for as long as the finger
+    // is down.** It is the only way to name the face pointing at the camera
+    // — no straight drag across that face can (`circleMove`) — and once it
+    // has caught, the face is following the finger round, so a straight
+    // reading must not be allowed to take the gesture back.
+    //
+    // It is allowed to start **anywhere on the cube**, not only on the face
+    // it turns. At the angle the cube opens at, the front face is only part
+    // of what is on screen, and requiring the curve to begin inside it was
+    // half of why this was hard to invoke. A curve is deliberate wherever it
+    // starts; a straight drag on a side face still means what it meant.
+    const circle = g.pick ? circleMove({ sweep: g.shown, yaw: y, pitch: p }) : null;
+
+    if (circle) {
+      if (g.mode === 'undecided') {
+        g.mode = 'turn';
+        // A layer under a finger and a scramble playing itself are two
+        // things turning the same cube. The finger wins, exactly as a tap on
+        // the pad does.
+        turns.onPause();
+      }
+      g.angular = true;
+      g.move = circle;
+      g.t = circle.t;
+      turns.onTurn(circle);
+      return;
+    }
+
+    // The circle had caught and has been unwound back below the threshold —
+    // the operator has changed their mind mid-gesture. Put the face back.
+    if (g.angular) {
+      g.t = 0;
+      turns.onTurn(null);
+      return;
+    }
+
+    // **Asked again on every frame, not once at the start.** A fingertip is
+    // wider than the edge between two faces and a drag is not a straight
+    // line, so the gesture is allowed to change its mind about which layer
+    // it is turning right up until the detent.
+    if (g.mode === 'undecided' || !g.locked) {
+      const chosen = chooseMove({
+        polygons: g.polygons,
+        from: g.from,
+        to,
+        view: { size: edge, yaw: y, pitch: p },
+        current: g.mode === 'turn' ? g.move : null,
+      });
+
+      // Still too short a drag to mean anything.
+      if (!chosen) return;
+
+      if (g.mode === 'undecided') {
+        g.mode = 'turn';
+        g.at = Date.now();
+        turns.onPause();
+      } else if (chosen.token !== g.move.token) {
+        // The reading changed under the finger. The old layer goes back
+        // where it was, and the new one starts from wherever this drag puts
+        // it — so the speed measured across the swap is meaningless and a
+        // stale one could fling-commit a move nobody asked for.
+        g.speed = 0;
+        g.t = 0;
+        g.at = Date.now();
+      }
+
+      g.move = chosen;
+    }
+
+    if (g.mode !== 'turn') return;
+
+    const t = turnProgress([dx, dy], g.move.screen);
+    if (t >= TUNING.COMMIT_T) g.locked = true;
+
+    const now = Date.now();
+    const elapsed = now - g.at;
+    // Points per second along the arrow, for the flick that commits without
+    // having travelled far. Guarded against the zero-length frame that would
+    // otherwise report an infinite one.
+    if (elapsed > 0) {
+      g.speed = ((t - g.t) * TUNING.QUARTER_POINTS * 1000) / elapsed;
+      g.at = now;
+    }
+    g.t = t;
+
+    turns.onTurn({ ...g.move, t });
+  }, [abandonTurn]);
+
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -215,6 +410,14 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         g.polygons = frame.polygons;
         g.sweep = startSweep([locationX, locationY]);
         g.shown = 0;
+        g.touches = touches ? touches.length : 1;
+        g.dx = 0;
+        g.dy = 0;
+        g.peakSpeed = 0;
+        g.fingerSpeed = 0;
+        g.gap = 0;
+        g.tickAt = Date.now();
+        g.tickAtPoint = [locationX, locationY];
         g.angular = false;
 
         // Turning switched off, or a second finger already down: orbit, and do
@@ -230,137 +433,16 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         // direction the finger goes says it better than the pixel it landed on.
         g.pick = pickFace(frame.polygons, locationX, locationY);
         g.mode = g.pick ? 'undecided' : 'orbit';
+        report();
       },
 
       onPanResponderMove: (event, state) => {
-        const g = gesture.current;
-        const { turning: turns, size: edge, yaw: y, pitch: p, onOrbit: orbitTo } = live.current;
-        const touches = event.nativeEvent.touches;
-
-        // **Two fingers is always orbit.** It arrives here rather than at grant
-        // because the second finger usually lands a moment after the first, and
-        // a turn that had already begun has to be given back.
-        if (touches && touches.length > 1 && g.mode !== 'orbit') {
-          if (g.mode === 'turn') abandonTurn();
-          g.mode = 'orbit';
-          g.pick = null;
-          g.move = null;
-          g.grabbed = { yaw: y, pitch: p };
-          g.offset = { dx: state.dx, dy: state.dy };
-        }
-
-        const dx = state.dx - g.offset.dx;
-        const dy = state.dy - g.offset.dy;
-
-        if (g.mode === 'orbit') {
-          if (!orbitTo) return;
-          // Unchanged from `CubeView`'s own responder, flip and all: drag right
-          // and the cube turns right, and the horizontal drag reverses once the
-          // cube is over its own pole so it still pushes the surface under the
-          // finger.
-          const flip = isUpsideDown(g.grabbed.pitch) ? -1 : 1;
-          orbitTo(
-            wrapAngle(g.grabbed.yaw + flip * dx * RADIANS_PER_POINT),
-            wrapAngle(g.grabbed.pitch + dy * RADIANS_PER_POINT)
-          );
-          return;
-        }
-
-        if (!turns) return;
-
-        const to = [g.from[0] + dx, g.from[1] + dy];
-        g.sweep = advanceSweep(g.sweep, to);
-        g.shown += (g.sweep.sweep - g.shown) * TUNING.ARC_SMOOTH;
-
-        // **The circle is asked first, and it is asked for as long as the finger
-        // is down.** It is the only way to name the face pointing at the camera
-        // — no straight drag across that face can (`circleMove`) — and once it
-        // has caught, the face is following the finger round, so a straight
-        // reading must not be allowed to take the gesture back.
-        //
-        // It is allowed to start **anywhere on the cube**, not only on the face
-        // it turns. At the angle the cube opens at, the front face is only part
-        // of what is on screen, and requiring the curve to begin inside it was
-        // half of why this was hard to invoke. A curve is deliberate wherever it
-        // starts; a straight drag on a side face still means what it meant.
-        const circle = g.pick ? circleMove({ sweep: g.shown, yaw: y, pitch: p }) : null;
-
-        if (circle) {
-          if (g.mode === 'undecided') {
-            g.mode = 'turn';
-            // A layer under a finger and a scramble playing itself are two
-            // things turning the same cube. The finger wins, exactly as a tap on
-            // the pad does.
-            turns.onPause();
-          }
-          g.angular = true;
-          g.move = circle;
-          g.t = circle.t;
-          turns.onTurn(circle);
-          return;
-        }
-
-        // The circle had caught and has been unwound back below the threshold —
-        // the operator has changed their mind mid-gesture. Put the face back.
-        if (g.angular) {
-          g.t = 0;
-          turns.onTurn(null);
-          return;
-        }
-
-        // **Asked again on every frame, not once at the start.** A fingertip is
-        // wider than the edge between two faces and a drag is not a straight
-        // line, so the gesture is allowed to change its mind about which layer
-        // it is turning right up until the detent.
-        if (g.mode === 'undecided' || !g.locked) {
-          const chosen = chooseMove({
-            polygons: g.polygons,
-            from: g.from,
-            to,
-            view: { size: edge, yaw: y, pitch: p },
-            current: g.mode === 'turn' ? g.move : null,
-          });
-
-          // Still too short a drag to mean anything.
-          if (!chosen) return;
-
-          if (g.mode === 'undecided') {
-            g.mode = 'turn';
-            g.at = Date.now();
-            turns.onPause();
-          } else if (chosen.token !== g.move.token) {
-            // The reading changed under the finger. The old layer goes back
-            // where it was, and the new one starts from wherever this drag puts
-            // it — so the speed measured across the swap is meaningless and a
-            // stale one could fling-commit a move nobody asked for.
-            g.speed = 0;
-            g.t = 0;
-            g.at = Date.now();
-          }
-
-          g.move = chosen;
-        }
-
-        if (g.mode !== 'turn') return;
-
-        const t = turnProgress([dx, dy], g.move.screen);
-        if (t >= TUNING.COMMIT_T) g.locked = true;
-
-        const now = Date.now();
-        const elapsed = now - g.at;
-        // Points per second along the arrow, for the flick that commits without
-        // having travelled far. Guarded against the zero-length frame that would
-        // otherwise report an infinite one.
-        if (elapsed > 0) {
-          g.speed = ((t - g.t) * TUNING.QUARTER_POINTS * 1000) / elapsed;
-          g.at = now;
-        }
-        g.t = t;
-
-        turns.onTurn({ ...g.move, t });
+        handleMove(event, state);
+        report();
       },
 
       onPanResponderRelease: () => {
+        report();
         const g = gesture.current;
         const { turning: turns } = live.current;
 

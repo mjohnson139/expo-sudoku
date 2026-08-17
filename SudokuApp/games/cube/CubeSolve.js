@@ -13,6 +13,8 @@ import CubePhaseModal from './CubePhaseModal';
 import CubePhaseStrip from './CubePhaseStrip';
 import CubeScrubber from './CubeScrubber';
 import CubeSolvesModal from './CubeSolvesModal';
+import CubeTouchDebug from './CubeTouchDebug';
+import CubeTuningPanel from './CubeTuningPanel';
 import { ALG_FONT } from './algText';
 import { applyMoves } from './cubeState';
 import { announcePosition } from './player';
@@ -132,6 +134,12 @@ const CubeSolve = ({ navigation }) => {
   const [renamingId, setRenamingId] = useState(null);
   const [showTyping, setShowTyping] = useState(false);
   const [showPhases, setShowPhases] = useState(false);
+
+  /** The spike's dials, and its readout. Neither is a setting — both go when the
+   *  spike graduates or is abandoned (`CubeTuningPanel`, `CubeTouchDebug`). */
+  const [showTuning, setShowTuning] = useState(false);
+  const [showReadout, setShowReadout] = useState(false);
+  const [touchReport, setTouchReport] = useState(null);
 
   /**
    * The key a second tap would promote to a half turn, or null
@@ -629,6 +637,19 @@ const CubeSolve = ({ navigation }) => {
    */
   const headerActions = (
     <>
+      {/* Spike only: the gesture's numbers can only be settled with a cube in a
+          hand, so the hand gets the dials and the readout
+          (docs/cube-front-face-prompt.md §4). */}
+      {turning &&
+        headerAction({
+          name: 'tune-variant',
+          label: 'Gesture tuning',
+          hint: 'Adjusts how turning the cube by finger feels, and shows what it measures. Not saved.',
+          onPress: () => setShowTuning(true),
+          color: titleColor,
+          border,
+        })}
+
       {/* Whichever of the two the hold allows, and the rule is V1's Step 5's,
           unchanged: re-orienting is free while the solve is empty and locked
           once it is not, because re-orienting under moves already written would
@@ -737,6 +758,7 @@ const CubeSolve = ({ navigation }) => {
           pitch={pitch}
           onOrbit={onOrbit}
           turning={turning}
+          onDebug={showReadout ? setTouchReport : null}
           accessibilityLabel={`Cube — ${announcePosition(player.index, player.count, 'solve')}`}
           accessibilityHint={
             turning
@@ -744,6 +766,8 @@ const CubeSolve = ({ navigation }) => {
               : undefined
           }
         />
+      
+        {showReadout && <CubeTouchDebug report={touchReport} />}
       </View>
 
       {/* Inspection has nothing to transport and nothing to write, so it gets
@@ -830,6 +854,15 @@ const CubeSolve = ({ navigation }) => {
           )}
         </>
       )}
+
+      <CubeTuningPanel
+        visible={showTuning}
+        theme={theme}
+        accent={CUBE_ACCENT}
+        showReadout={showReadout}
+        onToggleReadout={() => setShowReadout((on) => !on)}
+        onClose={() => setShowTuning(false)}
+      />
 
       <CubeSolvesModal
         visible={showSolves}

@@ -151,18 +151,31 @@ Two distinct symptoms in that sentence, and they may have different causes:
 - **"Goes berserk"** — the turn does something violent or wrong at speed.
 - **"Colors flicker"** — a *rendering* symptom, not a maths one.
 
-**Diagnose before fixing. That is the whole lesson of §3.3.** Suggested order:
+**Diagnose before fixing. That is the whole lesson of §3.3.**
 
-1. **Get the panel back first** so the numbers can be moved on the device.
-2. **Instrument rather than reason.** A debug readout of the live sweep, the
-   drawn angle, `turns`, `t` and the per-sample angle, on screen, during a fast
-   gesture, will say in one session what three rounds of inference did not.
-3. **Separate the two symptoms.** Does the flicker happen when the *maths* is
+**The tools for it are now in the app** (`CubeTuningPanel`, `CubeTouchDebug`,
+behind the tune icon on the solve header — the readout has its own toggle inside
+the panel). Both are spike-only, neither is persisted, and both go when the spike
+does. So the next round starts with evidence rather than with a theory:
+
+1. **`peak samp` is the number that settles §3.3's first theory.** It is the
+   largest angle any single sample contributed during the gesture, and it stays
+   on screen after the finger lifts, because a live readout during a fast flick
+   is unreadable. If it never approaches 180°, **aliasing is not the cause** and
+   `ARC_MAX_TURN` should not come back. If it does, the theory is confirmed and
+   the clamp can be landed on its own.
+2. **`sweep` against `drawn`** says whether the display filter is the problem:
+   if the measured sweep is calm and the drawn angle is not, the filter is
+   wrong; if the measured sweep itself lurches, it is not.
+3. **`peak spd` and `samples @ ms`** say how fast the gesture that misbehaves
+   actually is, and how many samples it got. A fast gesture with very few
+   samples is a different bug from a fast gesture with many.
+4. **Separate the two symptoms.** Does the flicker happen when the *maths* is
    calm — e.g. during a slow but multi-quarter turn? If so it is the renderer and
    §3.3's `atLeast` theory is right for the wrong reason. Does the berserk
    behaviour survive a very high `ARC_STEP`, which all but removes per-sample
    aliasing?
-4. **Suspects worth checking, none confirmed:** per-sample angle aliasing past
+5. **Suspects worth checking, none confirmed:** per-sample angle aliasing past
    180°; polygon re-keying as the quarter count changes; the seam pass switching
    on and off as `t` crosses exactly 1; `spinFor`'s `landed` branch at `t === 1`;
    React state churn from `onTurn` on every frame.

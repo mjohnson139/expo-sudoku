@@ -91,6 +91,37 @@ export const TUNING = {
   CIRCLE_GAIN: 1.5,
 };
 
+/**
+ * The knobs, described well enough to put on screen (`CubeTuningPanel`).
+ *
+ * A spike's numbers are guesses until they have been in a hand, and this one has
+ * been round the loop four times on feel alone at one number per round trip.
+ * Handing the operator the dials is cheaper than another round trip per number —
+ * and it is the half of "instrument before fixing" that the readout does not
+ * cover (`docs/cube-front-face-prompt.md` §4).
+ */
+export const TUNABLES = [
+  { key: 'CIRCLE_ENGAGE', label: 'Circle catch', step: 2, min: 4, max: 60, unit: '°',
+    hint: 'Arc before the front face catches. Lower is easier to trigger.' },
+  { key: 'CIRCLE_GAIN', label: 'Circle gain', step: 0.1, min: 0.3, max: 4, unit: '×',
+    hint: 'Face turn per finger turn. Higher needs less finger.' },
+  { key: 'ARC_SMOOTH', label: 'Smoothing', step: 0.05, min: 0.05, max: 1, unit: '',
+    hint: 'How fast the drawn angle chases the measured one. Lower is smoother.' },
+  { key: 'ARC_STEP', label: 'Sample step', step: 1, min: 1, max: 16, unit: 'pt',
+    hint: 'Finger travel between direction samples. Higher is less noisy.' },
+  { key: 'QUARTER_POINTS', label: 'Drag per quarter', step: 5, min: 40, max: 260, unit: 'pt',
+    hint: 'How far a straight drag turns a layer a quarter.' },
+  { key: 'COMMIT_T', label: 'Detent', step: 0.02, min: 0.05, max: 0.9, unit: '',
+    hint: 'How far round before letting go writes the move.' },
+  { key: 'WIDE_BAND', label: 'Wide band', step: 0.05, min: 0.05, max: 0.6, unit: '',
+    hint: 'How near the line between two pieces counts as on it.' },
+  { key: 'DECIDE_POINTS', label: 'Decide after', step: 1, min: 1, max: 24, unit: 'pt',
+    hint: 'Travel before a straight drag picks a layer.' },
+];
+
+/** The values this file shipped with, so the panel can put them back. */
+export const TUNING_DEFAULTS = { ...TUNING };
+
 const QUARTER_RADIANS = Math.PI / 2;
 
 /** The six outward face normals, in no particular order. */
@@ -498,8 +529,24 @@ export const facingFace = (yaw, pitch) => {
 const signedAngle = (a, b) =>
   Math.atan2(a[0] * b[1] - a[1] * b[0], a[0] * b[0] + a[1] * b[1]);
 
-/** Begin following how much a finger's path is turning. */
-export const startSweep = (point) => ({ node: point, direction: null, sweep: 0 });
+/**
+ * Begin following how much a finger's path is turning.
+ *
+ * `turned` is the angle the last sample contributed and `peak` the largest one
+ * so far, both in radians. **Neither is used to decide anything** — they exist so
+ * the readout can show them (`CubeTouchDebug`). The standing suspicion about
+ * fast movement is that a single sample can span more than half a turn, at which
+ * point `atan2` returns it *reversed*; that has been reasoned about twice and
+ * never once observed, so it is now on screen instead.
+ */
+export const startSweep = (point) => ({
+  node: point,
+  direction: null,
+  sweep: 0,
+  turned: 0,
+  peak: 0,
+  samples: 0,
+});
 
 /**
  * Fold one more point into a sweep.
@@ -531,10 +578,15 @@ export const advanceSweep = (state, point, tuning = TUNING) => {
   if (length < tuning.ARC_STEP) return state;
 
   const direction = [step[0] / length, step[1] / length];
+  const turned = state.direction ? signedAngle(state.direction, direction) : 0;
+
   return {
     node: point,
     direction,
-    sweep: state.direction ? state.sweep + signedAngle(state.direction, direction) : state.sweep,
+    sweep: state.sweep + turned,
+    turned,
+    peak: Math.max(state.peak, Math.abs(turned)),
+    samples: state.samples + 1,
   };
 };
 
