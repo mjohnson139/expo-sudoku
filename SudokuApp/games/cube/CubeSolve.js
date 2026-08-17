@@ -13,7 +13,6 @@ import CubePhaseModal from './CubePhaseModal';
 import CubePhaseStrip from './CubePhaseStrip';
 import CubeScrubber from './CubeScrubber';
 import CubeSolvesModal from './CubeSolvesModal';
-import CubeTuningPanel from './CubeTuningPanel';
 import { ALG_FONT } from './algText';
 import { applyMoves } from './cubeState';
 import { announcePosition } from './player';
@@ -270,9 +269,6 @@ const CubeSolve = ({ navigation }) => {
    * one of each: engaging pauses playback, exactly as a tap on the pad does.
    */
   const [gestureTurn, setGestureTurn] = useState(null);
-
-  /** The spike's dials. Not a setting — see `CubeTuningPanel`. */
-  const [showTuning, setShowTuning] = useState(false);
 
   /**
    * A drag that earned its move.
@@ -633,19 +629,6 @@ const CubeSolve = ({ navigation }) => {
    */
   const headerActions = (
     <>
-      {/* Spike only, and it goes when the spike does: the gesture's numbers are
-          guesses that can only be settled with a cube in a hand, so the hand
-          gets the dials (docs/cube-touch-exploration.md §3.3d). */}
-      {turning &&
-        headerAction({
-          name: 'tune-variant',
-          label: 'Gesture tuning',
-          hint: 'Adjusts how turning the cube by finger feels. Not saved.',
-          onPress: () => setShowTuning(true),
-          color: titleColor,
-          border,
-        })}
-
       {/* Whichever of the two the hold allows, and the rule is V1's Step 5's,
           unchanged: re-orienting is free while the solve is empty and locked
           once it is not, because re-orienting under moves already written would
@@ -847,13 +830,6 @@ const CubeSolve = ({ navigation }) => {
           )}
         </>
       )}
-
-      <CubeTuningPanel
-        visible={showTuning}
-        theme={theme}
-        accent={CUBE_ACCENT}
-        onClose={() => setShowTuning(false)}
-      />
 
       <CubeSolvesModal
         visible={showSolves}

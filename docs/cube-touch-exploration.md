@@ -415,39 +415,6 @@ rather than only on the face it turns: at the angle the cube opens at, the front
 face is only part of what is on screen, and requiring the curve to begin inside
 it was the other half of why this was hard to invoke.
 
-### 3.3d Two things a fast finger broke, and the dials
-
-*Added 2026-08-17.* Smoothing fixed the slow case and the operator found the
-fast one:
-
-> "If I move my finger a small amount it will turn at the right kind of speed
-> following my finger, but if I move any faster it's just kinda like goes
-> berserk and the animation is not good — I could see the colors kinda flicker
-> on the cube."
-
-Two separate bugs, both only reachable at speed:
-
-1. **The reading could come back with the wrong sign.** A fast finger is sampled
-   once a frame, so one sample spans a lot of arc — and `atan2` cannot tell 190°
-   one way from 170° the other. Past half a turn in a single sample the answer
-   *reverses*, and the face lurches backward. `ARC_MAX_TURN` clamps it. That
-   under-counts a very fast tight circle, which is much the lesser evil.
-2. **The flicker was the renderer being re-keyed.** `buildScene` keys every
-   polygon by *where the move sends it*, which depends on how many quarter turns
-   the move is. The drawn angle is `turns × t` and comes out the same however
-   that is split — but `turns` was `ceil(quarters)`, so a reading wobbling across
-   a quarter boundary flipped it between one and two, re-keying all 54 faces
-   twice a frame. They blink. `atLeast` never lets it shrink within a gesture,
-   which costs nothing precisely *because* the picture does not depend on it.
-
-**And the dials are on the phone now** (`CubeTuningPanel`, behind the tune icon
-on the solve header). Four rounds of this spike have been spent one number at a
-time; the operator can turn them faster than a round trip can. It writes straight
-into `TUNING`, which works because every reader looks the numbers up at the
-moment a finger moves. **Nothing is persisted, and it is not a setting** — a
-preference is a promise, and none of these numbers is ready to make one. It goes
-when the spike graduates or is abandoned.
-
 ### 3.4 Committing, and taking it back
 
 - Release past ~50% of a quarter turn (or fast enough): **commit** — write the

@@ -123,9 +123,6 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
     // is what the face is drawn from — is also what gets committed. What you see
     // is what you get.
     shown: 0,
-    // The widest sweep the circle has been drawn across so far. Held so the
-    // renderer's polygon keys stay still — see `circleMove`'s `atLeast`.
-    drawn: 0,
     // Once the circle has caught, it keeps the gesture: the face is following
     // the finger and a straight-drag reading must not take it back.
     angular: false,
@@ -218,7 +215,6 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         g.polygons = frame.polygons;
         g.sweep = startSweep([locationX, locationY]);
         g.shown = 0;
-        g.drawn = 0;
         g.angular = false;
 
         // Turning switched off, or a second finger already down: orbit, and do
@@ -287,12 +283,9 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         // of what is on screen, and requiring the curve to begin inside it was
         // half of why this was hard to invoke. A curve is deliberate wherever it
         // starts; a straight drag on a side face still means what it meant.
-        const circle = g.pick
-          ? circleMove({ sweep: g.shown, yaw: y, pitch: p, atLeast: g.drawn })
-          : null;
+        const circle = g.pick ? circleMove({ sweep: g.shown, yaw: y, pitch: p }) : null;
 
         if (circle) {
-          g.drawn = Math.abs(circle.turns);
           if (g.mode === 'undecided') {
             g.mode = 'turn';
             // A layer under a finger and a scramble playing itself are two
@@ -308,12 +301,9 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         }
 
         // The circle had caught and has been unwound back below the threshold —
-        // the operator has changed their mind mid-gesture. Put the face back,
-        // and let the held sweep go: circling the other way from here is a
-        // different turn and starts its own count.
+        // the operator has changed their mind mid-gesture. Put the face back.
         if (g.angular) {
           g.t = 0;
-          g.drawn = 0;
           turns.onTurn(null);
           return;
         }
