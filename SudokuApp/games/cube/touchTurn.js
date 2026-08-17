@@ -22,7 +22,7 @@
  * from somewhere else does not rename the move.
  */
 
-import { AXIS, faceBasis, projector, shortWay } from './geometry';
+import { AXIS, faceBasis, orbit, projector, shortWay } from './geometry';
 import { parseMove } from './moves';
 
 /**
@@ -64,7 +64,28 @@ export const TUNING = {
    * accidental, and it is the one to bring to a drilling session first.
    */
   WIDE_BAND: 0.25,
+  /**
+   * The corner gesture that turns the face you are looking at (§3.3c).
+   *
+   * `CORNER_LEG` is how far each of the two legs must run before the bend counts
+   * — the operator's "up just a little bit, and then a right angle" — and
+   * `CORNER_SQUARE` is how square that bend has to be, as the sine of the angle
+   * between the legs. 0.8 is about 53°, so anything from a slack right angle to
+   * a sharp one reads, and a drag that merely drifts does not.
+   */
+  CORNER_LEG: 9,
+  CORNER_SQUARE: 0.8,
 };
+
+/** The six outward face normals, in no particular order. */
+const AXIS_NORMALS = [
+  [1, 0, 0],
+  [-1, 0, 0],
+  [0, 1, 0],
+  [0, -1, 0],
+  [0, 0, 1],
+  [0, 0, -1],
+];
 
 /**
  * Is `(x, y)` inside this polygon? Crossing number, the standard one.
@@ -424,6 +445,131 @@ export const chooseMove = ({ polygons, from, to, view, current = null, tuning = 
 };
 
 /**
+ * Which face is looking at the camera right now.
+ *
+ * A property of the *view*, not of the cube: it is whichever outward normal
+ * comes closest to pointing at the viewer once the model has been turned by
+ * `yaw` and `pitch`. Ties cannot matter — two faces exactly equally toward the
+ * camera are both edge-on, and a corner gesture on an edge-on face is not a
+ * gesture anyone makes on purpose.
+ */
+export const facingFace = (yaw, pitch) => {
+  let best = null;
+  AXIS_NORMALS.forEach((normal) => {
+    const depth = orbit(normal, yaw, pitch)[2];
+    if (!best || depth > best.depth) best = { normal, depth };
+  });
+  return best.normal;
+};
+
+/** Perpendicular distance from `p` to the line through `a` and `b`, times the
+ *  length of that line — the numerator only, since it is used for comparison. */
+const bendAt = (p, a, b) =>
+  Math.abs((b[0] - a[0]) * (a[1] - p[1]) - (a[0] - p[0]) * (b[1] - a[1]));
+
+/**
+ * Find the right angle in a drag: "up just a little bit, then off to one side".
+ *
+ * The corner is taken as the **most bent point** of the path — the sample
+ * furthest from the straight line between where the finger started and where it
+ * is now. That needs no threshold to find and no assumption about which way the
+ * first leg went, and it degenerates helpfully: a drag that is actually straight
+ * has its furthest point a hair off the line, so the two legs come out nearly
+ * parallel and the squareness test below throws it away.
+ *
+ * @param {number[][]} path screen points, in order, starting where the finger
+ *   went down
+ * @returns {{corner: number[], clockwise: boolean, screen: number[]}|null}
+ *   `screen` is the unit direction of the second leg — the one that says how far
+ *   round the face has been turned, measured from the corner.
+ */
+export const detectCorner = (path, tuning = TUNING) => {
+  if (!path || path.length < 3) return null;
+
+  const start = path[0];
+  const end = path[path.length - 1];
+
+  let at = null;
+  for (let i = 1; i < path.length - 1; i += 1) {
+    const bend = bendAt(path[i], start, end);
+    if (at === null || bend > at.bend) at = { bend, point: path[i] };
+  }
+  if (at === null) return null;
+
+  const corner = at.point;
+  const first = [corner[0] - start[0], corner[1] - start[1]];
+  const second = [end[0] - corner[0], end[1] - corner[1]];
+  const firstLength = Math.hypot(first[0], first[1]);
+  const secondLength = Math.hypot(second[0], second[1]);
+
+  // Both legs have to have been travelled. A gesture is not a corner until
+  // there is something on each side of it.
+  if (firstLength < tuning.CORNER_LEG || secondLength < tuning.CORNER_LEG) return null;
+
+  // Screen coordinates run y-down, so a positive cross product is a turn
+  // *clockwise* on the glass — which is the direction the operator is drawing.
+  const cross = (first[0] * second[1] - first[1] * second[0]) / (firstLength * secondLength);
+  if (Math.abs(cross) < tuning.CORNER_SQUARE) return null;
+
+  return {
+    corner,
+    clockwise: cross > 0,
+    screen: [second[0] / secondLength, second[1] / secondLength],
+  };
+};
+
+/**
+ * Turn the face that is looking at you, the way the corner went (§3.3c).
+ *
+ * **You cannot ask for this face by dragging straight across it, and that is
+ * geometry rather than an oversight.** The axis of a drag is `normal ×
+ * direction` (§3.3); with a finger on the front face both of those lie in the
+ * plane of the screen, so their cross product never comes back out of it. Every
+ * straight drag on the front face turns some layer *through* the cube — a row,
+ * a column, a slice — and none of them is `F`. The face nearest the camera is
+ * the one face its own stickers cannot turn.
+ *
+ * So it is asked for by shape instead of by direction: a short leg, a right
+ * angle, and the way that angle went round is the way the face goes round. It is
+ * the gesture you would use on a real cube, where turning the front face is a
+ * twist rather than a push.
+ *
+ * The layer is never in doubt. Every sticker of the facing face shares its
+ * coordinate along its own axis, so this is always that outer layer — `F` when
+ * the front is toward you, `B` when the back is, and so on round the cube.
+ */
+export const faceTurnFor = (facing, clockwise) => {
+  const axis = facing.findIndex((component) => component !== 0);
+  if (axis < 0) return null;
+
+  const layer = facing[axis];
+  // Clockwise *on screen* is clockwise seen from this face's own side of the
+  // cube, which is `amount` +1 only when that side is the axis's positive end.
+  const turns = (clockwise ? 1 : -1) * layer;
+  const token = tokenFor(axis, layer, turns);
+  if (!token) return null;
+
+  return { axis, layers: [layer], amount: normalizeAmount(turns), token };
+};
+
+/**
+ * The whole corner gesture: a path and a view in, the move it means out.
+ *
+ * `screen` and `corner` come back on the move because progress for this one is
+ * measured **from the corner along the second leg**, not from where the finger
+ * went down — the first leg was how you asked, not how far round you have got.
+ */
+export const cornerMove = ({ path, yaw, pitch, tuning = TUNING }) => {
+  const corner = detectCorner(path, tuning);
+  if (!corner) return null;
+
+  const move = faceTurnFor(facingFace(yaw, pitch), corner.clockwise);
+  if (!move) return null;
+
+  return { ...move, screen: corner.screen, corner: corner.corner };
+};
+
+/**
  * How far round the layer is, for a drag of `drag` along the chosen arrow.
  *
  * Only the component *along* the arrow counts, so drifting sideways mid-drag
@@ -453,6 +599,10 @@ export default {
   pickFace,
   moveForDrag,
   chooseMove,
+  facingFace,
+  detectCorner,
+  faceTurnFor,
+  cornerMove,
   turnProgress,
   shouldCommit,
   AXIS,
