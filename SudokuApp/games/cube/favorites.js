@@ -97,7 +97,7 @@ const EMPTY_SAVE = () => ({
   scramble: '',
   favorites: [],
   solves: [],
-  workspace: { solving: false, solveId: null, view: null },
+  workspace: { solveId: null, view: null },
 });
 
 /**

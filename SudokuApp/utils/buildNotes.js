@@ -9,6 +9,10 @@ const BUILD_NOTES = {
       'The app moves between screens on a real navigator now, which is what lets a solve become a screen of its own',
       'Android\'s back button leaves a game and returns to the hub',
       'On iOS, swiping in from the left edge does the same',
+      'A solve is its own screen: the scramble is home, and writing a solve opens on top of it',
+      'Leaving a solve is the back chevron, the Android back button or the iOS edge swipe — the same gesture as anywhere else',
+      'The solve screen names the page you are on and the scramble you are solving, so the line that used to say it under the pad is gone',
+      'Background the app mid-solve and you come back to the solve, not to the scramble',
     ]
   },
   '3.1.0': {

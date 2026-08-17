@@ -43,7 +43,7 @@ export { readCubeSave };
  * Load the scramble, the favorites, the solves and the workspace.
  *
  * @returns {Promise<{scramble: string, favorites: Array, solves: Array,
- *   workspace: {solving: boolean, solveId: string|null}}>} always a usable
+ *   workspace: {solveId: string|null}}>} always a usable
  *   object — "nothing saved" is an empty scramble and empty lists, not null,
  *   because the screen has the same job either way. `readCubeSave(null)` is
  *   that object, so the two failure paths and the happy one agree by
@@ -87,7 +87,11 @@ export const saveCubeState = debounce(
           favorites: favorites || [],
           solves: solves || [],
           workspace: {
-            solving: (workspace && workspace.solving) === true,
+            // **No `solving` any more** (docs/cube-flow-plan.md §3.2). The solve
+            // is a route, and the id is written only while that route is on the
+            // stack — so an id here means "a solve was open" and the flag it
+            // took two fields to say is one. `readCubeSave` reads every version
+            // by shape, so dropping a key costs no `_v` bump and no migration.
             solveId: (workspace && workspace.solveId) || null,
             // The angle the cube was left turned to. Written by shape rather
             // than trusted, the same as everything else in here — and read back

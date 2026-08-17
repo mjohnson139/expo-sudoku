@@ -691,8 +691,8 @@ const sanitizeView = (raw) => {
  * Where the operator was standing, brought into shape.
  *
  * This is the other half of "come back to what you left" (plan §7.1): the data
- * is the solves, and this is the *workspace* — which solve was open, whether
- * solve mode was open at all, and **which way the cube was turned**.
+ * is the solves, and this is the *workspace* — which solve was open, and **which
+ * way the cube was turned**.
  *
  * ### The angle is kept now, and that is a change to §7.1 (operator, 2026-08-06)
  *
@@ -710,18 +710,32 @@ const sanitizeView = (raw) => {
  * *opening* view — the first visit, and whatever `Reset view` and `Start view`
  * go back to — rather than the view every visit begins at.
  *
- * The two ids are cross-checked against what actually survived sanitizing: an
- * open solve has to exist and has to belong to the scramble on screen, and solve
- * mode with nothing open is not a state this screen has. The angle needs no such
- * check, because an angle is valid against any cube.
+ * `solveId` is cross-checked against what actually survived sanitizing: an open
+ * solve has to exist and has to belong to the scramble on screen. The angle needs
+ * no such check, because an angle is valid against any cube.
+ *
+ * ### `solving` retired here, and its absence is read rather than assumed
+ *
+ * Cube Flow Step 2 made the solve a **route**, so the file no longer says which
+ * mode you were in — `solveId` is written only while the solve screen is on the
+ * stack, and a non-null one *is* "a solve was open" (docs/cube-flow-plan.md
+ * §3.2). Nothing branches on `_v` and nothing has to: the key is simply gone
+ * from what is written.
+ *
+ * **A file written before that step is the one case worth spelling out.** It
+ * carries both, and a `solving: false` in it means the operator was looking at
+ * the scramble with a page merely remembered against it — so restoring that file
+ * onto the solve screen would open something they had closed. Read literally, it
+ * is the last thing the old build had to say about where they were standing, and
+ * it is worth one line to honour it.
  */
 export const sanitizeWorkspace = (raw, { solves, scramble }) => {
   const wanted = raw && typeof raw === 'object' ? raw : {};
   const open = findSolve(solves, wanted.solveId);
-  const solveId = open && open.scramble === normalizeAlg(scramble) ? open.id : null;
+  const closed = wanted.solving === false;
+  const solveId = open && open.scramble === normalizeAlg(scramble) && !closed ? open.id : null;
 
   return {
-    solving: solveId !== null && wanted.solving === true,
     solveId,
     view: sanitizeView(wanted.view),
   };
