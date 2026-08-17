@@ -262,7 +262,9 @@ injected-clock convention.
 counts and recency; the in-progress one is top and accented; a new scramble
 empties it; long-press reaches every management action.
 
-**Landed 2026-08-17** (PR #111, against `epic/cube-flow`). `CubeSolveList`,
+**Landed 2026-08-17** (PR #111, against `epic/cube-flow`; **device pass passed
+over two rounds** — the first found 3a and 3b below, the second confirmed both
+fixes with nothing further). `CubeSolveList`,
 `CubeSolveMenu`, `recency.js` and `solveCards.js` are new; `CubeSolvesModal`
 became `CubeCompareModal`, the Compare half of itself. **Three calls the brief
 did not make, all forced by measurement or by the browser:**
@@ -356,8 +358,8 @@ launching instead of one on every resume.
 Verified in a browser by driving `visibilitychange`: the solve screen stays put
 with its moves intact, the scrub position goes back to the end and the speed to
 1×, the scramble screen stays on the scramble, and there is no spinner and no
-route change. **Still wants the operator's device pass** — the bug was device-only
-and so is the proof.
+route change. **Confirmed on a device** in the second round — the bug was
+device-only and so is the proof.
 
 #### Step 3b — the long-press got a control, because it had no reason to be found
 
@@ -651,3 +653,20 @@ scrolls**, horizontally, as `CubePhaseStrip` already does
    version that was never tried. One drilling session with the rail settles it.
 6. **How many variations is too many?** No cap is specified. `MAX_PHASES` is 40
    and `MAX_SOLVES` 100; variations need a number before the file finds one.
+7. ~~**Does the scramble screen miss `Reset the view`?**~~ **Answered: no**
+   (operator, 2026-08-17 — *"I don't miss the reset view"*). Step 3's
+   four-control header stands; the solve screen keeps its own `Back to the
+   starting view`, which is the one pointing at a place the operator chose.
+8. **Should a card's recency be when the solve was *started* or when it was *last
+   written to*?** New in Step 3, and the only question that step left genuinely
+   open. `savedAt` is creation time and nothing bumps it, so a card reads "3 days
+   ago" for a solve you were writing an hour ago. It has not bitten because a
+   solve is usually written in one sitting — but it is a change to what a stored
+   field *means*, not a UI tweak, and **Step 4 is the natural place to take it**
+   because Step 4 is already touching the record.
+
+**Three things Step 3's device pass settled by silence**, and they are closed
+rather than carried: the 14-point list peek reads as "more below"; a 182-point
+cube at 320×568 is enough; and the cold-start slide — the one path that still
+rebuilds the stack — is not worth the animation race Step 3a declined. All three
+are cheap to revisit if a fortnight of drilling changes the verdict.

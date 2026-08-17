@@ -226,12 +226,17 @@ solves back; a cold start restoring the pushed solve and a cold start staying on
 the scramble; and that the **page** never scrolls while the **list** does
 (client 126 against content 168 at 320×568).
 
-**Device pass: one round done, one finding — Step 3a above.** It was a resume
-animation, i.e. exactly the category the golden rules say a browser is weak
-evidence for, and it was fixed by removing the rebuild rather than the animation.
-The fix itself still wants a device round. The layout numbers above are from a
-browser at those viewports, and the web container's padding is not the same as a
-phone's safe area.
+**Device pass: passed, 2026-08-17** (operator, `pr-111` preview), over **two
+rounds**. The first found both of the things above — the resume animation (3a)
+and the invisible long-press (3b) — and the second confirmed the fixes with
+nothing further.
+
+**Both findings were device-only, and that is the point worth carrying.** One was
+an animation `react-native-screens` does not run under `react-native-web`; the
+other was a gesture whose whole defect was that nothing on screen advertised it.
+Neither is visible to a browser pass, however thorough — three of them across two
+steps saw neither. The layout numbers in this file are still browser numbers, and
+the web container's padding is not a phone's safe area.
 
 ---
 
@@ -349,8 +354,21 @@ want a drilling session rather than an opinion:
    (operator, 2026-08-17 — *"I don't miss the reset view"*). The four-control
    header stands, and the solve screen keeps its own `Back to the starting view`,
    which is the one that points at a place the operator chose.
-8. **New in Step 3: should a card's recency be when the solve was *started* or
-   when it was *last written to*?** `savedAt` is creation time today and nothing
-   bumps it. Changing that is a change to what a stored field means.
+8. **New in Step 3, and the only one Step 3 left genuinely open: should a card's
+   recency be when the solve was *started* or when it was *last written to*?**
+   `savedAt` is creation time today and nothing bumps it, so a card reads
+   "3 days ago" for a solve you were writing an hour ago. It has not bitten
+   because a solve is usually written in one sitting. Changing it is a change to
+   what a stored field *means*, not a UI tweak — so it wants the operator's word,
+   and **Step 4 is a natural place to take it**, since Step 4 is already touching
+   the record.
+
+**Three things Step 3's device pass settled by silence rather than by answer**,
+and none of them are open any more: the 14-point list peek reads as "more below",
+a 182-point cube at 320×568 is enough, and the cold-start slide (the one path
+that still rebuilds the stack) is not worth chasing. If any of them turns out to
+grate after a fortnight of drilling, they are cheap to revisit — the peek is one
+constant in `solveCards.js`, and the cold-start slide is the animation race Step
+3a deliberately declined.
 
 V1's own open questions (`docs/cube-handoff.md`) are unaffected and still stand.
