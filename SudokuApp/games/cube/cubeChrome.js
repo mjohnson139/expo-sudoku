@@ -94,14 +94,11 @@ export const styles = StyleSheet.create({
     flexWrap: 'wrap',
     marginTop: 10,
   },
-  bottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    marginTop: 6,
-    marginBottom: 4,
-  },
+  // `bottomRow` was here — the scramble screen's Solve · New · Save. Step 3
+  // spent it on `CubeSolveList` and moved the other two onto the header, so the
+  // only row style left is `actionRow`, which the solve screen's inspection
+  // phase still uses.
+  //
   // A view control on the header row. Square-ish and icon-only, but still 30
   // points of border around an 18-point glyph with the row's own height behind
   // it — the space this row bought back was never bought from the size of a

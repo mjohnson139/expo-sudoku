@@ -262,6 +262,53 @@ injected-clock convention.
 counts and recency; the in-progress one is top and accented; a new scramble
 empties it; long-press reaches every management action.
 
+**Landed 2026-08-17** (PR #110, against `epic/cube-flow`). `CubeSolveList`,
+`CubeSolveMenu`, `recency.js` and `solveCards.js` are new; `CubeSolvesModal`
+became `CubeCompareModal`, the Compare half of itself. **Three calls the brief
+did not make, all forced by measurement or by the browser:**
+
+- **The header fits four controls at 320 points, and the step needed six.** The
+  home button takes 38, each control 39, and `ScreenHeader`'s dense right-hand
+  column does not shrink — so what gives is the title. Four leave 94 points for
+  it, five leave 55, and `Scramble` is 77. Two consequences: the title dropped
+  from `Cube Scramble` to **`Scramble`** (the pair now reads `Scramble` /
+  `Solve 3`), and **`Reset the view` came off the scramble screen** — on the
+  solve screen that button means *back to the hold you chose*, and here it only
+  ever meant "back to a default nobody picked". It is the one V1 affordance this
+  step removes.
+- **Compare is a button beside `+ New solve`, not a header icon.** It was the
+  sixth control and there was not room for a fifth. This is open question 2's own
+  alternative, and it costs the cube nothing extra — it shares the action row the
+  new-solve card was already paying for. It is *also* still on the solve screen,
+  in the notebook button's slot, since "is this better than last time" is a
+  question you ask while writing.
+- **The list ends in a 14-point peek, not a clean edge** (found in a browser at
+  320×568). Two whole cards with a third behind them draws a list that looks
+  finished, with nothing on screen saying the third solve exists — the scrollbar
+  is off, and on a phone it only appears once you are already scrolling.
+
+**Layout, in points (§8.6).** The `bottomRow` went — **−44** (a 34-point button
+row, 6 above and 4 below) — and the list block arrived: a capped scroll, a
+6-point gap and a 37-point action row. The cap is `visibleCards ×
+(CARD_HEIGHT + CARD_GAP) + CARD_PEEK` = **126** at two cards and **182** at
+three, so the block is **+169** on a short phone and **+225** on a tall one, for
+a gross **+125 / +181**.
+
+What that actually costs the cube is less, because the cube is **width**-capped
+on every phone and the slack absorbs the first of it. Measured in the browser at
+each viewport, before → after, by how many solves the scramble has:
+
+| | before | 0 solves | 1 | 2 | 3+ |
+|---|---|---|---|---|---|
+| 320×568 | 300 | 278 | 252 | 196 | **182** |
+| 375×667 | 355 | 355 | 351 | 295 | **281** |
+| 393×852 | 373 | 373 | 373 | 373 | **373** |
+
+So the tall phone pays **nothing**, the 667 pays nothing until the second solve,
+and the small phone is the one that pays — **−118 at worst**, landing at 182,
+which is still half again V1's 123-point solve-screen cube at the same size.
+Step 8's table should be re-based on this plus Step 2's −28 on the solve screen.
+
 ### 3.4 Step 4 — method as data
 
 - **`games/cube/methods.js`** promotes `PHASE_METHODS` from a chip vocabulary

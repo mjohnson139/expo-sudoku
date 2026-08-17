@@ -1,16 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { View } from 'react-native';
 import { CommonActions } from '@react-navigation/native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
 import CubeView from './CubeView';
+import CubeCompareModal from './CubeCompareModal';
 import CubeFavoritesModal from './CubeFavoritesModal';
 import CubeMoveTrack from './CubeMoveTrack';
+import CubeNameModal from './CubeNameModal';
 import CubeScrubber from './CubeScrubber';
+import CubeSolveList from './CubeSolveList';
+import CubeSolveMenu from './CubeSolveMenu';
 import { solvedCube } from './cubeState';
-import { moveCount } from './moves';
 import { announcePosition } from './player';
+import { findSolve } from './solveList';
 import useScramblePlayer from './useScramblePlayer';
 import useCubeStage from './useCubeStage';
 import { CUBE_ACCENT, CubeLoading, headerAction, styles } from './cubeChrome';
@@ -39,15 +42,22 @@ const NO_MARKS = new Set();
  * (`CubeContext`), the stage arithmetic (`useCubeStage`) and the chrome
  * (`cubeChrome`) — not a flag.
  *
- * ### It does not scroll, on purpose
+ * ### Step 3 gave the bottom of it to the solves
+ *
+ * The row that used to sit here — **Solve · New · Save** — is gone. `Solve` was
+ * "resume whichever page you were last on", which is a guess the list no longer
+ * has to make; `New` and `Save` are icons on the header; and what the row paid
+ * for is `CubeSolveList`, which is the one-scramble-many-solves structure this
+ * epic exists to put on the screen that owns it (docs/cube-flow-plan.md §3.3).
+ *
+ * ### The page does not scroll, on purpose — the *list* does
  *
  * The cube claims every pan gesture inside its square (see `CubeView`). A
- * `ScrollView` wrapping it would put the two in competition for each drag, which
- * is the exact race this repo already lost once on Fungiku's board
- * (docs/fungiku-plan.md §2). So the page is a fixed column that never scrolls —
- * the cube is sized from the space its stage actually measures — and the lists
- * in this feature live in modals until Step 3 gives them the bottom of the
- * screen.
+ * `ScrollView` wrapping the page would put the two in competition for each drag,
+ * which is the exact race this repo already lost once on Fungiku's board
+ * (docs/fungiku-plan.md §2). So the page stays a fixed column: the cube is sized
+ * from the space its stage measures, and the scroll lives *inside* the list,
+ * under the cube and nowhere near it.
  */
 const CubeHome = ({ navigation, onExitToHub }) => {
   const { theme } = useAppTheme();
@@ -55,7 +65,8 @@ const CubeHome = ({ navigation, onExitToHub }) => {
     scramble,
     saved,
     favorites,
-    openSolve,
+    mySolves,
+    openId,
     restoredOpen,
     clearRestoredOpen,
     yaw,
@@ -64,14 +75,24 @@ const CubeHome = ({ navigation, onExitToHub }) => {
     toggleSaved,
     showScramble,
     removeSaved,
-    resumeSolve,
+    showSolve,
+    startNewSolve,
+    copySolve,
+    deleteSolve,
+    renameSolveById,
+    clearSolveById,
     turnTo,
-    resetView,
     showOtherSide,
   } = useCube();
 
   const [showFavorites, setShowFavorites] = useState(false);
-  const { measureStage, cubeSize, room } = useCubeStage();
+  const [showCompare, setShowCompare] = useState(false);
+  // The solve a long-press opened the menu for, and the one being renamed —
+  // separately, because the two modals are opened one at a time rather than
+  // stacked (a Modal over a Modal is reliable on web and finicky on iOS).
+  const [managingId, setManagingId] = useState(null);
+  const [renamingId, setRenamingId] = useState(null);
+  const { measureStage, cubeSize, room, windowHeight } = useCubeStage();
 
   // This screen is the one under the push, so it is the one that says "no solve
   // is open" — every route out of the solve screen goes through the moment this
@@ -151,14 +172,92 @@ const CubeHome = ({ navigation, onExitToHub }) => {
     [pause, turnTo]
   );
 
-  /** Open the page you were on, and only start one when there is nothing to
-   *  resume — which is what makes this the same button it was before solves were
-   *  kept. The push is what solve mode used to be. */
-  const openSolveScreen = useCallback(() => {
+  /**
+   * Open a solve — the two calls, and the only way onto the solve screen.
+   *
+   * `showSolve` then `navigate`, in that order, because the pushed screen reads
+   * the open page off the context as it mounts. There is no "resume the page you
+   * were last on" any more: the list says which pages there are and the operator
+   * points at one, which is the guess this step exists to stop making.
+   */
+  const openSolveScreen = useCallback(
+    (id) => {
+      pause();
+      showSolve(id);
+      navigation.navigate(SOLVE_ROUTE);
+    },
+    [pause, showSolve, navigation]
+  );
+
+  /** A fresh page against this scramble, opened. `startNewSolve` returns null
+   *  when there is no scramble to write one against, and then there is nothing
+   *  to push to. */
+  const openNewSolve = useCallback(() => {
     pause();
-    if (!resumeSolve()) return;
+    if (!startNewSolve()) return;
     navigation.navigate(SOLVE_ROUTE);
-  }, [pause, resumeSolve, navigation]);
+  }, [pause, startNewSolve, navigation]);
+
+  // ——— The long-press menu (plan §3.3) ——————————————————————————————————
+
+  const closeMenu = useCallback(() => setManagingId(null), []);
+
+  /**
+   * Copy a solve and stay here.
+   *
+   * `copySolve` opens the copy, so it arrives accented at the top of the list —
+   * which is the feedback that says the duplicate happened. Pushing straight
+   * into it would be a reasonable guess too, and it is the wrong one: duplicate
+   * is most often the first of several tidying actions, and each of them would
+   * cost a trip back.
+   */
+  const duplicate = useCallback(
+    (id) => {
+      copySolve(id);
+      closeMenu();
+    },
+    [copySolve, closeMenu]
+  );
+
+  /**
+   * Empty a page, keeping it.
+   *
+   * Nothing to pause: the solve screen is not on the stack while this one is
+   * focused, and this screen's transport is playing the *scramble*, which a
+   * solve's moves have nothing to do with.
+   */
+  const clearSolve = useCallback(
+    (id) => {
+      clearSolveById(id);
+      closeMenu();
+    },
+    [clearSolveById, closeMenu]
+  );
+
+  /** Forget a page. `deleteSolve` moves `openId` on to the next one for this
+   *  scramble, or to nothing — the list simply draws what is left. */
+  const removeSolveById = useCallback(
+    (id) => {
+      deleteSolve(id);
+      closeMenu();
+    },
+    [deleteSolve, closeMenu]
+  );
+
+  const beginRename = useCallback((id) => {
+    setManagingId(null);
+    setRenamingId(id);
+  }, []);
+
+  const endRename = useCallback(() => setRenamingId(null), []);
+
+  const submitRename = useCallback(
+    (name) => {
+      renameSolveById(renamingId, name);
+      endRename();
+    },
+    [renamingId, endRename, renameSolveById]
+  );
 
   const startScramble = useCallback(
     (alg) => {
@@ -182,30 +281,66 @@ const CubeHome = ({ navigation, onExitToHub }) => {
   }, [pause, newScramble]);
 
   const titleColor = theme.colors.title;
-  const surface = theme.colors.numberPad.background;
   const border = theme.colors.numberPad.border;
 
   // Moves not played yet are muted rather than hidden, so the scramble stays a
   // scramble you can read ahead in. Mixed toward the background so it works on
   // both themes without a second palette.
   const pendingColor = mix(titleColor, theme.colors.background, 0.55);
-  const solveCount = moveCount(openSolve ? openSolve.alg : '');
+
+  const managing = findSolve(mySolves, managingId);
 
   /**
-   * The controls that ride on the header (docs/cube-plan.md §8.6, V1 Step 7).
+   * The header's controls — and **four is the number, measured** (§8.6).
    *
-   * These are the *view*: where the camera is pointing. They were a row of their
-   * own, twice — about 100 points on a screen whose subject is a square — and a
-   * header row was already being paid for with a whole empty column on the right
-   * of it.
+   * Step 3 moved New scramble and Save up here off the row that became the
+   * list, which is what the plan asks for, and the row does not fit six. At 320
+   * points the header has 300: the home button takes 38, the right-hand end
+   * takes 4 of padding, and each control is 34 points of button with 5 of margin
+   * in front of it. Four of them leave 94 for the title, which is `Scramble` at
+   * 17pt bold with air to spare; five leave 55, and the title starts
+   * ellipsizing — `ScreenHeader`'s dense right-hand column does not shrink, so
+   * what gives is always the word on the left.
+   *
+   * So one control had to go, and **`Reset the view` is the one that went.** On
+   * the solve screen that button means *back to the hold you chose*, which is a
+   * place the operator picked; here there is no hold, so it only ever meant
+   * "back to a default nobody asked for" — and `Turn the cube around` plus a
+   * drag reaches every angle it reached. It is the only V1 affordance this step
+   * removes, and it is the one worth asking the operator about.
+   *
+   * Compare is **not** here, though plan §3.3 proposed it: it is the sixth
+   * control and there is no room for a fifth. It sits with the list instead
+   * (see `CubeSolveList`), which is open question 2's own alternative.
    */
   const headerActions = (
     <>
       {headerAction({
-        name: 'restore',
-        label: 'Reset the view',
-        hint: 'Looks at the cube from the front again',
-        onPress: resetView,
+        name: 'dice-multiple',
+        label: 'New scramble',
+        hint: 'Generates a new random scramble and applies it to the cube',
+        onPress: onNewScramble,
+        color: titleColor,
+        border,
+      })}
+      {/* Two states, as the labelled button had: the star fills and turns accent
+          when this scramble is one of the kept ones. */}
+      {headerAction({
+        name: saved ? 'star' : 'star-outline',
+        label: saved ? 'Remove from saved scrambles' : 'Save this scramble',
+        hint: saved
+          ? 'Takes this scramble out of your saved list'
+          : 'Keeps this scramble in your saved list',
+        onPress: toggleSaved,
+        color: saved ? CUBE_ACCENT : titleColor,
+        border: saved ? CUBE_ACCENT : border,
+      })}
+      {headerAction({
+        name: 'star-box-outline',
+        label: `Favorites, ${favorites.length} saved`,
+        hint: 'Opens the list of scrambles you have kept',
+        onPress: () => setShowFavorites(true),
+        count: favorites.length,
         color: titleColor,
         border,
       })}
@@ -214,18 +349,6 @@ const CubeHome = ({ navigation, onExitToHub }) => {
         label: 'Turn the cube around',
         hint: 'Shows the three faces that are currently hidden',
         onPress: showOtherSide,
-        color: titleColor,
-        border,
-      })}
-      {/* Not a view control, and here anyway: the row below fits three labelled
-          buttons at 320 points and not four, and this is the one of the four
-          whose label was a noun rather than a verb. It keeps its count. */}
-      {headerAction({
-        name: 'star-box-outline',
-        label: `Favorites, ${favorites.length} saved`,
-        hint: 'Opens the list of scrambles you have kept',
-        onPress: () => setShowFavorites(true),
-        count: favorites.length,
         color: titleColor,
         border,
       })}
@@ -238,11 +361,13 @@ const CubeHome = ({ navigation, onExitToHub }) => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-      {/* Dense, and carrying the view controls. The default header wrapped "Cube
-          Scramble" onto two lines and cost 75 points to say something the
-          operator knew before they tapped the tile. */}
+      {/* Dense, and carrying four controls now. The title is `Scramble` rather
+          than `Cube Scramble` because at 320 points the four do not leave room
+          for thirteen characters — and because the two screens of this stack now
+          read as a pair: `Scramble`, and the solve's own name. The game is named
+          on the tile the operator tapped one gesture ago. */}
       <ScreenHeader
-        title="Cube Scramble"
+        title="Scramble"
         theme={theme}
         onHomePress={onExitToHub}
         dense
@@ -302,55 +427,52 @@ const CubeHome = ({ navigation, onExitToHub }) => {
         onCycleSpeed={player.cycleSpeed}
       />
 
-      {/* The three things this screen is *for*, still labelled, because a verb
-          with no noun on it is a guess. Step 3 takes this row for the list of
-          solves and moves New and Save onto the header. */}
-      <View style={styles.bottomRow}>
-        <TouchableOpacity
-          style={[styles.primaryButton, { backgroundColor: CUBE_ACCENT }]}
-          onPress={openSolveScreen}
-          accessibilityRole="button"
-          accessibilityLabel="Write a solve"
-          accessibilityHint="Opens the solve, with the cube starting from this scramble"
-        >
-          <MaterialCommunityIcons name="pencil-outline" size={18} color="#ffffff" />
-          <Text style={styles.primaryButtonText}>
-            Solve{solveCount > 0 ? ` (${solveCount})` : ''}
-          </Text>
-        </TouchableOpacity>
+      {/* What the Solve · New · Save row paid for. `now` is read on every render
+          rather than memoized: it is what turns `savedAt` into "yesterday", and
+          a clock frozen at mount would still say "just now" an hour later. */}
+      <CubeSolveList
+        solves={mySolves}
+        openId={openId}
+        now={Date.now()}
+        windowHeight={windowHeight}
+        theme={theme}
+        accent={CUBE_ACCENT}
+        onOpen={openSolveScreen}
+        onNew={openNewSolve}
+        onManage={setManagingId}
+        onCompare={() => setShowCompare(true)}
+      />
 
-        <TouchableOpacity
-          style={[styles.toolButton, { borderColor: border }]}
-          onPress={onNewScramble}
-          accessibilityRole="button"
-          accessibilityLabel="New scramble"
-          accessibilityHint="Generates a new random scramble and applies it to the cube"
-        >
-          <MaterialCommunityIcons name="dice-multiple" size={18} color={titleColor} />
-          <Text style={[styles.toolButtonText, { color: titleColor }]}>New</Text>
-        </TouchableOpacity>
+      <CubeSolveMenu
+        visible={managingId !== null}
+        theme={theme}
+        accent={CUBE_ACCENT}
+        solve={managing}
+        onRename={beginRename}
+        onDuplicate={duplicate}
+        onClear={clearSolve}
+        onDelete={removeSolveById}
+        onClose={closeMenu}
+      />
 
-        <TouchableOpacity
-          style={[
-            styles.toolButton,
-            { borderColor: saved ? CUBE_ACCENT : border },
-            saved && { backgroundColor: surface },
-          ]}
-          onPress={toggleSaved}
-          accessibilityRole="button"
-          accessibilityLabel={saved ? 'Remove from saved scrambles' : 'Save this scramble'}
-          accessibilityState={{ selected: saved }}
-        >
-          <MaterialCommunityIcons
-            name={saved ? 'star' : 'star-outline'}
-            size={18}
-            color={saved ? CUBE_ACCENT : titleColor}
-          />
-          <Text style={[styles.toolButtonText, { color: saved ? CUBE_ACCENT : titleColor }]}>
-            {saved ? 'Saved' : 'Save'}
-          </Text>
-        </TouchableOpacity>
-      </View>
+      <CubeNameModal
+        visible={renamingId !== null}
+        theme={theme}
+        accent={CUBE_ACCENT}
+        title="Name this solve"
+        name={(findSolve(mySolves, renamingId) || {}).name || ''}
+        onSubmit={submitRename}
+        onClose={endRename}
+      />
+
+      <CubeCompareModal
+        visible={showCompare}
+        theme={theme}
+        accent={CUBE_ACCENT}
+        solves={mySolves}
+        currentId={openId}
+        onClose={() => setShowCompare(false)}
+      />
 
       <CubeFavoritesModal
         visible={showFavorites}

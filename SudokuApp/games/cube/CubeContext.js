@@ -49,8 +49,9 @@ import { loadCubeState, saveCubeState } from './storage';
  * `openId` — as `workspace.solveId`, and **only while the solve route is
  * mounted**, which is what makes the file able to restore a pushed screen
  * (`solveOpen` below). `openId` itself keeps V1's meaning the rest of the time:
- * *the page you are on for this scramble*, so backing out to the scramble and
- * tapping Solve again resumes the page you left rather than the newest one.
+ * *the page you are on for this scramble* — which, since Step 3 put the solves
+ * on the scramble screen as cards, is what decides which card wears the accent
+ * and sits at the top of the list.
  */
 const CubeContext = createContext(undefined);
 
@@ -92,7 +93,8 @@ export const CubeProvider = ({ children, fallback = null }) => {
    * that is true for the chevron, the hardware back and the edge swipe alike.
    *
    * Deliberately **not** "openId is set": `openId` outlives the push, which is
-   * what lets Solve resume the page you were last on.
+   * what keeps the card you were last on accented after you have backed out of
+   * it.
    */
   const [solveOpen, setSolveOpen] = useState(false);
 
@@ -314,20 +316,14 @@ export const CubeProvider = ({ children, fallback = null }) => {
   }, [solves, scrambleKey]);
 
   /**
-   * The page to open when the operator asks for one without naming it.
+   * Put a particular solve on the cube.
    *
-   * The page they were last on for this scramble, and only a new one when there
-   * is nothing to resume — which is what makes Solve the same button it was
-   * before solves were kept.
+   * **`resumeSolve` retired here in Step 3** — it was "open the page you were
+   * last on, and start one if there is nothing to resume", which is what the
+   * bottom row's Solve button needed and the card list makes unnecessary. Every
+   * route onto the solve screen now names a page, because the operator is
+   * pointing at one.
    */
-  const resumeSolve = useCallback(() => {
-    const target = openSolve || mySolves[0] || null;
-    if (!target) return startNewSolve();
-    setOpenId(target.id);
-    return target;
-  }, [openSolve, mySolves, startNewSolve]);
-
-  /** Put a particular solve on the cube. */
   const showSolve = useCallback((id) => {
     setOpenId(id);
   }, []);
@@ -450,7 +446,6 @@ export const CubeProvider = ({ children, fallback = null }) => {
       removeSaved,
       editOpen,
       startNewSolve,
-      resumeSolve,
       showSolve,
       copySolve,
       deleteSolve,
@@ -483,7 +478,6 @@ export const CubeProvider = ({ children, fallback = null }) => {
       removeSaved,
       editOpen,
       startNewSolve,
-      resumeSolve,
       showSolve,
       copySolve,
       deleteSolve,

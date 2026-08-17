@@ -13,6 +13,12 @@ const BUILD_NOTES = {
       'Leaving a solve is the back chevron, the Android back button or the iOS edge swipe — the same gesture as anywhere else',
       'The solve screen names the page you are on and the scramble you are solving, so the line that used to say it under the pad is gone',
       'Background the app mid-solve and you come back to the solve, not to the scramble',
+      'The scramble screen lists the solves written against it, as cards — the one you are working on at the top',
+      'Each card says how many moves it holds and when you last wrote it: "12 moves · yesterday"',
+      'Tap a card to open that solve; "New solve" starts another one against the same scramble',
+      'Press and hold a card to rename, duplicate, clear or delete that solve',
+      'New scramble and Save are icons on the header now, which is what freed the bottom of the screen for the list',
+      'Compare sits with the solves it compares, and appears once there are two attempts to compare',
     ]
   },
   '3.1.0': {
