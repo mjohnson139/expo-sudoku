@@ -1,5 +1,7 @@
 import {
   AXIS,
+  DEFAULT_PITCH,
+  DEFAULT_YAW,
   buildScene,
   orbit,
   projector,
@@ -8,7 +10,14 @@ import {
 } from '../geometry';
 import { solvedCube } from '../cubeState';
 import { parseMove } from '../moves';
-import { TUNING, moveForDrag, pickFace, shouldCommit, turnProgress } from '../touchTurn';
+import {
+  TUNING,
+  chooseMove,
+  moveForDrag,
+  pickFace,
+  shouldCommit,
+  turnProgress,
+} from '../touchTurn';
 
 const SIZE = 300;
 
@@ -286,6 +295,140 @@ describe('moveForDrag — every face, every direction', () => {
 
     expect(before.axis).toBe(AXIS.z);
     expect(after.axis).toBe(AXIS.x);
+  });
+});
+
+/**
+ * The gesture as a whole — which is where the operator's first phone session
+ * sent this module back for another pass (§3.3a).
+ *
+ * These run at the view the cube actually opens at, with U, F and L in sight,
+ * because "which face did my finger mean" is a question about a real screen.
+ */
+describe('chooseMove — the front face, and changing its mind', () => {
+  const view = { size: SIZE, yaw: DEFAULT_YAW, pitch: DEFAULT_PITCH };
+  const scene = buildScene(solvedCube(), {
+    ...view,
+    colors: { U: '#fff', D: '#ff0', F: '#0f0', B: '#00f', R: '#f00', L: '#f80' },
+  });
+  const polygons = scene.polygons;
+  const project = projector(view);
+
+  /** Where a sticker's centre sits on screen, so a drag can start on it. */
+  const centreOf = (pos, normal) =>
+    project([
+      pos[0] + normal[0] * 0.5,
+      pos[1] + normal[1] * 0.5,
+      pos[2] + normal[2] * 0.5,
+    ]);
+
+  const drag = (from, [dx, dy]) =>
+    chooseMove({ polygons, from, to: [from[0] + dx, from[1] + dy], view });
+
+  const F = [0, 0, 1];
+
+  // Nine drags on the face the operator asked to concentrate on. Every answer
+  // here is checkable against a cube in your hand: push the middle row right and
+  // the equator goes with it; push the left column up and the left face does.
+  it.each([
+    [[0, 0, 1], 'right', 'E'],
+    [[0, 0, 1], 'up', "M'"],
+    [[0, 1, 1], 'right', "U'"],
+    [[-1, 0, 1], 'up', "L'"],
+    [[1, 0, 1], 'up', 'R'],
+    [[0, -1, 1], 'right', 'D'],
+  ])('a drag %s-ward from the front face at %s turns %s', (pos, way, token) => {
+    const move = drag(centreOf(pos, F), way === 'right' ? [45, 0] : [0, -45]);
+    expect(move.token).toBe(token);
+  });
+
+  it('takes the top-left corner dragged right as a front-face turn', () => {
+    // The operator's own example. The finger lands on the top face's front-left
+    // corner — the "top left corner" of the cube as drawn — and goes right. That
+    // is the front layer turning, not the left one.
+    const move = drag(centreOf([-1, 1, 1], [0, 1, 0]), [45, 0]);
+    expect(move.token).toBe('F');
+    expect(move.layers).toEqual([1]);
+    expect(move.axis).toBe(AXIS.z);
+  });
+
+  it('changes its mind when the drag curves away', () => {
+    const from = centreOf(F, F);
+    const first = drag(from, [22, 0]);
+    expect(first.token).toBe('E');
+
+    // Same finger, still down, now heading up instead.
+    const second = chooseMove({
+      polygons,
+      from,
+      to: [from[0] + 22, from[1] - 70],
+      view,
+      current: first,
+    });
+    expect(second.token).not.toBe(first.token);
+    expect(second.axis).toBe(AXIS.x);
+  });
+
+  it('does not change its mind over a wobble', () => {
+    const from = centreOf(F, F);
+    const first = drag(from, [40, 0]);
+    const wobbled = chooseMove({
+      polygons,
+      from,
+      to: [from[0] + 44, from[1] - 7],
+      view,
+      current: first,
+    });
+    expect(wobbled.token).toBe(first.token);
+  });
+
+  it('lets the sticker it started on hold a near tie, rather than flickering', () => {
+    // Sliding along the seam between two faces is the case that has no honest
+    // winner: both faces read the drag from the same in-plane direction, so
+    // their scores differ only by perspective rounding. The start has to win, or
+    // the same gesture gives different moves on different frames.
+    const from = centreOf([-1, 1, 1], [0, 1, 0]);
+    const startPick = pickFace(polygons, from[0], from[1]);
+
+    // Walk right until the face under the finger changes, then keep going a
+    // little, so the drag genuinely ends on the other side of the seam.
+    let crossing = null;
+    for (let step = 1; step < 120 && crossing === null; step += 1) {
+      const pick = pickFace(polygons, from[0] + step, from[1]);
+      if (pick && pick.normal.join() !== startPick.normal.join()) crossing = step;
+    }
+    expect(crossing).not.toBeNull();
+
+    const to = [from[0] + crossing + 20, from[1]];
+    const endPick = pickFace(polygons, to[0], to[1]);
+    // The premise: the finger really has crossed onto another face.
+    expect(endPick.normal).not.toEqual(startPick.normal);
+
+    const chosen = chooseMove({ polygons, from, to, view });
+    const fromStart = moveForDrag(startPick, [to[0] - from[0], to[1] - from[1]], view);
+    const fromEnd = moveForDrag(endPick, [to[0] - from[0], to[1] - from[1]], view);
+
+    expect(fromEnd.token).not.toBe(fromStart.token);
+    expect(Math.abs(fromEnd.alignment - fromStart.alignment)).toBeLessThan(
+      TUNING.SWITCH_MARGIN
+    );
+    expect(chosen.token).toBe(fromStart.token);
+  });
+
+  it('keeps what it was doing when the drag shrinks back under the threshold', () => {
+    const from = centreOf(F, F);
+    const held = drag(from, [40, 0]);
+    expect(chooseMove({ polygons, from, to: [from[0] + 1, from[1]], view, current: held }))
+      .toBe(held);
+  });
+
+  it('means nothing at all until the finger has actually gone somewhere', () => {
+    const from = centreOf(F, F);
+    expect(chooseMove({ polygons, from, to: [from[0] + 1, from[1]], view })).toBeNull();
+  });
+
+  it('answers null when the finger never touched the cube', () => {
+    expect(chooseMove({ polygons, from: [3, 3], to: [60, 3], view })).toBeNull();
   });
 });
 
