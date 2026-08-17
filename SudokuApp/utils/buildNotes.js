@@ -19,6 +19,8 @@ const BUILD_NOTES = {
       'Press and hold a card to rename, duplicate, clear or delete that solve',
       'New scramble and Save are icons on the header now, which is what freed the bottom of the screen for the list',
       'Compare sits with the solves it compares, and appears once there are two attempts to compare',
+      'Coming back to the cube after backgrounding the app lands you exactly where you were — no spinner, and no solve sliding in over itself',
+      'The transport still starts fresh on the way back: the cube is whole and the speed is 1×, as it always was',
     ]
   },
   '3.1.0': {

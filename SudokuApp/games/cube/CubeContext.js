@@ -102,7 +102,9 @@ export const CubeProvider = ({ children, fallback = null }) => {
    * Did the save say a solve was open?
    *
    * Read by `CubeHome` to put the pushed screen back on the stack after a cold
-   * start or a resume remount, and **cleared the moment it has been acted on**.
+   * start — and *only* a cold start since Step 3a, because the cube no longer
+   * remounts on resume (`keepsStateOnResume`, `games/registry.js`). **Cleared
+   * the moment it has been acted on**.
    * That is not tidiness: a restore is one event in this provider's lifetime, and
    * a flag that stayed true would fire again on any later remount of the screen
    * reading it — which, when the restore is itself a navigation, is a loop.

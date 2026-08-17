@@ -21,6 +21,12 @@ import { readCubeProgress } from './cube/storage';
  *   Screen       component rendered for the route; receives { onExitToHub }
  *   readProgress optional `async () => ({ label, detail }) | null` for the card's
  *                Continue affordance. Null/absent means "no resumable state".
+ *   keepsStateOnResume
+ *                optional. `App.js` remounts the open game on `AppState →
+ *                'active'` so it re-reads its saved snapshot; set this when a
+ *                game holds its own state above its screens and does not want
+ *                that. See `App.js` for what the remount costs a game with a
+ *                navigator inside it.
  *
  * Sudoku's files intentionally stay where they are for now — the entry points at
  * the existing `screens/GameScreen`. Relocating it under `games/sudoku/` to match
@@ -58,6 +64,12 @@ export const GAMES = [
     accent: '#c62828',
     Screen: CubeScreen,
     readProgress: readCubeProgress,
+    // `CubeContext` owns everything persisted, above both of the cube's screens,
+    // and flushes it when the app leaves — so on resume the state in memory is
+    // the truth and re-reading the file would only replace it with an older
+    // copy. What the remount *also* did was tear down the cube's nested
+    // navigator, which is why it had to go; `App.js` has the whole story.
+    keepsStateOnResume: true,
   },
 ];
 

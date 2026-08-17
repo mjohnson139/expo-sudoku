@@ -309,6 +309,56 @@ and the small phone is the one that pays — **−118 at worst**, landing at 182
 which is still half again V1's 123-point solve-screen cube at the same size.
 Step 8's table should be re-based on this plus Step 2's −28 on the solve screen.
 
+#### Step 3a — the resume remount had to go (found on a device)
+
+**Reported by the operator against the `pr-111` build**, and the first finding of
+this epic that a browser could not have produced:
+
+> *"If I am on the solve screen and I background the app and then I come back. I
+> briefly see the solve screen, but then I also see a slide animation like a push
+> onto the navigation stack."*
+
+Exactly what it says. `App.js` bumped `appKey` on `AppState → 'active'` and keyed
+it onto the open game, so a resume **remounted the whole cube screen** — which
+also reset the cube's *own* navigator to its first route. `CubeHome` then read
+`workspace.solveId` and dispatched a `reset` to put the solve back, and **a
+native stack animates a route it is handed**. Step 2's comment claimed "there is
+nothing to animate"; that was the intent and not the behaviour, and under
+`react-native-web` `react-native-screens` no-ops, which is why three browser
+passes across two steps never showed it.
+
+**The fix is to stop remounting, not to suppress the animation.** The cube has
+not needed the remount since Step 2: `CubeContext` owns everything persisted
+above both screens and flushes on the way out, so on resume the state in memory
+is *fresher* than the file and re-reading it replaces it with an older copy of
+itself. Suppressing the slide would have meant racing a `stackAnimation` prop
+change against the transition — untestable from a browser, and it would have left
+the app rebuilding a stack it never needed to tear down.
+
+- `games/registry.js` gains **`keepsStateOnResume`**, and the cube sets it.
+  `App.js` bumps the key only for games without it, so **Sudoku and Fungiku keep
+  the remount they rely on** — verified: both reopen their difficulty modal on
+  resume exactly as before.
+- **What the remount was quietly enforcing is now written down.** §7.1's
+  right-hand column — the scrub position and the turn speed do not survive a
+  background — was true only because the hook was being thrown away. It is
+  `rewind` in `useScramblePlayer` now, called from a new `useAppBackground`.
+- **`background`, not `inactive`.** The save flush deliberately treats `inactive`
+  as leaving, because flushing early is free. Throwing away where the operator
+  was standing is not: a glance at Control Centre must not lose their place.
+- `CubeSolve` clears its half-finished pad gesture on the same signal — the
+  promotion expires on its own, an armed `′` has no clock.
+
+**The restore path survives for cold starts**, which is what it was always for,
+and a cold start may still show the transition. That is one slide while the app is
+launching instead of one on every resume.
+
+Verified in a browser by driving `visibilitychange`: the solve screen stays put
+with its moves intact, the scrub position goes back to the end and the speed to
+1×, the scramble screen stays on the scramble, and there is no spinner and no
+route change. **Still wants the operator's device pass** — the bug was device-only
+and so is the proof.
+
 ### 3.4 Step 4 — method as data
 
 - **`games/cube/methods.js`** promotes `PHASE_METHODS` from a chip vocabulary
@@ -493,6 +543,16 @@ scrolls**, horizontally, as `CubePhaseStrip` already does
 
 ## 5. Things that are easy to get wrong
 
+- **A native stack animates any route you hand it, including a restore.** Step 2
+  asserted that a `reset` had "nothing to animate" and Step 3a found out
+  otherwise, on a device: a resume rebuilt the cube's stack and the solve slid in
+  over itself. `react-native-screens` no-ops under `react-native-web`, so **no
+  browser pass can see this class of bug** — and the answer was to stop rebuilding
+  the stack rather than to fight the animation (§3.3's Step 3a).
+- **A remount is a very big hammer for "re-read your state", and it resets any
+  navigator inside it.** `App.js`'s `appKey` is fine for a game that is one
+  screen and hydrates on mount; it was wrong for a game that owns a provider and
+  a stack. `keepsStateOnResume` in `games/registry.js` is the opt-out.
 - **A screen under a push stays mounted, so "read it on mount" stops being
   enough.** This is what the navigator changed about the app, and it cost Step 1
   a fix the brief had not predicted: the hub read its Continue badges on mount

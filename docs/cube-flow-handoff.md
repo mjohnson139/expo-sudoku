@@ -71,9 +71,11 @@ open.
   (`App.js`, `package.json`, for the navigator) and **Step 2** (four optional
   props on `components/ScreenHeader.js`, so a header's corner can be a back
   chevron and its subtitle monospaced — every other caller keeps the header it
-  had). A step that needs a third should say why in its PR. **`utils/buildNotes.js`
-  does not count** — the release entry is mandated by the plan, and every step
-  extends `3.2.0`'s.
+  had); and **Step 3a** (`keepsStateOnResume` in `games/registry.js` plus the one
+  line in `App.js` that reads it, so the cube opts out of the resume remount —
+  Sudoku and Fungiku keep theirs). A step that needs a fourth should say why in
+  its PR. **`utils/buildNotes.js` does not count** — the release entry is mandated
+  by the plan, and every step extends `3.2.0`'s.
 - **`editOpen` is the only edit funnel** for the open solve, and `withMoves` is
   the only sanctioned moves-edit patch. Two writers is how the file and the
   screen learn to disagree.
@@ -170,6 +172,35 @@ Six things Step 4 inherits and should not rediscover:
   thing in every timezone; it passes under `America/Los_Angeles`,
   `Pacific/Auckland`, `Asia/Kolkata` and `UTC`.
 
+**Step 3a — the resume remount is gone, and this is the one to read twice.** The
+operator found it on a device against `pr-111`: backgrounding the app on the solve
+screen and coming back showed the solve, then **slid it in over itself**. A resume
+was remounting the whole cube screen (`appKey` in `App.js`), which reset the
+cube's own navigator, which made `CubeHome` dispatch a `reset` to put the solve
+back — and **a native stack animates a route it is handed.** Step 2's comment
+claimed a `reset` had nothing to animate; it was wrong, and `react-native-screens`
+no-ops under `react-native-web`, so **no browser pass can ever catch this class of
+bug.**
+
+What Step 4 needs to know about the result:
+
+- **The cube does not remount on resume.** `keepsStateOnResume` on its
+  `games/registry.js` entry; `App.js` keys `appKey` only onto games without it.
+  So anything a cube screen or hook computes at mount now survives a background —
+  the same trap as "a screen under a push stays mounted", one level up. If Step 4
+  adds state that must not survive the app leaving, `useAppBackground` is where
+  that goes, not a remount.
+- **`useScramblePlayer.rewind`** is §7.1's right-hand column made executable: on
+  `background` the transport goes back to stopped, fully applied, 1×. It used to
+  be true only because the hook was being thrown away.
+- **`background`, not `inactive`.** `CubeProvider`'s flush keeps `inactive`
+  because flushing early is free; discarding where the operator was standing is
+  not, and iOS reports `inactive` for a glance at Control Centre.
+- **`CubeHome`'s restore effect is now cold-start only** — and all of Step 2's
+  warnings about it still stand. **Do not move it.** A cold start may still show
+  the slide; that was judged an acceptable one-off against racing a
+  `stackAnimation` prop change.
+
 **Layout, in points (§8.6).** `bottomRow` went (−44); the list block is the
 capped scroll (**126** at two cards, **182** at three) plus a 6-point gap and a
 37-point action row. Measured in a browser, the cube goes **300 → 182** at
@@ -187,9 +218,12 @@ solves back; a cold start restoring the pushed solve and a cold start staying on
 the scramble; and that the **page** never scrolls while the **list** does
 (client 126 against content 168 at 320×568).
 
-**Device pass: not yet done.** Ask the operator, and write down what the device
-finds. The layout numbers above are from a browser at those viewports, and the
-web container's padding is not the same as a phone's safe area.
+**Device pass: one round done, one finding — Step 3a above.** It was a resume
+animation, i.e. exactly the category the golden rules say a browser is weak
+evidence for, and it was fixed by removing the rebuild rather than the animation.
+The fix itself still wants a device round. The layout numbers above are from a
+browser at those viewports, and the web container's padding is not the same as a
+phone's safe area.
 
 ---
 

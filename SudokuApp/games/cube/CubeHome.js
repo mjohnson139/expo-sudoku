@@ -102,16 +102,25 @@ const CubeHome = ({ navigation, onExitToHub }) => {
   /**
    * Put the pushed solve back on the stack.
    *
-   * **The `appKey` remount is what makes this necessary** (`App.js`): on resume
-   * the whole cube screen is remounted, so a nested navigator inside it starts
-   * back here and a solve that was open would be lost. That is exactly what the
-   * persisted `solveId` is for, and `CubeProvider` holds both screens back until
-   * the save has landed, so `restoredOpen` is already the truth by the time this
-   * screen exists.
+   * **This is a cold start only, and Step 3a is why that matters.** Until then
+   * `App.js` also remounted the whole cube screen on `AppState → 'active'`, so
+   * this ran on every resume — and a native stack *animates* a route it is
+   * handed, so the operator came back to their open solve and then watched it
+   * slide in over itself (found on a device; invisible in a browser, where
+   * `react-native-screens` no-ops). The cube opts out of that remount now
+   * (`keepsStateOnResume` in `games/registry.js`), so a resume changes nothing
+   * and there is nothing to animate.
+   *
+   * What is left is the case this was always for: the process was killed and the
+   * app is starting fresh. `workspace.solveId` is what remembers, and
+   * `CubeProvider` holds both screens back until the save has landed, so
+   * `restoredOpen` is already the truth by the time this screen exists.
    *
    * A `reset` rather than a `push` because a restore is not a navigation the
-   * operator performed: there is nothing to animate, and a slide-in on every
-   * resume would announce a transition that did not happen.
+   * operator performed. **A cold start may still show the transition** — that is
+   * one slide while the app is launching rather than one on every resume, and
+   * suppressing it means racing the animation with a prop change, which is a
+   * worse trade than living with it.
    *
    * ### It has to wait a commit, and that is not a hack
    *

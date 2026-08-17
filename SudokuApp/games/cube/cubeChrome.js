@@ -53,6 +53,10 @@ export const headerAction = ({ name, label, hint, onPress, count, color, border 
  * yet (`CubeProvider`), or it has and it said a solve was open, which the
  * scramble screen takes one commit to put back on the stack (`CubeHome`). One
  * component so the two are the same pixels and the second is invisible.
+ *
+ * **Both are cold starts only.** Until Step 3a a resume remounted the whole game
+ * (`App.js`), so this spinner flashed every time the app came back; the cube
+ * keeps its state across a resume now and there is nothing to wait for.
  */
 export const CubeLoading = ({ onExitToHub }) => {
   const { theme } = useAppTheme();

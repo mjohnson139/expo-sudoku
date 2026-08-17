@@ -37,6 +37,7 @@ import {
   withMoves,
 } from './solveList';
 import { moveCount, parseAlg } from './moves';
+import useAppBackground from './useAppBackground';
 import useScramblePlayer from './useScramblePlayer';
 import useCubeStage from './useCubeStage';
 import { CUBE_ACCENT, headerAction, styles } from './cubeChrome';
@@ -177,6 +178,14 @@ const CubeSolve = ({ navigation }) => {
   const tapPrime = useCallback(() => {
     setPrimed((current) => !current);
   }, []);
+
+  // A half-finished gesture does not survive the app leaving. The promotion
+  // expires on its own after `PROMOTE_MS`, but an armed `′` has no clock — and
+  // coming back tomorrow to a pad that silently primes your next move is the
+  // sort of thing you would blame on the pad. This used to be free, because
+  // `App.js` remounted the whole game on resume; Step 3a stopped it doing that
+  // (see `useScramblePlayer`'s `rewind`) so the rule is written here instead.
+  useAppBackground(resetGesture);
 
   useEffect(
     () => () => {
