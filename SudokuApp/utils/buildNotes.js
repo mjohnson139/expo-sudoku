@@ -16,7 +16,7 @@ const BUILD_NOTES = {
       'The scramble screen lists the solves written against it, as cards — the one you are working on at the top',
       'Each card says how many moves it holds and when you last wrote it: "12 moves · yesterday"',
       'Tap a card to open that solve; "New solve" starts another one against the same scramble',
-      'Press and hold a card to rename, duplicate, clear or delete that solve',
+      'Tap the ⋯ on a card to rename, duplicate, clear or delete that solve — pressing and holding the card does the same',
       'New scramble and Save are icons on the header now, which is what freed the bottom of the screen for the list',
       'Compare sits with the solves it compares, and appears once there are two attempts to compare',
       'Coming back to the cube after backgrounding the app lands you exactly where you were — no spinner, and no solve sliding in over itself',

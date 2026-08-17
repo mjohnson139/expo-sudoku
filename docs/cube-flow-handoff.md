@@ -153,6 +153,14 @@ Six things Step 4 inherits and should not rediscover:
   2 answered with its own alternative, because a sixth control did not fit. It is
   also still on the solve screen, where the notebook button used to be. Both
   appear only once `mySolves.length > 1`.
+- **The card's management menu is a `⋯` button, and the long-press is only a
+  shortcut** (Step 3b). Step 3 shipped long-press alone and the device pass killed
+  it: *"the long press honestly I'm not even sure what you're talking about"*.
+  Two things to preserve if you touch the card — **the body and the `⋯` are
+  siblings inside a plain `View`, never nested Touchables** (RN gives the inner
+  one the responder, `react-native-web` bubbles and would fire both), and **the
+  body owns the chevron**, so there is no dead strip at the right edge. The card's
+  height did not change, so the list's cap is untouched.
 - **The in-progress card is `openId`, hoisted to the top by `orderCards` and
   stored nowhere.** Its meta line says `"57 moves · in progress"`; every other
   card says `"57 moves · yesterday"`. **Step 4's method pill goes on this line**,
@@ -328,17 +336,19 @@ want a drilling session rather than an opinion:
 2. ~~Where does the Compare table belong now?~~ **Shipped as a button beside
    `+ New solve`, not a header button** — the header was full at four controls.
    Still worth the operator's opinion, but it is built, not open.
-3. Is long-press the right home for rename / duplicate / delete? **Shipped in
-   Step 3 to be tried.** The question is now "did you find it", and the
-   alternatives are unchanged: icons on the card, or an overflow in the header.
+3. ~~Is long-press the right home for rename / duplicate / delete?~~ **Answered:
+   no.** The device pass found the operator did not know the gesture existed, so
+   Step 3b put a `⋯` on the card and kept the long-press as a shortcut. **Cite
+   this before proposing another invisible gesture:** the test is not "will they
+   find it if they look", it is "is anything giving them a reason to look".
 4. Should the rail lock a phase automatically when the cube reaches the stage's
    goal state?
 5. Does the phase-split tick track come back once the rail exists?
 6. How many variations per phase is too many?
-7. **New in Step 3: does the scramble screen miss `Reset the view`?** It was
-   removed to fit New scramble and Save on the header. If it is missed, something
-   else has to leave — the likeliest candidate is folding Save into the favorites
-   button, at the cost of a second tap.
+7. ~~**Does the scramble screen miss `Reset the view`?**~~ **Answered: no**
+   (operator, 2026-08-17 — *"I don't miss the reset view"*). The four-control
+   header stands, and the solve screen keeps its own `Back to the starting view`,
+   which is the one that points at a place the operator chose.
 8. **New in Step 3: should a card's recency be when the solve was *started* or
    when it was *last written to*?** `savedAt` is creation time today and nothing
    bumps it. Changing that is a change to what a stored field means.

@@ -359,6 +359,44 @@ with its moves intact, the scrub position goes back to the end and the speed to
 route change. **Still wants the operator's device pass** — the bug was device-only
 and so is the proof.
 
+#### Step 3b — the long-press got a control, because it had no reason to be found
+
+**Open question 3, answered by the device pass rather than argued about.** §3.3
+put rename / duplicate / clear / delete on a long-press, on the argument that the
+design draws a clean card and the picker it replaced needed four icons per row.
+The operator's verdict (2026-08-17):
+
+> *"I don't miss the reset view but the long press honestly I'm not even sure
+> what you're talking about"*
+
+That is a stronger result than "hard to find". The standard objection to a
+long-press is discoverability, and the usual answer — *it is there for people who
+look* — assumes something on screen gives them a **reason to look**. Nothing did.
+A gesture nobody knows exists is not a hidden affordance, it is an unshipped
+feature.
+
+So the card gets a **`⋯` button**: one 32-point target at its trailing edge,
+opening the same `CubeSolveMenu`. That is the middle of the three options question
+3 listed — not four icons on the card, and not an overflow buried in the solve
+header two screens from the list. The long-press stays as a shortcut, costing
+nothing.
+
+**Two structural notes for anyone touching this card again:**
+
+- **The body and the `⋯` are siblings inside a plain `View`, never a `Touchable`
+  nested in a `Touchable`.** React Native gives the inner one the responder and
+  the outer never fires; `react-native-web` runs on pointer events that bubble,
+  so a nested menu tap would open the sheet *and* push the solve. This is the
+  same web-vs-native divergence class as §5's style-variant rule.
+- **The body owns the chevron**, so the tappable region is the whole card less 32
+  points and there is no dead strip at the right edge.
+
+Costs the cube **nothing** — the card's height is unchanged, so `solveCards.js`'s
+cap and the §3.3 table above still hold. Verified at 320 and 393: the menu opens,
+does *not* also push the solve, the two targets do not overlap (body 244pt, menu
+32pt, overlap 0 at 320), tapping the body still opens the solve, and a 26-character
+name still fits without clipping.
+
 ### 3.4 Step 4 — method as data
 
 - **`games/cube/methods.js`** promotes `PHASE_METHODS` from a chip vocabulary
@@ -593,12 +631,17 @@ scrolls**, horizontally, as `CubePhaseStrip` already does
    has a method. A quick scratch attempt with no intention of naming phases has
    nowhere to go except a method it will ignore. Legacy solves prove the
    `method: null` path works; whether it should be *offered* is a use question.
-2. **Where does Compare belong now?** Step 3 puts it behind a home header button
-   on the argument that it compares solves and home is where solves live. It
-   could equally be a third card at the bottom of the list.
-3. **Is long-press the right home for rename / duplicate / delete?** It is
-   invisible, which is the standard objection. The alternative is a row of icons
-   on a card the design draws clean, or an overflow button in the solve header.
+2. ~~**Where does Compare belong now?**~~ **Answered by building it** (Step 3):
+   the home header was full at four controls, so Compare is a button beside
+   `+ New solve` — this question's own alternative. Also on the solve screen, in
+   the notebook button's old slot. Open only to being moved, not to being decided.
+3. ~~**Is long-press the right home for rename / duplicate / delete?**~~
+   **Answered: no** (operator, device pass 2026-08-17 — *"the long press honestly
+   I'm not even sure what you're talking about"*). Step 3b gave the card a `⋯`
+   button, which is the middle of the three options this question listed. The
+   long-press remains as a shortcut. **The lesson generalizes and the next
+   invisible-gesture proposal should cite it:** discoverability is not "will they
+   find it if they look", it is "is there anything giving them a reason to look".
 4. **Should the rail lock automatically?** Tapping to lock is explicit and cheap,
    but the app knows the stage is finished the moment the cube reaches that
    stage's goal state — V1's untaken analysis step is exactly the machinery that

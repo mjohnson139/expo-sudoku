@@ -44,12 +44,18 @@ import {
  * nothing beside it, which is exactly the rule `CubeSolvesModal` already applied
  * to its own toggle.
  *
- * ### Rename, duplicate, clear and delete are a long-press
+ * ### Rename, duplicate, clear and delete are behind a `⋯`
  *
- * The design's card is clean and has no room for five icons, so the management
- * actions live on a **long-press** (plan §3.3). That is invisible, which is the
- * standard objection and is open question 3 — it ships to be tried, not because
- * the question is closed.
+ * Step 3 shipped them on a **long-press** alone, on the argument that the design
+ * draws a clean card and the picker it replaced needed four icons per row. The
+ * device pass settled it the other way (operator, 2026-08-17):
+ *
+ * > *"the long press honestly I'm not even sure what you're talking about"*
+ *
+ * Which is a better answer than "hard to find": there was nothing on the card
+ * giving anyone a **reason to look**. So the menu has a control now — one
+ * 32-point target, not four — and the long-press stays as a shortcut for anyone
+ * who reaches for it anyway. **Open question 3 is answered, not deferred.**
  */
 const CubeSolveList = ({
   solves,
@@ -91,38 +97,72 @@ const CubeSolveList = ({
             const meta = when ? `${size} · ${when}` : size;
 
             return (
-              <TouchableOpacity
+              // A plain View, with the tappable region inside it — **not one
+              // Touchable with another nested in it.** In React Native the inner
+              // one claims the responder and the outer never fires, but
+              // `react-native-web` runs on pointer events that bubble, so a tap
+              // on the menu would open the sheet *and* push the solve. Two
+              // siblings cannot disagree about that on either platform.
+              //
+              // Whole styles, never `[base, variant]` with layout in the
+              // variant: the flattened result is something Yoga and
+              // react-native-web disagree about, and this repo shipped a
+              // phone-only header bug on exactly that (`ScreenHeader.js`).
+              // Only the colours differ here, and colours are safe to layer.
+              <View
                 key={solve.id}
-                // Whole styles, never `[base, variant]` with layout in the
-                // variant: the flattened result is something Yoga and
-                // react-native-web disagree about, and this repo shipped a
-                // phone-only header bug on exactly that (`ScreenHeader.js`).
-                // Only the colours differ between these two, and colours are
-                // safe to layer.
                 style={[styles.card, { borderColor: current ? accent : border }]}
-                onPress={() => onOpen(solve.id)}
-                onLongPress={() => onManage(solve.id)}
-                delayLongPress={400}
-                accessibilityRole="button"
-                accessibilityLabel={`${solve.name}, ${meta}`}
-                accessibilityHint="Opens this solve. Press and hold to rename, duplicate, clear or delete it"
-                accessibilityState={{ selected: current }}
               >
-                <View style={styles.cardBody}>
-                  <Text style={[styles.cardName, { color: titleColor }]} numberOfLines={1}>
-                    {solve.name}
-                  </Text>
-                  <Text style={[styles.cardMeta, { color: titleColor }]} numberOfLines={1}>
-                    {meta}
-                  </Text>
-                </View>
-                <MaterialCommunityIcons
-                  name="chevron-right"
-                  size={20}
-                  color={current ? accent : titleColor}
-                  style={styles.chevron}
-                />
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.cardBody}
+                  onPress={() => onOpen(solve.id)}
+                  // Kept as a shortcut for anyone who already reaches for it,
+                  // and no longer the only way in — see `onManage` below.
+                  onLongPress={() => onManage(solve.id)}
+                  delayLongPress={400}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${solve.name}, ${meta}`}
+                  accessibilityHint="Opens this solve"
+                  accessibilityState={{ selected: current }}
+                >
+                  <View style={styles.cardText}>
+                    <Text style={[styles.cardName, { color: titleColor }]} numberOfLines={1}>
+                      {solve.name}
+                    </Text>
+                    <Text style={[styles.cardMeta, { color: titleColor }]} numberOfLines={1}>
+                      {meta}
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={20}
+                    color={current ? accent : titleColor}
+                    style={styles.chevron}
+                  />
+                </TouchableOpacity>
+
+                {/* **The long-press was invisible and the operator did not know
+                    it was there** (device pass, 2026-08-17: *"the long press
+                    honestly I'm not even sure what you're talking about"*).
+                    That is not "hard to find", it is "no reason to look" — so
+                    the menu gets a control of its own. It is one 32-point target
+                    on a card that had room for it, which is the trade the design
+                    was protecting the card from: four icons, not one. */}
+                <TouchableOpacity
+                  style={styles.cardMenu}
+                  onPress={() => onManage(solve.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`More for ${solve.name}`}
+                  accessibilityHint="Rename, duplicate, clear or delete this solve"
+                >
+                  <MaterialCommunityIcons
+                    name="dots-horizontal"
+                    size={20}
+                    color={titleColor}
+                    style={styles.chevron}
+                  />
+                </TouchableOpacity>
+              </View>
             );
           })}
         </ScrollView>
@@ -190,11 +230,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginBottom: CARD_GAP,
   },
+  // Everything except the menu button: the text, and the chevron that says this
+  // card opens. One target, the width of the card less 32 points, so there is no
+  // dead strip between the name and the edge.
   cardBody: {
     flexGrow: 1,
     flexShrink: 1,
     flexBasis: 0,
     minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: '100%',
+  },
+  cardText: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: 0,
+  },
+  // 32 points wide and the full height of the card. It sits *outside* the body
+  // rather than over it, so the two targets cannot overlap — see the comment
+  // where they are rendered.
+  cardMenu: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: 'auto',
+    width: 32,
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardName: {
     fontSize: 14,
