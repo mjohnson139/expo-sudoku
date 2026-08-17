@@ -150,8 +150,13 @@ back chevron; a cold start restoring the pushed solve; backing out and a cold
 start opening on the scramble; deleting the open solve (next page opens) and
 deleting the last one (the screen pops); a simulated background→resume mid-solve
 coming back to the solve with its moves; favorites, New scramble, the picker,
-the flag and the phase strip. **No device pass yet — that is the operator's, and
-the two animation bugs this repo has shipped were both invisible in a browser.**
+the flag and the phase strip.
+
+**Device pass: passed, 2026-08-17** (operator, `pr-109` preview). Nothing found,
+including the two things a browser is weak evidence for — the resume restoring
+the pushed solve, and the edge swipe. **The solve screen has no home button any
+more**, because its corner is the back chevron and the hub is two gestures away;
+that was flagged for the device pass and came back fine.
 
 ---
 

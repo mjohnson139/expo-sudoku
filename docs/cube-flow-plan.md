@@ -206,7 +206,8 @@ untouched, which is the argument for doing this as its own step.
 return to it, background and resume mid-solve, delete the open solve, change
 scramble with a solve open.
 
-**Landed 2026-08-16** (PR #109). `CubeScreen.js` is 1525 lines → 78, a shell over
+**Landed 2026-08-17** (PR #109, merged to `epic/cube-flow`; device pass passed
+with nothing found). `CubeScreen.js` is 1525 lines → 78, a shell over
 `CubeContext` + `CubeHome` + `CubeSolve`, with `cubeChrome.js` (shared styles, the
 header button, the loading view) and `useCubeStage.js` (the cube's measurement)
 between them. Three things the brief did not predict, all found in a browser:
