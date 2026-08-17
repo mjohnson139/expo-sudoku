@@ -460,7 +460,13 @@ const useScramblePlayer = (alg, from) => {
     if (carry) {
       goalRef.current = moves.length;
       setPlaying(false);
-      animate(carry.at, true, undefined, { from: 0.5, turns: carry.turns });
+      // Half-way is where the *pad's* second tap finds the layer: the first
+      // quarter has landed and the second has not begun. A **gesture** has
+      // already carried it part of the way into that second quarter, and its `t`
+      // is a fraction of a quarter — half a fraction of the half turn now being
+      // drawn.
+      const from = resumeFrom ? 0.5 + resumeFrom.from * 0.5 : 0.5;
+      animate(carry.at, true, undefined, { from, turns: carry.turns });
       return;
     }
 
