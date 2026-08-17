@@ -65,17 +65,28 @@ export const TUNING = {
    */
   WIDE_BAND: 0.25,
   /**
-   * The corner gesture that turns the face you are looking at (§3.3c).
+   * Circling a finger to turn the face you are looking at (§3.3c).
    *
-   * `CORNER_LEG` is how far each of the two legs must run before the bend counts
-   * — the operator's "up just a little bit, and then a right angle" — and
-   * `CORNER_SQUARE` is how square that bend has to be, as the sine of the angle
-   * between the legs. 0.8 is about 53°, so anything from a slack right angle to
-   * a sharp one reads, and a drag that merely drifts does not.
+   * - `ARC_STEP` — how far the finger travels between direction samples. Long
+   *   enough that the jitter in a slow drag does not read as curvature, short
+   *   enough that a *small* curve still gets several samples.
+   * - `CIRCLE_ENGAGE` — degrees of arc before the face catches, and the whole of
+   *   the protection against an ordinary straight drag being read as a curve.
+   * - `CIRCLE_GAIN` — degrees of face per degree of finger, after it has caught.
+   *
+   * **These are set for a small movement, deliberately.** 1:1 gain is what a
+   * real cube does and it was too much finger for a phone: it wanted about 125°
+   * of arc for a single quarter turn, and the operator's verdict on two attempts
+   * was "still super hard". At the values below, a bent flick of about 50° of
+   * arc is already a quarter turn, and a right-angled curve — "a small amount in
+   * two directions" — is comfortably one. Keep circling and it keeps turning.
    */
-  CORNER_LEG: 9,
-  CORNER_SQUARE: 0.8,
+  ARC_STEP: 4,
+  CIRCLE_ENGAGE: 20,
+  CIRCLE_GAIN: 1.5,
 };
+
+const QUARTER_RADIANS = Math.PI / 2;
 
 /** The six outward face normals, in no particular order. */
 const AXIS_NORMALS = [
@@ -182,12 +193,23 @@ const WIDE_BY_LAYER = (() => {
   return out;
 })();
 
-/** `(axis, layer, signed quarter turns)` → notation, or null if that is not a
- *  layer of this cube. `wide` takes the slice behind the face with it. */
-const tokenFor = (axis, layer, turns, wide = false) => {
+/**
+ * `(axis, layer, signed quarter turns)` → notation, or null if that is not a
+ * layer of this cube — or if the turn comes to nothing, which a circled finger
+ * can genuinely ask for by going all the way round.
+ *
+ * `wide` takes the slice behind the face with it.
+ */
+const tokenFor = (axis, layer, quarters, wide = false) => {
   const base = (wide ? WIDE_BY_LAYER : BASE_BY_LAYER).get(`${axis}:${layer}`);
   if (!base) return null;
-  return turns === base.turns ? base.letter : `${base.letter}'`;
+
+  const amount = normalizeAmount(quarters);
+  if (amount === 0) return null;
+  // A half turn has no direction, and so no prime.
+  if (amount === 2) return `${base.letter}2`;
+
+  return shortWay(amount) === base.turns ? base.letter : `${base.letter}'`;
 };
 
 /**
@@ -462,111 +484,122 @@ export const facingFace = (yaw, pitch) => {
   return best.normal;
 };
 
-/** Perpendicular distance from `p` to the line through `a` and `b`, times the
- *  length of that line — the numerator only, since it is used for comparison. */
-const bendAt = (p, a, b) =>
-  Math.abs((b[0] - a[0]) * (a[1] - p[1]) - (a[0] - p[0]) * (b[1] - a[1]));
+/**
+ * The angle from `a` to `b`, signed, in radians.
+ *
+ * Screen coordinates run y-down, so a **positive** answer is a turn *clockwise
+ * on the glass* — the direction a finger is seen to be going.
+ */
+const signedAngle = (a, b) =>
+  Math.atan2(a[0] * b[1] - a[1] * b[0], a[0] * b[0] + a[1] * b[1]);
+
+/** Begin following how much a finger's path is turning. */
+export const startSweep = (point) => ({ node: point, direction: null, sweep: 0 });
 
 /**
- * Find the right angle in a drag: "up just a little bit, then off to one side".
+ * Fold one more point into a sweep.
  *
- * The corner is taken as the **most bent point** of the path — the sample
- * furthest from the straight line between where the finger started and where it
- * is now. That needs no threshold to find and no assumption about which way the
- * first leg went, and it degenerates helpfully: a drag that is actually straight
- * has its furthest point a hair off the line, so the two legs come out nearly
- * parallel and the squareness test below throws it away.
+ * **Curvature of the path itself, not angle about some centre**, and that choice
+ * is what makes this work with no pivot to guess at: a finger tracing a circle
+ * of any size, anywhere on the face, turns its own direction by exactly the
+ * angle it goes round, while a finger dragging in a straight line turns it by
+ * nothing at all. So the same number tells a circle from a push *and* says how
+ * far round the circle has got.
  *
- * @param {number[][]} path screen points, in order, starting where the finger
- *   went down
- * @returns {{corner: number[], clockwise: boolean, screen: number[]}|null}
- *   `screen` is the unit direction of the second leg — the one that says how far
- *   round the face has been turned, measured from the corner.
+ * Samples are taken every `ARC_STEP` points rather than every frame. A slow drag
+ * reports a lot of nearly-identical positions, and the angle between two of them
+ * is noise — accumulating that noise is what would make a straight drag slowly
+ * read as a curve.
  */
-export const detectCorner = (path, tuning = TUNING) => {
-  if (!path || path.length < 3) return null;
+export const advanceSweep = (state, point, tuning = TUNING) => {
+  const step = [point[0] - state.node[0], point[1] - state.node[1]];
+  const length = Math.hypot(step[0], step[1]);
+  if (length < tuning.ARC_STEP) return state;
 
-  const start = path[0];
-  const end = path[path.length - 1];
-
-  let at = null;
-  for (let i = 1; i < path.length - 1; i += 1) {
-    const bend = bendAt(path[i], start, end);
-    if (at === null || bend > at.bend) at = { bend, point: path[i] };
-  }
-  if (at === null) return null;
-
-  const corner = at.point;
-  const first = [corner[0] - start[0], corner[1] - start[1]];
-  const second = [end[0] - corner[0], end[1] - corner[1]];
-  const firstLength = Math.hypot(first[0], first[1]);
-  const secondLength = Math.hypot(second[0], second[1]);
-
-  // Both legs have to have been travelled. A gesture is not a corner until
-  // there is something on each side of it.
-  if (firstLength < tuning.CORNER_LEG || secondLength < tuning.CORNER_LEG) return null;
-
-  // Screen coordinates run y-down, so a positive cross product is a turn
-  // *clockwise* on the glass — which is the direction the operator is drawing.
-  const cross = (first[0] * second[1] - first[1] * second[0]) / (firstLength * secondLength);
-  if (Math.abs(cross) < tuning.CORNER_SQUARE) return null;
-
+  const direction = [step[0] / length, step[1] / length];
   return {
-    corner,
-    clockwise: cross > 0,
-    screen: [second[0] / secondLength, second[1] / secondLength],
+    node: point,
+    direction,
+    sweep: state.direction ? state.sweep + signedAngle(state.direction, direction) : state.sweep,
   };
 };
 
+/** How far a whole path turns, in radians, clockwise-positive. The fold of
+ *  `advanceSweep` — one implementation, so what the tests measure is what the
+ *  gesture measures. */
+export const arcSweep = (path, tuning = TUNING) => {
+  if (!path || path.length === 0) return 0;
+  let state = startSweep(path[0]);
+  for (let i = 1; i < path.length; i += 1) state = advanceSweep(state, path[i], tuning);
+  return state.sweep;
+};
+
 /**
- * Turn the face that is looking at you, the way the corner went (§3.3c).
+ * Turn the face that is looking at you, by circling a finger on it (§3.3c).
  *
  * **You cannot ask for this face by dragging straight across it, and that is
  * geometry rather than an oversight.** The axis of a drag is `normal ×
  * direction` (§3.3); with a finger on the front face both of those lie in the
  * plane of the screen, so their cross product never comes back out of it. Every
- * straight drag on the front face turns some layer *through* the cube — a row,
- * a column, a slice — and none of them is `F`. The face nearest the camera is
- * the one face its own stickers cannot turn.
+ * straight drag on the front face turns some layer *through* the cube — a row, a
+ * column, a slice — and none of them is `F`. The face nearest the camera is the
+ * one face its own stickers cannot turn.
  *
- * So it is asked for by shape instead of by direction: a short leg, a right
- * angle, and the way that angle went round is the way the face goes round. It is
- * the gesture you would use on a real cube, where turning the front face is a
- * twist rather than a push.
+ * So it is asked for the way a hand asks a real cube: **twist it.** Circle a
+ * finger and the face goes round with it, as far as you keep circling — which is
+ * where the multiple turns come from, and why this replaced the right-angle
+ * gesture that came before it rather than sitting beside it. An L is simply a
+ * circle that stopped after ninety degrees, so it still works.
  *
- * The layer is never in doubt. Every sticker of the facing face shares its
+ * The layer is never in doubt: every sticker of the facing face shares its
  * coordinate along its own axis, so this is always that outer layer — `F` when
  * the front is toward you, `B` when the back is, and so on round the cube.
+ *
+ * @returns {Object|null} the turn to draw — `turns` is the signed sweep and `t`
+ *   how far along it, so the face sits exactly where the finger has put it —
+ *   plus `commit`, which is that angle **rounded to the nearest quarter** and is
+ *   what gets written if the finger comes up now. `commit` is null while the
+ *   circle is still nearer to where it started than to a quarter turn.
  */
-export const faceTurnFor = (facing, clockwise) => {
+export const circleMove = ({ sweep, yaw, pitch, tuning = TUNING }) => {
+  const engaged = Math.abs(sweep) - (tuning.CIRCLE_ENGAGE * Math.PI) / 180;
+  if (engaged <= 0) return null;
+
+  const facing = facingFace(yaw, pitch);
   const axis = facing.findIndex((component) => component !== 0);
   if (axis < 0) return null;
 
   const layer = facing[axis];
   // Clockwise *on screen* is clockwise seen from this face's own side of the
   // cube, which is `amount` +1 only when that side is the axis's positive end.
-  const turns = (clockwise ? 1 : -1) * layer;
-  const token = tokenFor(axis, layer, turns);
-  if (!token) return null;
+  const unit = (sweep > 0 ? 1 : -1) * layer;
 
-  return { axis, layers: [layer], amount: normalizeAmount(turns), token };
-};
+  // Four quarters is a full rotation, which is no move at all — so a very
+  // enthusiastic circle stops at three rather than quietly coming to nothing.
+  const quarters = Math.min(3, (engaged * tuning.CIRCLE_GAIN) / QUARTER_RADIANS);
 
-/**
- * The whole corner gesture: a path and a view in, the move it means out.
- *
- * `screen` and `corner` come back on the move because progress for this one is
- * measured **from the corner along the second leg**, not from where the finger
- * went down — the first leg was how you asked, not how far round you have got.
- */
-export const cornerMove = ({ path, yaw, pitch, tuning = TUNING }) => {
-  const corner = detectCorner(path, tuning);
-  if (!corner) return null;
+  // What to draw: the whole quarter turn currently being travelled into, and how
+  // far along it. Crossing from one quarter to the next is continuous — the
+  // angle `turnAngle` works out is the same on both sides of the boundary.
+  const drawn = Math.max(1, Math.ceil(quarters));
+  const turns = unit * drawn;
 
-  const move = faceTurnFor(facingFace(yaw, pitch), corner.clockwise);
-  if (!move) return null;
+  const landed = Math.round(quarters);
+  const token = landed > 0 ? tokenFor(axis, layer, unit * landed) : null;
 
-  return { ...move, screen: corner.screen, corner: corner.corner };
+  return {
+    axis,
+    layers: [layer],
+    amount: normalizeAmount(turns),
+    turns,
+    t: quarters / drawn,
+    // The gesture is an angle, so its progress is not a distance along an arrow
+    // and `turnProgress` must not be asked about it.
+    angular: true,
+    commit: token
+      ? { turns: unit * landed, amount: normalizeAmount(unit * landed), token }
+      : null,
+  };
 };
 
 /**
@@ -600,9 +633,10 @@ export default {
   moveForDrag,
   chooseMove,
   facingFace,
-  detectCorner,
-  faceTurnFor,
-  cornerMove,
+  startSweep,
+  advanceSweep,
+  arcSweep,
+  circleMove,
   turnProgress,
   shouldCommit,
   AXIS,

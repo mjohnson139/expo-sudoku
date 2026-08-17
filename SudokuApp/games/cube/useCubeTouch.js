@@ -3,18 +3,14 @@ import { PanResponder } from 'react-native';
 import { RADIANS_PER_POINT, isUpsideDown, wrapAngle } from './geometry';
 import {
   TUNING,
+  advanceSweep,
   chooseMove,
-  cornerMove,
-  facingFace,
+  circleMove,
   pickFace,
   shouldCommit,
+  startSweep,
   turnProgress,
 } from './touchTurn';
-
-/** How far the finger must travel before the path takes another sample. Fine
- *  enough to find a corner, coarse enough that a slow drag does not fill the
- *  path with a hundred copies of the same point. */
-const SAMPLE_POINTS = 3;
 
 /**
  * One finger on the cube: orbit it, or turn a layer of it
@@ -46,10 +42,14 @@ const SAMPLE_POINTS = 3;
  *
  * No straight drag across the front face can turn it — the axis of a drag is
  * `normal × direction`, and on the face nearest the camera both of those lie in
- * the plane of the screen (`faceTurnFor`). So that one face is asked for by
- * drawing a **right angle**: a short leg, a corner, and the way the corner went
- * round is the way the face goes round. It is checked before the straight
- * reading, since otherwise the first leg would have already claimed the gesture.
+ * the plane of the screen (`circleMove`). So that face is asked for by **curving
+ * the finger**: a small movement in two directions, and the way the curve went
+ * round is the way the face goes round. Keep curving and it keeps turning, which
+ * is where `F2` comes from.
+ *
+ * It is checked before the straight reading and on every frame after it catches,
+ * because from that moment the face is following the finger and a straight
+ * reading taking the gesture back would be the cube arguing with the hand.
  *
  * ### Spring-loaded
  *
@@ -113,16 +113,12 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
     // screen for the whole gesture.
     from: [0, 0],
     polygons: null,
-    // Where progress is measured from. The touch-down point for an ordinary
-    // drag; the **corner** for the gesture that turns the face you are looking
-    // at, because the first leg of that one was how you asked rather than how
-    // far round you have got.
-    origin: [0, 0],
-    // The drag so far, sampled, for finding that corner.
-    path: [],
-    // Whether the finger went down on the face pointing at the camera — the only
-    // face the corner gesture applies to.
-    onFacing: false,
+    // How much the finger's own direction has turned so far — a circle's worth
+    // of arc, or nothing at all for a straight drag.
+    sweep: null,
+    // Once the circle has caught, it keeps the gesture: the face is following
+    // the finger and a straight-drag reading must not take it back.
+    angular: false,
     // Past the detent the reading stops changing. Swapping layers this far round
     // would take back a turn the operator has already watched happen.
     locked: false,
@@ -143,32 +139,37 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
   }, []);
 
   /**
-   * Let it go: run the layer back to where it started and write nothing.
+   * Let it go, and let it settle: run the layer from where the finger left it to
+   * where it belongs.
    *
-   * Fast — this is the gesture saying "that was not a turn", and the longer it
-   * takes to say so the more it reads as the app having tried and failed to do
-   * something.
+   * Two things end a gesture and this is both of them. A turn that did not earn
+   * its move runs back to nothing (`to` of 0, no `onDone`). A circled face runs
+   * to the **nearest quarter** and then hands over — the finger stopped at some
+   * angle, and a cube does not.
+   *
+   * Fast, either way: this is the gesture finishing a sentence the operator has
+   * already stopped speaking.
    */
-  const springBack = useCallback(
-    (turn, from) => {
+  const spring = useCallback(
+    (turn, move, from, to, onDone) => {
       stopSpring();
       const started = Date.now();
-      const ms = Math.max(1, Math.round(140 * from));
+      const ms = Math.max(1, Math.round(140 * Math.abs(from - to)));
 
       const tick = () => {
         const progress = Math.min(1, (Date.now() - started) / ms);
         // Ease out: it leaves quickly and arrives gently, which is what a spring
         // that was never really loaded does.
         const eased = 1 - (1 - progress) ** 2;
-        const t = from * (1 - eased);
 
         if (progress >= 1) {
           springRef.current = null;
-          turn(null);
+          if (onDone) onDone();
+          else turn(null);
           return;
         }
 
-        turn({ ...gesture.current.move, t });
+        turn({ ...move, t: from + (to - from) * eased });
         springRef.current = requestAnimationFrame(tick);
       };
 
@@ -204,10 +205,9 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         g.at = Date.now();
         g.locked = false;
         g.from = [locationX, locationY];
-        g.origin = [locationX, locationY];
         g.polygons = frame.polygons;
-        g.path = [[locationX, locationY]];
-        g.onFacing = false;
+        g.sweep = startSweep([locationX, locationY]);
+        g.angular = false;
 
         // Turning switched off, or a second finger already down: orbit, and do
         // not even look at what is under the finger.
@@ -222,8 +222,6 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         // direction the finger goes says it better than the pixel it landed on.
         g.pick = pickFace(frame.polygons, locationX, locationY);
         g.mode = g.pick ? 'undecided' : 'orbit';
-        g.onFacing =
-          !!g.pick && g.pick.normal.join() === facingFace(y, p).join();
       },
 
       onPanResponderMove: (event, state) => {
@@ -263,14 +261,44 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         if (!turns) return;
 
         const to = [g.from[0] + dx, g.from[1] + dy];
+        g.sweep = advanceSweep(g.sweep, to);
 
-        // The path only has to be long enough to find a corner in, and a corner
-        // can only be found before the turn locks.
-        if (!g.locked) {
-          const last = g.path[g.path.length - 1];
-          if (Math.hypot(to[0] - last[0], to[1] - last[1]) >= SAMPLE_POINTS) {
-            g.path.push(to);
+        // **The circle is asked first, and it is asked for as long as the finger
+        // is down.** It is the only way to name the face pointing at the camera
+        // — no straight drag across that face can (`circleMove`) — and once it
+        // has caught, the face is following the finger round, so a straight
+        // reading must not be allowed to take the gesture back.
+        //
+        // It is allowed to start **anywhere on the cube**, not only on the face
+        // it turns. At the angle the cube opens at, the front face is only part
+        // of what is on screen, and requiring the curve to begin inside it was
+        // half of why this was hard to invoke. A curve is deliberate wherever it
+        // starts; a straight drag on a side face still means what it meant.
+        const circle = g.pick
+          ? circleMove({ sweep: g.sweep.sweep, yaw: y, pitch: p })
+          : null;
+
+        if (circle) {
+          if (g.mode === 'undecided') {
+            g.mode = 'turn';
+            // A layer under a finger and a scramble playing itself are two
+            // things turning the same cube. The finger wins, exactly as a tap on
+            // the pad does.
+            turns.onPause();
           }
+          g.angular = true;
+          g.move = circle;
+          g.t = circle.t;
+          turns.onTurn(circle);
+          return;
+        }
+
+        // The circle had caught and has been unwound back below the threshold —
+        // the operator has changed their mind mid-gesture. Put the face back.
+        if (g.angular) {
+          g.t = 0;
+          turns.onTurn(null);
+          return;
         }
 
         // **Asked again on every frame, not once at the start.** A fingertip is
@@ -278,22 +306,13 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         // line, so the gesture is allowed to change its mind about which layer
         // it is turning right up until the detent.
         if (g.mode === 'undecided' || !g.locked) {
-          // The corner gesture is asked first, because it is the *only* way to
-          // ask for the face pointing at the camera — no straight drag across
-          // that face can name it (`faceTurnFor`) — and the straight reading
-          // would otherwise have taken the gesture during its first leg.
-          const corner = g.onFacing
-            ? cornerMove({ path: g.path, yaw: y, pitch: p })
-            : null;
-          const chosen =
-            corner ||
-            chooseMove({
-              polygons: g.polygons,
-              from: g.from,
-              to,
-              view: { size: edge, yaw: y, pitch: p },
-              current: g.mode === 'turn' ? g.move : null,
-            });
+          const chosen = chooseMove({
+            polygons: g.polygons,
+            from: g.from,
+            to,
+            view: { size: edge, yaw: y, pitch: p },
+            current: g.mode === 'turn' ? g.move : null,
+          });
 
           // Still too short a drag to mean anything.
           if (!chosen) return;
@@ -301,9 +320,6 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
           if (g.mode === 'undecided') {
             g.mode = 'turn';
             g.at = Date.now();
-            // A layer under a finger and a scramble playing itself are two
-            // things turning the same cube. The finger wins, exactly as a tap on
-            // the pad does.
             turns.onPause();
           } else if (chosen.token !== g.move.token) {
             // The reading changed under the finger. The old layer goes back
@@ -316,22 +332,11 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
           }
 
           g.move = chosen;
-
-          if (corner) {
-            // Drawing the corner *is* the request. Measure from there, and stop
-            // reconsidering — a shape this deliberate is not something to talk
-            // the operator out of a few frames later.
-            g.origin = corner.corner;
-            g.locked = true;
-          }
         }
 
         if (g.mode !== 'turn') return;
 
-        const t = turnProgress(
-          [to[0] - g.origin[0], to[1] - g.origin[1]],
-          g.move.screen
-        );
+        const t = turnProgress([dx, dy], g.move.screen);
         if (t >= TUNING.COMMIT_T) g.locked = true;
 
         const now = Date.now();
@@ -359,8 +364,27 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
 
         const move = g.move;
         const t = g.t;
+        const angular = g.angular;
         g.mode = 'orbit';
-        g.move = null;
+        g.angular = false;
+
+        // A circled face stops wherever the finger stopped, which is not
+        // somewhere a cube can be. It runs on to the nearest quarter and *that*
+        // is what gets written — `commit` is null while the circle is still
+        // nearer where it started than a quarter turn away.
+        if (angular) {
+          if (!move.commit) {
+            spring(turns.onTurn, move, t, 0);
+            return;
+          }
+
+          spring(turns.onTurn, move, t, move.commit.turns / move.turns, () =>
+            // Handed over already settled: the spring has just put the face
+            // exactly where the move lands, so there is nothing left to animate.
+            turns.onCommit(move.commit, 1, move.commit.turns)
+          );
+          return;
+        }
 
         if (shouldCommit(t, g.speed)) {
           // The screen hands `t` to the transport and appends the token; the
@@ -370,8 +394,7 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
           return;
         }
 
-        gesture.current.move = move;
-        springBack(turns.onTurn, t);
+        spring(turns.onTurn, move, t, 0);
       },
 
       onPanResponderTerminate: () => {

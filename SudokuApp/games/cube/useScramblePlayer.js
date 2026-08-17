@@ -386,8 +386,10 @@ const useScramblePlayer = (alg, from) => {
    * sweep itself is `animate`'s existing `from` — the same option the pad's
    * promotion carries the second quarter of an `R2` on, for the same reason.
    */
-  const handoff = useCallback((t) => {
-    handoffRef.current = Number.isFinite(t) ? Math.max(0, Math.min(1, t)) : null;
+  const handoff = useCallback((t, turns) => {
+    handoffRef.current = Number.isFinite(t)
+      ? { from: Math.max(0, Math.min(1, t)), turns }
+      : null;
   }, []);
 
   // A new scramble — or a favorite loaded back — opens fully applied, which is
@@ -427,10 +429,15 @@ const useScramblePlayer = (alg, from) => {
     if (growing) {
       // One move, added on the end, already part-way round because a finger put
       // it there. Carry on from where the drag left it instead of starting over.
+      //
+      // `turns` matters as much as `from` for a move a *circled* finger entered:
+      // the short way round is not necessarily the way the finger went, and
+      // finishing a three-quarter twist by sweeping back a quarter would undo
+      // most of what the operator had just watched happen.
       if (resumeFrom !== null && moves.length === heading + 1) {
         goalRef.current = moves.length;
         setPlaying(false);
-        animate(moves.length - 1, true, undefined, { from: resumeFrom });
+        animate(moves.length - 1, true, undefined, resumeFrom);
         return;
       }
 

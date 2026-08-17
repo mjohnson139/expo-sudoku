@@ -285,8 +285,8 @@ const CubeSolve = ({ navigation }) => {
    * swaps two identical pictures.
    */
   const commitTurn = useCallback(
-    (move, t) => {
-      handoff(t);
+    (move, t, turns) => {
+      handoff(t, turns);
       editOpen((current) => withMoves(current, appendToken(current.alg, move.token)));
       requestAnimationFrame(() => setGestureTurn(null));
     },

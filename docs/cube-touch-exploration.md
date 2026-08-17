@@ -361,41 +361,47 @@ slice — and **none of them is `F`**. The face nearest the camera is precisely 
 one face its own stickers cannot turn. Until now `F` could only be asked for from
 the faces around it, which is why it felt missing.
 
-So it is asked for **by shape rather than by direction**: a short leg, a right
-angle, and the way that angle went round is the way the face goes round. That is
-also the gesture a hand makes on a real cube, where turning the front face is a
-twist rather than a push.
+So it is asked for **by shape rather than by direction**, the way a hand asks a
+real cube: **curve the finger.** A small movement in two directions, and the way
+the curve goes round is the way the face goes round. Keep curving and it keeps
+turning, which is where `F2` comes from and why this replaced an earlier
+right-angle detector rather than sitting beside it — an L is a curve that stopped
+after ninety degrees, so it still works.
 
-- **The corner is the most bent point of the path** — the sample furthest from
-  the straight line between where the finger started and where it is now. No
-  threshold is needed to find it, no assumption about which way the first leg
-  went, and it fails safely: a straight drag's furthest point is a hair off the
-  line, so the two legs come out nearly parallel and the squareness test rejects
-  it.
-- **Screen coordinates run y-down**, so a positive 2D cross product between the
-  legs is a turn *clockwise on the glass* — the direction the operator is
-  drawing.
+- **It measures the curvature of the path itself, not an angle about some
+  centre.** That is what lets it work with no pivot to guess at: a finger tracing
+  a circle of any size, anywhere on the cube, turns its own direction by exactly
+  the angle it goes round, while a straight drag turns it by nothing. One number
+  tells a curve from a push *and* says how far round the curve has got.
+- **Samples every `ARC_STEP` points, not every frame.** A slow drag reports many
+  nearly-identical positions and the angle between two of them is noise;
+  accumulating that noise is what would make a straight drag slowly read as a
+  curve.
+- **Screen coordinates run y-down**, so a positive turn is *clockwise on the
+  glass* — the direction the operator sees themselves drawing.
 - **Clockwise on the glass is `amount` +1 only for the three faces on the
-  positive end of their axis.** `turns = clockwise ? layer : -layer` covers all
-  six, and there is a test that walks the camera round every face making the same
-  clockwise corner and expects each face's own clockwise turn.
-- **Progress is measured from the corner along the second leg**, not from where
-  the finger went down. The first leg was how you asked, not how far round you
-  have got.
+  positive end of their axis.** `unit = clockwise ? layer : -layer` covers all
+  six, and a test walks the camera round every face drawing the same curve and
+  expects each face's own clockwise turn.
 - **The layer is never in doubt.** Every sticker of the facing face shares its
   coordinate along its own axis, so this is always that outer layer.
+- **What is drawn is where the finger is; what is written is the nearest
+  quarter.** The turn carries `turns` (the whole sweep being travelled) and `t`
+  (how far along it), which stays continuous as one quarter becomes two, plus a
+  `commit` that is the angle rounded off. Releasing springs the face from where
+  the finger stopped to that quarter and hands it over already settled — a cube
+  does not stop at 40°.
+- **A full rotation is no move at all**, so an enthusiastic circle stops at three
+  quarters rather than quietly coming to nothing.
 
-It is tried **before** the straight reading, or the first leg would have already
-claimed the gesture, and it only applies when the finger went down on the facing
-face. Once the corner is drawn the move locks — a shape that deliberate is not
-something to talk the operator out of a few frames later.
-
-**The known rough edge:** the first leg has usually started turning some other
-layer before the corner arrives, so drawing the corner snaps that layer back and
-starts the face turning instead. The first leg is short, so the snap is small,
-but it is the thing to watch for on the phone. If it reads badly, the fix is to
-hold the first `CORNER_LEG` points back from the transport rather than to turn
-something during them.
+**Tuned for a small movement, deliberately.** 1:1 gain is what a real cube does
+and it was too much finger for a phone — about 125° of arc for one quarter turn,
+and the operator's verdict on two attempts was *"still super hard"*. At
+`CIRCLE_ENGAGE = 20°` and `CIRCLE_GAIN = 1.5`, a bent flick of about 50° of arc
+is already a quarter turn. The curve may also now start **anywhere on the cube**
+rather than only on the face it turns: at the angle the cube opens at, the front
+face is only part of what is on screen, and requiring the curve to begin inside
+it was the other half of why this was hard to invoke.
 
 ### 3.4 Committing, and taking it back
 
@@ -516,11 +522,11 @@ Open, and only a hand can close them:
    you meant to look; too high and it feels stuck. `QUARTER_POINTS = 118` is the
    other half of the same feel — how far a full quarter turn is if you drag it
    all the way.
-2b. **Does the corner gesture read as a twist?** (§3.3c.) `CORNER_LEG = 9` and
-   `CORNER_SQUARE = 0.8` (about 53°) decide how deliberate the right angle has to
-   be, and the snap at the end of the first leg is the known rough edge. Draw a
-   few `F`s and see whether the corner catches when you meant it and stays out of
-   the way when you did not.
+2b. **Does curving the finger turn the front face easily enough now?** (§3.3c.)
+   Two passes have failed the "can you actually do it" test. `CIRCLE_ENGAGE = 20`
+   and `CIRCLE_GAIN = 1.5` are set to make it easy on purpose, which means the
+   failure to watch for has flipped: if an ordinary straight drag now sometimes
+   turns the front face, `CIRCLE_ENGAGE` is too low.
 2a. **Is `WIDE_BAND = 0.25` a precise landing or an accidental one?** (§3.3b.)
    The two failures are opposite and both bad: too narrow and `r` cannot be hit
    on purpose, too wide and every turn near a seam comes out wide. Drill `r U r'`
