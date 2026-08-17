@@ -603,43 +603,51 @@ describe('sanitizeWorkspace', () => {
     { id: 's2', scramble: OTHER, name: 'Solve 1', orientation: null, alg: '', phases: [] },
   ];
 
-  it('restores the solve that was open, and the mode with it', () => {
-    expect(
-      sanitizeWorkspace({ solving: true, solveId: 's1' }, { solves, scramble: SCRAMBLE })
-    ).toEqual({ solving: true, solveId: 's1', view: null });
-  });
-
-  it('keeps an open solve without solve mode — the scramble is where you left', () => {
-    expect(
-      sanitizeWorkspace({ solving: false, solveId: 's1' }, { solves, scramble: SCRAMBLE })
-    ).toEqual({ solving: false, solveId: 's1', view: null });
+  it('restores the solve that was open — which is the route being restored with it', () => {
+    expect(sanitizeWorkspace({ solveId: 's1' }, { solves, scramble: SCRAMBLE })).toEqual({
+      solveId: 's1',
+      view: null,
+    });
   });
 
   it('refuses a solve written against a different scramble', () => {
-    expect(
-      sanitizeWorkspace({ solving: true, solveId: 's2' }, { solves, scramble: SCRAMBLE })
-    ).toEqual({ solving: false, solveId: null, view: null });
+    expect(sanitizeWorkspace({ solveId: 's2' }, { solves, scramble: SCRAMBLE })).toEqual({
+      solveId: null,
+      view: null,
+    });
   });
 
   it('refuses a solve that did not survive sanitizing', () => {
-    expect(
-      sanitizeWorkspace({ solving: true, solveId: 'gone' }, { solves, scramble: SCRAMBLE })
-    ).toEqual({ solving: false, solveId: null, view: null });
-  });
-
-  it('will not restore solve mode with nothing open, because that is not a state', () => {
-    expect(
-      sanitizeWorkspace({ solving: true, solveId: null }, { solves, scramble: SCRAMBLE })
-    ).toEqual({ solving: false, solveId: null, view: null });
+    expect(sanitizeWorkspace({ solveId: 'gone' }, { solves, scramble: SCRAMBLE })).toEqual({
+      solveId: null,
+      view: null,
+    });
   });
 
   it('survives a missing or corrupt workspace', () => {
-    const nothing = { solving: false, solveId: null, view: null };
+    const nothing = { solveId: null, view: null };
     expect(sanitizeWorkspace(undefined, { solves, scramble: SCRAMBLE })).toEqual(nothing);
     expect(sanitizeWorkspace('nope', { solves, scramble: SCRAMBLE })).toEqual(nothing);
-    expect(sanitizeWorkspace({ solving: 'yes', solveId: 7 }, { solves, scramble: SCRAMBLE })).toEqual(
-      nothing
-    );
+    expect(sanitizeWorkspace({ solveId: 7 }, { solves, scramble: SCRAMBLE })).toEqual(nothing);
+  });
+
+  // ——— The flag that used to be beside it (Cube Flow Step 2) ————————————————
+  //
+  // `solving` is not written any more: the solve is a route, and the id is
+  // written only while that route is on the stack. A file from before the split
+  // still has both, and the mode it recorded is the last thing that build had to
+  // say about where the operator was standing.
+
+  it('opens a solve a pre-Step-2 file left open', () => {
+    expect(
+      sanitizeWorkspace({ solving: true, solveId: 's1' }, { solves, scramble: SCRAMBLE }).solveId
+    ).toBe('s1');
+  });
+
+  it('does not open one a pre-Step-2 file had merely remembered', () => {
+    expect(
+      sanitizeWorkspace({ solving: false, solveId: 's1' }, { solves, scramble: SCRAMBLE }).solveId
+    ).toBeNull();
   });
 
   // ——— The angle the cube was left at (operator, 2026-08-06) ————————————————
@@ -652,21 +660,21 @@ describe('sanitizeWorkspace', () => {
   it('keeps the angle the cube was left turned to', () => {
     expect(
       sanitizeWorkspace(
-        { solving: true, solveId: 's1', view: { yaw: 0.5, pitch: -0.25 } },
+        { solveId: 's1', view: { yaw: 0.5, pitch: -0.25 } },
         { solves, scramble: SCRAMBLE }
       )
-    ).toEqual({ solving: true, solveId: 's1', view: { yaw: 0.5, pitch: -0.25 } });
+    ).toEqual({ solveId: 's1', view: { yaw: 0.5, pitch: -0.25 } });
   });
 
   it('remembers the angle even when the solve it was looking at is gone', () => {
     // An angle is valid against any cube, so it does not get cross-checked the
-    // way the two ids do — losing your place should not also move the camera.
+    // way the id is — losing your place should not also move the camera.
     expect(
       sanitizeWorkspace(
-        { solving: true, solveId: 'gone', view: { yaw: 0.5, pitch: -0.25 } },
+        { solveId: 'gone', view: { yaw: 0.5, pitch: -0.25 } },
         { solves, scramble: SCRAMBLE }
       )
-    ).toEqual({ solving: false, solveId: null, view: { yaw: 0.5, pitch: -0.25 } });
+    ).toEqual({ solveId: null, view: { yaw: 0.5, pitch: -0.25 } });
   });
 
   it('has nothing remembered on a first visit, which is the cue to open at the default', () => {
