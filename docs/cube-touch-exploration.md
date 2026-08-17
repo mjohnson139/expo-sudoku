@@ -295,6 +295,51 @@ most of the time the two readings name the same move and the tie-break never
 runs. The cases where they differ are the ones where the drag runs *along* the
 seam.
 
+### 3.3b Wide turns — landing on the line between two pieces
+
+*Added 2026-08-17.* A wide turn (`r`, `l`) is an outer face **plus the slice
+behind it**, and the operator's framing is the whole specification:
+
+> "How do we do a lowercase r or lowercase l — so two faces together, one face
+> plus the middle face. This is a precise landing of the finger right on the
+> line between two pieces, an edge piece and a corner piece. My finger has to go
+> in between them on the line."
+
+Land in the middle of a sticker and you turn the one layer it is in. Land on the
+seam and you turn **both the pieces you are touching**. It needs no new gesture
+and no modifier key — it is the same drag, landed more precisely, which is why
+it is the right answer.
+
+The maths is one more line off §3.3, because the layer was always a coordinate:
+measure how far the landing is from the sticker's centre **along the rotation
+axis**, in half-cubies, so 0 is the middle of the face and ±1 is exactly a seam.
+Past `WIDE_BAND` of the way out, take the neighbouring layer too.
+
+Three things about it that are easy to get wrong:
+
+- **Only the seam along the rotation axis counts**, and *which seam that is
+  depends on the drag*. A sideways drag on the front face spins about the
+  vertical axis, so the seam between two **rows** is the one that means wide; the
+  seam between two columns runs across the layers that drag turns and says
+  nothing. The same landing point means different things for different drags,
+  and that is correct.
+- **The pair is always an outer layer and the middle one.** Those are the only
+  two layers adjacent to each other, and the only wide turns notation has, so
+  there is nothing to validate beyond "the neighbour is still on the cube" — the
+  outside edge of a face has a seam with nothing past it, and stays narrow.
+- **Only the landing point can ask for it.** Wideness is a fact about where the
+  finger went down; reading it from where the finger *is* would flip the move
+  between wide and narrow every time the drag crossed a seam.
+
+Spelled **lowercase** — `r`, not `Rw` — because that is what the pad's two wide
+keys are spelled and what Roux is written in (docs/cube-plan.md §4). All six
+faces can be turned wide this way, though only `r` and `l` are on the pad.
+
+`WIDE_BAND` is the number that decides whether this feels precise or accidental,
+and it is a guess: 0.25, so the quarter of the sticker nearest the line, about 12
+points on a 300-point cube. **Take it to a drilling session before anything
+else.**
+
 ### 3.4 Committing, and taking it back
 
 - Release past ~50% of a quarter turn (or fast enough): **commit** — write the
@@ -414,6 +459,10 @@ Open, and only a hand can close them:
    you meant to look; too high and it feels stuck. `QUARTER_POINTS = 118` is the
    other half of the same feel — how far a full quarter turn is if you drag it
    all the way.
+2a. **Is `WIDE_BAND = 0.25` a precise landing or an accidental one?** (§3.3b.)
+   The two failures are opposite and both bad: too narrow and `r` cannot be hit
+   on purpose, too wide and every turn near a seam comes out wide. Drill `r U r'`
+   and count the ones that came out `R`.
 3. **Does a gesture-entered move want a haptic?** (§7.2.) `expo-haptics` is
    already a dependency and nothing was spent on this yet. A light impact on the
    commit is the obvious candidate.

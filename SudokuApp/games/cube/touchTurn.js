@@ -54,6 +54,16 @@ export const TUNING = {
    * gesture stops listening once it has decided.
    */
   SWITCH_MARGIN: 0.12,
+  /**
+   * How near the line between two pieces counts as *on* it, and so means a wide
+   * turn (§3.3b). Measured in half-cubies out from a sticker's centre, where 1
+   * is exactly the seam — so 0.25 is the quarter of the sticker nearest the
+   * line, about 12 points on a 300-point cube.
+   *
+   * This is the number that decides whether wide turns feel precise or
+   * accidental, and it is the one to bring to a drilling session first.
+   */
+  WIDE_BAND: 0.25,
 };
 
 /**
@@ -132,12 +142,75 @@ const BASE_BY_LAYER = (() => {
   return out;
 })();
 
+/**
+ * The same, for the **wide** turns — an outer face and the slice behind it.
+ *
+ * Spelled lowercase (`r`, `l`, `u`, …) rather than `Rw`, because that is what
+ * the pad's two wide keys are spelled and what Roux is written in. `parseMove`
+ * normalizes both to the same move, and `scanAlg` keeps tokens as they were
+ * written, so the algorithm reads back in the notation the operator's method
+ * actually uses (docs/cube-plan.md §4).
+ */
+const WIDE_BY_LAYER = (() => {
+  const out = new Map();
+  ['u', 'd', 'r', 'l', 'f', 'b'].forEach((letter) => {
+    const move = parseMove(letter);
+    const outer = move.layers.find((layer) => layer !== 0);
+    out.set(`${move.axis}:${outer}`, { letter, turns: shortWay(move.amount) });
+  });
+  return out;
+})();
+
 /** `(axis, layer, signed quarter turns)` → notation, or null if that is not a
- *  layer of this cube. */
-const tokenFor = (axis, layer, turns) => {
-  const base = BASE_BY_LAYER.get(`${axis}:${layer}`);
+ *  layer of this cube. `wide` takes the slice behind the face with it. */
+const tokenFor = (axis, layer, turns, wide = false) => {
+  const base = (wide ? WIDE_BY_LAYER : BASE_BY_LAYER).get(`${axis}:${layer}`);
   if (!base) return null;
   return turns === base.turns ? base.letter : `${base.letter}'`;
+};
+
+/**
+ * Did the finger land *on the line between two pieces*, along the axis this move
+ * turns? If so, which layer it is asking to take along.
+ *
+ * This is how a wide turn is asked for (§3.3b), and the operator's framing is
+ * the specification: **"a precise landing of the finger right on the line
+ * between two pieces — an edge piece and a corner piece. My finger has to go in
+ * between them on the line."** Land in the middle of a sticker and you turn one
+ * layer; land on the seam and you turn both the pieces you are touching.
+ *
+ * The offset is measured in **half-cubies out from the sticker's centre**, so it
+ * is 0 in the middle of a face and ±1 exactly on a seam, whatever the cube's
+ * size and however foreshortened the face is. That the band is a fraction rather
+ * than a distance in points is deliberate: a face seen edge-on is a face you
+ * cannot land on precisely anyway, and its band shrinks to match.
+ *
+ * Only the seam **along the rotation axis** counts. The other seam on that face
+ * runs parallel to the way the finger is about to travel, and straddling it says
+ * nothing about how many layers should come along.
+ */
+const straddledLayer = (pos, normal, axis, at, project, centre, band) => {
+  const along = faceBasis(normal).find((basis) => basis[axis] !== 0);
+  if (!along) return null;
+
+  const origin = project(centre);
+  const tip = project([
+    centre[0] + along[0] * 0.5,
+    centre[1] + along[1] * 0.5,
+    centre[2] + along[2] * 0.5,
+  ]);
+  const arrow = [tip[0] - origin[0], tip[1] - origin[1]];
+  const span = Math.hypot(arrow[0], arrow[1]);
+  if (!(span > 0)) return null;
+
+  const reach = [at[0] - origin[0], at[1] - origin[1]];
+  const offset = (reach[0] * arrow[0] + reach[1] * arrow[1]) / (span * span);
+  if (Math.abs(offset) < 1 - band) return null;
+
+  // `faceBasis` only ever returns positive axis vectors, so the sign of the
+  // offset is the direction along the axis without any further thought.
+  const neighbour = pos[axis] + Math.sign(offset);
+  return neighbour >= -1 && neighbour <= 1 ? neighbour : null;
 };
 
 /**
@@ -161,9 +234,15 @@ const tokenFor = (axis, layer, turns) => {
  *    of the axis, which is right-handed −90° (`geometry.js:30`). Hence the minus,
  *    and hence the test.
  *
+ * 5. **And how many layers.** One, unless the finger landed on the line between
+ *    two pieces, which asks for both of them — see `straddledLayer`.
+ *
  * @param {{pos: number[], normal: number[]}} pick from `pickFace`
  * @param {number[]} drag `[dx, dy]` in screen points, y down
  * @param {{size: number, yaw: number, pitch: number}} view what the cube is drawn with
+ * @param {number[]|null} [at] where on screen the finger picked this sticker.
+ *   Omit it and every turn is a single layer; supply it and a landing on a seam
+ *   is read as a wide turn.
  * @returns {{axis: number, layers: number[], amount: number, token: string,
  *   screen: number[], alignment: number}|null} `screen` is the unit arrow the
  *   chosen direction points along, which is what `turnProgress` measures the
@@ -171,7 +250,7 @@ const tokenFor = (axis, layer, turns) => {
  *   *how much this reading looks like what the finger did*, which is what lets
  *   `chooseMove` compare two of them.
  */
-export const moveForDrag = (pick, drag, view) => {
+export const moveForDrag = (pick, drag, view, at = null, tuning = TUNING) => {
   const { pos, normal } = pick;
   const reach = Math.hypot(drag[0], drag[1]);
   if (!(reach > 0)) return null;
@@ -213,12 +292,23 @@ export const moveForDrag = (pick, drag, view) => {
   if (axis < 0) return null;
 
   const turns = -Math.sign(spin[axis]);
-  const token = tokenFor(axis, pos[axis], turns);
+
+  // A finger on the seam takes the piece on the other side of it with them.
+  const neighbour = at
+    ? straddledLayer(pos, normal, axis, at, project, centre, tuning.WIDE_BAND)
+    : null;
+  // The pair is always an outer layer and the middle one — those are the only
+  // two layers that are next to each other and the only wide turns notation has.
+  const outer = neighbour === null ? null : pos[axis] || neighbour;
+
+  const token = outer
+    ? tokenFor(axis, outer, turns, true)
+    : tokenFor(axis, pos[axis], turns);
   if (!token) return null;
 
   return {
     axis,
-    layers: [pos[axis]],
+    layers: outer ? [outer, 0] : [pos[axis]],
     // 0–3, exactly as `parseMove` normalizes it — the token this returns is
     // going into the algorithm, and the turn drawn before it lands has to be the
     // same turn the player re-parses afterwards.
@@ -296,7 +386,15 @@ export const chooseMove = ({ polygons, from, to, view, current = null, tuning = 
 
   // The start goes in first, so it is the one that holds the gesture when
   // nothing is turning yet.
-  [pickFace(polygons, from[0], from[1]), pickFace(polygons, to[0], to[1])].forEach((pick) => {
+  //
+  // **Only the start carries a landing point**, so only it can ask for a wide
+  // turn. A wide turn is a *precise landing* (§3.3b), which is a fact about
+  // where the finger went down; reading it from where the finger is now would
+  // switch the move between wide and narrow every time the drag crossed a seam.
+  [
+    { pick: pickFace(polygons, from[0], from[1]), at: from },
+    { pick: pickFace(polygons, to[0], to[1]), at: null },
+  ].forEach(({ pick, at }) => {
     if (!pick) return;
     // The finger usually has not left the sticker it started on, and asking the
     // same question twice would only cost time.
@@ -304,7 +402,7 @@ export const chooseMove = ({ polygons, from, to, view, current = null, tuning = 
     if (seen.has(key)) return;
     seen.add(key);
 
-    const move = moveForDrag(pick, drag, view);
+    const move = moveForDrag(pick, drag, view, at, tuning);
     if (move) readings.push(move);
   });
 

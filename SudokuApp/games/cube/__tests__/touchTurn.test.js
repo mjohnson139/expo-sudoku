@@ -422,6 +422,98 @@ describe('chooseMove — the front face, and changing its mind', () => {
       .toBe(held);
   });
 
+  /**
+   * Wide turns — an outer face and the slice behind it, asked for by landing on
+   * the line between two pieces (§3.3b).
+   */
+  describe('landing on the line between two pieces', () => {
+    /** The point on screen where two cubies of the front face meet, at the seam
+     *  `x = boundary` and height `y`. */
+    const seamOnFront = (boundary, y) => project([boundary, y, 1.5]);
+
+    it('turns two layers when the finger lands between the right column and the middle', () => {
+      const from = seamOnFront(0.5, 0);
+      const move = drag(from, [0, -50]);
+
+      expect(move.token).toBe('r');
+      expect(move.layers).toEqual([1, 0]);
+      expect(move.axis).toBe(AXIS.x);
+    });
+
+    it('turns two layers on the left seam, and names it the left wide turn', () => {
+      const move = drag(seamOnFront(-0.5, 0), [0, -50]);
+
+      expect(move.token).toBe("l'");
+      expect(move.layers).toEqual([-1, 0]);
+    });
+
+    it('gives the same answer whichever side of the line the pick lands on', () => {
+      // The point is on the seam, so `pickFace` may legitimately return the
+      // cubie on either side of it. The move must not depend on which.
+      const from = seamOnFront(0.5, 0);
+      const nudged = [from[0] - 1, from[1]];
+      const other = [from[0] + 1, from[1]];
+
+      expect(pickFace(polygons, nudged[0], nudged[1]).pos).not.toEqual(
+        pickFace(polygons, other[0], other[1]).pos
+      );
+      expect(drag(nudged, [0, -50]).token).toBe('r');
+      expect(drag(other, [0, -50]).token).toBe('r');
+    });
+
+    it('is still a single layer in the middle of a sticker', () => {
+      expect(drag(centreOf([1, 0, 1], F), [0, -50]).token).toBe('R');
+      expect(drag(centreOf([-1, 0, 1], F), [0, -50]).token).toBe("L'");
+    });
+
+    it('reads the seam that matters for the way the finger went', () => {
+      // Which seam is the wide one depends on the drag, because it is the one
+      // along the rotation axis. Dragging *sideways* spins about the vertical
+      // axis, so it is the seam between two **rows** that asks for a wide turn.
+      const move = drag(project([0, 0.5, 1.5]), [50, 0]);
+
+      expect(move.token).toBe("u'");
+      expect(move.layers).toEqual([1, 0]);
+      expect(move.axis).toBe(AXIS.y);
+    });
+
+    it('ignores the seam that does not lie along the axis being turned', () => {
+      // The same sideways drag, now landing on the seam between two *columns*.
+      // That seam runs across the layers this drag turns and says nothing about
+      // how many of them to take.
+      const move = drag(project([0.5, 0, 1.5]), [50, 0]);
+
+      expect(move.layers).toEqual([0]);
+      expect(move.token).toBe('E');
+    });
+
+    it('does not invent a layer off the edge of the cube', () => {
+      // The outer edge of the right column is a seam with nothing beyond it.
+      const move = drag(seamOnFront(1.5, 0), [0, -50]);
+      expect(move).not.toBeNull();
+      expect(move.layers).toEqual([1]);
+      expect(move.token).toBe('R');
+    });
+
+    it('writes a wide token that means exactly the two layers it turned', () => {
+      const move = drag(seamOnFront(0.5, 0), [0, -50]);
+      const parsed = parseMove(move.token);
+
+      expect(parsed.axis).toBe(move.axis);
+      expect(parsed.layers).toEqual(move.layers);
+      expect(parsed.amount).toBe(move.amount);
+      // Lowercase in, `Rw` out — the pad's spelling and Roux's, normalizing to
+      // the same move.
+      expect(parsed.token).toBe('Rw');
+    });
+
+    it('turns the wide turn the same way its outer face would go', () => {
+      const wide = drag(seamOnFront(0.5, 0), [0, -50]);
+      const narrow = drag(centreOf([1, 0, 1], F), [0, -50]);
+      expect(shortWay(wide.amount)).toBe(shortWay(narrow.amount));
+    });
+  });
+
   it('means nothing at all until the finger has actually gone somewhere', () => {
     const from = centreOf(F, F);
     expect(chooseMove({ polygons, from, to: [from[0] + 1, from[1]], view })).toBeNull();
