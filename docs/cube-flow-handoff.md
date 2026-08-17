@@ -67,9 +67,11 @@ open.
 ### Golden rules
 
 - **The cube's code lives under `games/cube/`.** Sudoku and Fungiku keep working
-  exactly as they do. **The epic's one sanctioned exception was Step 1** —
-  `App.js` and `package.json`, for the navigator — and it is now spent. A step
-  that needs to touch anything outside `games/cube/` should say why in its PR.
+  exactly as they do. Two edits outside it have been sanctioned so far: **Step 1**
+  (`App.js`, `package.json`, for the navigator) and **Step 2** (four optional
+  props on `components/ScreenHeader.js`, so a header's corner can be a back
+  chevron and its subtitle monospaced — every other caller keeps the header it
+  had). A step that needs a third should say why in its PR.
 - **`editOpen` is the only edit funnel** for the open solve, and `withMoves` is
   the only sanctioned moves-edit patch. Two writers is how the file and the
   screen learn to disagree.
@@ -87,126 +89,156 @@ open.
 
 ---
 
-## What landed in Step 1 (read this before Step 2)
+## What landed in Steps 1–2 (read this before Step 3)
 
-The app is on `@react-navigation/native` + `native-stack` (v7) with
-`react-native-screens`. `App.js` is now `SafeAreaProvider` → the existing
-`SafeAreaView` that carries the simulator-tap interception →
-`NavigationContainer` → `Stack.Navigator` with `headerShown: false`. The hub is
-the root route (`HUB_ROUTE`) and each `games/registry.js` entry is a route
-pushed on top of it. **Nothing inside `games/` changed.**
+**Step 1** put the app on `@react-navigation/native` + `native-stack` (v7).
+`App.js` is `SafeAreaProvider` → the `SafeAreaView` carrying the simulator-tap
+interception → `NavigationContainer` → `Stack.Navigator` with
+`headerShown: false`; the hub is the root route and each `games/registry.js`
+entry is pushed on top of it. `onExitToHub` is `navigation.popToTop()`, the
+`appKey` remount on `AppState → 'active'` survives as a `key` on the game screen,
+and `HubRoute` remounts the hub on a **blur→focus round trip** because a screen
+under a push stays mounted.
 
-Three things Step 2 inherits and should not rediscover:
+**Step 2** split the cube. `CubeScreen.js` is **78 lines** — a provider and a
+nested stack — and what it used to be is now:
 
-- **`onExitToHub` is `navigation.popToTop()`**, adapted in `App.js` at the call
-  site. Popping unmounts the game screen, which is what keeps the old router's
-  "a game screen dies when you leave it" guarantee — verified in a browser: after
-  returning to the hub, the game's DOM is gone.
-- **The `appKey` remount on `AppState → 'active'` survives** as a `key` built
-  from the game id and `appKey`, set on the screen element inside the route's
-  children function. It remounts *the open game*, not the navigator, so resuming
-  does not disturb the stack.
-- **The hub is remounted on the way back**, by `HubRoute` in `App.js`.
-  `HubScreen` reads each game's Continue badge on mount and nothing else
-  refreshes it; the old router made that sufficient by unmounting the hub behind
-  an open game, and a stack keeps it mounted underneath. The remount is keyed
-  off a **blur→focus round trip**, not focus alone — the initial route is focused
-  as it mounts.
+```
+CubeScreen.js     the shell: <CubeProvider> over a nested Stack of two routes
+CubeContext.js    everything persisted, one debounced writer, `editOpen`
+CubeHome.js       the scramble (root route)
+CubeSolve.js      the solve (pushed route)
+cubeChrome.js     shared styles, the header action button, the loading view
+useCubeStage.js   the cube's measurement and size, so both screens agree
+```
+
+Five things Step 3 inherits and should not rediscover:
+
+- **`solving` is gone from state and from the file.** What is persisted is
+  `workspace.solveId`, written **only while the solve route is focused**
+  (`solveOpen` in the context, reported by both screens' `focus` listeners). A
+  non-null id in the file therefore means "the solve screen was on the stack",
+  and restoring it is what `CubeHome` does on mount. `sanitizeWorkspace` still
+  reads a pre-Step-2 `solving: false` and honours it.
+- **`openId` still means what it meant in V1** — *the page you are on for this
+  scramble* — and it **outlives the push**, which is what keeps the Solve button
+  resuming the page you left rather than the newest one. It is not the route.
+- **Restoring the pushed route waits a commit, and keeps the route key.** A
+  screen's mount effect runs before its navigator's, so a `reset` dispatched on
+  the first commit is silently overwritten by the navigator's initial state; and
+  a route in a reset payload without a `key` is a *new* route, so an unkeyed
+  home route remounts `CubeHome`, which restores again, forever. Both are
+  written up where the effect is. **Do not move that effect.**
+- **`CubeSolve` outlives its solve by one animation.** Deleting the open page
+  leaves nothing open and the screen goes back — but a popped screen stays
+  mounted while it slides out, so the screen draws the last solve it had
+  (`lastSolve`) rather than blanking on the way off.
+- **`ScreenHeader` grew four optional props** (`homeIcon`, `homeLabel`,
+  `homeHint`, `subtitleFont`) so the solve screen's corner can be a chevron and
+  its subtitle can be monospaced. Every other caller passes none of them and
+  keeps exactly the header it had. This is the epic's second sanctioned edit
+  outside `games/cube/`.
+
+**Layout, in points (§8.6):** the solve screen lost the `solveBar` (~30pt:
+an 11pt line, 8 of padding, 2 of border, 6 of margin) and the header gained a
+12pt subtitle line — which the dense header's `minHeight: 34` absorbs most of, so
+the row goes ~34 → ~36. **Net ≈ −28pt on the solve screen, and 0 on the
+scramble.** Step 8's table should be re-based on that.
+
+**Verified in a browser** (Playwright against the web build): the push and the
+back chevron; a cold start restoring the pushed solve; backing out and a cold
+start opening on the scramble; deleting the open solve (next page opens) and
+deleting the last one (the screen pops); a simulated background→resume mid-solve
+coming back to the solve with its moves; favorites, New scramble, the picker,
+the flag and the phase strip. **No device pass yet — that is the operator's, and
+the two animation bugs this repo has shipped were both invisible in a browser.**
 
 ---
 
-## Next step — Step 2: split `CubeScreen`, push the solve
+## Next step — Step 3: the solves on the scramble screen
 
-`docs/cube-flow-plan.md` §3.2 is the brief. `CubeScreen.js` is **1525 lines** and
-every step after this one adds to it. Split it now, while the split is still
-mechanical rather than a rewrite — and turn the `solving` flag into a route,
-which is the epic's whole thesis made real.
+`docs/cube-flow-plan.md` §3.3 is the brief. Step 2 gave the scramble a screen of
+its own and left its bottom row exactly as V1 had it. This step spends that room
+on the thing the epic exists for: **the solves for this scramble, as cards, on
+the screen that owns them.**
 
 ### Scope
 
-- **`games/cube/CubeContext.js` is new and owns everything persisted** —
-  `scramble`, `favorites`, `solves`, `openId`, the hydration gate
-  (`CubeScreen.js:283-310`), the debounced save effect (`:320-332`) and the
-  `AppState` flush (`:355-359`). One provider above a **nested stack** of
-  `CubeHome` and `CubeSolve`, so both screens read one list and there is exactly
-  one writer.
-- **`editOpen` (`:528`) moves into the context intact and stays the only edit
-  funnel.** V1 put every edit through it deliberately; this epic does not get to
-  add a second door.
-- **The route replaces the flag.** `solving` (`:173`) retires from state *and*
-  from the save file's `workspace` (`:326`). `openId` stays persisted.
-  `writing = solving && openSolve !== null` (`:400`) becomes "the solve route is
-  mounted and has a solve".
-- **`inspecting = writing && orientation === null` (`:920`) survives unchanged**
-  as the solve screen's first state. The hold is panned to, not typed (V1 §8.3),
-  and `orientation`'s three states — `null`, `''`, notation — must stay three.
-- **Header split.** Home keeps the home button and the view actions. Solve gets
-  the back chevron, `title="Solve 3"` and `subtitle` = the scramble, mono and
-  truncated — which is what retires the `solveBar` (`:1301-1328`, styles at
-  `:1486-1512`). `ScreenHeader.js:18-20` warns that a *conditional* subtitle
-  changes header height, so **the solve header always carries it**.
-- `startSolving` (`:547`) / `stopSolving` (`:554`) collapse into a navigate and a
-  `goBack`. `openSolveById` (`:602`), `startNewSolve` (`:613`) and `copySolve`
-  (`:623`) keep their bodies and end in a navigate.
+- **The bottom row goes** (`CubeHome.js`, the `styles.bottomRow` block).
+  **New scramble** and **Save** become header icon buttons beside the existing
+  favorites button — `headerAction` in `cubeChrome.js` is what they are built
+  from, and Save keeps its two states (`saved` is already in the context). The
+  "Solves on this scramble" list takes the space they free.
+- **Cards render from `mySolves`** (already on the context, already newest-first
+  — `solvesFor` filters and does not sort, so the order is creation order). Per
+  card: name; meta `"57 moves · in progress"` from `describeSolveSize`
+  (`solveList.js:731`); a chevron; accent border and top position for the
+  in-progress one; a dashed `+ New solve` card last.
+- **Tapping a card is `showSolve(id)` then `navigate(SOLVE_ROUTE)`** — the two
+  calls `CubeHome`'s `openSolveScreen` already makes. The Solve button's
+  "resume the page you were on" (`resumeSolve`) retires with the row it sat in.
+- **`games/cube/recency.js` is new and pure.** `formatElapsed`
+  (`utils/gameProgress.js:15`) is `mm:ss` and is the wrong instrument — the card
+  wants *"yesterday"*. `describeRecency(savedAt, now)` with an injected clock, in
+  the style of `compareLayout.js`.
+- **Two gaps the design does not cover, already resolved in §3.3:** solve
+  management (rename / duplicate / clear / delete) hangs off a **long-press** on
+  a card rather than five icons on a card the design draws clean; and **Compare**
+  moves behind a **home header button**, with `CubeSolvesModal` reduced to the
+  Compare view alone.
 
 ### The files to read first
 
-- `games/cube/CubeScreen.js` — all of it, once, before moving anything.
-- `games/cube/storage.js` — `readCubeSave` reads every version **by shape**, so
-  dropping `workspace.solving` needs no `_v` bump; check `sanitizeWorkspace`
-  tolerates its absence rather than assuming it does.
-- `App.js` — how the cube route is mounted, and the `appKey` remount above it.
-- `components/ScreenHeader.js` — the subtitle height warning at `:18-20`, and
-  the whole-style-variant rule at `:112-126`.
+- `games/cube/CubeHome.js` — all of it; this is the screen being rebuilt.
+- `games/cube/CubeContext.js` — everything the cards need is already on it
+  (`mySolves`, `showSolve`, `startNewSolve`, `copySolve`, `deleteSolve`,
+  `renameSolveById`, `clearSolveById`). **Adding a second writer is the bug.**
+- `games/cube/CubeSolvesModal.js` — the per-row actions the long-press has to
+  reach, and the Compare view that stays.
+- `games/cube/useCubeStage.js` — the cube is sized from what the stage measures,
+  so a list under it costs the cube directly. §8.6 again.
 
 ### Easy to get wrong
 
-1. **The `appKey` remount resets the nested stack.** On resume, `App.js`
-   remounts the whole cube screen — so a nested navigator inside it starts back
-   at `CubeHome`, losing a pushed solve. This is exactly what persisted `openId`
-   is for: **restore the pushed route from `openId` after hydration**, and check
-   it on a real background/resume rather than reasoning about it.
-2. **Two writers is the failure mode.** The provider owns the state and the
-   debounced write; a screen that calls `saveCubeState` itself is the bug.
-   `editOpen` in, `withMoves` for anything touching moves.
-3. **`saveCubeState.flush()` on unmount (`:332`) has to move up with the state.**
-   If it stays on a screen that now unmounts on every `goBack`, it fires far more
-   often than intended; if it is dropped, the last 400ms of authored work dies
-   with a background. It belongs to the provider's lifetime.
-4. **The hydration gate guards the writer.** Writing before the read lands
-   overwrites the player's solves with an empty list. Whatever shape the provider
-   takes, `hydrated` still gates the save effect.
-5. **`removePhase` does not clamp or re-sort** (`solveList.js:377`). Not this
-   step's problem, but do not make it one.
+1. **The list is under the cube, and the cube is what pays for it.** The stage
+   takes the leftover height, so every point the cards take comes off the cube on
+   a small phone. Say what the row costs in the PR, and check 320×568 — the width
+   where V1's rows stopped fitting.
+2. **The page does not scroll and must not start.** The cube claims every pan
+   inside its square; a `ScrollView` around it is the race Fungiku already lost
+   (`docs/fungiku-plan.md` §2). If the card list scrolls, **the list scrolls**,
+   not the page.
+3. **A long-press is invisible** — open question 3. Ship it, and ask the operator
+   in the PR whether it is findable; do not add a row of icons pre-emptively.
+4. **The in-progress card is derived, not stored.** `openSolve` is the page on the
+   cube; "in progress" is a fact about the list, not a field on a solve.
+5. **`describeRecency` needs an injected clock** or its test is a stopwatch race.
+   `solveList.test.js` has the convention.
 6. **A style *variant* must be a whole style.** `[base, variant]` flattens to
    something Yoga and `react-native-web` disagree about, and this repo shipped a
    phone-only bug because of it.
 
 ### What must be visible in Expo Go
 
-The cube's V1 behaviour, unchanged, with the mode flip replaced by a push: tap a
-solve and the solve screen slides in with a back chevron and the scramble under
-its title; back returns to the scramble screen. Nothing else on the screen moves
-yet — the card list is Step 3.
+The scramble screen lists the solves written against the scramble on the cube,
+newest first, with the in-progress one accented at the top; tapping one pushes
+the solve screen Step 2 built; `+ New solve` starts one; New scramble and Save
+are icons in the header; a new scramble empties the list.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/` — green. No new tests: the risk is entirely in
-  wiring, and the pure modules are untouched. That is the argument for doing this
-  as its own step.
-- Every V1 behaviour still reachable: write a solve, back out, return to it,
-  **background and resume mid-solve**, delete the open solve, change the scramble
-  with a solve open, load a favorite with solves against it.
-- Android hardware back and the iOS edge swipe leave the solve screen — and from
-  the scramble screen they leave the cube for the hub.
-- The web preview still routes.
+- `npm test` from `SudokuApp/` — green, plus the new `recency.test.js`.
+- The list matches the picker it replaces: same solves, same counts, same order.
+- Long-press reaches rename, duplicate, clear and delete, and deleting the open
+  solve still leaves the screen somewhere honest.
+- Load a favorite with solves against it and watch the list change with it.
 - **A device pass**, and write down which findings came from the device.
 
-### Then rewrite this file for Step 3
+### Then rewrite this file for Step 4
 
-Step 3 puts the solves on the scramble screen: the card list, New scramble and
-Save move into the header, and `games/cube/recency.js` arrives pure and tested.
-`docs/cube-flow-plan.md` §3.3 is the brief.
+Step 4 makes the method data: `games/cube/methods.js`, `method` on the solve
+record, the new-solve sheet, and `comparePhases` aligning by the method's own
+stage list. `docs/cube-flow-plan.md` §3.4 is the brief.
 
 ---
 

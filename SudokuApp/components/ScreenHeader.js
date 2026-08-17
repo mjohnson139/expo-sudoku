@@ -17,7 +17,18 @@ const DENSE_ICON_SIZE = 20;
  * `subtitle` is optional: one line under the title for what the current game *is*
  * (Fungiku uses it for "Easy · 6×6"). Callers should pass it either always or
  * never for a given screen — a subtitle that appears and disappears changes the
- * header's height, which moves everything under it.
+ * header's height, which moves everything under it. `subtitleFont` sets its face:
+ * the cube's solve screen names its scramble there and notation wants a
+ * monospace (see `games/cube/algText.js`).
+ *
+ * ### The left-hand button is not always "home"
+ *
+ * It was, for three epics, because every screen this component served was one
+ * push from the hub. The cube's solve screen is two (docs/cube-flow-plan.md
+ * §3.2), and what its corner means is *back to the scramble* — so `homeIcon`,
+ * `homeLabel` and `homeHint` override the glyph and what a screen reader says
+ * about it. `onHomePress` keeps its name and its position; every existing caller
+ * passes none of the three and keeps exactly the button it has.
  *
  * ### `dense`, and `actions` (added for the cube's Step 7)
  *
@@ -40,8 +51,12 @@ const DENSE_ICON_SIZE = 20;
 const ScreenHeader = ({
   title,
   subtitle,
+  subtitleFont,
   theme,
   onHomePress,
+  homeIcon = 'home',
+  homeLabel = 'Back to games',
+  homeHint = 'Leaves this game and returns to the game list',
   onMenuPress,
   dense = false,
   actions = null,
@@ -55,11 +70,11 @@ const ScreenHeader = ({
         <TouchableOpacity
           style={[dense ? styles.iconButtonDense : styles.iconButton, { borderColor: titleColor }]}
           onPress={onHomePress}
-          accessibilityLabel="Back to games"
+          accessibilityLabel={homeLabel}
           accessibilityRole="button"
-          accessibilityHint="Leaves this game and returns to the game list"
+          accessibilityHint={homeHint}
         >
-          <MaterialCommunityIcons name="home" size={iconSize} color={titleColor} />
+          <MaterialCommunityIcons name={homeIcon} size={iconSize} color={titleColor} />
         </TouchableOpacity>
       </View>
 
@@ -73,7 +88,10 @@ const ScreenHeader = ({
           {title}
         </Text>
         {!!subtitle && (
-          <Text style={[styles.subtitle, { color: titleColor }]} numberOfLines={1}>
+          <Text
+            style={[styles.subtitle, { color: titleColor, fontFamily: subtitleFont }]}
+            numberOfLines={1}
+          >
             {subtitle}
           </Text>
         )}

@@ -206,6 +206,28 @@ untouched, which is the argument for doing this as its own step.
 return to it, background and resume mid-solve, delete the open solve, change
 scramble with a solve open.
 
+**Landed 2026-08-16** (PR #109). `CubeScreen.js` is 1525 lines → 78, a shell over
+`CubeContext` + `CubeHome` + `CubeSolve`, with `cubeChrome.js` (shared styles, the
+header button, the loading view) and `useCubeStage.js` (the cube's measurement)
+between them. Three things the brief did not predict, all found in a browser:
+
+- **The restore cannot be dispatched on the navigator's first commit.** A
+  screen's mount effect runs *before* its navigator's, and the navigator commits
+  its initial state in one of those — so the reset is accepted, appears in
+  `getState()`, and is then overwritten. The screen never mounts and nothing
+  says so. `CubeHome` waits a commit; see its comment.
+- **A route in a `reset` payload with no `key` is a new route.** The first fix
+  rebuilt the home route, which remounted `CubeHome`, which read the same flag
+  and restored again — a loop at about a frame a second. The payload keeps the
+  home route's key, *and* the flag is cleared once acted on.
+- **`solving` did not become nothing, it became `solveOpen`.** The file has to
+  say whether the solve screen was on the stack, or a resume drops you on the
+  scramble; `workspace.solveId` is written *only while the solve route is
+  focused*, so one field says both. `openId` keeps V1's meaning underneath —
+  the page you are on for this scramble — which is what keeps Solve resuming
+  the page you left. Pre-Step-2 files are read by shape: a `solving: false` in
+  one still means "the scramble is where I was".
+
 ### 3.3 Step 3 — solves on the scramble screen
 
 - The bottom row (`:1221-1278`) goes. **New scramble** and **Save** become header
