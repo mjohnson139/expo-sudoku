@@ -1,7 +1,20 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { PanResponder } from 'react-native';
 import { RADIANS_PER_POINT, isUpsideDown, wrapAngle } from './geometry';
-import { TUNING, chooseMove, pickFace, shouldCommit, turnProgress } from './touchTurn';
+import {
+  TUNING,
+  chooseMove,
+  cornerMove,
+  facingFace,
+  pickFace,
+  shouldCommit,
+  turnProgress,
+} from './touchTurn';
+
+/** How far the finger must travel before the path takes another sample. Fine
+ *  enough to find a corner, coarse enough that a slow drag does not fill the
+ *  path with a hundred copies of the same point. */
+const SAMPLE_POINTS = 3;
 
 /**
  * One finger on the cube: orbit it, or turn a layer of it
@@ -28,6 +41,15 @@ import { TUNING, chooseMove, pickFace, shouldCommit, turnProgress } from './touc
  * clearly than the pixel it started on. So `chooseMove` is asked on every frame,
  * from the whole gesture (where it started, where the finger is now), and the
  * answer is allowed to change until the turn passes the detent.
+ *
+ * ### The face you are looking at needs a shape, not a direction
+ *
+ * No straight drag across the front face can turn it — the axis of a drag is
+ * `normal × direction`, and on the face nearest the camera both of those lie in
+ * the plane of the screen (`faceTurnFor`). So that one face is asked for by
+ * drawing a **right angle**: a short leg, a corner, and the way the corner went
+ * round is the way the face goes round. It is checked before the straight
+ * reading, since otherwise the first leg would have already claimed the gesture.
  *
  * ### Spring-loaded
  *
@@ -91,6 +113,16 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
     // screen for the whole gesture.
     from: [0, 0],
     polygons: null,
+    // Where progress is measured from. The touch-down point for an ordinary
+    // drag; the **corner** for the gesture that turns the face you are looking
+    // at, because the first leg of that one was how you asked rather than how
+    // far round you have got.
+    origin: [0, 0],
+    // The drag so far, sampled, for finding that corner.
+    path: [],
+    // Whether the finger went down on the face pointing at the camera — the only
+    // face the corner gesture applies to.
+    onFacing: false,
     // Past the detent the reading stops changing. Swapping layers this far round
     // would take back a turn the operator has already watched happen.
     locked: false,
@@ -172,7 +204,10 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         g.at = Date.now();
         g.locked = false;
         g.from = [locationX, locationY];
+        g.origin = [locationX, locationY];
         g.polygons = frame.polygons;
+        g.path = [[locationX, locationY]];
+        g.onFacing = false;
 
         // Turning switched off, or a second finger already down: orbit, and do
         // not even look at what is under the finger.
@@ -187,6 +222,8 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         // direction the finger goes says it better than the pixel it landed on.
         g.pick = pickFace(frame.polygons, locationX, locationY);
         g.mode = g.pick ? 'undecided' : 'orbit';
+        g.onFacing =
+          !!g.pick && g.pick.normal.join() === facingFace(y, p).join();
       },
 
       onPanResponderMove: (event, state) => {
@@ -225,18 +262,38 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
 
         if (!turns) return;
 
+        const to = [g.from[0] + dx, g.from[1] + dy];
+
+        // The path only has to be long enough to find a corner in, and a corner
+        // can only be found before the turn locks.
+        if (!g.locked) {
+          const last = g.path[g.path.length - 1];
+          if (Math.hypot(to[0] - last[0], to[1] - last[1]) >= SAMPLE_POINTS) {
+            g.path.push(to);
+          }
+        }
+
         // **Asked again on every frame, not once at the start.** A fingertip is
         // wider than the edge between two faces and a drag is not a straight
         // line, so the gesture is allowed to change its mind about which layer
         // it is turning right up until the detent.
         if (g.mode === 'undecided' || !g.locked) {
-          const chosen = chooseMove({
-            polygons: g.polygons,
-            from: g.from,
-            to: [g.from[0] + dx, g.from[1] + dy],
-            view: { size: edge, yaw: y, pitch: p },
-            current: g.mode === 'turn' ? g.move : null,
-          });
+          // The corner gesture is asked first, because it is the *only* way to
+          // ask for the face pointing at the camera — no straight drag across
+          // that face can name it (`faceTurnFor`) — and the straight reading
+          // would otherwise have taken the gesture during its first leg.
+          const corner = g.onFacing
+            ? cornerMove({ path: g.path, yaw: y, pitch: p })
+            : null;
+          const chosen =
+            corner ||
+            chooseMove({
+              polygons: g.polygons,
+              from: g.from,
+              to,
+              view: { size: edge, yaw: y, pitch: p },
+              current: g.mode === 'turn' ? g.move : null,
+            });
 
           // Still too short a drag to mean anything.
           if (!chosen) return;
@@ -259,11 +316,22 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
           }
 
           g.move = chosen;
+
+          if (corner) {
+            // Drawing the corner *is* the request. Measure from there, and stop
+            // reconsidering — a shape this deliberate is not something to talk
+            // the operator out of a few frames later.
+            g.origin = corner.corner;
+            g.locked = true;
+          }
         }
 
         if (g.mode !== 'turn') return;
 
-        const t = turnProgress([dx, dy], g.move.screen);
+        const t = turnProgress(
+          [to[0] - g.origin[0], to[1] - g.origin[1]],
+          g.move.screen
+        );
         if (t >= TUNING.COMMIT_T) g.locked = true;
 
         const now = Date.now();

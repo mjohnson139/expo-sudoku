@@ -340,6 +340,63 @@ and it is a guess: 0.25, so the quarter of the sticker nearest the line, about 1
 points on a 300-point cube. **Take it to a drilling session before anything
 else.**
 
+### 3.3c The face you are looking at, and why it needed its own gesture
+
+*Added 2026-08-17.* The operator could turn everything except the one face most
+in front of them:
+
+> "I still can't move the front face — the face that is pointing directly at me.
+> The finger touches down on one side, goes up just a little bit and then starts
+> to go in a horizontal direction — a little vertical up and then kind of a right
+> angle, and whatever direction that right angle goes in, that face is going to
+> move that way. This is specifically about the front face, or whatever face is
+> facing the user at the time, so based on the camera."
+
+**This is geometry, not an oversight, and it is worth understanding before
+touching the code.** §3.3 derives the rotation axis as `normal × direction`. With
+a finger on the face nearest the camera, both of those lie in the plane of the
+screen, so their cross product never comes back out of it. Every straight drag
+across the front face turns some layer *through* the cube — a row, a column, a
+slice — and **none of them is `F`**. The face nearest the camera is precisely the
+one face its own stickers cannot turn. Until now `F` could only be asked for from
+the faces around it, which is why it felt missing.
+
+So it is asked for **by shape rather than by direction**: a short leg, a right
+angle, and the way that angle went round is the way the face goes round. That is
+also the gesture a hand makes on a real cube, where turning the front face is a
+twist rather than a push.
+
+- **The corner is the most bent point of the path** — the sample furthest from
+  the straight line between where the finger started and where it is now. No
+  threshold is needed to find it, no assumption about which way the first leg
+  went, and it fails safely: a straight drag's furthest point is a hair off the
+  line, so the two legs come out nearly parallel and the squareness test rejects
+  it.
+- **Screen coordinates run y-down**, so a positive 2D cross product between the
+  legs is a turn *clockwise on the glass* — the direction the operator is
+  drawing.
+- **Clockwise on the glass is `amount` +1 only for the three faces on the
+  positive end of their axis.** `turns = clockwise ? layer : -layer` covers all
+  six, and there is a test that walks the camera round every face making the same
+  clockwise corner and expects each face's own clockwise turn.
+- **Progress is measured from the corner along the second leg**, not from where
+  the finger went down. The first leg was how you asked, not how far round you
+  have got.
+- **The layer is never in doubt.** Every sticker of the facing face shares its
+  coordinate along its own axis, so this is always that outer layer.
+
+It is tried **before** the straight reading, or the first leg would have already
+claimed the gesture, and it only applies when the finger went down on the facing
+face. Once the corner is drawn the move locks — a shape that deliberate is not
+something to talk the operator out of a few frames later.
+
+**The known rough edge:** the first leg has usually started turning some other
+layer before the corner arrives, so drawing the corner snaps that layer back and
+starts the face turning instead. The first leg is short, so the snap is small,
+but it is the thing to watch for on the phone. If it reads badly, the fix is to
+hold the first `CORNER_LEG` points back from the transport rather than to turn
+something during them.
+
 ### 3.4 Committing, and taking it back
 
 - Release past ~50% of a quarter turn (or fast enough): **commit** — write the
@@ -459,6 +516,11 @@ Open, and only a hand can close them:
    you meant to look; too high and it feels stuck. `QUARTER_POINTS = 118` is the
    other half of the same feel — how far a full quarter turn is if you drag it
    all the way.
+2b. **Does the corner gesture read as a twist?** (§3.3c.) `CORNER_LEG = 9` and
+   `CORNER_SQUARE = 0.8` (about 53°) decide how deliberate the right angle has to
+   be, and the snap at the end of the first leg is the known rough edge. Draw a
+   few `F`s and see whether the corner catches when you meant it and stays out of
+   the way when you did not.
 2a. **Is `WIDE_BAND = 0.25` a precise landing or an accidental one?** (§3.3b.)
    The two failures are opposite and both bad: too narrow and `r` cannot be hit
    on purpose, too wide and every turn near a seam comes out wide. Drill `r U r'`

@@ -13,6 +13,9 @@ import { parseMove } from '../moves';
 import {
   TUNING,
   chooseMove,
+  cornerMove,
+  detectCorner,
+  facingFace,
   moveForDrag,
   pickFace,
   shouldCommit,
@@ -521,6 +524,153 @@ describe('chooseMove — the front face, and changing its mind', () => {
 
   it('answers null when the finger never touched the cube', () => {
     expect(chooseMove({ polygons, from: [3, 3], to: [60, 3], view })).toBeNull();
+  });
+});
+
+/**
+ * Turning the face that is looking at you (§3.3c) — the one thing no straight
+ * drag can ask for.
+ */
+describe('the corner gesture', () => {
+  /** A path: start, go `first`, turn the corner, go `second`. Sampled the way a
+   *  finger's would be. */
+  const elbow = (start, first, second, step = 3) => {
+    const path = [start];
+    const walk = (from, leg) => {
+      const length = Math.hypot(leg[0], leg[1]);
+      const steps = Math.max(1, Math.round(length / step));
+      for (let i = 1; i <= steps; i += 1) {
+        path.push([from[0] + (leg[0] * i) / steps, from[1] + (leg[1] * i) / steps]);
+      }
+      return [from[0] + leg[0], from[1] + leg[1]];
+    };
+    walk(walk(start, first), second);
+    return path;
+  };
+
+  const front = { yaw: 0, pitch: 0 };
+
+  describe('facingFace', () => {
+    it('is the front at rest, and follows the camera round', () => {
+      expect(facingFace(0, 0)).toEqual([0, 0, 1]);
+      expect(facingFace(Math.PI, 0)).toEqual([0, 0, -1]);
+      expect(facingFace(-Math.PI / 2, 0)).toEqual([1, 0, 0]);
+      expect(facingFace(Math.PI / 2, 0)).toEqual([-1, 0, 0]);
+      expect(facingFace(0, Math.PI / 2)).toEqual([0, 1, 0]);
+      expect(facingFace(0, -Math.PI / 2)).toEqual([0, -1, 0]);
+    });
+
+    it('still names a face at the angle the cube opens at', () => {
+      expect(facingFace(DEFAULT_YAW, DEFAULT_PITCH)).toEqual([0, 0, 1]);
+    });
+  });
+
+  describe('detectCorner', () => {
+    it('finds the bend, and which way it went round', () => {
+      // Up the screen, then right: on the glass that is a clockwise turn.
+      const found = detectCorner(elbow([150, 150], [0, -30], [40, 0]));
+      expect(found).not.toBeNull();
+      expect(found.clockwise).toBe(true);
+      expect(found.screen[0]).toBeCloseTo(1);
+      expect(found.corner[1]).toBeCloseTo(120);
+    });
+
+    it('reads the other way round when the corner goes the other way', () => {
+      const found = detectCorner(elbow([150, 150], [0, -30], [-40, 0]));
+      expect(found.clockwise).toBe(false);
+    });
+
+    it('is not fooled by a straight drag', () => {
+      expect(detectCorner(elbow([150, 150], [0, -30], [0, -40]))).toBeNull();
+      expect(detectCorner(elbow([150, 150], [40, 0], [40, 0]))).toBeNull();
+    });
+
+    it('is not fooled by a drag that merely drifts', () => {
+      // A 20° lean is a wobble, not a right angle.
+      expect(detectCorner(elbow([150, 150], [0, -40], [14, -38]))).toBeNull();
+    });
+
+    it('waits for both legs to have been travelled', () => {
+      expect(detectCorner(elbow([150, 150], [0, -4], [40, 0]))).toBeNull();
+      expect(detectCorner(elbow([150, 150], [0, -30], [4, 0]))).toBeNull();
+    });
+
+    it('has nothing to say about a path that has barely started', () => {
+      expect(detectCorner([[150, 150]])).toBeNull();
+      expect(detectCorner([])).toBeNull();
+      expect(detectCorner(null)).toBeNull();
+    });
+  });
+
+  describe('cornerMove', () => {
+    it('turns the front face when the front is what you are looking at', () => {
+      const move = cornerMove({
+        path: elbow([150, 150], [0, -30], [40, 0]),
+        ...front,
+      });
+      expect(move.token).toBe('F');
+      expect(move.layers).toEqual([1]);
+      expect(move.axis).toBe(AXIS.z);
+    });
+
+    it('turns it back the other way for the other corner', () => {
+      const move = cornerMove({
+        path: elbow([150, 150], [0, -30], [-40, 0]),
+        ...front,
+      });
+      expect(move.token).toBe("F'");
+    });
+
+    it('turns whichever face the camera is actually looking at', () => {
+      const path = elbow([150, 150], [0, -30], [40, 0]);
+      expect(cornerMove({ path, yaw: Math.PI, pitch: 0 }).token).toBe('B');
+      expect(cornerMove({ path, yaw: -Math.PI / 2, pitch: 0 }).token).toBe('R');
+      expect(cornerMove({ path, yaw: Math.PI / 2, pitch: 0 }).token).toBe('L');
+      expect(cornerMove({ path, yaw: 0, pitch: Math.PI / 2 }).token).toBe('U');
+      expect(cornerMove({ path, yaw: 0, pitch: -Math.PI / 2 }).token).toBe('D');
+    });
+
+    it('turns clockwise on the glass whichever face is in front', () => {
+      // The same clockwise corner, at every face. Each token has to be its own
+      // face's clockwise turn — which is `amount` +1 for the three faces on the
+      // positive end of their axis and −1 for the three on the negative end.
+      const path = elbow([150, 150], [0, -30], [40, 0]);
+      [
+        [{ yaw: 0, pitch: 0 }, 'F'],
+        [{ yaw: Math.PI, pitch: 0 }, 'B'],
+        [{ yaw: -Math.PI / 2, pitch: 0 }, 'R'],
+        [{ yaw: Math.PI / 2, pitch: 0 }, 'L'],
+        [{ yaw: 0, pitch: Math.PI / 2 }, 'U'],
+        [{ yaw: 0, pitch: -Math.PI / 2 }, 'D'],
+      ].forEach(([view, token]) => {
+        const move = cornerMove({ path, ...view });
+        expect(move.token).toBe(token);
+        expect(parseMove(token).amount).toBe(move.amount);
+      });
+    });
+
+    it('writes a token that means exactly the move it turned', () => {
+      const move = cornerMove({ path: elbow([150, 150], [0, -30], [40, 0]), ...front });
+      const parsed = parseMove(move.token);
+      expect(parsed.axis).toBe(move.axis);
+      expect(parsed.layers).toEqual(move.layers);
+      expect(parsed.amount).toBe(move.amount);
+    });
+
+    it('measures progress from the corner, not from where the finger went down', () => {
+      const move = cornerMove({ path: elbow([150, 150], [0, -30], [40, 0]), ...front });
+      // The first leg was how you asked, not how far round you got. Measured
+      // from the corner the second leg is 40 points; measured from the start it
+      // would be the diagonal, and wrong.
+      expect(move.corner[1]).toBeCloseTo(120);
+      expect(turnProgress([190 - move.corner[0], 150 - move.corner[1]], move.screen))
+        .toBeCloseTo(40 / TUNING.QUARTER_POINTS);
+    });
+
+    it('says nothing when the drag has no corner in it', () => {
+      expect(cornerMove({ path: elbow([150, 150], [0, -30], [0, -40]), ...front }))
+        .toBeNull();
+    });
   });
 });
 
