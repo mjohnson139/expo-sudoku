@@ -15,6 +15,8 @@ import {
   chooseMove,
   cornerMove,
   detectCorner,
+  faceCornerMove,
+  faceCornerZone,
   facingFace,
   moveForDrag,
   pickFace,
@@ -713,5 +715,174 @@ describe('shouldCommit', () => {
 
   it('does not take a fast drag that never left the start', () => {
     expect(shouldCommit(0, 4000)).toBe(false);
+  });
+});
+
+describe('the corner-zone gesture (§3.3d)', () => {
+  // The two in-plane axes of a face, and a corner cubie of it (both +1).
+  const inFaceAxes = (normal) => [0, 1, 2].filter((i) => normal[i] === 0);
+  const cornerPos = (normal) => {
+    const pos = [...normal];
+    inFaceAxes(normal).forEach((ax) => {
+      pos[ax] = 1;
+    });
+    return pos;
+  };
+
+  // A screen point out in a corner sticker's outer quadrant, `out` half-cubies
+  // toward the cube's corner along both of the face's axes.
+  const cornerLanding = (pos, normal, view, out = 0.6) => {
+    const project = projector(view);
+    const centre = [
+      pos[0] + normal[0] * 0.5,
+      pos[1] + normal[1] * 0.5,
+      pos[2] + normal[2] * 0.5,
+    ];
+    const origin = project(centre);
+    let at = [...origin];
+    inFaceAxes(normal).forEach((ax) => {
+      const along = [0, 0, 0];
+      along[ax] = 1;
+      const tip = project([
+        centre[0] + along[0] * 0.5,
+        centre[1] + along[1] * 0.5,
+        centre[2] + along[2] * 0.5,
+      ]);
+      const arrow = [tip[0] - origin[0], tip[1] - origin[1]];
+      const dir = Math.sign(pos[ax]);
+      at = [at[0] + dir * out * arrow[0], at[1] + dir * out * arrow[1]];
+    });
+    return at;
+  };
+
+  // Where the sticker point travels on screen if the move is applied — the
+  // independent check that it went the way the finger dragged.
+  const screenTravel = (pos, normal, move, view) => {
+    const project = projector(view);
+    const at = [2 * pos[0] + normal[0], 2 * pos[1] + normal[1], 2 * pos[2] + normal[2]];
+    const after = rotateQuarter(at, move.axis, move.amount);
+    const before = project([at[0] / 2, at[1] / 2, at[2] / 2]);
+    const moved = project([after[0] / 2, after[1] / 2, after[2] / 2]);
+    return [moved[0] - before[0], moved[1] - before[1]];
+  };
+
+  describe('faceCornerZone — when a landing is a corner of the facing face', () => {
+    it('catches the outer corner of every facing face', () => {
+      FACES.forEach((normal) => {
+        const view = viewFacing(normal);
+        const pos = cornerPos(normal);
+        const at = cornerLanding(pos, normal, view);
+        const zone = faceCornerZone({ pos, normal }, at, view);
+        expect(zone).not.toBeNull();
+        expect(zone.facing).toEqual(normal);
+      });
+    });
+
+    it('leaves the middle of a corner sticker to the straight reading', () => {
+      const normal = [0, 0, 1];
+      const view = viewFacing(normal);
+      const pos = cornerPos(normal);
+      // Barely off centre — nowhere near the outer corner.
+      expect(faceCornerZone({ pos, normal }, cornerLanding(pos, normal, view, 0.1), view)).toBeNull();
+    });
+
+    it('is not a corner on an edge or a centre sticker', () => {
+      const normal = [0, 0, 1];
+      const view = viewFacing(normal);
+      // An edge cubie (one in-face coord is 0) landed far out is still not a corner.
+      const edge = [1, 0, 1];
+      expect(faceCornerZone({ pos: edge, normal }, cornerLanding(edge, normal, view), view)).toBeNull();
+      const centre = [0, 0, 1];
+      expect(faceCornerZone({ pos: centre, normal }, cornerLanding(centre, normal, view), view)).toBeNull();
+    });
+
+    it('ignores a corner of a face that is not the one in front', () => {
+      // Looking at the front; a corner sticker of the right face is not eligible.
+      const view = viewFacing([0, 0, 1]);
+      const rightPos = [1, 1, 1];
+      const rightNormal = [1, 0, 0];
+      expect(
+        faceCornerZone({ pos: rightPos, normal: rightNormal }, cornerLanding(rightPos, rightNormal, view), view)
+      ).toBeNull();
+    });
+  });
+
+  describe('faceCornerMove — spinning that face the way the finger goes', () => {
+    it('turns the facing face, and the corner sticker goes the way the finger did', () => {
+      FACES.forEach((normal) => {
+        const view = viewFacing(normal);
+        const pos = cornerPos(normal);
+        const from = cornerLanding(pos, normal, view);
+        const zone = faceCornerZone({ pos, normal }, from, view);
+
+        // A clockwise-on-glass tangential drag: r rotated +90° in screen coords.
+        const r = [from[0] - zone.pivot[0], from[1] - zone.pivot[1]];
+        const to = [from[0] - r[1] * 0.5, from[1] + r[0] * 0.5];
+
+        const move = faceCornerMove({ zone, from, to });
+        expect(move).not.toBeNull();
+        // It is the facing face's own layer — the axis perpendicular to nothing,
+        // the one every sticker of the face shares.
+        expect(normal[move.axis]).not.toBe(0);
+        expect(move.layers).toEqual([normal[move.axis]]);
+        expect([1, 3]).toContain(move.amount);
+
+        // The invariant: apply the move and the corner sticker travels the way
+        // the finger dragged.
+        const drag = [to[0] - from[0], to[1] - from[1]];
+        const travel = screenTravel(pos, normal, move, view);
+        expect(travel[0] * drag[0] + travel[1] * drag[1]).toBeGreaterThan(0);
+      });
+    });
+
+    it('turns the other way for the other way round', () => {
+      const normal = [0, 0, 1];
+      const view = viewFacing(normal);
+      const pos = cornerPos(normal);
+      const from = cornerLanding(pos, normal, view);
+      const zone = faceCornerZone({ pos, normal }, from, view);
+      const r = [from[0] - zone.pivot[0], from[1] - zone.pivot[1]];
+
+      const cw = faceCornerMove({ zone, from, to: [from[0] - r[1] * 0.5, from[1] + r[0] * 0.5] });
+      const ccw = faceCornerMove({ zone, from, to: [from[0] + r[1] * 0.5, from[1] - r[0] * 0.5] });
+      expect(cw.axis).toBe(ccw.axis);
+      expect(shortWay(cw.amount)).toBe(-shortWay(ccw.amount));
+    });
+
+    it('writes a token that means exactly the move it turned', () => {
+      const normal = [0, 0, 1];
+      const view = viewFacing(normal);
+      const pos = cornerPos(normal);
+      const from = cornerLanding(pos, normal, view);
+      const zone = faceCornerZone({ pos, normal }, from, view);
+      const r = [from[0] - zone.pivot[0], from[1] - zone.pivot[1]];
+      const move = faceCornerMove({ zone, from, to: [from[0] - r[1] * 0.5, from[1] + r[0] * 0.5] });
+      const parsed = parseMove(move.token);
+      expect(parsed.axis).toBe(move.axis);
+      expect(parsed.layers).toEqual(move.layers);
+      expect(parsed.amount).toBe(move.amount);
+    });
+
+    it('waits for a tangential pull rather than flipping a coin on a radial poke', () => {
+      const normal = [0, 0, 1];
+      const view = viewFacing(normal);
+      const pos = cornerPos(normal);
+      const from = cornerLanding(pos, normal, view);
+      const zone = faceCornerZone({ pos, normal }, from, view);
+      const r = [from[0] - zone.pivot[0], from[1] - zone.pivot[1]];
+      const radius = Math.hypot(r[0], r[1]);
+      // Straight out along the radius: no spin.
+      const out = [from[0] + (r[0] / radius) * 40, from[1] + (r[1] / radius) * 40];
+      expect(faceCornerMove({ zone, from, to: out })).toBeNull();
+    });
+
+    it('is null until the drag is long enough to mean anything', () => {
+      const normal = [0, 0, 1];
+      const view = viewFacing(normal);
+      const pos = cornerPos(normal);
+      const from = cornerLanding(pos, normal, view);
+      const zone = faceCornerZone({ pos, normal }, from, view);
+      expect(faceCornerMove({ zone, from, to: [from[0] + 1, from[1] + 1] })).toBeNull();
+    });
   });
 });

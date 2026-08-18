@@ -75,6 +75,18 @@ export const TUNING = {
    */
   CORNER_LEG: 9,
   CORNER_SQUARE: 0.8,
+  /**
+   * The other way to turn the face you are looking at, and the easy one
+   * (§3.3d). Land a finger in the outer corner of the facing face — where the
+   * cube's own corner is — and a straight drag spins that face the way the
+   * finger goes round, no right angle to draw. `CORNER_ZONE` is how far out
+   * toward that corner the finger has to be, along **both** of the face's axes,
+   * in the same half-cubie units as `WIDE_BAND`: 0 is the sticker's centre and 1
+   * its outer edge, so 0.45 is the outer corner quadrant — past the middle of
+   * the sticker on both axes, which is "mostly there". Below it, a corner
+   * sticker still reads as today's straight U or L.
+   */
+  CORNER_ZONE: 0.45,
 };
 
 /** The six outward face normals, in no particular order. */
@@ -570,6 +582,119 @@ export const cornerMove = ({ path, yaw, pitch, tuning = TUNING }) => {
 };
 
 /**
+ * Is the finger in a corner of the face it is looking at? (§3.3d)
+ *
+ * The right-angle corner gesture (`cornerMove`) works but is hard to find and
+ * harder to draw. This is the easy way in, and it is a **landing**, not a shape:
+ * put a finger on the outer corner of the facing face — the part of a corner
+ * sticker nearest the cube's own corner, where the operator's marks are — and a
+ * plain straight drag turns that face (`faceCornerMove`). A finger anywhere else
+ * on the same face still reads as today's straight U or L, so the corner is the
+ * only thing this steals.
+ *
+ * Returns the data the spin needs, or `null` when the landing is not a corner of
+ * the facing face:
+ *
+ * - **On the facing face.** The picked sticker's normal is the one pointing at
+ *   the camera. A drag on any other face already has a straight reading that
+ *   works, so those are left alone.
+ * - **On a corner cubie of it.** Both of the face's own coordinates are `±1`.
+ *   Edge and centre stickers are not corners and keep their straight readings.
+ * - **Out in the corner's own quadrant.** The finger is past `CORNER_ZONE`
+ *   toward the outer edge on **both** of the face's axes — the quarter of the
+ *   corner sticker nearest the cube's corner. The offset is measured through the
+ *   same projected half-cubie step `straddledLayer` uses for wide turns, so it
+ *   carries the same perspective the operator can see.
+ *
+ * @returns {{facing: number[], pivot: number[]}|null} `pivot` is the facing
+ *   face's centre on screen — the point the finger spins the face around.
+ */
+export const faceCornerZone = (pick, at, view, tuning = TUNING) => {
+  if (!pick || !at) return null;
+
+  const facing = facingFace(view.yaw, view.pitch);
+  if (pick.normal.join(',') !== facing.join(',')) return null;
+
+  const faceAxis = facing.findIndex((component) => component !== 0);
+  const inFace = [0, 1, 2].filter((i) => i !== faceAxis);
+  if (!inFace.every((ax) => Math.abs(pick.pos[ax]) === 1)) return null;
+
+  const project = projector(view);
+  const centre = [
+    pick.pos[0] + pick.normal[0] * 0.5,
+    pick.pos[1] + pick.normal[1] * 0.5,
+    pick.pos[2] + pick.normal[2] * 0.5,
+  ];
+  const origin = project(centre);
+  const basis = faceBasis(pick.normal);
+
+  const outward = inFace.every((ax) => {
+    const along = basis.find((b) => b[ax] !== 0);
+    if (!along) return false;
+    const tip = project([
+      centre[0] + along[0] * 0.5,
+      centre[1] + along[1] * 0.5,
+      centre[2] + along[2] * 0.5,
+    ]);
+    const arrow = [tip[0] - origin[0], tip[1] - origin[1]];
+    const span2 = arrow[0] * arrow[0] + arrow[1] * arrow[1];
+    if (!(span2 > 0)) return false;
+    const reach = [at[0] - origin[0], at[1] - origin[1]];
+    const offset = (reach[0] * arrow[0] + reach[1] * arrow[1]) / span2;
+    // Out toward this cubie's own outer edge — `faceBasis` is always a positive
+    // axis vector, so the cubie's coordinate is the outward sign — and past the
+    // band. Both axes, or it is an edge of the sticker, not its corner.
+    return offset * Math.sign(pick.pos[ax]) > tuning.CORNER_ZONE;
+  });
+  if (!outward) return null;
+
+  const pivot = project([facing[0] * 1.5, facing[1] * 1.5, facing[2] * 1.5]);
+  return { facing, pivot };
+};
+
+/**
+ * Spin the facing face from a corner landing, the way the finger goes round
+ * (§3.3d).
+ *
+ * Given a `zone` from `faceCornerZone`, the drag's direction *around the face's
+ * centre* is the turn: the finger has grabbed the cube by a corner and is
+ * carrying it round, exactly as a hand does. `r × drag` is that sense — positive
+ * is clockwise on the glass, the same reading `detectCorner` takes from its two
+ * legs and the same one `faceTurnFor` turns into the right `F` / `F'` for
+ * whichever face is forward.
+ *
+ * Waits for a clear *tangential* pull before it commits to a direction: a poke
+ * straight at or away from the centre is not a spin, and guessing a sign from it
+ * would be a coin flip. Progress is then measured along the tangent at the
+ * corner, which is stable while the finger curves round it and is what the
+ * spring detent reads.
+ *
+ * @returns {{axis, layers, amount, token, screen}|null}
+ */
+export const faceCornerMove = ({ zone, from, to, tuning = TUNING }) => {
+  if (!zone) return null;
+
+  const drag = [to[0] - from[0], to[1] - from[1]];
+  if (Math.hypot(drag[0], drag[1]) < tuning.DECIDE_POINTS) return null;
+
+  const r = [from[0] - zone.pivot[0], from[1] - zone.pivot[1]];
+  const radius = Math.hypot(r[0], r[1]);
+  if (!(radius > 0)) return null;
+
+  const around = r[0] * drag[1] - r[1] * drag[0];
+  // The part of the drag that actually goes *round* the centre, in points. A
+  // radial poke barely turns and waits rather than flipping a coin on the sign.
+  if (Math.abs(around) / radius < tuning.DECIDE_POINTS) return null;
+
+  const move = faceTurnFor(zone.facing, around > 0);
+  if (!move) return null;
+
+  let tangent = [-r[1] / radius, r[0] / radius];
+  if (tangent[0] * drag[0] + tangent[1] * drag[1] < 0) tangent = [-tangent[0], -tangent[1]];
+  return { ...move, screen: tangent };
+};
+
+/**
  * How far round the layer is, for a drag of `drag` along the chosen arrow.
  *
  * Only the component *along* the arrow counts, so drifting sideways mid-drag
@@ -598,6 +723,8 @@ export default {
   TUNING,
   pickFace,
   moveForDrag,
+  faceCornerZone,
+  faceCornerMove,
   chooseMove,
   facingFace,
   detectCorner,

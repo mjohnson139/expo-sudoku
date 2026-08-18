@@ -421,10 +421,13 @@ principles.
 Put a finger on a sticker and drag: that layer follows it. Past the detent,
 letting go carries the turn round and writes the move; short of it, it springs
 back and writes nothing. Two fingers always orbit. Landing on the seam between
-two pieces turns both layers — a wide turn. The face pointing at you is asked for
-by drawing a right angle, because no *straight* drag can turn it: the rotation
-axis is `normal × direction`, and on the facing face both lie in the plane of the
-screen. Turning the same layer the same way twice folds into a half turn; a
+two pieces turns both layers — a wide turn. The face pointing at you has two ways
+in: **land a finger on a corner of it and drag round** (the easy one, §3.3d), or
+draw a right angle in the middle of it (§3.3c). A straight drag across the middle
+of that face cannot turn it — the rotation axis is `normal × direction`, and on
+the facing face both lie in the plane of the screen — which is why it takes a
+corner or a shape. Turning the same layer the same way twice folds into a half
+turn; a
 layer turned and immediately turned straight back comes off the solve entirely —
 figuring a piece out with a finger is quick and common, so the there-and-back is
 dropped rather than written down.

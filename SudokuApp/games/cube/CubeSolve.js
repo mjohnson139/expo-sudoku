@@ -693,7 +693,7 @@ const CubeSolve = ({ navigation }) => {
           accessibilityLabel={`Cube — ${announcePosition(player.index, player.count, 'solve')}`}
           accessibilityHint={
             turning
-              ? 'Drag a sticker to turn that layer, or drag with two fingers to turn the whole cube'
+              ? 'Drag a sticker to turn that layer, drag from a corner of the front face to turn it, or drag with two fingers to turn the whole cube'
               : undefined
           }
         />

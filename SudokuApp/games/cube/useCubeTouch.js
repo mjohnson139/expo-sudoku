@@ -5,6 +5,8 @@ import {
   TUNING,
   chooseMove,
   cornerMove,
+  faceCornerMove,
+  faceCornerZone,
   facingFace,
   pickFace,
   shouldCommit,
@@ -193,7 +195,7 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
 
       onPanResponderGrant: (event) => {
         const g = gesture.current;
-        const { scene: frame, turning: turns, yaw: y, pitch: p } = live.current;
+        const { scene: frame, turning: turns, size: edge, yaw: y, pitch: p } = live.current;
         const { touches, locationX, locationY } = event.nativeEvent;
 
         g.grabbed = { yaw: y, pitch: p };
@@ -208,6 +210,7 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         g.polygons = frame.polygons;
         g.path = [[locationX, locationY]];
         g.onFacing = false;
+        g.cornerZone = null;
 
         // Turning switched off, or a second finger already down: orbit, and do
         // not even look at what is under the finger.
@@ -224,6 +227,15 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         g.mode = g.pick ? 'undecided' : 'orbit';
         g.onFacing =
           !!g.pick && g.pick.normal.join() === facingFace(y, p).join();
+        // Landing in the outer corner of the facing face turns *that* face by a
+        // straight drag (§3.3d) — decided here, from where the finger went down,
+        // and exclusive: in the corner it is an F gesture or nothing, never the
+        // straight U/L a corner sticker would otherwise read.
+        g.cornerZone = faceCornerZone(
+          g.pick,
+          [locationX, locationY],
+          { size: edge, yaw: y, pitch: p }
+        );
       },
 
       onPanResponderMove: (event, state) => {
@@ -278,22 +290,35 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         // line, so the gesture is allowed to change its mind about which layer
         // it is turning right up until the detent.
         if (g.mode === 'undecided' || !g.locked) {
-          // The corner gesture is asked first, because it is the *only* way to
-          // ask for the face pointing at the camera — no straight drag across
-          // that face can name it (`faceTurnFor`) — and the straight reading
-          // would otherwise have taken the gesture during its first leg.
-          const corner = g.onFacing
-            ? cornerMove({ path: g.path, yaw: y, pitch: p })
-            : null;
-          const chosen =
-            corner ||
-            chooseMove({
-              polygons: g.polygons,
-              from: g.from,
-              to,
-              view: { size: edge, yaw: y, pitch: p },
-              current: g.mode === 'turn' ? g.move : null,
-            });
+          let chosen;
+          let named = false;
+          if (g.cornerZone) {
+            // The finger landed in a corner of the facing face, so this is an F
+            // gesture and only an F gesture: spin from where it went down, and
+            // do **not** fall back to the straight U/L a corner sticker would
+            // otherwise give. Null until the drag turns clearly one way round.
+            chosen = faceCornerMove({ zone: g.cornerZone, from: g.from, to });
+            named = !!chosen;
+          } else {
+            // The corner *draw* is asked first among the rest, because it is the
+            // only other way to ask for the face pointing at the camera — no
+            // straight drag across it can name it (`faceTurnFor`) — and the
+            // straight reading would otherwise take the gesture during its first
+            // leg.
+            const corner = g.onFacing
+              ? cornerMove({ path: g.path, yaw: y, pitch: p })
+              : null;
+            chosen =
+              corner ||
+              chooseMove({
+                polygons: g.polygons,
+                from: g.from,
+                to,
+                view: { size: edge, yaw: y, pitch: p },
+                current: g.mode === 'turn' ? g.move : null,
+              });
+            named = !!corner;
+          }
 
           // Still too short a drag to mean anything.
           if (!chosen) return;
@@ -317,11 +342,12 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
 
           g.move = chosen;
 
-          if (corner) {
-            // Drawing the corner *is* the request. Measure from there, and stop
-            // reconsidering — a shape this deliberate is not something to talk
-            // the operator out of a few frames later.
-            g.origin = corner.corner;
+          if (named) {
+            // The gesture has named itself and will not change its mind — a
+            // drawn corner, or a corner-zone spin. Stop reconsidering, and for a
+            // drawn corner measure from the corner rather than from touch-down
+            // (the corner-zone spin already measures from where it went down).
+            if (chosen.corner) g.origin = chosen.corner;
             g.locked = true;
           }
         }

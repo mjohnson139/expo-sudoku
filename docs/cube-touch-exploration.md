@@ -406,6 +406,51 @@ but it is the thing to watch for on the phone. If it reads badly, the fix is to
 hold the first `CORNER_LEG` points back from the transport rather than to turn
 something during them.
 
+### 3.3d The easy way at that face — land on a corner (added 2026-08-18)
+
+*Operator, after drilling the cut on a phone.* §3.3c works and is still hard: the
+right angle is a shape to remember and a shape to draw, and turning the face most
+in front of you is the move you reach for most. The operator's fix, from the
+annotated screenshot of a flat-on cube with all four corners marked:
+
+> if the finger is on the very corner of the cube that should trigger moving that
+> face that's facing you … if it's in the middle of the sticker it does exactly
+> what it does today.
+
+So there are now **two** ways at the facing face, and this one is a *landing*
+rather than a shape. Put a finger on the outer corner of the facing face — the
+part of a corner sticker nearest the cube's own corner — and a plain straight
+drag spins that face the way the finger goes round. A finger anywhere else on the
+same face still reads as today's straight `U` or `L`, so the corner is the only
+thing this takes.
+
+- **`faceCornerZone` decides at touch-down**, from where the finger landed: on
+  the facing face, on a corner cubie of it, and out past `CORNER_ZONE` toward the
+  outer edge on **both** of the face's axes — the outer quadrant of the corner
+  sticker. The offset is read through the same projected half-cubie step
+  `straddledLayer` uses for wide turns, so it carries the same perspective the
+  operator sees. Below the band, the corner sticker is still a straight `U`/`L`.
+- **It is exclusive.** Once the landing is a corner, the gesture is an `F`
+  gesture or nothing — `useCubeTouch` does not fall back to the straight reading,
+  which at the outer corner would otherwise fire a `U` or an `L`. This is the
+  whole of what §3.3c could not do: name the facing face from a straight drag.
+- **`faceCornerMove` reads the direction as a spin about the face centre.**
+  `r × drag` — finger-position-from-centre crossed with the drag — is the way the
+  finger goes *round*, positive clockwise on the glass, the same sense
+  `detectCorner` reads from its two legs and `faceTurnFor` turns into the right
+  `F`/`F'` for whichever face is forward. It waits for a clear tangential pull
+  rather than guessing a sign from a radial poke, and measures progress along the
+  tangent so the existing spring detent and one-quarter draw (§8.2) carry it with
+  no new transport.
+- **The sign is pinned**, per face, by the independent check the rest of the
+  module uses: apply the returned move and the corner sticker travels the way the
+  finger dragged, at all six facing faces.
+
+**§3.3c stays.** The right-angle draw is the way at the facing face from the
+*middle* of it; the corner-zone spin is the way from its corner. If the corner
+turns out to be the one people reach for, the draw can retire later — but that is
+a call for a drilling session, not this change.
+
 ### 3.4 Committing, and taking it back
 
 - Release past ~50% of a quarter turn (or fast enough): **commit** — write the
@@ -829,3 +874,23 @@ backspace passes no `from` and is unchanged.
 - **Device-only evidence:** the backward-from-`1 - t` sweep is a hook path past
   the runner. Drag a move and drag it straight back — the layer should finish
   going back in one motion, not snap forward and replay.
+
+### 8.8 A second, easier way at the facing face (added 2026-08-18)
+
+The right-angle corner gesture (§3.3c) survived the cut and was still the hardest
+thing to invoke on a phone — turning the face most in front of you, the move you
+reach for most. §3.3d is the operator's fix and now ships beside it: **land a
+finger on the outer corner of the facing face and drag, and that face spins the
+way the finger goes round.** No shape to draw; a corner sticker touched in its
+middle still reads as today's straight `U`/`L`.
+
+- **`faceCornerZone` / `faceCornerMove`** are new and pure in `touchTurn.js`, and
+  `CORNER_ZONE` joins `TUNING`. The zone is decided at touch-down and is
+  **exclusive** — in a corner it is an `F` gesture or nothing, never the straight
+  reading the outer corner would otherwise give.
+- **The sign is pinned per face** by the module's own independent check (apply
+  the move, the corner sticker travels the way the finger dragged), at all six
+  facing faces.
+- **Device-only, as ever:** the feel of the pivot, the `CORNER_ZONE` band, and
+  whether this makes §3.3c redundant are all phone questions. Nothing here is in
+  the design canvas. If the corner wins, the draw can retire later.
