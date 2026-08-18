@@ -105,6 +105,7 @@ describe('readCubeSave', () => {
     orientation: 'z2',
     alg: "r U r'",
     phases: [],
+    mistakes: 0,
     savedAt: 7,
   };
 

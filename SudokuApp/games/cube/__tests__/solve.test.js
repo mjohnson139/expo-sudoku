@@ -18,6 +18,7 @@ import {
   appendAlg,
   appendToken,
   applyPadPress,
+  cancelInverse,
   condenseRepeat,
   describeSolve,
   describeToken,
@@ -462,7 +463,10 @@ describe('condenseRepeat', () => {
     expect(condenseRepeat('M', 'M')).toBe('M2');
   });
 
-  it('leaves a move and its inverse alone rather than eating both', () => {
+  it('is not the one that handles a move and its inverse — cancelInverse is', () => {
+    // A quarter and its own inverse compose to nothing, which is a cancel, not a
+    // condense. condenseRepeat says "not mine" (null) and the commit path tries
+    // cancelInverse first.
     expect(condenseRepeat('R', "R'")).toBeNull();
     expect(condenseRepeat("R'", 'R')).toBeNull();
   });
@@ -486,6 +490,60 @@ describe('condenseRepeat', () => {
 
   it('leaves the rest of the algorithm exactly as it was written', () => {
     expect(condenseRepeat("r U r' F", 'F')).toBe("r U r' F2");
+  });
+});
+
+describe('cancelInverse', () => {
+  it('drops a quarter turn when its own inverse arrives', () => {
+    expect(cancelInverse('R', "R'")).toBe('');
+    expect(cancelInverse("R'", 'R')).toBe('');
+    expect(cancelInverse('F U R', "R'")).toBe('F U');
+  });
+
+  it('cancels two half turns of the same layer', () => {
+    // R2 R2 is the identity as much as R R' is.
+    expect(cancelInverse('R2', 'R2')).toBe('');
+    expect(cancelInverse('F R2', 'R2')).toBe('F');
+  });
+
+  it('cancels a wide turn against its own inverse, by move not by letter', () => {
+    expect(cancelInverse('r', "r'")).toBe('');
+    expect(cancelInverse("l'", 'l')).toBe('');
+    // A face and its wide turn share a letter and are different layers.
+    expect(cancelInverse('R', "r'")).toBeNull();
+  });
+
+  it('cancels a slice against its inverse', () => {
+    expect(cancelInverse('M', "M'")).toBe('');
+  });
+
+  it('does not touch a pair that composes to a real move', () => {
+    // R then R2 is a net R' — a move, not a fumble.
+    expect(cancelInverse('R', 'R2')).toBeNull();
+    expect(cancelInverse('R2', 'R')).toBeNull();
+    // R then R is a half turn — condenseRepeat's job, not this one.
+    expect(cancelInverse('R', 'R')).toBeNull();
+  });
+
+  it('refuses a different layer or axis', () => {
+    expect(cancelInverse('R', 'L')).toBeNull();
+    expect(cancelInverse('R', "U'")).toBeNull();
+    expect(cancelInverse('R', "M'")).toBeNull();
+  });
+
+  it('has nothing to cancel on an empty solve', () => {
+    expect(cancelInverse('', "R'")).toBeNull();
+  });
+
+  it('only ever looks at the last token', () => {
+    // The R' cancels the R it follows, and leaves the U in front of it.
+    expect(cancelInverse('U R', "R'")).toBe('U');
+    // A U' does not reach past the R to the U.
+    expect(cancelInverse('U R', "U'")).toBeNull();
+  });
+
+  it('leaves the rest of the algorithm exactly as written', () => {
+    expect(cancelInverse("r U r' R", "R'")).toBe("r U r'");
   });
 
   it('produces something the parser reads back as the same two turns', () => {

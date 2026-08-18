@@ -217,10 +217,12 @@ const TOKEN_PARTS = /^([UDLRFBMESudlrfbxyz]w?)([2'’]*)$/;
  *
  * A quarter turn either side, and nothing else. Three in a row leaves `R2 R`
  * rather than becoming `R'`, which is what the pad's third tap does and keeps
- * the two routes telling the same story; and a quarter followed by its own
- * inverse is left as `R R'` rather than cancelling to nothing, because silently
- * eating both halves of a move the operator can still see is a worse surprise
- * than a redundant pair they can undo.
+ * the two routes telling the same story. A quarter followed by its own inverse
+ * is **not** a condense — it composes to nothing — and is handled a step earlier
+ * by `cancelInverse`, which removes both and counts the fumble. (This reverses
+ * the original spike's call to leave `R R'` on screen: the objection was that
+ * eating a move silently is a surprise, and a visible mistake counter is the
+ * answer to it — operator, 2026-08-18.)
  *
  * **The guard is the text**, as it is for `promoteLastToken` and for the same
  * reason: an undo in flight has not removed its token yet, and a fold that
@@ -248,6 +250,53 @@ export const condenseRepeat = (alg, token) => {
   if (!parts) return null;
 
   return [...tokens.slice(0, -1), `${parts[1]}2`].join(' ');
+};
+
+/**
+ * Drop the move already written when the one arriving undoes it — `… R` plus an
+ * `R'` leaves `…`, and the pair never happened.
+ *
+ * A gesture's version of "no, not that one". Turning a layer and immediately
+ * turning it straight back is the operator figuring out which way a piece goes,
+ * not a move they are keeping, so it comes off the solve rather than being
+ * written down as `R R'` (operator, 2026-08-18). The caller counts it as a
+ * mistake instead — which is the whole reason this can eat a move that is still
+ * on screen where `condenseRepeat`'s note said it should not: the count is what
+ * makes the removal visible rather than silent.
+ *
+ * Returns the shortened algorithm, or `null` for "these two do not cancel", so
+ * the caller can fall through to `condenseRepeat` and then to an append.
+ *
+ * ### What "undoes it" means, exactly
+ *
+ * Same axis, the same layers, and quarter-turn *amounts* that compose to a whole
+ * turn — `(before + added) % 4 === 0`. That is `R` then `R'`, `R'` then `R`, and
+ * `R2` then `R2`, and nothing looser: `R` then `R2` is a net `R'`, a real move,
+ * and is left to be appended. Comparing the parsed moves rather than the tokens
+ * is what makes `r` cancel `r'` and keeps a wide turn from cancelling the face
+ * turn it merely shares a letter with.
+ *
+ * **The guard is the text**, as it is for `condenseRepeat` and `promoteLastToken`
+ * and for the same reason: an undo already in flight has not dropped its token
+ * yet, and cancelling against a move that is about to disappear would take the
+ * wrong one.
+ */
+export const cancelInverse = (alg, token) => {
+  const tokens = tryTokenize(alg);
+  if (!tokens || tokens.length === 0) return null;
+
+  const before = parseMove(tokens[tokens.length - 1]);
+  const added = parseMove(token);
+  if (!before || !added) return null;
+
+  if (before.axis !== added.axis) return null;
+  if (before.layers.length !== added.layers.length) return null;
+  if (before.layers.some((layer, i) => layer !== added.layers[i])) return null;
+
+  // Compose to a whole turn — the two leave the cube exactly as it was.
+  if ((before.amount + added.amount) % 4 !== 0) return null;
+
+  return tokens.slice(0, -1).join(' ');
 };
 
 /**

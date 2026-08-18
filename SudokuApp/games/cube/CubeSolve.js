@@ -26,6 +26,7 @@ import {
   appendAlg,
   appendToken,
   applyPadPress,
+  cancelInverse,
   condenseRepeat,
   dropLastToken,
   promoteLastToken,
@@ -40,6 +41,7 @@ import {
 } from './solveList';
 import { moveCount, parseAlg } from './moves';
 import useAppBackground from './useAppBackground';
+import CubeMistakeMeter from './CubeMistakeMeter';
 import useScramblePlayer from './useScramblePlayer';
 import useCubeStage from './useCubeStage';
 import { CUBE_ACCENT, headerAction, styles } from './cubeChrome';
@@ -289,22 +291,48 @@ const CubeSolve = ({ navigation }) => {
   useAppBackground(useCallback(() => setGestureTurn(null), []));
 
   /**
-   * A drag that earned its move.
+   * A drag that has reached its detent — three things it can turn out to be.
    *
-   * The order matters and is the whole of the handoff: **tell the transport how
-   * far round the move already is, then append it.** The append is what makes it
-   * a move — through `editOpen` and `withMoves`, the same two doors every other
-   * edit goes through, so a gesture-entered move is undoable, phase-clamped,
-   * persisted and comparable like any other. The handoff is what stops the
-   * transport animating it from zero, which would snap the layer back under the
-   * finger that had just turned it.
+   * **A cancel**, if this move undoes the one just written: figuring a piece out,
+   * not solving, so it comes off and is counted (see the body, and `solve.js`).
+   * **A condense**, if it is the same turn twice: `R R` is one `R2`. **Otherwise
+   * an append.** All three go through `editOpen` + `withMoves`, the doors every
+   * edit goes through, so a gesture move is undoable, phase-clamped, persisted
+   * and comparable like any other.
    *
-   * Dropping the gesture's own frame waits a frame: the transport's first frame
-   * is at exactly the `t` this one is frozen at, so handing over on the next tick
-   * swaps two identical pictures.
+   * Dropping the gesture's own frame waits a frame either way: the transport's
+   * first frame lands at exactly the `t` this one is frozen at (an append) or
+   * carries straight on backwards from it (a cancel), so releasing the finger
+   * swaps two identical pictures rather than jumping.
    */
   const commitTurn = useCallback(
     (move, t) => {
+      // **A move that undoes the one just written is a fumble, not notation.**
+      // Turning a layer and immediately turning it back is figuring a piece out,
+      // so it comes off the solve rather than being kept as `R R'` — and it is
+      // counted, which is what makes taking a move off the screen honest rather
+      // than a silent surprise (`solve.js` `cancelInverse`; the meter above the
+      // cube). It goes back exactly the way backspace does: `retract` runs the
+      // move backwards and drops its token when it settles, so the finger that
+      // dragged the layer back watches it carry on the rest of the way. No
+      // handoff, because nothing is being appended to hand off to.
+      if (cancelInverse(solve, move.token) !== null) {
+        retract(() =>
+          editOpen((current) => ({
+            ...withMoves(current, dropLastToken(current.alg)),
+            mistakes: (current.mistakes || 0) + 1,
+          }))
+        );
+        requestAnimationFrame(() => setGestureTurn(null));
+        return;
+      }
+
+      // Otherwise the drag earned a move. Tell the transport how far round it
+      // already is, then append it — through `editOpen` and `withMoves`, the two
+      // doors every other edit goes through, so a gesture move is undoable,
+      // phase-clamped, persisted and comparable like any other. The handoff is
+      // what stops the transport animating it from zero and snapping the layer
+      // back under the finger.
       handoff(t);
       editOpen((current) =>
         withMoves(
@@ -316,7 +344,7 @@ const CubeSolve = ({ navigation }) => {
       );
       requestAnimationFrame(() => setGestureTurn(null));
     },
-    [handoff, editOpen]
+    [solve, handoff, retract, editOpen]
   );
 
   /**
@@ -655,6 +683,9 @@ const CubeSolve = ({ navigation }) => {
       )}
 
       <View style={styles.stage} onLayout={measureStage}>
+        {/* Over the cube's corner, pointer-transparent, and null until there is
+            a fumble to show — so it costs the cube no height (§8.6). */}
+        <CubeMistakeMeter count={shown ? shown.mistakes || 0 : 0} theme={theme} />
         <CubeView
           cube={player.cube}
           // The finger in front of the clock: while a layer is being dragged it

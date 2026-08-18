@@ -424,7 +424,11 @@ back and writes nothing. Two fingers always orbit. Landing on the seam between
 two pieces turns both layers — a wide turn. The face pointing at you is asked for
 by drawing a right angle, because no *straight* drag can turn it: the rotation
 axis is `normal × direction`, and on the facing face both lie in the plane of the
-screen. Turning the same layer the same way twice folds into a half turn.
+screen. Turning the same layer the same way twice folds into a half turn; a
+layer turned and immediately turned straight back comes off the solve entirely —
+figuring a piece out, not a move kept — and is **counted** on the record as a
+mistake, shown by a small growing bar in the cube's corner (an overlay, so it
+costs the cube no points).
 
 Only on the solve screen, and only once the hold is locked in — inspection is
 panning to *choose* the hold, and a layer turning during it would change the very

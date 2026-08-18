@@ -29,6 +29,8 @@ const BUILD_NOTES = {
       'The face pointing at you turns by drawing a right angle: a short leg, a corner, and the face goes the way the corner went',
       'Turning the same layer the same way twice writes one half turn — R2 rather than R R',
       'Only on the solve screen, and only once the hold is locked in: inspection is still panning to choose how you hold the cube',
+      'Turn a layer and immediately turn it straight back and both come off the solve — figuring a piece out is not a move you keep',
+      'Those cancelled turns are counted instead: a small bar in the corner of the cube grows a notch each time, so the figuring-out is visible rather than gone',
     ]
   },
   '3.1.0': {

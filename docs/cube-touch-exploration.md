@@ -593,6 +593,12 @@ worth keeping regardless.
    giving them a reason to look". Nothing on the solve screen says a finger turns
    the cube, and nothing says the facing face wants a right angle. The build note
    is the whole of the answer today.
+7. **Is the mistake meter the right shape, and does it want to persist past the
+   solve?** §8.7 ships a growing bar in the cube's corner, capped at six, amber,
+   as a first guess. Open underneath it: whether the count should read anywhere
+   the *solve card* is (a fumbles-per-attempt number is exactly the kind of thing
+   Compare exists for), and whether cancelling should be quarter-and-inverse only
+   or also fold a longer there-and-back a slower finger writes as two tokens.
 
 ---
 
@@ -779,3 +785,55 @@ the device pass.
 
 `SudokuApp/utils/buildNotes.js` conflicted exactly as expected, and resolved
 keep-both with Step 3's notes first.
+
+### 8.7 Fumble cancel, and the mistake counter (added after the cut)
+
+*Operator, 2026-08-18, after the first look at the cut on a phone.* Two related
+things, built on this branch rather than cherry-picked:
+
+**A move that undoes the one just written comes off the solve.** Turn a layer and
+immediately turn it straight back — `R` then `R'` — and it is figuring a piece
+out, not a move being kept, so both come off and the solve reads as if neither
+happened. `cancelInverse` in `solve.js` is the sibling of `condenseRepeat`: same
+axis, same layers, amounts composing to a whole turn (`R R'`, `R' R`, `R2 R2`).
+It runs *before* the condense in `commitTurn`, and where a condense or append
+grows the alg forward, a cancel **shrinks** it — so it routes through `retract`,
+the same backward animation backspace uses, and the finger that dragged the layer
+back watches it carry on the rest of the way.
+
+**This reverses a call the spike wrote down.** `condenseRepeat`'s commit
+deliberately left `R R'` on screen, on the argument that *silently* eating a move
+still visible is a worse surprise than a redundant pair. The counter is the
+answer to that objection: the move is not eaten silently, it is **counted**. So
+the reversal is not "the old reasoning was wrong" — it is "the thing the old
+reasoning was missing now exists."
+
+**The count is authored data, so it lives on the record.** `mistakes` is a field
+on the solve beside `alg` and `phases`, incremented in the same `editOpen` patch
+that shrinks the alg. It survives a background (§7.1: authored work does), reads
+back by shape through `sanitizeSolves` (a pre-Step-3.5 solve has none → zero, the
+same tolerance every other field gets), and resets with the moves it was about —
+`clearSolveById` and `duplicateSolve` both start it at zero, because a cleared or
+freshly-copied attempt has earned no fumbles of its own yet.
+
+**The meter is provisional and deliberately cheap.** `CubeMistakeMeter` is a small
+growing bar in the corner of the stage — a segment a fumble to a cap of six, then
+the number carries it — pulsing when it ticks. It is an **overlay**, absolutely
+positioned over the cube's own square and `pointerEvents="none"`, so it costs the
+cube **zero points** (§8.6's rule is about *rows*, and this is not one) and never
+intercepts the one gesture the whole step is about. The operator asked for "a
+little counter, maybe a growing bar or something"; this is the something, and its
+placement, its cap and its amber are all first guesses not yet in the design
+canvas. **What it is for:** a gesture solve hides how much figuring-out a block
+took, precisely because a wrong turn now costs nothing — the bar is what keeps
+that visible.
+
+- **Only quarter-and-inverse and `R2 R2` cancel**, by design. `R` then `R2` is a
+  net `R'`, a real move, and is appended. The decision is made from `solve.alg`
+  at commit and the removal re-derives from `current.alg` in the patch, the same
+  one-frame window `undoMove` already lives with.
+- **Gesture-only**, like `condenseRepeat`. The pad has backspace and explicit
+  prime-arming; a pad user who taps `R` then `R'` meant to.
+- **Device-only evidence again:** the cancel's backward animation and the meter's
+  pulse are a hook and an overlay, past the runner. Drag a move and drag it back;
+  watch the layer finish going back rather than snapping, and the bar tick.
