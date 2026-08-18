@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { Platform, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
@@ -24,7 +24,12 @@ import {
 import {
   PROMOTE_MS,
   appendAlg,
+  appendToken,
   applyPadPress,
+  cancelInverse,
+  cancelTail,
+  condenseRepeat,
+  consolidateTail,
   dropLastToken,
   promoteLastToken,
 } from './solve';
@@ -244,7 +249,7 @@ const CubeSolve = ({ navigation }) => {
   const startingCube = useMemo(() => orientedCube, [orientedCube, openId]);
 
   const player = useScramblePlayer(solve, startingCube);
-  const { pause, playTo, retract, seek } = player;
+  const { afterSettle, handoff, pause, playTo, retract, seek } = player;
 
   const onOrbit = useCallback(
     (nextYaw, nextPitch) => {
@@ -252,6 +257,142 @@ const CubeSolve = ({ navigation }) => {
       turnTo(nextYaw, nextPitch);
     },
     [pause, turnTo]
+  );
+
+  // ——— Writing a move by turning the layer (docs/cube-touch-exploration.md) ——
+
+  /**
+   * The layer a finger is part-way through turning.
+   *
+   * It sits *in front of* the transport's own turn while a drag is live, because
+   * for those few hundred milliseconds the finger is the clock. There is never
+   * one of each: engaging pauses playback, exactly as a tap on the pad does.
+   */
+  const [gestureTurn, setGestureTurn] = useState(null);
+
+  /**
+   * A drag that was interrupted by leaving the app never gets its release.
+   *
+   * `PanResponder` is not guaranteed a terminate when the app goes to the
+   * background, so a finger that was half-way through a turn would come back to
+   * a layer frozen part-way round with nothing left to finish or spring it. The
+   * transport's own `rewind` (Step 3a) is the same rule applied to the same
+   * event — this is the half of it that lives outside the transport, because a
+   * gesture's turn is drawn in front of the player's.
+   *
+   * Separate from `resetGesture` above rather than folded into it: that one
+   * drops half-finished **pad** presses and is wired into the pad's own paths,
+   * and it is declared before this state exists. Same event, two different
+   * half-finished things.
+   *
+   * Not committed, dropped: §7.1's line is that *authored* work survives leaving
+   * and where you were standing does not, and a turn that never reached its
+   * detent was never authored.
+   */
+  useAppBackground(useCallback(() => setGestureTurn(null), []));
+
+  /**
+   * A drag that has reached its detent — always an **append**, drawn once.
+   *
+   * Every commit hands `t` to the transport and appends the finger's move raw,
+   * so the quarter the finger turned is the quarter the transport finishes —
+   * identical token, identical polygon keys, no remount. What *kind* of move it
+   * was is then a **storage** question, settled later and apart from the drawing
+   * (§8.10, the seam this whole area turns on):
+   *
+   * - **A fold**, if this move repeats the one before it: once at rest, `F F`
+   *   becomes `F2` (`consolidateTail`).
+   * - **A cancel**, if this move undoes the one before it: once at rest, the
+   *   redundant `L L'` pair is dropped (`cancelTail`). Appending the inverse and
+   *   letting it play forward *is* undoing the move — `L'` forward is `L`
+   *   backward — so a cancel needs no backward animation and no second token to
+   *   draw, only the pair-drop afterward.
+   *
+   * Both later steps run on `afterSettle`, on a settled cube where the rewrite is
+   * the same permutation and redraws as nothing. Everything goes through
+   * `editOpen` + `withMoves`, so a gesture move is undoable, phase-clamped,
+   * persisted and comparable like any other.
+   *
+   * Dropping the gesture's own frame waits a frame: the transport's first frame
+   * lands at exactly the `t` this one is frozen at, so releasing the finger swaps
+   * two identical pictures rather than jumping.
+   */
+  const commitTurn = useCallback(
+    (move, t) => {
+      // **A move that undoes the one just written is a fumble, not notation.**
+      // Turning a layer and immediately turning it back is figuring a piece out,
+      // so it comes off the solve rather than being kept as `L L'` (operator,
+      // 2026-08-18). It is drawn and stored the same two-concerns way the fold is
+      // (see below), because the naive way flashes: the finger has drawn the
+      // inverse (`L'`), and running the *original* `L` backwards through
+      // `retract` draws a different token — a different destination, a different
+      // polygon key — so the layer remounts when the gesture hands over. Instead
+      // the inverse is **appended and animated forward like any move** (the
+      // finger drew `L'`, `L'` forward *is* `L` undone, so it looks identical and
+      // keys identically, no remount), and once the cube is at rest the
+      // cancelling pair is dropped as a data-only step — `L L'` is the identity,
+      // so removing both redraws as nothing (§8.10).
+      if (cancelInverse(solve, move.token) !== null) {
+        handoff(t);
+        editOpen((current) => withMoves(current, appendToken(current.alg, move.token)));
+        afterSettle(() =>
+          editOpen((current) => {
+            const cancelled = cancelTail(current.alg);
+            return cancelled !== null ? withMoves(current, cancelled) : {};
+          })
+        );
+        requestAnimationFrame(() => setGestureTurn(null));
+        return;
+      }
+
+      // Otherwise the drag earned a move. Tell the transport how far round it
+      // already is, then append it — through `editOpen` and `withMoves`, the two
+      // doors every other edit goes through, so a gesture move is undoable,
+      // phase-clamped, persisted and comparable like any other. The handoff is
+      // what stops the transport animating it from zero and snapping the layer
+      // back under the finger.
+      handoff(t);
+      // **The quarter is appended raw and animates cleanly; the fold into a half
+      // turn is a separate, later step.** Folding `F F` → `F2` at commit would
+      // *promote* the move — quarter (`amount: 1`) rewritten as a half
+      // (`amount: 2`) — and the renderer keys its polygons by where a move sends
+      // them, so promoting a move that is still animating remounts the layer and
+      // flashes (§8.10). So the token goes in raw, the transport draws the one
+      // quarter the finger turned, and if that quarter completes a pair,
+      // `afterSettle` runs the fold once the cube is at rest — where `F F` → `F2`
+      // is the same permutation and redraws as nothing. Drawing and storage,
+      // kept apart, which is the whole of it.
+      const willFold = condenseRepeat(solve, move.token) !== null;
+      editOpen((current) => withMoves(current, appendToken(current.alg, move.token)));
+      if (willFold) {
+        afterSettle(() =>
+          editOpen((current) => {
+            const folded = consolidateTail(current.alg);
+            return folded !== null ? withMoves(current, folded) : {};
+          })
+        );
+      }
+      requestAnimationFrame(() => setGestureTurn(null));
+    },
+    [solve, handoff, retract, afterSettle, editOpen]
+  );
+
+  /**
+   * What the cube does with a finger on it, or `null` for orbit-only.
+   *
+   * Two phases say no. **Inspecting** is panning to *find the hold* — the cube
+   * is not a cube you are writing on yet, and a layer turning during it would
+   * change the very thing being chosen (`CubeSolve` §"Two phases"). **Web** gets
+   * mouse events with no second finger, so there would be no way left to orbit
+   * that is not a button; the exploration doc §5.4 calls degrading to today's
+   * behaviour there a legitimate answer, and this is it.
+   */
+  const turning = useMemo(
+    () =>
+      orientation === null || Platform.OS === 'web'
+        ? null
+        : { onTurn: setGestureTurn, onCommit: commitTurn, onPause: pause },
+    [orientation, commitTurn, pause]
   );
 
   /**
@@ -574,12 +715,20 @@ const CubeSolve = ({ navigation }) => {
       <View style={styles.stage} onLayout={measureStage}>
         <CubeView
           cube={player.cube}
-          turn={player.turn}
+          // The finger in front of the clock: while a layer is being dragged it
+          // *is* what the cube is doing, and playback has already been paused.
+          turn={gestureTurn || player.turn}
           size={cubeSize}
           yaw={yaw}
           pitch={pitch}
           onOrbit={onOrbit}
+          turning={turning}
           accessibilityLabel={`Cube — ${announcePosition(player.index, player.count, 'solve')}`}
+          accessibilityHint={
+            turning
+              ? 'Drag a sticker to turn that layer, drag from a corner of the front face to turn it, or drag with two fingers to turn the whole cube'
+              : undefined
+          }
         />
       </View>
 

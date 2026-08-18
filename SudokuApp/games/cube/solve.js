@@ -12,7 +12,7 @@
  * canonical `Rw` spelling stays an implementation detail of the move.
  */
 
-import { algError, moveCount, tokenize, tryTokenize } from './moves';
+import { algError, moveCount, parseMove, tokenize, tryTokenize } from './moves';
 
 /**
  * The pad, as a **spatial cross** (docs/cube-plan.md §8.8, Step 8).
@@ -193,6 +193,166 @@ export const promoteLastToken = (alg, key) => {
   if (!tokens || tokens.length === 0) return null;
   if (tokens[tokens.length - 1] !== key) return null;
   return [...tokens.slice(0, -1), `${key}2`].join(' ');
+};
+
+/** A token split into the letter it turns and the modifiers on it. */
+const TOKEN_PARTS = /^([UDLRFBMESudlrfbxyz]w?)([2'’]*)$/;
+
+/**
+ * Fold a move into the one already written when they are the same turn twice —
+ * `… R` plus another `R` becomes `… R2`.
+ *
+ * **Storage only — never on a live commit.** Folding `F F` into `F2` *promotes*
+ * the move, changing its `amount` from a quarter to a half, and the renderer keys
+ * its polygons by where the move sends them — so promoting a move while it is
+ * still animating remounts the whole layer and flashes (§8.10). The gesture
+ * therefore appends its quarter raw and animates it cleanly, and the fold is run
+ * by `consolidateTail` **after the turn has settled**, when the cube is at rest
+ * and the effect renders the rewrite as a no-op. Drawing and storage are two
+ * concerns and this is the seam between them. `condenseRepeat` is the predicate
+ * — *would* these two fold? — that decides whether to schedule that fold.
+ *
+ * The sibling of `promoteLastToken`, for moves that arrive by **gesture** rather
+ * than by a second tap on a key. It cannot reuse that one: the pad knows it was
+ * pressed twice and can work on the key's name, while a turned layer knows only
+ * what it is, so this has to compare the *moves* — same axis, same layers — and
+ * then spell the result. That also makes it right about the things a pad key
+ * cannot say: `r` folds into `r2`, and `R'` twice is `R2` rather than the `R'2`
+ * a string concatenation would produce.
+ *
+ * Returns `null` when there is nothing to fold, which the caller reads as
+ * "append instead".
+ *
+ * ### Only two quarters, and only into a half
+ *
+ * A quarter turn either side, and nothing else. Three in a row leaves `R2 R`
+ * rather than becoming `R'`, which is what the pad's third tap does and keeps
+ * the two routes telling the same story. A quarter followed by its own inverse
+ * is **not** a condense — it composes to nothing — and is handled a step earlier
+ * by `cancelInverse`, which drops both. (This reverses the original spike's call
+ * to leave `R R'` on screen: a gesture makes turning a piece to look at it and
+ * turning it back so common that keeping the pair is the surprise — operator,
+ * 2026-08-18. A mistake counter over it was tried and taken back out; the
+ * cancel is wanted on its own.)
+ *
+ * **The guard is the text**, as it is for `promoteLastToken` and for the same
+ * reason: an undo in flight has not removed its token yet, and a fold that
+ * rewrote a move which was about to be dropped would resurrect it.
+ */
+export const condenseRepeat = (alg, token) => {
+  const tokens = tryTokenize(alg);
+  if (!tokens || tokens.length === 0) return null;
+
+  const last = tokens[tokens.length - 1];
+  const before = parseMove(last);
+  const added = parseMove(token);
+  if (!before || !added) return null;
+
+  if (before.axis !== added.axis) return null;
+  if (before.layers.length !== added.layers.length) return null;
+  if (before.layers.some((layer, i) => layer !== added.layers[i])) return null;
+
+  // Quarters only. A half turn on either side is a third move, not a second.
+  if (before.amount === 2 || added.amount === 2) return null;
+  // The two undo each other. Leave them both and let the operator decide.
+  if ((before.amount + added.amount) % 4 !== 2) return null;
+
+  const parts = TOKEN_PARTS.exec(last);
+  if (!parts) return null;
+
+  return [...tokens.slice(0, -1), `${parts[1]}2`].join(' ');
+};
+
+/**
+ * Drop the move already written when the one arriving undoes it — `… R` plus an
+ * `R'` leaves `…`, and the pair never happened.
+ *
+ * A gesture's version of "no, not that one". Turning a layer and immediately
+ * turning it straight back is the operator figuring out which way a piece goes,
+ * not a move they are keeping, so it comes off the solve rather than being
+ * written down as `R R'` (operator, 2026-08-18). This is the reversal the
+ * original spike declined — its worry was that removing a move still on screen
+ * is a surprise. With a finger it is the opposite: a there-and-back is so quick
+ * and so common that *writing it down* is the surprise, so the pair is dropped,
+ * and the backspace-style backward animation is what shows it going.
+ *
+ * Returns the shortened algorithm, or `null` for "these two do not cancel", so
+ * the caller can fall through to `condenseRepeat` and then to an append.
+ *
+ * ### What "undoes it" means, exactly
+ *
+ * Same axis, the same layers, and quarter-turn *amounts* that compose to a whole
+ * turn — `(before + added) % 4 === 0`. That is `R` then `R'`, `R'` then `R`, and
+ * `R2` then `R2`, and nothing looser: `R` then `R2` is a net `R'`, a real move,
+ * and is left to be appended. Comparing the parsed moves rather than the tokens
+ * is what makes `r` cancel `r'` and keeps a wide turn from cancelling the face
+ * turn it merely shares a letter with.
+ *
+ * **The guard is the text**, as it is for `condenseRepeat` and `promoteLastToken`
+ * and for the same reason: an undo already in flight has not dropped its token
+ * yet, and cancelling against a move that is about to disappear would take the
+ * wrong one.
+ */
+export const cancelInverse = (alg, token) => {
+  const tokens = tryTokenize(alg);
+  if (!tokens || tokens.length === 0) return null;
+
+  const before = parseMove(tokens[tokens.length - 1]);
+  const added = parseMove(token);
+  if (!before || !added) return null;
+
+  if (before.axis !== added.axis) return null;
+  if (before.layers.length !== added.layers.length) return null;
+  if (before.layers.some((layer, i) => layer !== added.layers[i])) return null;
+
+  // Compose to a whole turn — the two leave the cube exactly as it was.
+  if ((before.amount + added.amount) % 4 !== 0) return null;
+
+  return tokens.slice(0, -1).join(' ');
+};
+
+/**
+ * Fold the **last two tokens already written** into a half turn, or `null` if
+ * they do not fold — the settled-storage half of `condenseRepeat`.
+ *
+ * `condenseRepeat` answers "would this incoming move fold into the last one?" and
+ * runs at commit, to decide whether a fold is coming. This runs *after* the move
+ * has landed, on the algorithm as it now stands, and does the fold: it is the
+ * same rule pointed at the tail rather than at an incoming token, so `F F`
+ * becomes `F2` on the settled cube where no redraw follows (§8.10).
+ */
+export const consolidateTail = (alg) => {
+  const tokens = tryTokenize(alg);
+  if (!tokens || tokens.length < 2) return null;
+  return condenseRepeat(tokens.slice(0, -1).join(' '), tokens[tokens.length - 1]);
+};
+
+/**
+ * Drop the **last two tokens** when they cancel to nothing — `… L L'` becomes
+ * `…`. The settled-storage half of `cancelInverse`, exactly as `consolidateTail`
+ * is of `condenseRepeat`.
+ *
+ * `cancelInverse` answers "would this incoming move undo the last one?" and runs
+ * at commit, to decide whether a cancel is coming. This runs *after* the inverse
+ * has been appended and animated, on the algorithm as it now stands, and removes
+ * the redundant pair — on a settled cube, where `L L'` is the identity and taking
+ * both away redraws as nothing (§8.10). Only an exact pair goes: same axis, same
+ * layers, amounts composing to a whole turn.
+ */
+export const cancelTail = (alg) => {
+  const tokens = tryTokenize(alg);
+  if (!tokens || tokens.length < 2) return null;
+
+  const last = parseMove(tokens[tokens.length - 1]);
+  const prev = parseMove(tokens[tokens.length - 2]);
+  if (!last || !prev) return null;
+
+  if (prev.axis !== last.axis) return null;
+  if (prev.layers.length !== last.layers.length) return null;
+  if (prev.layers.some((layer, i) => layer !== last.layers[i])) return null;
+  if ((prev.amount + last.amount) % 4 !== 0) return null;
+
+  return tokens.slice(0, -2).join(' ');
 };
 
 /**
