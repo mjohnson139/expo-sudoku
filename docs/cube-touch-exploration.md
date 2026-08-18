@@ -617,9 +617,11 @@ worth keeping regardless.
 
 ## 7. Open questions
 
-1. **Does the pad stay?** If turning the cube works, the pad is still the only
-   way to write a rotation (`x`, `y`, `z`) or a wide turn. It probably shrinks
-   rather than goes.
+1. ~~**Does the pad stay?**~~ **Yes — kept, and made hideable (operator,
+   2026-08-18).** Turning the cube worked, so a swipe-only session can hide the
+   pad and give the room to the cube; but the pad is the only way to write a
+   rotation (`x`, `y`, `z`) and the wide turns a finger cannot reach, so it hides,
+   never goes. That is **Step 9 (swipe mode)** in `docs/cube-flow-plan.md`.
 2. **Should an engaged turn be haptic?** `expo-haptics` is already a dependency
    and a light impact on engage is exactly the "it caught" feedback that
    pressure would have given you for free.

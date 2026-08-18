@@ -115,30 +115,35 @@ the bottom of the scramble screen for the list.
 
 ## 3. Delivery steps
 
-Eight steps, plus one that was not planned. The risky infrastructure is
-quarantined in Step 1, the large refactor in Step 2, and the two biggest design
-changes are last because nothing depends on them — so a wrong call in Step 6 or 7
-costs a step, not the epic.
+Eight steps as planned, plus two that gesture input added — **3.5**, turning the
+cube by dragging it, and **9**, the swipe mode it makes possible. The risky
+infrastructure is quarantined in Step 1, the large refactor in Step 2, and the
+two biggest design changes are last because nothing depends on them — so a wrong
+call in Step 6 or 7 costs a step, not the epic.
 
-**Step 3.5 is a guest.** It came out of a side exploration
+**Step 3.5 is a guest that grew.** It came out of a side exploration
 (`docs/cube-touch-exploration.md`) that was never on this roadmap, and it is an
 **input** change rather than a structure change — which is the epic's actual
 thesis. It is numbered 3.5 rather than renumbering 4–8, because every
 cross-reference in this file, the handoff and #107 is worth more than a tidy
 sequence. What it changes about the steps after it is §3.3.5 and
-`cube-touch-exploration.md` §8.5.
+`cube-touch-exploration.md` §8.5 — and it turned out to change a lot: the pad is
+no longer the only way to write a move, which is what **Step 9** (swipe mode)
+spends, and it settled the drawing/storage seam that §5 now makes a rule for
+everyone.
 
 | # | Step | Delivers |
 |---|---|---|
 | 1 | A real stack | react-navigation, behaviour-neutral |
 | 2 | Split `CubeScreen` | home + solve screens over one state owner |
 | 3 | Solves on the scramble screen | the card list; New and Save move to the header |
-| 3.5 | Turn the cube by dragging it | a finger on a sticker writes the move — *unplanned, see below* |
+| 3.5 | Turn the cube by dragging it | a finger writes the move — layers, wides, the facing face, folds and cancels — *unplanned, landed* |
 | 4 | Method as data | `method` on the record, the new-solve sheet |
 | 5 | The phase rail | pre-built stages; the flag key retires |
 | 6 | Undo and redo | whole actions; the pad's bottom row is rebuilt |
 | 7 | Variations per phase | alternative attempts at one stage |
 | 8 | Layout budget pass | the §8.6 accounting, at three widths |
+| 9 | Swipe mode — hide the pad | a finger-only mode: cube, scrubber, undo/redo, no keyboard — *added by 3.5* |
 
 ### 3.1 Step 1 — put the app on a real stack
 
@@ -420,8 +425,10 @@ principles.
 
 Put a finger on a sticker and drag: that layer follows it. Past the detent,
 letting go carries the turn round and writes the move; short of it, it springs
-back and writes nothing. Two fingers always orbit. Landing on the seam between
-two pieces turns both layers — a wide turn. The face pointing at you has two ways
+back and writes nothing. **A finger on the cube — or within a fingertip of its
+silhouette, so corners count — turns it and never pans; only two fingers, or a
+finger clearly off the cube, orbit** (operator, 2026-08-18). Landing on the seam
+between two pieces turns both layers — a wide turn. The face pointing at you has two ways
 in: **land a finger on a corner of it and drag round** (the easy one, §3.3d), or
 draw a right angle in the middle of it (§3.3c). A straight drag across the middle
 of that face cannot turn it — the rotation axis is `normal × direction`, and on
@@ -450,12 +457,13 @@ costs the cube **zero points**: no new rows on either screen.
   gesture-entered move is undone today only by backspace dropping a token.
   Gesture input makes accidental moves *routine* in a way a keypad never did.
   **Gesture input is not finished until Step 6 lands.**
-- **Step 8 gains a lever it did not have.** V1's open question 13 said the next
-  win must come from *hiding* chrome rather than cutting it. If the cube is the
-  primary input, the 152pt pad becomes secondary — it shrinks rather than goes,
-  since it is still the only way to write `x`/`y`/`z`. **This step deliberately
-  does not touch `PAD_LAYOUT`**, so Steps 5 and 6 inherit it exactly as written
-  and Step 8 inherits the option with drilling sessions as evidence.
+- **It answers V1's open question 13, and that became Step 9.** Question 13 said
+  the next layout win must come from *hiding* chrome rather than cutting it. With
+  the cube as a full input, the 152pt pad can be *hidden* — the swipe mode of
+  Step 9 — not merely shrunk. **This step deliberately does not touch
+  `PAD_LAYOUT`**, so Steps 5, 6 and 8 inherit it exactly as written, and Step 9
+  spends the room. The pad stays the only way to write `x`/`y`/`z` and a rotation
+  the fingers cannot reach, so it is hidden, never removed.
 - **Steps 5 and 7 need no structural change and get easier.** The rail counts a
   gesture move for free — worth one pinning test in Step 5. Step 7's "retrying
   always forks" is worth far more with a cheap input.
@@ -463,6 +471,12 @@ costs the cube **zero points**: no new rows on either screen.
   browser pass can check the primary input path** — the same blind spot as Step
   3a's `react-native-screens` finding. Two of the three things this epic most
   needs to verify are now device-only.
+- **It settled a seam every future move-entry path now obeys (§5, §8.10).** A
+  gesture draws exactly the quarter the finger turned and tidies the *storage*
+  afterwards, at rest — the fold to `F2`, the cancel of `L L'` — because
+  rewriting a move's `amount` while it is still animating remounts the layer and
+  flashes. Drawing and storage are two concerns; anything that writes a move has
+  to keep them apart.
 
 **Not in this step, designed in the exploration doc's §8.4:** configurable
 gesture profiles — named sets of *how a turn is identified*, *how fast the cube
@@ -479,10 +493,13 @@ to the model and asserting the dragged sticker went the way the finger did,
 rather than twenty-four answers written by hand.
 
 **Operator tests:** write a real solve by turning the cube and see whether you
-reach for it again; two-finger orbit as the price of it; the token that appears
-holding the cube yellow-up; wide turns from the seam; the facing face from a
-right angle; the same layer twice writing `R2`; **and background the app
-mid-drag** — the one path nothing here can test.
+reach for it again; two-finger orbit as the price of it, and a corner grab that
+turns rather than pans; the token that appears holding the cube yellow-up; wide
+turns from the seam; the facing face from a corner spin (§3.3d) and from a right
+angle (§3.3c); the same layer twice tidying to `F2`; a move and its inverse
+leaving no trace; **no flash on any of it**, spinning one face repeatedly and
+back and forth; **and background the app mid-drag** — the paths nothing here can
+test.
 
 ### 3.4 Step 4 — method as data
 
@@ -527,6 +544,12 @@ upgrade** — this is the one to test hardest.
   rather than stored.** A stage with a marker is *locked* (green check, final
   count); the first without one is *open* (accent outline, a live count that
   accrues every typed move); the rest are dashed *upcoming* and not tappable.
+  Because the count derives from `moveCount(solve.alg)`, a gesture move counts for
+  free — and so does its **tidy**: when Step 3.5's fold settles `F F` → `F2` or a
+  cancel drops `L L'`, the alg shortens and the open pill's count follows on the
+  same read. Nothing special is needed; it is a fact about the string. Worth one
+  pinning test that the count is `moveCount`, not a running tally the fold could
+  desync.
 - **Tapping the open pill locks it.** Reuse `endPhase` (`solveList.js:350`)
   exactly as it stands — it already names the marker where the group started and
   opens a fresh one, which is precisely this transition, and it is the function
@@ -564,6 +587,17 @@ the next; a legacy solve still shows its old chips; the pad has no flag key.
   with `withMoves` / `clampPhases` (a restored snapshot is already clamped), and
   they cannot drift the way a log of inverses can. `games/cube/history.js` is
   pure: `push`, `undo`, `redo`, `canRedo`, bounded at ~50.
+- **A snapshot is a *settled* state, and Step 3.5's deferred tidies must not each
+  become one.** A gesture writes a move and then, once the turn settles, may
+  rewrite the storage — `F F` → `F2`, or the drop of a cancelled `L L'` — as a
+  second `editOpen`. Pushed naively that is two ring entries, and one spin would
+  cost two undos, a cancelled fumble would leave `L L'` recoverable by redo. So
+  **the fold and the cancel-drop coalesce into the snapshot of the move that
+  triggered them**, not their own: one spin is one undo (back to before the pair),
+  and a cancel leaves nothing to undo *to*. The clean seam is to push on the
+  settled `afterSettle` state, or to have the tidy replace the top snapshot rather
+  than add one — decide it here, because it is the difference between undo feeling
+  like moves and undo feeling like keystrokes.
 - **Session-only, in a ref on `CubeContext`, deliberately not persisted.** V1
   §7.1's rule is that *authored work* survives backgrounding. Gesture history is
   not authored work, and a redo stack that outlives a cold start is a surprise
@@ -580,6 +614,14 @@ the next; a legacy solve still shows its old chips; the pad has no flag key.
   `REPEAT_AFTER_MS = 400` then `setInterval(onUndo, 120)`
   (`CubeMovePad.js:158-162`) is exactly "long-press undo scrubs back at 120ms per
   step". No new gesture code.
+- **But undo/redo cannot live *only* on the pad, because Step 9 hides the pad.**
+  A finger-only session still fumbles and still wants undo. So undo/redo need a
+  home that survives the pad being gone — the natural one is a small control strip
+  beside the scrubber (the two rows that stay in swipe mode), with the pad's own
+  undo/redo keys mirroring it. **Put the undo/redo handlers on `CubeContext` and
+  wire both surfaces to them** — the pad key and the strip button call one
+  `undo`/`redo`, so `editOpen` stays the only funnel and the two cannot disagree.
+  Building it this way is what lets Step 9 be a layout change and not a rewrite.
 - `clearSolve` becomes undoable, which it is not today — it is a snapshot like
   any other, and V1 flagged its double spelling as a known wart.
 
@@ -588,7 +630,10 @@ fresh edit drops the redo stack. Update `solve.test.js`'s `PAD_LAYOUT` pins.
 
 **Operator tests:** undo removes the last move with the backwards animation as
 before; undo after locking a phase unlocks it; redo replays both; redo is dim
-until there is something to redo; long-press scrubs; redo dies when you type.
+until there is something to redo; long-press scrubs; redo dies when you type;
+**a gesture move undoes as one unit** — spinning `F F` and undoing once goes back
+to before the pair, not to `F`; **a cancelled `L L'` is not resurrectable** by
+redo; and undo/redo work with the pad hidden once Step 9 lands.
 
 ### 3.7 Step 7 — variations per phase
 
@@ -629,7 +674,9 @@ a switch; background and resume with variations stored.
 
 V1 §8.6's rule is that the cube is sized first and every other row justifies
 itself in points. Open question 13 says the next win must come from **hiding**
-chrome rather than cutting it. This step is the accounting, and it is close to
+chrome rather than cutting it — and gesture input (Step 3.5) is what makes the
+biggest piece of chrome, the pad, hideable. **That hide is its own step (Step 9);
+this one is the steady-state accounting** with the pad shown, and it is close to
 neutral by construction:
 
 | Row | Change |
@@ -650,6 +697,50 @@ If the rail pushes the small phone past its budget, **the rail is the row that
 scrolls**, horizontally, as `CubePhaseStrip` already does
 (`CubePhaseStrip.js:84-89`) — not the cube that shrinks.
 
+### 3.9 Step 9 — swipe mode, hiding the pad
+
+**Added by Step 3.5, and the concrete answer to V1's open question 13.** Once a
+finger can write every layer, every wide and the facing face (§3.3d), the pad is
+no longer the *only* way in — so a drilling session that is all swipes can hide
+it and give the room back to the cube. The operator's ask, 2026-08-18: *keep the
+keyboard, but let someone who is just swiping hide it and see only the scrubber
+and undo/redo.*
+
+- **A toggle, not a mode you get trapped in.** The pad hides and shows on demand;
+  it is never removed, because it is still the only way to write `x`/`y`/`z` and
+  the wide turns a finger cannot reach. Hidden, the solve screen is **cube +
+  move track + phase rail + scrubber + undo/redo** — everything about *the moves*
+  stays; only the keyboard goes.
+- **This is why Step 6 put undo/redo on `CubeContext` and beside the scrubber.**
+  With the pad gone, its undo/redo keys go with it, so the control strip is the
+  home that survives. Step 9 is a layout change on top of that, not a rewrite —
+  if Step 6 wired undo/redo only to the pad, this step pays for it.
+- **The budget, the other way.** Step 8 accounts for the pad *shown*; this is the
+  pad *hidden*: **−152pt of pad** (and its legend), all of it back to the cube.
+  On the 320×568 phone that is the difference between a 182pt cube and something
+  close to the inspection screen's near-doubled one. **Measure at the three
+  widths and put the numbers in the PR**, both states.
+- **The toggle is a preference, like the gesture profile (§8.4) and the tuning
+  panel.** Neither authored work nor view state, so §7.1 does not rule on it; it
+  wants the same small `preferences` slice on `CubeContext`'s save file that
+  those want, migrating by shape. Decide the three together rather than inventing
+  a settings home three times.
+- **Auto-hide is a question, not an assumption.** The app could hide the pad the
+  first time a finger writes a move and show it on the first pad tap. Cheaper than
+  a toggle to reach, invisible like every gesture this epic has had to give a
+  control (open questions 3 and §3.3d). Ship the toggle; let a drilling session
+  say whether the auto-hide earns its surprise.
+
+**Tests:** the mode is layout, which the node runner cannot see, so the pins are
+on the *preference* — its default, its persistence by shape, and that hiding the
+pad does not drop undo/redo (a pure check that the control strip carries them
+independent of `PAD_LAYOUT`).
+
+**Operator tests:** hide the pad mid-solve and keep writing by finger; undo and
+redo from the strip with the pad gone; the cube measurably bigger; show the pad
+again for an `x` rotation; background and resume with the pad hidden; and the
+`x`/`y`/`z` reachability that keeps it a hide and not a removal.
+
 ## 4. What this epic does not do
 
 - **Algorithm tagging.** The design draws it and labels it *future*. It needs the
@@ -662,9 +753,13 @@ scrolls**, horizontally, as `CubePhaseStrip` already does
   (§8.12), and analysis (V1's Step 9) is still unbuilt. None of them are made
   easier or harder by this epic, except that **analysis gets better ground to
   stand on** once a phase knows which method's stage it is.
-- **Sudoku and Fungiku.** Outside `games/cube/`, this epic touches exactly two
-  things: `App.js` and `package.json`, both in Step 1. Nothing else in the app
-  should move a pixel — and Step 1's whole design is to make that checkable.
+- **Sudoku and Fungiku.** Outside `games/cube/`, this epic edits only what each
+  step has sanctioned in its own PR — `App.js` + `package.json` (Step 1), four
+  optional `ScreenHeader` props (Step 2), and `games/registry.js` + one `App.js`
+  line (Step 3a). **Step 3.5, for all it added, touched only `games/cube/`** — the
+  cleanest step by that measure, and Step 9 (swipe mode) is expected to stay
+  inside it too. Nothing else in the app should move a pixel, and Step 1's whole
+  design is to make that checkable.
 
 ## 5. Things that are easy to get wrong
 
@@ -695,6 +790,18 @@ scrolls**, horizontally, as `CubePhaseStrip` already does
   `HubRoute` does. It is never "it worked before".
 - **`editOpen` is the only edit funnel and must stay so.** Two writers to the
   solve list is how the file and the screen learn to disagree.
+- **Drawing a move and storing it are two concerns — keep them apart (§8.10).**
+  Step 3.5 learned this the hard way, three times. The renderer keys every polygon
+  by where a move *sends* it, so a move that changes its `amount` while it is
+  animating — a quarter promoted to a half, an original swapped for its inverse —
+  remounts the layer and flashes. So a move is **drawn once, as the one quarter
+  the finger (or key) turned**, and any tidy to the stored string — the fold to
+  `F2`, the drop of a cancelled pair — runs **after the turn settles**, on a cube
+  at rest where the rewrite is the same permutation and redraws as nothing. The
+  transport carries an `afterSettle` hook for exactly this. Any new move-entry
+  path this epic adds obeys the same rule, and the standing renderer prerequisite
+  (a polygon key that survives a changing sweep) is the only thing that would
+  lift it.
 - **`withMoves` is a contract, not enforcement.** Anything calling `updateSolve`
   with a bare `{ alg }` bypasses phase clamping. V1 already has one deliberate
   exception (`clearSolve`) and one duplicate of it (`clearSolveById`); do not add
@@ -709,10 +816,13 @@ scrolls**, horizontally, as `CubePhaseStrip` already does
   something Yoga and `react-native-web` disagree about, and V1 shipped a bug that
   only appeared on a phone because of it (`ScreenHeader.js:112-126`,
   `CubeMovePad.js:387-395`).
-- **The device is the only evidence that counts for feel.** Both animation bugs
-  this repo has shipped were invisible in a browser. Steps 1, 6 and 7 touch
-  animation or gesture; each needs a device pass, and **write down when a finding
-  came from a device.**
+- **The device is the only evidence that counts for feel.** Every flash and
+  double-draw this epic fought was invisible in the browser and to `npm test` —
+  a hook and a renderer the node runner cannot mount. Steps 1, 3.5, 6, 7 and 9
+  touch animation, gesture or layout; each needs a device pass, and **write down
+  when a finding came from a device.** Gesture input made this rule sharper: it is
+  now the *primary* input, and it is orbit-only on web, so a browser pass no
+  longer covers the main path at all.
 - **There is no lint and no typecheck in this repo.** `npm test` and the operator
   are the whole net, which is why every derivation that could be wrong belongs in
   a pure module with its own suite rather than inside a component the runner
@@ -755,6 +865,22 @@ scrolls**, horizontally, as `CubePhaseStrip` already does
    solve is usually written in one sitting — but it is a change to what a stored
    field *means*, not a UI tweak, and **Step 4 is the natural place to take it**
    because Step 4 is already touching the record.
+9. **Should folds and cancels be undoable at all, or invisible to the ring?**
+   Step 6 coalesces them into one undo unit, so a spin undoes as a spin. The
+   open part is the fumble: a cancelled `L L'` was *meant* to never happen — does
+   undo bring it back (you can see what you tried), or is it gone for good (it was
+   never real)? A drilling session with undo in hand decides it.
+10. **Does the pad auto-hide, or only toggle?** Step 9 ships a toggle and asks
+    whether the pad should hide itself the first time a finger writes a move and
+    return on the first pad tap. It is invisible, which is the standing objection
+    (question 3); the counter is that a solver who has started swiping has already
+    shown their hand. One session with swipe mode settles it.
+11. **Where do the preferences live, and are they offered together?** Three
+    settings now want a home: the gesture profile (§8.4), the tuning numbers, and
+    the swipe-mode toggle (Step 9). None is authored work or view state, so §7.1
+    does not rule on them — they are *preferences*, and the app has no settings
+    store. Decide the store once, and whether these are one screen or scattered
+    controls, before the second one invents its own.
 
 **Three things Step 3's device pass settled by silence**, and they are closed
 rather than carried: the 14-point list peek reads as "more below"; a 182-point
