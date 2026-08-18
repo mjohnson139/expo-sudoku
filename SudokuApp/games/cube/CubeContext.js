@@ -382,7 +382,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
    * only the screen holding the transport knows there is one.
    */
   const clearSolveById = useCallback((id) => {
-    setSolves((current) => updateSolve(current, id, { alg: '', phases: [], mistakes: 0 }));
+    setSolves((current) => updateSolve(current, id, { alg: '', phases: [] }));
   }, []);
 
   // ——— The view (docs/cube-plan.md §7.1) ————————————————————————————————

@@ -337,7 +337,7 @@ const useScramblePlayer = (alg, from) => {
    * back and the reset does the work.
    */
   const retract = useCallback(
-    (onDone) => {
+    (onDone, from) => {
       // Pays off any undo still in the air first, so hammering the button
       // removes one move per tap rather than losing the ones that overlap.
       pause();
@@ -348,7 +348,12 @@ const useScramblePlayer = (alg, from) => {
         return;
       }
 
-      animate(at - 1, false, flushRetract);
+      // `from` is how far the move is *still applied* — the pad's backspace omits
+      // it and undoes a whole move from `t = 1`, while a gesture that dragged the
+      // move most of the way back already hands over the little that is left, so
+      // the finger's last frame and the sweep's first are the same picture. The
+      // backwards twin of `handoff`.
+      animate(at - 1, false, flushRetract, Number.isFinite(from) ? { from } : undefined);
       // After `animate`, never before: it settles on the way in, and settling
       // is one of the things that pays this off.
       retractRef.current = onDone;

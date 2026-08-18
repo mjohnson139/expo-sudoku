@@ -219,10 +219,11 @@ const TOKEN_PARTS = /^([UDLRFBMESudlrfbxyz]w?)([2'’]*)$/;
  * rather than becoming `R'`, which is what the pad's third tap does and keeps
  * the two routes telling the same story. A quarter followed by its own inverse
  * is **not** a condense — it composes to nothing — and is handled a step earlier
- * by `cancelInverse`, which removes both and counts the fumble. (This reverses
- * the original spike's call to leave `R R'` on screen: the objection was that
- * eating a move silently is a surprise, and a visible mistake counter is the
- * answer to it — operator, 2026-08-18.)
+ * by `cancelInverse`, which drops both. (This reverses the original spike's call
+ * to leave `R R'` on screen: a gesture makes turning a piece to look at it and
+ * turning it back so common that keeping the pair is the surprise — operator,
+ * 2026-08-18. A mistake counter over it was tried and taken back out; the
+ * cancel is wanted on its own.)
  *
  * **The guard is the text**, as it is for `promoteLastToken` and for the same
  * reason: an undo in flight has not removed its token yet, and a fold that
@@ -259,10 +260,11 @@ export const condenseRepeat = (alg, token) => {
  * A gesture's version of "no, not that one". Turning a layer and immediately
  * turning it straight back is the operator figuring out which way a piece goes,
  * not a move they are keeping, so it comes off the solve rather than being
- * written down as `R R'` (operator, 2026-08-18). The caller counts it as a
- * mistake instead — which is the whole reason this can eat a move that is still
- * on screen where `condenseRepeat`'s note said it should not: the count is what
- * makes the removal visible rather than silent.
+ * written down as `R R'` (operator, 2026-08-18). This is the reversal the
+ * original spike declined — its worry was that removing a move still on screen
+ * is a surprise. With a finger it is the opposite: a there-and-back is so quick
+ * and so common that *writing it down* is the surprise, so the pair is dropped,
+ * and the backspace-style backward animation is what shows it going.
  *
  * Returns the shortened algorithm, or `null` for "these two do not cancel", so
  * the caller can fall through to `condenseRepeat` and then to an append.

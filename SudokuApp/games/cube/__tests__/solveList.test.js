@@ -46,7 +46,6 @@ describe('createSolve', () => {
       orientation: null,
       alg: '',
       phases: [],
-      mistakes: 0,
       savedAt: 1,
     });
   });
@@ -120,7 +119,6 @@ describe('duplicateSolve', () => {
       orientation: 'z2',
       alg: "r U r'",
       phases: [],
-      mistakes: 0,
       savedAt: 9,
     });
   });
@@ -137,13 +135,6 @@ describe('duplicateSolve', () => {
     const { solves, solve } = duplicateSolve(first.solves, 's1', { savedAt: 2 });
     solve.phases.push({ at: 0, label: 'First block' });
     expect(findSolve(solves, 's1').phases).toEqual([]);
-  });
-
-  it('starts the copy at zero fumbles — a fresh attempt earns its own', () => {
-    const first = make();
-    const written = updateSolve(first.solves, 's1', { mistakes: 3 });
-    const { solve } = duplicateSolve(written, 's1', { savedAt: 2 });
-    expect(solve.mistakes).toBe(0);
   });
 
   it('leaves the list alone for an id it does not know', () => {
@@ -261,7 +252,6 @@ describe('sanitizeSolves', () => {
     orientation: 'z2',
     alg: "r U r'",
     phases: [{ at: 0, label: 'First block' }],
-    mistakes: 2,
     savedAt: 12,
   };
 
@@ -291,19 +281,6 @@ describe('sanitizeSolves', () => {
   it('keeps a solve that was still being inspected', () => {
     expect(sanitizeSolves([{ ...stored, orientation: null }])[0].orientation).toBeNull();
     expect(sanitizeSolves([{ ...stored, orientation: undefined }])[0].orientation).toBeNull();
-  });
-
-  it('reads the fumble count back, and repairs a corrupt one', () => {
-    expect(sanitizeSolves([{ ...stored, mistakes: 5 }])[0].mistakes).toBe(5);
-    // A pre-Step-3.5 solve simply has no count — zero fumbles by shape, the same
-    // tolerance every other field on this path is given.
-    const legacy = { ...stored };
-    delete legacy.mistakes;
-    expect(sanitizeSolves([legacy])[0].mistakes).toBe(0);
-    // Corrupt values floor or fall to zero rather than reaching the screen.
-    expect(sanitizeSolves([{ ...stored, mistakes: -3 }])[0].mistakes).toBe(0);
-    expect(sanitizeSolves([{ ...stored, mistakes: 2.7 }])[0].mistakes).toBe(2);
-    expect(sanitizeSolves([{ ...stored, mistakes: 'lots' }])[0].mistakes).toBe(0);
   });
 
   it('re-mints a missing or duplicated id, because two rows with one id opens the wrong solve', () => {

@@ -14,7 +14,7 @@
  * ### A solve
  *
  * ```js
- * { id, scramble, name, orientation, alg, phases, mistakes, savedAt }
+ * { id, scramble, name, orientation, alg, phases, savedAt }
  * ```
  *
  * - **`scramble`** is the scramble it was written against, as normalized
@@ -163,9 +163,6 @@ export const createSolve = (solves, scramble, { name, savedAt = Date.now() } = {
     orientation: null,
     alg: '',
     phases: [],
-    // Quarter turns the operator wrote and then took straight back — figuring a
-    // piece out, not solving. Counted here, kept off the alg (`cancelInverse`).
-    mistakes: 0,
     savedAt,
   };
 
@@ -191,9 +188,6 @@ export const duplicateSolve = (solves, id, { savedAt = Date.now() } = {}) => {
     id: nextSolveId(list),
     name: uniqueName(normalizeName(`${source.name} copy`), taken),
     phases: [...source.phases],
-    // The moves are copied; the fumbles are not. A duplicate is a fresh attempt
-    // at the same block, and its mistake count is its own to earn.
-    mistakes: 0,
     savedAt,
   };
 
@@ -670,13 +664,6 @@ export const sanitizeSolves = (raw) => {
       orientation: sanitizeOrientation(entry.orientation),
       alg,
       phases: sanitizePhases(entry.phases, moveCount(alg)),
-      // A missing count is a pre-Step-3.5 solve, which is zero fumbles by shape —
-      // the same tolerance every other field on this read path is given. A
-      // negative or fractional one is a corrupt file, floored to a clean count.
-      mistakes:
-        Number.isFinite(entry.mistakes) && entry.mistakes > 0
-          ? Math.floor(entry.mistakes)
-          : 0,
       savedAt: Number.isFinite(entry.savedAt) ? entry.savedAt : 0,
     });
   });

@@ -426,9 +426,8 @@ by drawing a right angle, because no *straight* drag can turn it: the rotation
 axis is `normal × direction`, and on the facing face both lie in the plane of the
 screen. Turning the same layer the same way twice folds into a half turn; a
 layer turned and immediately turned straight back comes off the solve entirely —
-figuring a piece out, not a move kept — and is **counted** on the record as a
-mistake, shown by a small growing bar in the cube's corner (an overlay, so it
-costs the cube no points).
+figuring a piece out with a finger is quick and common, so the there-and-back is
+dropped rather than written down.
 
 Only on the solve screen, and only once the hold is locked in — inspection is
 panning to *choose* the hold, and a layer turning during it would change the very
