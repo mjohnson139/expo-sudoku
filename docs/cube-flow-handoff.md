@@ -240,20 +240,28 @@ the web container's padding is not a phone's safe area.
 
 ---
 
-## In flight — Step 3.5: turn the cube by dragging it (PR #114)
+## What landed in Step 3.5 (read this before Step 4)
 
-**Read this before starting Step 4.** An unplanned step is on its own branch off
-the epic and it grew: a finger writes every layer, every wide, and the face
-pointing at you — landing on its corner and dragging round (§3.3d), or drawing a
-right angle (§3.3c). Two same-direction spins tidy to `F2`; a move and its
-inverse leave no trace. A finger on or at the cube always turns; only two fingers
-(or a finger clearly off it) orbit. `docs/cube-flow-plan.md` §3.3.5 is the epic
-view; the full brief is `docs/cube-touch-exploration.md`, whose **§8 is the part
-to read first** — §8.7–§8.10 are the flash saga and its resolution.
+**Turning the cube by dragging it** — an unplanned step that grew into the epic's
+primary input. A finger writes every layer, every wide, and the face pointing at
+you — landing on its corner and dragging round (§3.3d), or drawing a right angle
+(§3.3c). Two same-direction spins tidy to `F2`; a move and its inverse leave no
+trace. A finger on or at the cube always turns; only two fingers (or a finger
+clearly off it) orbit. `docs/cube-flow-plan.md` §3.3.5 is the epic view with the
+full landed note; the design brief is `docs/cube-touch-exploration.md`, whose
+**§8 is the part to read first** — §8.7–§8.10 are the flash saga and its
+resolution. All under `games/cube/` (`CubeSolve.js`, `CubeView.js`,
+`geometry.js`, `useCubeTouch.js`, `useScramblePlayer.js`, `touchTurn.js`,
+`solve.js`, plus new files) — **none of what Step 4 touches.**
 
-It touches `CubeSolve.js`, `CubeView.js`, `geometry.js`, `useCubeTouch.js`,
-`useScramblePlayer.js`, `touchTurn.js` and `solve.js`, plus new files, all under
-`games/cube/` — **none of what Step 4 touches**, so the two do not collide.
+**Device pass: passed, 2026-08-18** (operator, `pr-114` preview), over several
+rounds — the only evidence that counts here, because this is gesture and
+animation and the browser and `npm test` see almost none of it. Each round found
+something a browser could not and it was fixed on the same build: the facing-face
+**flash** on repeated spins (a promotion re-keying the layer mid-turn), the same
+flash on a **cancel** (`L L'`, sometimes delayed), and a **corner grab that
+panned** instead of turning. The last build the operator signed off carried all
+three fixes.
 
 **What it changed for the steps below — the plan is updated, this is the index:**
 
@@ -273,8 +281,13 @@ It touches `CubeSolve.js`, `CubeView.js`, `geometry.js`, `useCubeTouch.js`,
   orbit-only on web, so what a browser cannot see is now the main way a move gets
   written. Say which behaviours a browser pass actually covered.
 
-**Do not start Step 4 on top of this branch** — Step 4 is its own branch off the
-epic, and Step 3.5 merges through `closeout` once its device pass signs off.
+**Two things it deferred, both designed and both waiting:** configurable gesture
+profiles (`cube-touch-exploration.md` §8.4 — the `recognize(...)` seam, tuning
+already an argument everywhere) and swipe mode (Step 9). And a mistake counter was
+built and taken back out — `cancelInverse`/`cancelTail` stay, the `mistakes` field
+does not.
+
+---
 
 ## Next step — Step 4: method as data
 

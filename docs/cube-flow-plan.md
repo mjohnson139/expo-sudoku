@@ -501,6 +501,49 @@ leaving no trace; **no flash on any of it**, spinning one face repeatedly and
 back and forth; **and background the app mid-drag** — the paths nothing here can
 test.
 
+**Landed 2026-08-18** (PR #114, merged to `epic/cube-flow`; device pass over
+several rounds). It landed the whole vocabulary above, and every hard problem was
+found on the phone, not in the brief — this is a gesture-and-animation step, so
+the browser and `npm test` were nearly blind to all of it. Zero sanctioned edits
+outside `games/cube/`.
+
+- **The facing face got an easier way in than the brief planned.** The right-angle
+  draw (§3.3c) shipped, and on a device it was still the hardest thing to invoke —
+  and it is the face you reach for most. The operator's fix became **§3.3d**: land
+  on the cube's corner and drag round, a *landing* rather than a shape, exclusive
+  in the corner so it never fires the straight `U`/`L` underneath it. The draw
+  stays as the way in from the middle of the face.
+- **The §8.2 flash came back three times, and each time the cause was one bug: a
+  move whose `amount` changed while it was still animating.** The renderer keys a
+  polygon by *where the move sends it*, so a promotion (`F F`→`F2`, quarter→half)
+  or a cancel drawn as its inverse re-keyed the layer mid-motion and remounted it.
+  The fix is now a **rule** (§5, and `cube-touch-exploration.md` §8.10): a gesture
+  **draws the one quarter the finger turned and nothing else**, and any change to
+  the stored string — the `F2` fold, the drop of a cancelled `L L'` — runs
+  **after the turn settles**, on the transport's new `afterSettle` hook, where the
+  cube is at rest and the rewrite is the same permutation and redraws as nothing.
+  Drawing and storage are two concerns; the seam between them is the load-bearing
+  lesson of this step.
+- **`afterSettle` had to fire at completion *or* interruption, never later.** A
+  fold or drop left pending by an interrupted turn first surfaced on the *next*
+  unrelated animation — a delayed flash. It now flushes from a tick's natural end
+  and from `settle` when a turn was actually in flight, but not from the `settle`
+  that opens a fresh gesture's first move.
+- **A corner grab panned instead of turning.** `pickFace` is an exact
+  point-in-polygon test and a fingertip at the very corner reports a point just
+  outside the sticker — a miss, and a miss meant orbit. `nearestFace` widens the
+  "is the cube touched" test to a margin (`NEAR_MARGIN`), so a finger on or at the
+  cube turns and only a finger clearly off it pans; the *move* still comes from an
+  exact hit, so no token changed. Two fingers orbit anywhere, unchanged.
+- **A mistake counter was built and then taken back out** at the operator's call
+  — the `cancelInverse` cancel is wanted on its own; a running tally over it was
+  not, yet. `cancelInverse`/`cancelTail` stay; the `mistakes` field and its meter
+  are gone. If a per-attempt fumble count returns it belongs where Compare reads
+  it (§6, open question).
+- **Configurable gesture profiles (§8.4) and the pad-hide swipe mode (Step 9) came
+  out of this step but did not ship in it** — both designed in the plan and the
+  exploration doc, both deferred so the input itself got onto a phone first.
+
 ### 3.4 Step 4 — method as data
 
 - **`games/cube/methods.js`** promotes `PHASE_METHODS` from a chip vocabulary
