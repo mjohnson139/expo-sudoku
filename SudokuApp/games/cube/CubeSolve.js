@@ -5,14 +5,13 @@ import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
 import CubeView from './CubeView';
 import CubeAlgInputModal from './CubeAlgInputModal';
+import CubeCompareModal from './CubeCompareModal';
 import CubeMovePad from './CubeMovePad';
 import CubeMoveTrack from './CubeMoveTrack';
-import CubeNameModal from './CubeNameModal';
 import CubePadLegend from './CubePadLegend';
 import CubePhaseModal from './CubePhaseModal';
 import CubePhaseStrip from './CubePhaseStrip';
 import CubeScrubber from './CubeScrubber';
-import CubeSolvesModal from './CubeSolvesModal';
 import { ALG_FONT } from './algText';
 import { applyMoves } from './cubeState';
 import { announcePosition } from './player';
@@ -33,7 +32,6 @@ import {
 } from './solve';
 import {
   endPhase,
-  findSolve,
   isPhaseBoundary,
   openPhaseStart,
   phaseSpans,
@@ -41,6 +39,7 @@ import {
   withMoves,
 } from './solveList';
 import { moveCount, parseAlg } from './moves';
+import useAppBackground from './useAppBackground';
 import useScramblePlayer from './useScramblePlayer';
 import useCubeStage from './useCubeStage';
 import { CUBE_ACCENT, headerAction, styles } from './cubeChrome';
@@ -113,23 +112,13 @@ const CubeSolve = ({ navigation }) => {
     yaw,
     pitch,
     editOpen,
-    startNewSolve,
-    showSolve,
-    copySolve,
-    deleteSolve,
-    renameSolveById,
-    clearSolveById,
     turnTo,
     rememberView,
     showOtherSide,
     startView,
   } = useCube();
 
-  const [showSolves, setShowSolves] = useState(false);
-  // The solve being renamed, or null. The two modals are opened one at a time
-  // rather than stacked — a Modal presented on top of a Modal is reliable on
-  // web and finicky on iOS, and there is nothing to gain by finding out which.
-  const [renamingId, setRenamingId] = useState(null);
+  const [showCompare, setShowCompare] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
   const [showPhases, setShowPhases] = useState(false);
 
@@ -191,6 +180,14 @@ const CubeSolve = ({ navigation }) => {
   const tapPrime = useCallback(() => {
     setPrimed((current) => !current);
   }, []);
+
+  // A half-finished gesture does not survive the app leaving. The promotion
+  // expires on its own after `PROMOTE_MS`, but an armed `′` has no clock — and
+  // coming back tomorrow to a pad that silently primes your next move is the
+  // sort of thing you would blame on the pad. This used to be free, because
+  // `App.js` remounted the whole game on resume; Step 3a stopped it doing that
+  // (see `useScramblePlayer`'s `rewind`) so the rule is written here instead.
+  useAppBackground(resetGesture);
 
   useEffect(
     () => () => {
@@ -271,6 +268,27 @@ const CubeSolve = ({ navigation }) => {
   const [gestureTurn, setGestureTurn] = useState(null);
 
   /**
+   * A drag that was interrupted by leaving the app never gets its release.
+   *
+   * `PanResponder` is not guaranteed a terminate when the app goes to the
+   * background, so a finger that was half-way through a turn would come back to
+   * a layer frozen part-way round with nothing left to finish or spring it. The
+   * transport's own `rewind` (Step 3a) is the same rule applied to the same
+   * event — this is the half of it that lives outside the transport, because a
+   * gesture's turn is drawn in front of the player's.
+   *
+   * Separate from `resetGesture` above rather than folded into it: that one
+   * drops half-finished **pad** presses and is wired into the pad's own paths,
+   * and it is declared before this state exists. Same event, two different
+   * half-finished things.
+   *
+   * Not committed, dropped: §7.1's line is that *authored* work survives leaving
+   * and where you were standing does not, and a turn that never reached its
+   * detent was never authored.
+   */
+  useAppBackground(useCallback(() => setGestureTurn(null), []));
+
+  /**
    * A drag that earned its move.
    *
    * The order matters and is the whole of the handoff: **tell the transport how
@@ -346,68 +364,6 @@ const CubeSolve = ({ navigation }) => {
     editOpen({ orientation: null });
   }, [pause, editOpen]);
 
-  // ——— The picker (docs/cube-plan.md §7.1) ———————————————————————————————
-
-  /** Put a different solve on this screen. Still a page swap rather than a
-   *  push: the stack is the scramble and the page on it, not one screen per
-   *  page you have ever opened. */
-  const openSolveById = useCallback(
-    (id) => {
-      pause();
-      resetGesture();
-      showSolve(id);
-      setShowSolves(false);
-    },
-    [pause, resetGesture, showSolve]
-  );
-
-  const openNewSolve = useCallback(() => {
-    pause();
-    resetGesture();
-    startNewSolve();
-    setShowSolves(false);
-  }, [pause, resetGesture, startNewSolve]);
-
-  // Copy a solve and open the copy — "same first block, try the second block
-  // differently", which starts by keeping what you already had.
-  const duplicate = useCallback(
-    (id) => {
-      pause();
-      resetGesture();
-      copySolve(id);
-      setShowSolves(false);
-    },
-    [pause, resetGesture, copySolve]
-  );
-
-  const removeSolveById = useCallback(
-    (id) => {
-      pause();
-      // The effect above takes the screen back when this empties the page; doing
-      // it here as well would pop twice on the same tap.
-      deleteSolve(id);
-    },
-    [pause, deleteSolve]
-  );
-
-  const beginRename = useCallback((id) => {
-    setShowSolves(false);
-    setRenamingId(id);
-  }, []);
-
-  const endRename = useCallback(() => {
-    setRenamingId(null);
-    setShowSolves(true);
-  }, []);
-
-  const submitRename = useCallback(
-    (name) => {
-      renameSolveById(renamingId, name);
-      endRename();
-    },
-    [renamingId, endRename, renameSolveById]
-  );
-
   /**
    * A press on a move key — tap, hold, or the second tap that promotes.
    *
@@ -457,24 +413,6 @@ const CubeSolve = ({ navigation }) => {
     resetGesture();
     retract(() => editOpen((current) => withMoves(current, dropLastToken(current.alg))));
   }, [retract, editOpen, resetGesture]);
-
-  /**
-   * Clear a page's moves.
-   *
-   * Clearing the page that is *on the cube* has to stop the transport and disarm
-   * the pad — that is what keeps a turn in flight from landing on an empty solve
-   * — and clearing any other page must not touch either of them.
-   */
-  const clearSolve = useCallback(
-    (id) => {
-      if (id === openId) {
-        pause();
-        resetGesture();
-      }
-      clearSolveById(id);
-    },
-    [openId, pause, resetGesture, clearSolveById]
-  );
 
   const addTyped = useCallback(
     (text) => {
@@ -591,21 +529,6 @@ const CubeSolve = ({ navigation }) => {
     : orientedCube;
   const holdText = describeOrientation(facingCube);
 
-  // A stored hold, said in colours, for the picker's rows. An orientation is
-  // notation like any other and a row is never worth a crash, so text that no
-  // longer parses reads as the reference hold rather than taking the list down.
-  const describeHold = useCallback(
-    (held) => {
-      if (held === null || held === undefined) return 'no hold yet';
-      try {
-        return describeOrientation(applyMoves(scrambledCube, parseAlg(held)));
-      } catch (error) {
-        return describeOrientation(scrambledCube);
-      }
-    },
-    [scrambledCube]
-  );
-
   // The page was deleted; the pop is already dispatched and there was never a
   // frame to draw. (`shown` covers the ordinary case, where the screen outlives
   // its solve by an animation.)
@@ -614,18 +537,22 @@ const CubeSolve = ({ navigation }) => {
   }
 
   /**
-   * The header's controls, which on this screen are the *view* plus the way into
-   * the picker.
+   * The header's controls, which on this screen are the *view* plus Compare.
    *
-   * The notebook is what the `solveBar` used to be. That line said which page,
-   * which hold and how many moves and opened the list; the title and the
-   * subtitle say the first and the last of those now, so what is left of it is
-   * the way in — and a button on a row that was already paid for costs the cube
-   * nothing, where the bar cost it about 30 points.
+   * **The notebook button became Compare in Step 3.** It used to open
+   * `CubeSolvesModal`, which was the list of solves *and* the comparison behind
+   * a toggle; the list is the scramble screen's now, one back gesture away and
+   * with a card per solve, so what is left of the modal is the table — and the
+   * table is worth keeping right here, because "is this attempt better than the
+   * last one" is a question you ask *while writing this attempt*.
    *
-   * It is offered while inspecting too, and that is not symmetry for its own
-   * sake: inspecting a brand-new solve you have changed your mind about would
-   * otherwise be a corner with no way to delete the page you are standing on.
+   * Only once there are two attempts to compare. With one, the table is a row of
+   * numbers with nothing beside it — the rule the modal's own toggle already
+   * applied to itself — and a control that does nothing is worse than one that
+   * is not there.
+   *
+   * Rename, duplicate, clear and delete left with the list. They are a long-press
+   * on a card now (`CubeSolveMenu`), which is where the solves are.
    */
   const headerActions = (
     <>
@@ -661,14 +588,15 @@ const CubeSolve = ({ navigation }) => {
         border,
       })}
 
-      {headerAction({
-        name: 'notebook-outline',
-        label: `Solves for this scramble, ${mySolves.length} written`,
-        hint: 'Opens the solves written for this scramble',
-        onPress: () => setShowSolves(true),
-        color: titleColor,
-        border,
-      })}
+      {mySolves.length > 1 &&
+        headerAction({
+          name: 'table-large',
+          label: `Compare the ${mySolves.length} attempts`,
+          hint: 'Shows each solve’s phase counts side by side',
+          onPress: () => setShowCompare(true),
+          color: titleColor,
+          border,
+        })}
     </>
   );
 
@@ -831,30 +759,13 @@ const CubeSolve = ({ navigation }) => {
         </>
       )}
 
-      <CubeSolvesModal
-        visible={showSolves}
+      <CubeCompareModal
+        visible={showCompare}
         theme={theme}
         accent={CUBE_ACCENT}
         solves={mySolves}
         currentId={openSolve ? openSolve.id : null}
-        describeHold={describeHold}
-        onOpen={openSolveById}
-        onNew={openNewSolve}
-        onDuplicate={duplicate}
-        onRename={beginRename}
-        onRemove={removeSolveById}
-        onClear={clearSolve}
-        onClose={() => setShowSolves(false)}
-      />
-
-      <CubeNameModal
-        visible={renamingId !== null}
-        theme={theme}
-        accent={CUBE_ACCENT}
-        title="Name this solve"
-        name={(findSolve(mySolves, renamingId) || {}).name || ''}
-        onSubmit={submitRename}
-        onClose={endRename}
+        onClose={() => setShowCompare(false)}
       />
 
       <CubePhaseModal

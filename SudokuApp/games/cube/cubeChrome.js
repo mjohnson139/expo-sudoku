@@ -53,6 +53,10 @@ export const headerAction = ({ name, label, hint, onPress, count, color, border 
  * yet (`CubeProvider`), or it has and it said a solve was open, which the
  * scramble screen takes one commit to put back on the stack (`CubeHome`). One
  * component so the two are the same pixels and the second is invisible.
+ *
+ * **Both are cold starts only.** Until Step 3a a resume remounted the whole game
+ * (`App.js`), so this spinner flashed every time the app came back; the cube
+ * keeps its state across a resume now and there is nothing to wait for.
  */
 export const CubeLoading = ({ onExitToHub }) => {
   const { theme } = useAppTheme();
@@ -94,14 +98,11 @@ export const styles = StyleSheet.create({
     flexWrap: 'wrap',
     marginTop: 10,
   },
-  bottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexWrap: 'wrap',
-    marginTop: 6,
-    marginBottom: 4,
-  },
+  // `bottomRow` was here — the scramble screen's Solve · New · Save. Step 3
+  // spent it on `CubeSolveList` and moved the other two onto the header, so the
+  // only row style left is `actionRow`, which the solve screen's inspection
+  // phase still uses.
+  //
   // A view control on the header row. Square-ish and icon-only, but still 30
   // points of border around an 18-point glyph with the row's own height behind
   // it — the space this row bought back was never bought from the size of a

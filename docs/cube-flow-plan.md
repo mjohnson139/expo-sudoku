@@ -115,15 +115,25 @@ the bottom of the scramble screen for the list.
 
 ## 3. Delivery steps
 
-Eight steps. The risky infrastructure is quarantined in Step 1, the large
-refactor in Step 2, and the two biggest design changes are last because nothing
-depends on them — so a wrong call in Step 6 or 7 costs a step, not the epic.
+Eight steps, plus one that was not planned. The risky infrastructure is
+quarantined in Step 1, the large refactor in Step 2, and the two biggest design
+changes are last because nothing depends on them — so a wrong call in Step 6 or 7
+costs a step, not the epic.
+
+**Step 3.5 is a guest.** It came out of a side exploration
+(`docs/cube-touch-exploration.md`) that was never on this roadmap, and it is an
+**input** change rather than a structure change — which is the epic's actual
+thesis. It is numbered 3.5 rather than renumbering 4–8, because every
+cross-reference in this file, the handoff and #107 is worth more than a tidy
+sequence. What it changes about the steps after it is §3.3.5 and
+`cube-touch-exploration.md` §8.5.
 
 | # | Step | Delivers |
 |---|---|---|
 | 1 | A real stack | react-navigation, behaviour-neutral |
 | 2 | Split `CubeScreen` | home + solve screens over one state owner |
 | 3 | Solves on the scramble screen | the card list; New and Save move to the header |
+| 3.5 | Turn the cube by dragging it | a finger on a sticker writes the move — *unplanned, see below* |
 | 4 | Method as data | `method` on the record, the new-solve sheet |
 | 5 | The phase rail | pre-built stages; the flag key retires |
 | 6 | Undo and redo | whole actions; the pad's bottom row is rebuilt |
@@ -261,6 +271,210 @@ injected-clock convention.
 **Operator tests:** the list shows every solve for the scramble with the right
 counts and recency; the in-progress one is top and accented; a new scramble
 empties it; long-press reaches every management action.
+
+**Landed 2026-08-17** (PR #111, against `epic/cube-flow`; **device pass passed
+over two rounds** — the first found 3a and 3b below, the second confirmed both
+fixes with nothing further). `CubeSolveList`,
+`CubeSolveMenu`, `recency.js` and `solveCards.js` are new; `CubeSolvesModal`
+became `CubeCompareModal`, the Compare half of itself. **Three calls the brief
+did not make, all forced by measurement or by the browser:**
+
+- **The header fits four controls at 320 points, and the step needed six.** The
+  home button takes 38, each control 39, and `ScreenHeader`'s dense right-hand
+  column does not shrink — so what gives is the title. Four leave 94 points for
+  it, five leave 55, and `Scramble` is 77. Two consequences: the title dropped
+  from `Cube Scramble` to **`Scramble`** (the pair now reads `Scramble` /
+  `Solve 3`), and **`Reset the view` came off the scramble screen** — on the
+  solve screen that button means *back to the hold you chose*, and here it only
+  ever meant "back to a default nobody picked". It is the one V1 affordance this
+  step removes.
+- **Compare is a button beside `+ New solve`, not a header icon.** It was the
+  sixth control and there was not room for a fifth. This is open question 2's own
+  alternative, and it costs the cube nothing extra — it shares the action row the
+  new-solve card was already paying for. It is *also* still on the solve screen,
+  in the notebook button's slot, since "is this better than last time" is a
+  question you ask while writing.
+- **The list ends in a 14-point peek, not a clean edge** (found in a browser at
+  320×568). Two whole cards with a third behind them draws a list that looks
+  finished, with nothing on screen saying the third solve exists — the scrollbar
+  is off, and on a phone it only appears once you are already scrolling.
+
+**Layout, in points (§8.6).** The `bottomRow` went — **−44** (a 34-point button
+row, 6 above and 4 below) — and the list block arrived: a capped scroll, a
+6-point gap and a 37-point action row. The cap is `visibleCards ×
+(CARD_HEIGHT + CARD_GAP) + CARD_PEEK` = **126** at two cards and **182** at
+three, so the block is **+169** on a short phone and **+225** on a tall one, for
+a gross **+125 / +181**.
+
+What that actually costs the cube is less, because the cube is **width**-capped
+on every phone and the slack absorbs the first of it. Measured in the browser at
+each viewport, before → after, by how many solves the scramble has:
+
+| | before | 0 solves | 1 | 2 | 3+ |
+|---|---|---|---|---|---|
+| 320×568 | 300 | 278 | 252 | 196 | **182** |
+| 375×667 | 355 | 355 | 351 | 295 | **281** |
+| 393×852 | 373 | 373 | 373 | 373 | **373** |
+
+So the tall phone pays **nothing**, the 667 pays nothing until the second solve,
+and the small phone is the one that pays — **−118 at worst**, landing at 182,
+which is still half again V1's 123-point solve-screen cube at the same size.
+Step 8's table should be re-based on this plus Step 2's −28 on the solve screen.
+
+#### Step 3a — the resume remount had to go (found on a device)
+
+**Reported by the operator against the `pr-111` build**, and the first finding of
+this epic that a browser could not have produced:
+
+> *"If I am on the solve screen and I background the app and then I come back. I
+> briefly see the solve screen, but then I also see a slide animation like a push
+> onto the navigation stack."*
+
+Exactly what it says. `App.js` bumped `appKey` on `AppState → 'active'` and keyed
+it onto the open game, so a resume **remounted the whole cube screen** — which
+also reset the cube's *own* navigator to its first route. `CubeHome` then read
+`workspace.solveId` and dispatched a `reset` to put the solve back, and **a
+native stack animates a route it is handed**. Step 2's comment claimed "there is
+nothing to animate"; that was the intent and not the behaviour, and under
+`react-native-web` `react-native-screens` no-ops, which is why three browser
+passes across two steps never showed it.
+
+**The fix is to stop remounting, not to suppress the animation.** The cube has
+not needed the remount since Step 2: `CubeContext` owns everything persisted
+above both screens and flushes on the way out, so on resume the state in memory
+is *fresher* than the file and re-reading it replaces it with an older copy of
+itself. Suppressing the slide would have meant racing a `stackAnimation` prop
+change against the transition — untestable from a browser, and it would have left
+the app rebuilding a stack it never needed to tear down.
+
+- `games/registry.js` gains **`keepsStateOnResume`**, and the cube sets it.
+  `App.js` bumps the key only for games without it, so **Sudoku and Fungiku keep
+  the remount they rely on** — verified: both reopen their difficulty modal on
+  resume exactly as before.
+- **What the remount was quietly enforcing is now written down.** §7.1's
+  right-hand column — the scrub position and the turn speed do not survive a
+  background — was true only because the hook was being thrown away. It is
+  `rewind` in `useScramblePlayer` now, called from a new `useAppBackground`.
+- **`background`, not `inactive`.** The save flush deliberately treats `inactive`
+  as leaving, because flushing early is free. Throwing away where the operator
+  was standing is not: a glance at Control Centre must not lose their place.
+- `CubeSolve` clears its half-finished pad gesture on the same signal — the
+  promotion expires on its own, an armed `′` has no clock.
+
+**The restore path survives for cold starts**, which is what it was always for,
+and a cold start may still show the transition. That is one slide while the app is
+launching instead of one on every resume.
+
+Verified in a browser by driving `visibilitychange`: the solve screen stays put
+with its moves intact, the scrub position goes back to the end and the speed to
+1×, the scramble screen stays on the scramble, and there is no spinner and no
+route change. **Confirmed on a device** in the second round — the bug was
+device-only and so is the proof.
+
+#### Step 3b — the long-press got a control, because it had no reason to be found
+
+**Open question 3, answered by the device pass rather than argued about.** §3.3
+put rename / duplicate / clear / delete on a long-press, on the argument that the
+design draws a clean card and the picker it replaced needed four icons per row.
+The operator's verdict (2026-08-17):
+
+> *"I don't miss the reset view but the long press honestly I'm not even sure
+> what you're talking about"*
+
+That is a stronger result than "hard to find". The standard objection to a
+long-press is discoverability, and the usual answer — *it is there for people who
+look* — assumes something on screen gives them a **reason to look**. Nothing did.
+A gesture nobody knows exists is not a hidden affordance, it is an unshipped
+feature.
+
+So the card gets a **`⋯` button**: one 32-point target at its trailing edge,
+opening the same `CubeSolveMenu`. That is the middle of the three options question
+3 listed — not four icons on the card, and not an overflow buried in the solve
+header two screens from the list. The long-press stays as a shortcut, costing
+nothing.
+
+**Two structural notes for anyone touching this card again:**
+
+- **The body and the `⋯` are siblings inside a plain `View`, never a `Touchable`
+  nested in a `Touchable`.** React Native gives the inner one the responder and
+  the outer never fires; `react-native-web` runs on pointer events that bubble,
+  so a nested menu tap would open the sheet *and* push the solve. This is the
+  same web-vs-native divergence class as §5's style-variant rule.
+- **The body owns the chevron**, so the tappable region is the whole card less 32
+  points and there is no dead strip at the right edge.
+
+Costs the cube **nothing** — the card's height is unchanged, so `solveCards.js`'s
+cap and the §3.3 table above still hold. Verified at 320 and 393: the menu opens,
+does *not* also push the solve, the two targets do not overlap (body 244pt, menu
+32pt, overlap 0 at 320), tapping the body still opens the solve, and a 26-character
+name still fits without clipping.
+
+### 3.3.5 Step 3.5 — turn the cube by dragging it
+
+**The brief is `docs/cube-touch-exploration.md`**, which is a full design
+document rather than a section here — this entry is what the *epic* needs to know
+about it. Read that document's §8 before its §3: the exploration ran four rounds
+past the build this step carries, and §8 is the record of which are in, which are
+out, and which was built, reverted, and must not be rebuilt from first
+principles.
+
+Put a finger on a sticker and drag: that layer follows it. Past the detent,
+letting go carries the turn round and writes the move; short of it, it springs
+back and writes nothing. Two fingers always orbit. Landing on the seam between
+two pieces turns both layers — a wide turn. The face pointing at you is asked for
+by drawing a right angle, because no *straight* drag can turn it: the rotation
+axis is `normal × direction`, and on the facing face both lie in the plane of the
+screen. Turning the same layer the same way twice folds into a half turn.
+
+Only on the solve screen, and only once the hold is locked in — inspection is
+panning to *choose* the hold, and a layer turning during it would change the very
+thing being chosen. **Web degrades to orbit-only**, which has consequences below.
+
+**Why it fits the epic rather than fighting it:** the gesture commits through
+`editOpen` + `withMoves` + `appendToken` — the sanctioned funnel, no second door
+— so a gesture-entered move is undoable, phase-clamped, persisted and comparable
+like any other. It adds **no** sanctioned edit outside `games/cube/`, and it
+costs the cube **zero points**: no new rows on either screen.
+
+**What it changes about the steps after it:**
+
+- **Step 6 stops being a nicety and becomes a prerequisite.** An accidental
+  gesture-entered move is undone today only by backspace dropping a token.
+  Gesture input makes accidental moves *routine* in a way a keypad never did.
+  **Gesture input is not finished until Step 6 lands.**
+- **Step 8 gains a lever it did not have.** V1's open question 13 said the next
+  win must come from *hiding* chrome rather than cutting it. If the cube is the
+  primary input, the 152pt pad becomes secondary — it shrinks rather than goes,
+  since it is still the only way to write `x`/`y`/`z`. **This step deliberately
+  does not touch `PAD_LAYOUT`**, so Steps 5 and 6 inherit it exactly as written
+  and Step 8 inherits the option with drilling sessions as evidence.
+- **Steps 5 and 7 need no structural change and get easier.** The rail counts a
+  gesture move for free — worth one pinning test in Step 5. Step 7's "retrying
+  always forks" is worth far more with a cheap input.
+- **§5's browser warning gets sharper.** This is orbit-only on web, so **no
+  browser pass can check the primary input path** — the same blind spot as Step
+  3a's `react-native-screens` finding. Two of the three things this epic most
+  needs to verify are now device-only.
+
+**Not in this step, designed in the exploration doc's §8.4:** configurable
+gesture profiles — named sets of *how a turn is identified*, *how fast the cube
+turns* and *how forgiving the hit targets are* (operator, 2026-08-18). The seam
+is a `recognize(gesture, snapshot, tuning)` interface, and every pure function
+already takes its tuning as an argument, so it is a small step rather than a
+rewrite. **One decision is open**: a profile is neither authored work nor view
+state, so §7.1 does not rule on it — it is a *preference*, and there is no
+settings store in the app.
+
+**Tests:** the exploration's own suite comes with it — the sign convention pinned
+at all twenty-four face-and-direction combinations by applying the returned move
+to the model and asserting the dragged sticker went the way the finger did,
+rather than twenty-four answers written by hand.
+
+**Operator tests:** write a real solve by turning the cube and see whether you
+reach for it again; two-finger orbit as the price of it; the token that appears
+holding the cube yellow-up; wide turns from the seam; the facing face from a
+right angle; the same layer twice writing `R2`; **and background the app
+mid-drag** — the one path nothing here can test.
 
 ### 3.4 Step 4 — method as data
 
@@ -446,6 +660,22 @@ scrolls**, horizontally, as `CubePhaseStrip` already does
 
 ## 5. Things that are easy to get wrong
 
+- **A native stack animates any route you hand it, including a restore.** Step 2
+  asserted that a `reset` had "nothing to animate" and Step 3a found out
+  otherwise, on a device: a resume rebuilt the cube's stack and the solve slid in
+  over itself. `react-native-screens` no-ops under `react-native-web`, so **no
+  browser pass can see this class of bug** — and the answer was to stop rebuilding
+  the stack rather than to fight the animation (§3.3's Step 3a).
+- **The browser now has two holes in it, not one.** `react-native-screens`
+  no-opping under `react-native-web` was the first; Step 3.5's gesture input
+  degrading to orbit-only on web is the second, and it is the bigger one, because
+  what a browser cannot check is now the *primary way a move gets written*. A
+  step that says "verified in a browser" has to say **which** of its behaviours
+  that covers.
+- **A remount is a very big hammer for "re-read your state", and it resets any
+  navigator inside it.** `App.js`'s `appKey` is fine for a game that is one
+  screen and hydrates on mount; it was wrong for a game that owns a provider and
+  a stack. `keepsStateOnResume` in `games/registry.js` is the opt-out.
 - **A screen under a push stays mounted, so "read it on mount" stops being
   enough.** This is what the navigator changed about the app, and it cost Step 1
   a fix the brief had not predicted: the hub read its Continue badges on mount
@@ -486,12 +716,17 @@ scrolls**, horizontally, as `CubePhaseStrip` already does
    has a method. A quick scratch attempt with no intention of naming phases has
    nowhere to go except a method it will ignore. Legacy solves prove the
    `method: null` path works; whether it should be *offered* is a use question.
-2. **Where does Compare belong now?** Step 3 puts it behind a home header button
-   on the argument that it compares solves and home is where solves live. It
-   could equally be a third card at the bottom of the list.
-3. **Is long-press the right home for rename / duplicate / delete?** It is
-   invisible, which is the standard objection. The alternative is a row of icons
-   on a card the design draws clean, or an overflow button in the solve header.
+2. ~~**Where does Compare belong now?**~~ **Answered by building it** (Step 3):
+   the home header was full at four controls, so Compare is a button beside
+   `+ New solve` — this question's own alternative. Also on the solve screen, in
+   the notebook button's old slot. Open only to being moved, not to being decided.
+3. ~~**Is long-press the right home for rename / duplicate / delete?**~~
+   **Answered: no** (operator, device pass 2026-08-17 — *"the long press honestly
+   I'm not even sure what you're talking about"*). Step 3b gave the card a `⋯`
+   button, which is the middle of the three options this question listed. The
+   long-press remains as a shortcut. **The lesson generalizes and the next
+   invisible-gesture proposal should cite it:** discoverability is not "will they
+   find it if they look", it is "is there anything giving them a reason to look".
 4. **Should the rail lock automatically?** Tapping to lock is explicit and cheap,
    but the app knows the stage is finished the moment the cube reaches that
    stage's goal state — V1's untaken analysis step is exactly the machinery that
@@ -501,3 +736,20 @@ scrolls**, horizontally, as `CubePhaseStrip` already does
    version that was never tried. One drilling session with the rail settles it.
 6. **How many variations is too many?** No cap is specified. `MAX_PHASES` is 40
    and `MAX_SOLVES` 100; variations need a number before the file finds one.
+7. ~~**Does the scramble screen miss `Reset the view`?**~~ **Answered: no**
+   (operator, 2026-08-17 — *"I don't miss the reset view"*). Step 3's
+   four-control header stands; the solve screen keeps its own `Back to the
+   starting view`, which is the one pointing at a place the operator chose.
+8. **Should a card's recency be when the solve was *started* or when it was *last
+   written to*?** New in Step 3, and the only question that step left genuinely
+   open. `savedAt` is creation time and nothing bumps it, so a card reads "3 days
+   ago" for a solve you were writing an hour ago. It has not bitten because a
+   solve is usually written in one sitting — but it is a change to what a stored
+   field *means*, not a UI tweak, and **Step 4 is the natural place to take it**
+   because Step 4 is already touching the record.
+
+**Three things Step 3's device pass settled by silence**, and they are closed
+rather than carried: the 14-point list peek reads as "more below"; a 182-point
+cube at 320×568 is enough; and the cold-start slide — the one path that still
+rebuilds the stack — is not worth the animation race Step 3a declined. All three
+are cheap to revisit if a fortnight of drilling changes the verdict.

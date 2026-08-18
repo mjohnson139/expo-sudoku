@@ -754,13 +754,28 @@ session has*. This is an **input** change, not a structure change — it is a gu
 in the epic, sharing its branch and its preview machinery because that is where
 it has to land. Saying so keeps the epic's own story legible.
 
-### 8.6 Why the epic's plan and handoff are not edited on this branch
+### 8.6 Two things found by merging Step 3 in
 
-**Step 3 (PR #111) is open, unmerged, and rewrites both**
-`docs/cube-flow-plan.md` (181 lines) and `docs/cube-flow-handoff.md` (359).
-Editing them here would conflict with a PR that is ready to merge, for no gain.
-So this step's integration into those two files happens at **closeout**, after
-Step 3 merges — which is where the `closeout` skill puts a step's landed note
-anyway. `SudokuApp/utils/buildNotes.js` is the one shared file this step does
-edit, because the plan mandates the release entry; expect a trivial
-keep-both-blocks conflict there with #111's notes.
+Step 3 (PR #111) merged while this step was being built, so the branch carries a
+merge of it rather than being written against it. Both files they both touch
+merged cleanly on the text and **needed a fix anyway** — the class of bug that
+only exists because two steps were written apart:
+
+- **`rewind` did not clear `handoffRef`.** Step 3a's `rewind` is the function
+  that says what the transport looks like when you come back, and it drops
+  `pendingRef` and `retractRef`. The handoff arrived in this step and is the same
+  kind of state, so it is dropped there too. Narrow in practice — a gesture hands
+  off and appends in one tick — but the omission was in the shape of the code,
+  not in the odds.
+- **A gesture interrupted by leaving the app never gets its release.**
+  `PanResponder` is not promised a terminate on background, so a layer half-way
+  round would come back frozen there with nothing to finish or spring it.
+  `CubeSolve` now drops `gestureTurn` on background, beside the `resetGesture`
+  Step 3a wired to the same event for the pad's half-finished presses.
+
+Neither is covered by a test — `useScramblePlayer` and `CubeSolve` are a hook and
+a component, and the runner has no renderer. **Background the app mid-drag** on
+the device pass.
+
+`SudokuApp/utils/buildNotes.js` conflicted exactly as expected, and resolved
+keep-both with Step 3's notes first.
