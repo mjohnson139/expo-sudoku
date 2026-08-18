@@ -203,7 +203,14 @@ const useScramblePlayer = (alg, from) => {
     setTurn(null);
     setIndex(pending.forward ? pending.at + 1 : pending.at);
     flushRetract();
-  }, [flushRetract, setIndex, stopClock]);
+    // A move that was interrupted before it finished still *landed* here, so its
+    // waiting data step (the fold, the cancel-drop) runs now rather than
+    // lingering to fire on some later, unrelated animation. **Only when a turn
+    // was actually pending** — an `animate` that opens with nothing in flight
+    // (a fresh gesture's first move) must not trigger a step meant for the move
+    // it is about to draw.
+    flushAfterSettle();
+  }, [flushRetract, flushAfterSettle, setIndex, stopClock]);
 
   /**
    * Animate move `at`, forwards or backwards.

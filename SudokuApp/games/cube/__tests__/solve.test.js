@@ -19,6 +19,7 @@ import {
   appendToken,
   applyPadPress,
   cancelInverse,
+  cancelTail,
   condenseRepeat,
   consolidateTail,
   describeSolve,
@@ -576,6 +577,40 @@ describe('consolidateTail', () => {
     // A fold-able pair earlier in the algorithm is not the tail and is left alone.
     expect(consolidateTail('F F R')).toBeNull();
   });
+});
+
+describe('cancelTail', () => {
+  it('drops a cancelling pair at the tail', () => {
+    expect(cancelTail("L L'")).toBe('');
+    expect(cancelTail("F R L L'")).toBe('F R');
+    expect(cancelTail("R' R")).toBe('');
+    expect(cancelTail('R2 R2')).toBe('');
+  });
+
+  it('is null when the last two do not cancel', () => {
+    expect(cancelTail('L R')).toBeNull();
+    // Two of the same quarter is a fold, not a cancel.
+    expect(cancelTail('L L')).toBeNull();
+    // A quarter and a half do not compose to nothing.
+    expect(cancelTail("L2 L")).toBeNull();
+  });
+
+  it('cancels by move, not by letter — a face and its wide turn do not pair', () => {
+    expect(cancelTail("r r'")).toBe('');
+    expect(cancelTail("R r'")).toBeNull();
+  });
+
+  it('needs two tokens', () => {
+    expect(cancelTail("L'")).toBeNull();
+    expect(cancelTail('')).toBeNull();
+  });
+
+  it('only ever touches the tail', () => {
+    // A cancelling pair earlier is not the tail.
+    expect(cancelTail("L L' R")).toBeNull();
+    expect(cancelTail("U L L'")).toBe('U');
+  });
+
 
 
   it('produces something the parser reads back as the same two turns', () => {

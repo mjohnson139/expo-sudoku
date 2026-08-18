@@ -859,22 +859,32 @@ place on its own. The field and the `CubeMistakeMeter` overlay are gone; if a
 per-attempt fumble count comes back it belongs where Compare can read it, not as
 chrome on the solve screen. (§7's open question 7 carries that.)
 
-**The animation had to become the backwards twin of `handoff`.** A cancel
-*shrinks* the alg where an append grows it, so it goes back the way backspace
-does — `retract` runs the move backwards and drops its token when it settles. But
-backspace starts its sweep from a fully applied move, and a gesture has *already*
-dragged the move most of the way back with the finger. Left alone, the layer
-jumped forward to where it started and replayed the whole undo — **the move
-appeared to animate twice** (operator, device). So `retract` now takes a `from`:
-the gesture hands over the `1 - t` that is left, its last frame and the sweep's
-first are the same picture, and the layer carries straight on round. The pad's
-backspace passes no `from` and is unchanged.
+**Drawing it is an append, not a rewind (settled 2026-08-18 — the first two tries
+both flashed).** The instinct is that a cancel *shrinks* the alg, so run the move
+backwards through `retract` and drop it. Two versions of that were tried. The
+first replayed the whole undo from a fully applied move; a `1 - t` handoff into
+`retract` fixed that *angle* jump. But `retract` runs the **original** move (`L`)
+backward, while the finger drew its **inverse** (`L'`) — a different token, a
+different destination, a different polygon key — so the layer still remounted at
+the handover and flashed, the same §8.10 mechanism as the fold.
 
-- **Gesture-only**, like `condenseRepeat`. The pad has backspace and explicit
-  prime-arming; a pad user who taps `R` then `R'` meant to.
-- **Device-only evidence:** the backward-from-`1 - t` sweep is a hook path past
-  the runner. Drag a move and drag it straight back — the layer should finish
-  going back in one motion, not snap forward and replay.
+The fix is the same seam. `L'` played **forward** is `L` undone — identical on
+screen — so the cancel just **appends the inverse and animates it forward like
+any move**: the finger drew `L'`, the transport finishes `L'`, same token, same
+keys, no remount. Then, once at rest, the redundant `L L'` pair is dropped as a
+data-only step (`cancelTail`) — the identity, so it redraws as nothing. No
+backward animation, no `from`, no second token drawn. `retract` keeps serving the
+pad's backspace and is untouched.
+
+- **The waiting data step fires at the move's completion *or* its interruption,
+  never later.** `afterSettle` is flushed from a tick's natural end and from
+  `settle` when a turn was actually in flight — but not from the `settle` that
+  opens a fresh gesture's first move. Without that, a fold or drop left pending by
+  an interrupted turn fired on some *later* animation, which read as a delayed
+  flash (operator, device).
+- **Device-only evidence:** the append-then-drop is a hook path past the runner.
+  Drag a move and drag it straight back — one smooth motion, then the pair
+  quietly leaves the track, no flash and no delay.
 
 ### 8.8 A second, easier way at the facing face (added 2026-08-18)
 
@@ -979,3 +989,13 @@ effect renders the rewrite as a settle rather than an animation. Nothing redraws
 This also answers §8.2's standing note for this one case without the renderer
 rewrite it asked for: rather than teach the key to survive a changing sweep, the
 sweep is never changed — the promotion is replaced by a rest-state rewrite.
+
+**The cancel joined the same seam (2026-08-18).** `L L'` flashed for the same
+reason the fold did, one layer down: the cancel animated the *original* move
+backward while the finger had drawn its *inverse*, so the two disagreed on the
+polygon key and the layer remounted at the handover. Rather than reconcile those
+keys, the cancel stopped animating backward at all — it appends the inverse
+(which forward *is* the undo, drawn once, keyed once) and drops the redundant pair
+on `afterSettle`, exactly as the fold drops nothing-changed into a settle. And the
+`afterSettle` flush was tightened to fire on an interrupted turn too, so a pending
+fold or drop can no longer surface on a later animation as a delayed flash.

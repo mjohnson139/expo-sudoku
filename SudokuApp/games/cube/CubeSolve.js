@@ -27,6 +27,7 @@ import {
   appendToken,
   applyPadPress,
   cancelInverse,
+  cancelTail,
   condenseRepeat,
   consolidateTail,
   dropLastToken,
@@ -291,36 +292,54 @@ const CubeSolve = ({ navigation }) => {
   useAppBackground(useCallback(() => setGestureTurn(null), []));
 
   /**
-   * A drag that has reached its detent — two things it can turn out to be.
+   * A drag that has reached its detent — always an **append**, drawn once.
    *
-   * **A cancel**, if this move undoes the one just written: figuring a piece out,
-   * not solving, so both come off (see the body, and `solve.js`). **Otherwise an
-   * append** — always raw, never folded into the token before it (§8.10 for why
-   * a gesture cannot promote `F F` into `F2` without flashing). Both go through
-   * `editOpen` + `withMoves`, the doors every edit goes through, so a gesture
-   * move is undoable, phase-clamped, persisted and comparable like any other.
+   * Every commit hands `t` to the transport and appends the finger's move raw,
+   * so the quarter the finger turned is the quarter the transport finishes —
+   * identical token, identical polygon keys, no remount. What *kind* of move it
+   * was is then a **storage** question, settled later and apart from the drawing
+   * (§8.10, the seam this whole area turns on):
    *
-   * Dropping the gesture's own frame waits a frame either way: the transport's
-   * first frame lands at exactly the `t` this one is frozen at (an append) or
-   * carries straight on backwards from it (a cancel), so releasing the finger
-   * swaps two identical pictures rather than jumping.
+   * - **A fold**, if this move repeats the one before it: once at rest, `F F`
+   *   becomes `F2` (`consolidateTail`).
+   * - **A cancel**, if this move undoes the one before it: once at rest, the
+   *   redundant `L L'` pair is dropped (`cancelTail`). Appending the inverse and
+   *   letting it play forward *is* undoing the move — `L'` forward is `L`
+   *   backward — so a cancel needs no backward animation and no second token to
+   *   draw, only the pair-drop afterward.
+   *
+   * Both later steps run on `afterSettle`, on a settled cube where the rewrite is
+   * the same permutation and redraws as nothing. Everything goes through
+   * `editOpen` + `withMoves`, so a gesture move is undoable, phase-clamped,
+   * persisted and comparable like any other.
+   *
+   * Dropping the gesture's own frame waits a frame: the transport's first frame
+   * lands at exactly the `t` this one is frozen at, so releasing the finger swaps
+   * two identical pictures rather than jumping.
    */
   const commitTurn = useCallback(
     (move, t) => {
       // **A move that undoes the one just written is a fumble, not notation.**
       // Turning a layer and immediately turning it back is figuring a piece out,
-      // so it comes off the solve rather than being kept as `R R'` (operator,
-      // 2026-08-18). It goes back the way backspace does — `retract` runs the
-      // move backwards and drops its token when it settles — with one difference
-      // that matters: the finger has *already* dragged it `t` of the way back,
-      // so `retract` picks up from `1 - t` rather than from a fully applied
-      // move. Without that it would jump the layer forward to where it started
-      // and replay the whole undo, which reads as the move animating twice. This
-      // is the backwards twin of the append's `handoff`, and for the same reason.
+      // so it comes off the solve rather than being kept as `L L'` (operator,
+      // 2026-08-18). It is drawn and stored the same two-concerns way the fold is
+      // (see below), because the naive way flashes: the finger has drawn the
+      // inverse (`L'`), and running the *original* `L` backwards through
+      // `retract` draws a different token — a different destination, a different
+      // polygon key — so the layer remounts when the gesture hands over. Instead
+      // the inverse is **appended and animated forward like any move** (the
+      // finger drew `L'`, `L'` forward *is* `L` undone, so it looks identical and
+      // keys identically, no remount), and once the cube is at rest the
+      // cancelling pair is dropped as a data-only step — `L L'` is the identity,
+      // so removing both redraws as nothing (§8.10).
       if (cancelInverse(solve, move.token) !== null) {
-        retract(
-          () => editOpen((current) => withMoves(current, dropLastToken(current.alg))),
-          1 - t
+        handoff(t);
+        editOpen((current) => withMoves(current, appendToken(current.alg, move.token)));
+        afterSettle(() =>
+          editOpen((current) => {
+            const cancelled = cancelTail(current.alg);
+            return cancelled !== null ? withMoves(current, cancelled) : {};
+          })
         );
         requestAnimationFrame(() => setGestureTurn(null));
         return;

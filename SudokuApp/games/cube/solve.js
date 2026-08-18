@@ -328,6 +328,34 @@ export const consolidateTail = (alg) => {
 };
 
 /**
+ * Drop the **last two tokens** when they cancel to nothing — `… L L'` becomes
+ * `…`. The settled-storage half of `cancelInverse`, exactly as `consolidateTail`
+ * is of `condenseRepeat`.
+ *
+ * `cancelInverse` answers "would this incoming move undo the last one?" and runs
+ * at commit, to decide whether a cancel is coming. This runs *after* the inverse
+ * has been appended and animated, on the algorithm as it now stands, and removes
+ * the redundant pair — on a settled cube, where `L L'` is the identity and taking
+ * both away redraws as nothing (§8.10). Only an exact pair goes: same axis, same
+ * layers, amounts composing to a whole turn.
+ */
+export const cancelTail = (alg) => {
+  const tokens = tryTokenize(alg);
+  if (!tokens || tokens.length < 2) return null;
+
+  const last = parseMove(tokens[tokens.length - 1]);
+  const prev = parseMove(tokens[tokens.length - 2]);
+  if (!last || !prev) return null;
+
+  if (prev.axis !== last.axis) return null;
+  if (prev.layers.length !== last.layers.length) return null;
+  if (prev.layers.some((layer, i) => layer !== last.layers[i])) return null;
+  if ((prev.amount + last.amount) % 4 !== 0) return null;
+
+  return tokens.slice(0, -2).join(' ');
+};
+
+/**
  * What a press on a move key does to the solve — the whole of the core loop
  * (plan §8.8).
  *
