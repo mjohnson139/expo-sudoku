@@ -1,7 +1,14 @@
 # Cube touch — turning the cube by dragging its stickers
 
-**An exploration, not an epic step.** It is written to be started cold in a new
-session, and to be abandoned cheaply if the hardware does not cooperate.
+**This began as an exploration and is now a Cube Flow step.** It was written to
+be started cold and abandoned cheaply; it was not abandoned. What it is now is
+**Step 3.5 of the Cube Flow epic** (tracker #107), landing between Step 3 (the
+solve cards) and Step 4 (method as data).
+
+**Read §8 before §3.** The spike ran four rounds past the build this step
+carries, and §8 is the record of which of them are in and which are deliberately
+not — including one that was built, reverted, and must not be rebuilt from
+first principles.
 
 ## What the operator asked for
 
@@ -15,9 +22,10 @@ In one sentence: **the cube stops being a picture you orbit and a pad you type
 at, and becomes the thing you turn.** Put a finger on a sticker, push, drag —
 that layer goes round the way your finger went.
 
-This is not on the Cube Flow roadmap (`docs/cube-flow-plan.md`) and does not
-block it. It is a spike: build the smallest thing that answers *does this feel
-right on a phone*, and decide afterwards whether it earns a step.
+It was not on the Cube Flow roadmap (`docs/cube-flow-plan.md`) and did not
+block it. The spike's question was *does this feel right on a phone*; enough of
+the answer came back yes that it earned a step. §8 is where that decision and
+its cut line are written down.
 
 ## Standing context
 
@@ -38,7 +46,8 @@ right on a phone*, and decide afterwards whether it earns a step.
 
 Branch from **`epic/cube-flow`**, not `main`: the epic is where the cube is
 being actively restructured, and a spike built on the pre-navigator app will
-have to be rebuilt anyway. Name it `feature/cube-touch-spike`.
+have to be rebuilt anyway. The spike ran on `feature/cube-touch-spike` (PR #112,
+closed unmerged — see §8); the step it became is a fresh branch off the epic.
 
 **Expect `CubeScreen.js` to move under you.** Cube Flow Step 2 splits its 1525
 lines into `CubeHome` / `CubeSolve` over a `CubeContext`. So: **put everything
@@ -572,4 +581,186 @@ worth keeping regardless.
    whole actions. Until it lands, an accidental gesture-entered move is undone
    by the pad's backspace, which removes the token — acceptable for a spike,
    probably not acceptable to ship without Step 6 underneath it.
-4. **Is 50% the right commit point?** Guessed. A drilling session settles it.
+   **Now a prerequisite rather than a question — see §8.5.1.**
+4. **Is 50% the right commit point?** Guessed, and it is `COMMIT_T = 0.22` rather
+   than 50% as this line originally assumed. A drilling session settles it, and
+   §8.4 is how it stops being a round trip per number.
+5. **Is two-finger orbit an acceptable price?** One finger on the cube no longer
+   orbits, and the cube fills most of the screen. §3.1 calls this the most likely
+   reason to reject the whole approach, and it is still unanswered.
+6. **Does the corner gesture need announcing?** Step 3b's lesson generalises:
+   discoverability is not "will they find it if they look", it is "is anything
+   giving them a reason to look". Nothing on the solve screen says a finger turns
+   the cube, and nothing says the facing face wants a right angle. The build note
+   is the whole of the answer today.
+
+---
+
+## 8. From spike to step — the cut line, and what is deliberately not here
+
+*Added 2026-08-18, when the spike became Step 3.5.*
+
+The spike ran twelve commits on `feature/cube-touch-spike` (PR #112). **This step
+carries five of them.** The cut is not "the last good build" in the sense of the
+newest one that worked — it is a deliberate line, and the reason matters more
+than the line.
+
+### 8.1 What is in
+
+| From | What it gives you |
+|---|---|
+| `c5bed96` | The spike: pick a sticker, drag, spring-loaded detent, `handoff`, two-finger orbit |
+| `aa15f0e` | The face decided by the **whole gesture**, re-asked every frame, with a `SWITCH_MARGIN` tie-break so near-ties stay still |
+| `ebe26f3` | Wide turns (`r`, `l`, …) by landing on the **seam** between two pieces |
+| `f18ef6a` | The **right-angle corner** gesture for the face you are looking at |
+| `8a57df7` | `condenseRepeat` — turning the same layer the same way twice writes `R2` |
+
+The four gesture commits are contiguous. `condenseRepeat` is not — it sat two
+commits later and is independent of everything between, so it was lifted out.
+**It needed one adaptation**, and that is the one line in this step that no test
+covers: it was written against a `handoff(t, turns)` that carried an object,
+which only exists in the branch this step does not take. Here `handoff(t)` is
+still a scalar, so the fold's pick-up point is
+`resumeFrom !== null ? 0.5 + resumeFrom * 0.5 : 0.5` — the first quarter has
+landed (0.5) and the finger is `t` of the way into the second, which is half of
+`t` of the whole half turn. `useScramblePlayer` is a hook and the runner has no
+renderer, so **this is device evidence or nothing.** Turn a layer, then turn it
+the same way again, and watch that the half turn carries on round rather than
+jumping.
+
+### 8.2 What is out, and why it is not lost work
+
+The seven commits after `f18ef6a` are one story with a loop in it:
+
+1. `b266d4c` replaced the corner gesture with **curvature** — circle a finger and
+   the front face keeps going round.
+2. Circling let the face draw **more than one quarter** mid-gesture.
+3. `buildScene` keys every polygon by *where the move sends it*, which depends on
+   the quarter-turn count. A count that changes under a live finger **re-keys all
+   fifty-four faces**, React remounts every one, and the cube flashes.
+4. Two rounds of reasoned-but-unobserved fixes, one revert (`413657c`), a debug
+   readout, and finally `ff7847c` — which pins the draw back to **one quarter at
+   a time**.
+
+**That is the property this cut already has.** There is no `ceil(quarters)`
+anywhere in `f18ef6a`: `amount` is ±1 and `t` runs 0 to 1, because the corner
+gesture measures progress along its second leg only. So taking this cut does not
+discard a fix — it never opens the wound. Anyone tempted to bring the circle
+gesture back should read step 3 above first: **multi-quarter drawing is a
+renderer question — what a polygon's key should be, in `geometry.js` — and not a
+gesture question.**
+
+Two findings from that stretch are worth more than the code they came in, and
+are recorded here so the branch can be left behind:
+
+- **Smooth the drawn angle, never the measured one** (`5707ae6`). Easing the
+  *heading* before accumulating looks like the same idea and is not: a heading
+  that lags a finger which is still turning never catches up, so real rotation is
+  silently lost — it measured a 90° curve as 75° and a full circle as 285°.
+- **A reverted commit should not bundle** a feature with fixes for a problem
+  nobody observed (`1c9ecc1`). It did, so the revert had to take all three.
+
+### 8.3 Still recoverable, if wanted
+
+Nothing below is in this step. All of it is in `feature/cube-touch-spike`'s
+history and can be lifted commit by commit:
+
+- **The curvature reading** (`b266d4c`) — as a *second* way to ask for the facing
+  face, not as a replacement for the corner. See §8.4.
+- **The tuning panel and gesture readout** (`4cdb4ff`) — the right UI shape for
+  §8.4's picker, but it writes into a mutable module-level `TUNING`, which is
+  fine for a spike and wrong for a stored preference.
+- **`docs/cube-front-face-prompt.md`** (`1611cca`) — the brief written between
+  rounds. Its findings are folded into §8.2; the file itself is not carried.
+
+### 8.4 Configurable gesture profiles — designed, deliberately not built
+
+The operator's ask, 2026-08-18: *different versions of the multi-touch handlers —
+how specific turns are identified, how fast the cube turns, and the hit targets
+on the cube.* **Deferred to its own step so this one can get onto a phone**, and
+written down here because the shape is already decided and half-built.
+
+It is three axes, and they want different mechanisms:
+
+1. **Numbers (feel)** — `QUARTER_POINTS`, `COMMIT_T`, `FLING_SPEED`,
+   `DECIDE_POINTS`, `SWITCH_MARGIN`, `WIDE_BAND`, `CORNER_LEG`, `CORNER_SQUARE`.
+   **Already parameterised**: `moveForDrag`, `chooseMove`, `detectCorner`,
+   `cornerMove` and `shouldCommit` all take a `tuning` argument that defaults to
+   the module object. Only **three sites** read `TUNING` directly — two in
+   `useCubeTouch`, one default argument in `turnProgress`.
+2. **How a turn is identified (strategy)** — this is the axis the spike thrashed
+   across without ever giving it a seam. `corner` and `circle` are not a bug and
+   a fix, they are **two implementations of one interface**:
+   `recognize(gesture, snapshot, tuning) -> move | null`, tried in order, first
+   non-null wins. Give it that seam and "which reading is right?" stops being a
+   revert and becomes a setting.
+3. **Hit targets (picking)** — `pickFace` is an exact point-in-polygon test
+   today. A forgiving picker (inflated polygon, or nearest sticker centre within
+   a radius) is a second implementation of a one-function interface plus one
+   number.
+
+The shape: **`games/cube/touchProfiles.js`**, new and pure —
+`{ id, name, description, pick, recognizers, tuning }` — shipping `corner`
+(exactly this step's behaviour, and the baseline), `circle` (the curvature
+reading, clamped to one quarter per §8.2), and `forgiving`. `touchTurn.js` drops
+the mutable module `TUNING` and takes tuning everywhere.
+
+**The payoff is the test suite, not the panel.** `touchTurn.test.js` already pins
+the sign convention at all twenty-four face-and-direction combinations against an
+independent check. Once a profile is just an argument, **that suite runs against
+every shipped profile** — so a new handler cannot quietly ship primed moves,
+which is the bug this repo has already shipped once (`docs/cube-review.md`).
+
+**One decision is still open** and should be taken before it is built: a profile
+choice is neither authored work nor view state, so V1 §7.1 does not rule on it.
+It is a *preference*. There is no settings store in the app (`contexts/` has only
+`GameContext`), so the honest home is a small `preferences` slice on
+`CubeContext`'s save file — one string, migrating by shape like everything else
+on that read path.
+
+### 8.5 What this changes about the rest of the epic
+
+Six interactions, in descending order of how much they matter. **None of them are
+edits to `docs/cube-flow-plan.md` yet** — see §8.6.
+
+1. **Step 6 (undo/redo) stops being a nicety and becomes a prerequisite.** §7's
+   open question 3 already said an accidental gesture move is undone only by
+   backspace dropping a token — acceptable for a spike, not to ship. Gesture
+   input makes accidental moves *routine* in a way a keypad never did.
+   **Gesture input is not finished until Step 6 lands.**
+2. **Step 8 (layout budget) gains a lever it did not have.** V1's open question 13
+   said the next win must come from *hiding* chrome rather than cutting it. If
+   the cube is the primary input, the 152pt pad becomes secondary — it shrinks
+   rather than goes, since it is still the only way to write `x`/`y`/`z`.
+   **This step deliberately does not touch `PAD_LAYOUT`.** Step 8 inherits the
+   option with drilling sessions as evidence.
+3. **The browser net has a second hole in it.** This degrades to orbit-only on
+   web (no second finger), so **no browser pass can check the primary input path**
+   — the same class of blind spot as Step 3a's finding that
+   `react-native-screens` no-ops under `react-native-web`. Two of the three
+   things this epic most needs to verify are now device-only.
+4. **Steps 5 and 7 need no structural change, and get easier.** The gesture
+   commits through `editOpen` + `withMoves` + `appendToken` — the sanctioned
+   funnel, no second door — so Step 5's rail counts a gesture move for free
+   (worth one pinning test), and Step 7's "retrying always forks" is worth far
+   more with a cheap input.
+5. **Zero sanctioned edits outside `games/cube/`.** Against an epic that has had
+   to sanction three exceptions, this step adds none. Only `utils/buildNotes.js`,
+   which the plan mandates and explicitly does not count.
+6. **Layout cost: zero points.** No new rows on either screen.
+
+One honest note on framing: Cube Flow's thesis is *the structure a drilling
+session has*. This is an **input** change, not a structure change — it is a guest
+in the epic, sharing its branch and its preview machinery because that is where
+it has to land. Saying so keeps the epic's own story legible.
+
+### 8.6 Why the epic's plan and handoff are not edited on this branch
+
+**Step 3 (PR #111) is open, unmerged, and rewrites both**
+`docs/cube-flow-plan.md` (181 lines) and `docs/cube-flow-handoff.md` (359).
+Editing them here would conflict with a PR that is ready to merge, for no gain.
+So this step's integration into those two files happens at **closeout**, after
+Step 3 merges — which is where the `closeout` skill puts a step's landed note
+anyway. `SudokuApp/utils/buildNotes.js` is the one shared file this step does
+edit, because the plan mandates the release entry; expect a trivial
+keep-both-blocks conflict there with #111's notes.

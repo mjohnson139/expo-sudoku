@@ -13,6 +13,14 @@ const BUILD_NOTES = {
       'Leaving a solve is the back chevron, the Android back button or the iOS edge swipe — the same gesture as anywhere else',
       'The solve screen names the page you are on and the scramble you are solving, so the line that used to say it under the pad is gone',
       'Background the app mid-solve and you come back to the solve, not to the scramble',
+      'Turn the cube with a finger: put it on a sticker and drag, and that layer follows it',
+      'Let go past the detent and the turn carries on round and is written; let go short of it and it springs back and writes nothing',
+      'A flick that is still travelling commits without having to get all the way there',
+      'Two fingers always orbit, so there is a way to look around that can never be read as a turn',
+      'Land on the line between two pieces instead of the middle of a sticker and both layers turn — a wide turn, r or l',
+      'The face pointing at you turns by drawing a right angle: a short leg, a corner, and the face goes the way the corner went',
+      'Turning the same layer the same way twice writes one half turn — R2 rather than R R',
+      'Only on the solve screen, and only once the hold is locked in: inspection is still panning to choose how you hold the cube',
     ]
   },
   '3.1.0': {
