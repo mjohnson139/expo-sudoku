@@ -202,6 +202,15 @@ const TOKEN_PARTS = /^([UDLRFBMESudlrfbxyz]w?)([2'’]*)$/;
  * Fold a move into the one already written when they are the same turn twice —
  * `… R` plus another `R` becomes `… R2`.
  *
+ * **Not currently wired.** It was the gesture's version of the pad's second tap,
+ * but folding `F F` into `F2` on a gesture commit *promotes* the move — changes
+ * its `amount` from a quarter to a half — and the renderer keys its polygons by
+ * where the move sends them, so the promotion remounts the whole layer mid-turn
+ * and flashes (`docs/cube-touch-exploration.md` §8.10). The pad promotes from a
+ * resting quarter, where the remount is invisible; a gesture cannot, so the
+ * gesture appends `F F` raw. This stays, tested, for the day the renderer can be
+ * handed a changing sweep without remounting (§8.2's standing prerequisite).
+ *
  * The sibling of `promoteLastToken`, for moves that arrive by **gesture** rather
  * than by a second tap on a key. It cannot reuse that one: the pad knows it was
  * pressed twice and can work on the key's name, while a turned layer knows only

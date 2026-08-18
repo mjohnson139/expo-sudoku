@@ -27,7 +27,6 @@ import {
   appendToken,
   applyPadPress,
   cancelInverse,
-  condenseRepeat,
   dropLastToken,
   promoteLastToken,
 } from './solve';
@@ -290,13 +289,14 @@ const CubeSolve = ({ navigation }) => {
   useAppBackground(useCallback(() => setGestureTurn(null), []));
 
   /**
-   * A drag that has reached its detent — three things it can turn out to be.
+   * A drag that has reached its detent — two things it can turn out to be.
    *
    * **A cancel**, if this move undoes the one just written: figuring a piece out,
-   * not solving, so both come off (see the body, and `solve.js`). **A condense**,
-   * if it is the same turn twice: `R R` is one `R2`. **Otherwise an append.** All three go through `editOpen` + `withMoves`, the doors every
-   * edit goes through, so a gesture move is undoable, phase-clamped, persisted
-   * and comparable like any other.
+   * not solving, so both come off (see the body, and `solve.js`). **Otherwise an
+   * append** — always raw, never folded into the token before it (§8.10 for why
+   * a gesture cannot promote `F F` into `F2` without flashing). Both go through
+   * `editOpen` + `withMoves`, the doors every edit goes through, so a gesture
+   * move is undoable, phase-clamped, persisted and comparable like any other.
    *
    * Dropping the gesture's own frame waits a frame either way: the transport's
    * first frame lands at exactly the `t` this one is frozen at (an append) or
@@ -331,14 +331,17 @@ const CubeSolve = ({ navigation }) => {
       // what stops the transport animating it from zero and snapping the layer
       // back under the finger.
       handoff(t);
-      editOpen((current) =>
-        withMoves(
-          current,
-          // Turning the same layer the same way twice is one half turn, not two
-          // quarters — the gesture's version of the pad's second tap.
-          condenseRepeat(current.alg, move.token) ?? appendToken(current.alg, move.token)
-        )
-      );
+      // **Appended raw, never condensed into the token before it.** Folding two
+      // quarters into a half turn (`F F` → `F2`) is a *promotion*, and a
+      // promotion changes a move's `amount` from 1 to 2 — which is what the
+      // renderer keys its polygons by (`buildScene`: the key names where a face
+      // is going). The gesture drew the second quarter at `amount: 1`; the
+      // transport would redraw it as the `amount: 2` half turn, and revealing
+      // that swap mid-motion remounts the layer and flashes (§8.10). The pad's
+      // second tap promotes from a *resting* quarter, so its remount is
+      // invisible; a gesture promotes mid-turn, so it is not. `F F` is the same
+      // permutation as `F2` and reads fine — a tidy `F2` is not worth the flash.
+      editOpen((current) => withMoves(current, appendToken(current.alg, move.token)));
       requestAnimationFrame(() => setGestureTurn(null));
     },
     [solve, handoff, retract, editOpen]

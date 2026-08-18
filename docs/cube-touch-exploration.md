@@ -594,19 +594,14 @@ Open, and only a hand can close them:
    feedback. That may be enough — it is the feedback a real cube gives — or the
    first thing to add. §5.5's warning about style variants applies the moment it
    is.
-5. ~~**Two gesture turns in a row are `R R`, not `R2`.**~~ **Done** — turning the
-   same layer the same way twice folds into a half turn (`condenseRepeat`, beside
-   the pad's `promoteLastToken` in `solve.js`). It compares the *moves* rather
-   than a key's name, so `r` folds into `r2` and `R'` twice comes out `R2` rather
-   than the `R'2` a string concatenation would give. Quarters only: three in a
-   row leaves `R2 R`, exactly as a third tap on the pad does, and `R R'` is left
-   alone rather than silently eating a move that is still on screen.
-
-   The transport needed one line for it. A fold *rewrites* the last token instead
-   of adding one, which `promotedTurn` already recognises as the pad's second tap
-   — but a gesture has carried the layer part-way into that second quarter
-   before letting go, so the handoff's `t` is folded into where the half turn
-   picks up rather than the pad's flat halfway.
+5. **Two gesture turns in a row are `R R`, not `R2` — and that is now on purpose.**
+   `condenseRepeat` folded them into a half turn for a while, but folding a
+   gesture's second quarter *promotes* it (`amount` 1 → 2), and a promotion
+   remounts the layer mid-turn and flashes (§8.10). So the gesture appends `R R`
+   raw, which is the same permutation and reads fine. `condenseRepeat` stays in
+   `solve.js`, tested and unwired, for the day the renderer can promote without
+   remounting (§8.2). The pad still writes `R2` from two taps, where the promotion
+   happens at rest and does not flash.
 
 ## 6. How to know it worked
 
@@ -925,3 +920,39 @@ frame, so nothing about which token gets written changed. `NEAR_MARGIN = 0.12` o
 the cube's edge is the first guess at "within a fingertip", and the dial to bring
 to the phone: too small and corners still pan, too large and a drag in the empty
 margin turns when it meant to orbit.
+
+### 8.10 The flash came back on the facing face — a gesture cannot promote (added 2026-08-18)
+
+The flashing this whole spike has fought (§8.2) returned on the front face, every
+*other* same-direction spin (operator, device). The corner-zone gesture (§3.3d)
+made spinning one face repeatedly easy, and that surfaced a latent bug in the one
+place a gesture changes a move's `amount` mid-flight.
+
+**The mechanism, exactly.** `buildScene` keys every polygon by *where the move
+sends it* — `settle(pos, axis, amount)`, the destination. That is deliberate: it
+holds a polygon's key still across a turn so React re-renders rather than
+remounts the 54 faces (§8.2). But the key depends on `amount`, and
+`condenseRepeat` *promoted* a gesture's second same-direction quarter — `F` then
+`F` folded to `F2`, a quarter (`amount: 1`) rewritten as a half (`amount: 2`).
+The gesture drew the second quarter at `amount: 1`; the transport then redrew it
+as the `amount: 2` half turn (`promotedTurn`), the keys changed from `settle(pos,
+1)` to `settle(pos, 2)`, and every polygon in the layer remounted. Revealed
+mid-motion — as the gesture's held frame handed over to the transport — that
+remount is the flash. Only the *condensing* commit promotes, which is why it was
+every other spin.
+
+**Why the pad's `F F` → `F2` does not flash and a gesture's does.** The pad
+promotes on its second *tap*, from a layer resting at a landed quarter (90°); the
+remount happens on a still frame and is invisible, exactly as the remount at the
+end of every ordinary turn is. A gesture promotes *mid-turn*, with the layer
+actively rotating, so the recreated nodes appear against a moving picture — and
+flash.
+
+**The fix: a gesture does not promote.** `commitTurn` appends the raw token, so
+`F F` stays `F F` — the same permutation as `F2`, drawn as two clean quarters
+with no `amount` change and no remount. `condenseRepeat` stays in `solve.js`,
+tested and unwired, waiting on §8.2's standing prerequisite: a renderer that can
+be handed a changing sweep without remounting, which is a question about what a
+polygon's key should be (source, not destination?) and not a question about
+gestures. Until then, a tidy `F2` from a finger is not worth the flash. The pad
+still writes `F2` from two taps, unchanged.

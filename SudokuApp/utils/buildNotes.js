@@ -29,7 +29,6 @@ const BUILD_NOTES = {
       'Land on the line between two pieces instead of the middle of a sticker and both layers turn — a wide turn, r or l',
       'The face pointing at you turns by drawing a right angle: a short leg, a corner, and the face goes the way the corner went',
       'Or turn the face pointing at you the easy way: put a finger on a corner of it and drag round — the face spins the way your finger goes',
-      'Turning the same layer the same way twice writes one half turn — R2 rather than R R',
       'Only on the solve screen, and only once the hold is locked in: inspection is still panning to choose how you hold the cube',
       'Turn a layer and immediately turn it straight back and both come off the solve — figuring a piece out is not a move you keep',
     ]
