@@ -240,6 +240,55 @@ the web container's padding is not a phone's safe area.
 
 ---
 
+## What landed in Step 3.5 (read this before Step 4)
+
+**Turning the cube by dragging it** — an unplanned step that grew into the epic's
+primary input. A finger writes every layer, every wide, and the face pointing at
+you — landing on its corner and dragging round (§3.3d), or drawing a right angle
+(§3.3c). Two same-direction spins tidy to `F2`; a move and its inverse leave no
+trace. A finger on or at the cube always turns; only two fingers (or a finger
+clearly off it) orbit. `docs/cube-flow-plan.md` §3.3.5 is the epic view with the
+full landed note; the design brief is `docs/cube-touch-exploration.md`, whose
+**§8 is the part to read first** — §8.7–§8.10 are the flash saga and its
+resolution. All under `games/cube/` (`CubeSolve.js`, `CubeView.js`,
+`geometry.js`, `useCubeTouch.js`, `useScramblePlayer.js`, `touchTurn.js`,
+`solve.js`, plus new files) — **none of what Step 4 touches.**
+
+**Device pass: passed, 2026-08-18** (operator, `pr-114` preview), over several
+rounds — the only evidence that counts here, because this is gesture and
+animation and the browser and `npm test` see almost none of it. Each round found
+something a browser could not and it was fixed on the same build: the facing-face
+**flash** on repeated spins (a promotion re-keying the layer mid-turn), the same
+flash on a **cancel** (`L L'`, sometimes delayed), and a **corner grab that
+panned** instead of turning. The last build the operator signed off carried all
+three fixes.
+
+**What it changed for the steps below — the plan is updated, this is the index:**
+
+- **The drawing/storage seam is now a rule for everyone (§5, §8.10).** A move is
+  *drawn* as the one quarter the finger turned; any *storage* tidy (the `F2`
+  fold, the cancelled-pair drop) runs after the turn settles, on the transport's
+  new `afterSettle` hook — because rewriting a move's `amount` mid-animation
+  remounts the layer and flashes. Any new move-entry path obeys it.
+- **Step 6 (undo/redo) gained two constraints.** The deferred fold/cancel must
+  **coalesce** into one undo unit (a spin is one undo; a cancelled `L L'` is not
+  resurrectable), and undo/redo must have a home **off the pad** (on
+  `CubeContext`, mirrored by a strip beside the scrubber) because Step 9 hides it.
+- **Step 8 / new Step 9.** The pad can now be *hidden*, not just shrunk — the
+  swipe mode of **Step 9**, the concrete answer to V1's open question 13. Step 3.5
+  did not touch `PAD_LAYOUT`, so Steps 5, 6 and 8 are unchanged as written.
+- **A browser pass no longer covers the primary input path** — gesture is
+  orbit-only on web, so what a browser cannot see is now the main way a move gets
+  written. Say which behaviours a browser pass actually covered.
+
+**Two things it deferred, both designed and both waiting:** configurable gesture
+profiles (`cube-touch-exploration.md` §8.4 — the `recognize(...)` seam, tuning
+already an argument everywhere) and swipe mode (Step 9). And a mistake counter was
+built and taken back out — `cancelInverse`/`cancelTail` stay, the `mistakes` field
+does not.
+
+---
+
 ## Next step — Step 4: method as data
 
 `docs/cube-flow-plan.md` §3.4 is the brief. Step 3 gave a solve a card; this step
@@ -362,6 +411,16 @@ want a drilling session rather than an opinion:
    what a stored field *means*, not a UI tweak — so it wants the operator's word,
    and **Step 4 is a natural place to take it**, since Step 4 is already touching
    the record.
+9. **New in Step 3.5:** should a fold or a cancel be undoable, or invisible to the
+   undo ring? Step 6 coalesces them into one unit; the open part is whether a
+   cancelled `L L'` comes *back* on undo or is gone for good.
+10. **New in Step 3.5:** does the pad auto-hide when a finger starts writing, or
+    only toggle? Step 9 ships the toggle and leaves the auto-hide to a drilling
+    session — it is invisible, which is question 3's standing objection.
+11. **New in Step 3.5:** where do the three preferences live — the gesture profile
+    (§8.4), the tuning numbers, the swipe-mode toggle? None is authored work or
+    view state; decide the settings store once, before the second one invents its
+    own.
 
 **Three things Step 3's device pass settled by silence rather than by answer**,
 and none of them are open any more: the 14-point list peek reads as "more below",

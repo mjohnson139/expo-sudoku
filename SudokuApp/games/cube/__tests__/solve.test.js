@@ -18,6 +18,10 @@ import {
   appendAlg,
   appendToken,
   applyPadPress,
+  cancelInverse,
+  cancelTail,
+  condenseRepeat,
+  consolidateTail,
   describeSolve,
   describeToken,
   dropLastToken,
@@ -27,7 +31,7 @@ import {
   solveError,
 } from '../solve';
 import { cubeFromAlg } from '../cubeState';
-import { isValidAlg, parseMove, tokenize } from '../moves';
+import { isValidAlg, parseAlg, parseMove, tokenize } from '../moves';
 
 describe('PAD_LAYOUT', () => {
   it('fills a six-by-three grid exactly', () => {
@@ -437,5 +441,182 @@ describe('describeToken', () => {
   it('names the two slices the pad only just gained', () => {
     expect(describeToken('E')).toBe('E slice');
     expect(describeToken("S'")).toBe('S slice prime');
+  });
+});
+
+describe('condenseRepeat', () => {
+  it('folds the same quarter turn twice into a half turn', () => {
+    expect(condenseRepeat('R', 'R')).toBe('R2');
+    expect(condenseRepeat('F U R', 'R')).toBe('F U R2');
+  });
+
+  it('folds two primes the same way, and spells it without the prime', () => {
+    // Two counter-clockwise quarters are a half turn, and a half turn has no
+    // direction — `R'2` would parse, but nobody writes it.
+    expect(condenseRepeat("R'", "R'")).toBe('R2');
+  });
+
+  it('folds a wide turn into its own half turn', () => {
+    expect(condenseRepeat('r', 'r')).toBe('r2');
+    expect(condenseRepeat("l'", "l'")).toBe('l2');
+  });
+
+  it('folds slices too', () => {
+    expect(condenseRepeat('M', 'M')).toBe('M2');
+  });
+
+  it('is not the one that handles a move and its inverse — cancelInverse is', () => {
+    // A quarter and its own inverse compose to nothing, which is a cancel, not a
+    // condense. condenseRepeat says "not mine" (null) and the commit path tries
+    // cancelInverse first.
+    expect(condenseRepeat('R', "R'")).toBeNull();
+    expect(condenseRepeat("R'", 'R')).toBeNull();
+  });
+
+  it('does not fold a third turn — that is a new move, as it is on the pad', () => {
+    expect(condenseRepeat('R2', 'R')).toBeNull();
+    expect(condenseRepeat('R', 'R2')).toBeNull();
+  });
+
+  it('refuses anything that is not the same layer of the same axis', () => {
+    expect(condenseRepeat('R', 'L')).toBeNull();
+    expect(condenseRepeat('R', 'U')).toBeNull();
+    expect(condenseRepeat('R', 'M')).toBeNull();
+    // A face and its wide turn are different layers, whatever the letter.
+    expect(condenseRepeat('R', 'r')).toBeNull();
+  });
+
+  it('has nothing to fold into on an empty solve', () => {
+    expect(condenseRepeat('', 'R')).toBeNull();
+  });
+
+  it('leaves the rest of the algorithm exactly as it was written', () => {
+    expect(condenseRepeat("r U r' F", 'F')).toBe("r U r' F2");
+  });
+});
+
+describe('cancelInverse', () => {
+  it('drops a quarter turn when its own inverse arrives', () => {
+    expect(cancelInverse('R', "R'")).toBe('');
+    expect(cancelInverse("R'", 'R')).toBe('');
+    expect(cancelInverse('F U R', "R'")).toBe('F U');
+  });
+
+  it('cancels two half turns of the same layer', () => {
+    // R2 R2 is the identity as much as R R' is.
+    expect(cancelInverse('R2', 'R2')).toBe('');
+    expect(cancelInverse('F R2', 'R2')).toBe('F');
+  });
+
+  it('cancels a wide turn against its own inverse, by move not by letter', () => {
+    expect(cancelInverse('r', "r'")).toBe('');
+    expect(cancelInverse("l'", 'l')).toBe('');
+    // A face and its wide turn share a letter and are different layers.
+    expect(cancelInverse('R', "r'")).toBeNull();
+  });
+
+  it('cancels a slice against its inverse', () => {
+    expect(cancelInverse('M', "M'")).toBe('');
+  });
+
+  it('does not touch a pair that composes to a real move', () => {
+    // R then R2 is a net R' — a move, not a fumble.
+    expect(cancelInverse('R', 'R2')).toBeNull();
+    expect(cancelInverse('R2', 'R')).toBeNull();
+    // R then R is a half turn — condenseRepeat's job, not this one.
+    expect(cancelInverse('R', 'R')).toBeNull();
+  });
+
+  it('refuses a different layer or axis', () => {
+    expect(cancelInverse('R', 'L')).toBeNull();
+    expect(cancelInverse('R', "U'")).toBeNull();
+    expect(cancelInverse('R', "M'")).toBeNull();
+  });
+
+  it('has nothing to cancel on an empty solve', () => {
+    expect(cancelInverse('', "R'")).toBeNull();
+  });
+
+  it('only ever looks at the last token', () => {
+    // The R' cancels the R it follows, and leaves the U in front of it.
+    expect(cancelInverse('U R', "R'")).toBe('U');
+    // A U' does not reach past the R to the U.
+    expect(cancelInverse('U R', "U'")).toBeNull();
+  });
+
+  it('leaves the rest of the algorithm exactly as written', () => {
+    expect(cancelInverse("r U r' R", "R'")).toBe("r U r'");
+  });
+});
+
+describe('consolidateTail', () => {
+  it('folds the last two quarters of the same turn into a half', () => {
+    expect(consolidateTail('F F')).toBe('F2');
+    expect(consolidateTail('U R F F')).toBe('U R F2');
+    expect(consolidateTail("R' R'")).toBe('R2');
+    expect(consolidateTail('r r')).toBe('r2');
+  });
+
+  it('is null when the last two do not fold', () => {
+    expect(consolidateTail('F R')).toBeNull();
+    // A quarter and its inverse compose to nothing, not a half — cancelInverse's
+    // job at commit, and by the time this runs they are already gone.
+    expect(consolidateTail("F F'")).toBeNull();
+    // Only quarters fold, and only into a half.
+    expect(consolidateTail('F2 F')).toBeNull();
+    expect(consolidateTail('F F2')).toBeNull();
+  });
+
+  it('needs two tokens to fold', () => {
+    expect(consolidateTail('F')).toBeNull();
+    expect(consolidateTail('')).toBeNull();
+  });
+
+  it('only ever folds the tail, leaving the rest exactly as written', () => {
+    expect(consolidateTail("r U r' F F")).toBe("r U r' F2");
+    // A fold-able pair earlier in the algorithm is not the tail and is left alone.
+    expect(consolidateTail('F F R')).toBeNull();
+  });
+});
+
+describe('cancelTail', () => {
+  it('drops a cancelling pair at the tail', () => {
+    expect(cancelTail("L L'")).toBe('');
+    expect(cancelTail("F R L L'")).toBe('F R');
+    expect(cancelTail("R' R")).toBe('');
+    expect(cancelTail('R2 R2')).toBe('');
+  });
+
+  it('is null when the last two do not cancel', () => {
+    expect(cancelTail('L R')).toBeNull();
+    // Two of the same quarter is a fold, not a cancel.
+    expect(cancelTail('L L')).toBeNull();
+    // A quarter and a half do not compose to nothing.
+    expect(cancelTail("L2 L")).toBeNull();
+  });
+
+  it('cancels by move, not by letter — a face and its wide turn do not pair', () => {
+    expect(cancelTail("r r'")).toBe('');
+    expect(cancelTail("R r'")).toBeNull();
+  });
+
+  it('needs two tokens', () => {
+    expect(cancelTail("L'")).toBeNull();
+    expect(cancelTail('')).toBeNull();
+  });
+
+  it('only ever touches the tail', () => {
+    // A cancelling pair earlier is not the tail.
+    expect(cancelTail("L L' R")).toBeNull();
+    expect(cancelTail("U L L'")).toBe('U');
+  });
+
+
+
+  it('produces something the parser reads back as the same two turns', () => {
+    const folded = condenseRepeat('R', 'R');
+    expect(parseAlg(folded)).toHaveLength(1);
+    expect(parseAlg(folded)[0].amount).toBe(2);
+    expect(parseAlg(folded)[0].axis).toBe(parseMove('R').axis);
   });
 });

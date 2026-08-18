@@ -262,8 +262,12 @@ const AMBIENT = 0.66;
  * Two in-plane unit vectors for an axis-aligned face normal. Any orthonormal
  * pair works — the polygons are filled from an explicit normal, so winding
  * carries no meaning here.
+ *
+ * Exported for `touchTurn.js`, which spans a dragged face with the *same* pair
+ * the renderer drew it with. Two implementations of "the directions you can
+ * slide along this face" is two chances to disagree about which way is which.
  */
-const faceBasis = (n) => {
+export const faceBasis = (n) => {
   if (n[0] !== 0) return [[0, 0, 1], [0, 1, 0]];
   if (n[1] !== 0) return [[1, 0, 0], [0, 0, 1]];
   return [[1, 0, 0], [0, 1, 0]];
@@ -352,6 +356,16 @@ const spinFor = (turn) => {
 };
 
 /**
+ * Perspective divide: a point already turned into view space → screen points.
+ * `y` is negated because screen coordinates grow downward and the model's do
+ * not.
+ */
+const projectView = (v, focal, half) => {
+  const s = focal / (CAMERA_DISTANCE - v[2]);
+  return [half + v[0] * s, half - v[1] * s];
+};
+
+/**
  * Scale that keeps the cube the same size at every angle.
  *
  * Fitting the cube's *own* eight corners each frame would be tighter, but the
@@ -360,6 +374,24 @@ const spinFor = (turn) => {
  */
 const focalFor = (size) =>
   ((size / 2) * FILL * Math.sqrt(CAMERA_DISTANCE ** 2 - CUBE_RADIUS ** 2)) / CUBE_RADIUS;
+
+/**
+ * Model point → screen point, for the same camera `buildScene` is using.
+ *
+ * `buildScene` needs this in two halves (it culls against a view-space centre it
+ * has already computed, so it projects a point that is *already* orbited), which
+ * is why the divide lives in `projectView` and this composes it with `orbit`.
+ * Callers outside the renderer only ever have model coordinates.
+ *
+ * It exists for `touchTurn.js`: turning a finger's drag into a move means asking
+ * where a face's in-plane directions *point on screen*, and the honest answer to
+ * that is this projection rather than an approximation of it.
+ */
+export const projector = ({ size, yaw, pitch }) => {
+  const focal = focalFor(size);
+  const half = size / 2;
+  return (p) => projectView(orbit(p, yaw, pitch), focal, half);
+};
 
 /**
  * Build one frame: every visible face of the cube, as flat polygons in screen
@@ -392,17 +424,20 @@ const focalFor = (size) =>
  * @param {Object<string,string>} options.colors face letter → hex
  * @param {{axis: number, layers: number[], amount: number, t: number}} [options.turn]
  *   a move in progress, `t` from 0 (not started) to 1 (landed)
- * @returns {{polygons: Array<{key: string, points: number[][], fill: string}>}}
+ * @returns {{polygons: Array<{key: string, kind: 'tile'|'body'|'seam',
+ *   pos: number[], normal: number[], points: number[][], fill: string}>}}
+ *   `pos` and `normal` name the sticker in the model frame; `kind` says whether
+ *   the polygon is its coloured tile, the plastic under it, or a seam a turn cut
+ *   open. Ordered back to front, so the **last** polygon containing a point is
+ *   the frontmost one — which is what makes picking a point-in-polygon test
+ *   rather than a ray cast.
  */
 export const buildScene = (cube, { size, yaw, pitch, colors, turn = null }) => {
   const focal = focalFor(size);
   const half = size / 2;
   const spin = spinFor(turn);
 
-  const project = (p) => {
-    const s = focal / (CAMERA_DISTANCE - p[2]);
-    return [half + p[0] * s, half - p[1] * s];
-  };
+  const project = (p) => projectView(p, focal, half);
 
   const faces = [];
 
@@ -419,8 +454,12 @@ export const buildScene = (cube, { size, yaw, pitch, colors, turn = null }) => {
    * the same square.
    *
    * `fill` is the sticker colour, or null for a seam, which is bare plastic.
+   *
+   * `id` is `{ pos, normal }` in the model frame — the same pair the key is spelt
+   * from, kept as vectors so a caller that needs to know *which sticker this is*
+   * can read it rather than parse the key back apart (see `touchTurn.pickFace`).
    */
-  const addFace = (key, home, homeNormal, fill, carry) => {
+  const addFace = (key, id, home, homeNormal, fill, carry) => {
     const at = carry ? carry(home) : home;
     const normal = carry ? carry(homeNormal) : homeNormal;
 
@@ -451,6 +490,9 @@ export const buildScene = (cube, { size, yaw, pitch, colors, turn = null }) => {
 
     faces.push({
       key,
+      pos: id.pos,
+      normal: id.normal,
+      seam: fill === null,
       depth: centre[2],
       body: points(BODY_HALF, BODY_HALF),
       tile: fill ? points(STICKER_LIFT, STICKER_HALF) : null,
@@ -473,6 +515,7 @@ export const buildScene = (cube, { size, yaw, pitch, colors, turn = null }) => {
       const keyNormal = carried ? spin.settle(sticker.normal) : sticker.normal;
       addFace(
         `${keyPos.join(',')}|${keyNormal.join(',')}`,
+        { pos: keyPos, normal: keyNormal },
         home,
         carried ? spin.place(sticker.normal) : sticker.normal,
         colors[sticker.face],
@@ -504,6 +547,7 @@ export const buildScene = (cube, { size, yaw, pitch, colors, turn = null }) => {
         const keyNormal = carried ? spin.settle(direction) : direction;
         addFace(
           `seam|${keyPos.join(',')}|${keyNormal.join(',')}`,
+          { pos: keyPos, normal: keyNormal },
           home,
           direction,
           null,
@@ -515,10 +559,28 @@ export const buildScene = (cube, { size, yaw, pitch, colors, turn = null }) => {
 
   faces.sort((a, b) => a.depth - b.depth);
 
+  // Each polygon carries the sticker it belongs to. `kind` is what tells a
+  // pickable surface from the inside of a turning cube: a seam is plastic the
+  // move cut open, and a finger landing on one has not landed on a sticker.
   const polygons = [];
   faces.forEach((face) => {
-    polygons.push({ key: `${face.key}:body`, points: face.body, fill: face.bodyFill });
-    if (face.tile) polygons.push({ key: `${face.key}:tile`, points: face.tile, fill: face.fill });
+    const id = { pos: face.pos, normal: face.normal };
+    polygons.push({
+      key: `${face.key}:body`,
+      kind: face.seam ? 'seam' : 'body',
+      ...id,
+      points: face.body,
+      fill: face.bodyFill,
+    });
+    if (face.tile) {
+      polygons.push({
+        key: `${face.key}:tile`,
+        kind: 'tile',
+        ...id,
+        points: face.tile,
+        fill: face.fill,
+      });
+    }
   });
 
   return { polygons };

@@ -101,6 +101,12 @@ const useScramblePlayer = (alg, from) => {
   // The caller's half of an undo — dropping the move — held until the backwards
   // turn has run. See `retract`.
   const retractRef = useRef(null);
+  // How far round the *next* appended move already is. See `handoff`.
+  const handoffRef = useRef(null);
+  // A data-only edit to run once the cube is next at rest — the merge of two
+  // quarters into a half turn, which must happen *after* the second quarter has
+  // animated so the promotion never redraws mid-turn (`afterSettle`).
+  const afterSettleRef = useRef(null);
 
   movesRef.current = moves;
 
@@ -155,6 +161,29 @@ const useScramblePlayer = (alg, from) => {
   }, []);
 
   /**
+   * Run the edit that was waiting for the cube to come to rest, if any.
+   *
+   * **Only on a *natural* completion** — the end of a tick — never from `settle`,
+   * which lands the *previous* turn at the *start* of the next `animate`. Firing
+   * it there would run the merge before the move it belongs to had drawn. So the
+   * consolidation of two quarters into a half turn waits for the second quarter
+   * to finish animating and then rewrites the token, and because the cube is
+   * settled and the half turn is the same permutation as the two quarters, the
+   * effect below settles rather than animating — the flash never happens
+   * (docs/cube-touch-exploration.md §8.10). Drawing and storage, kept apart.
+   */
+  const flushAfterSettle = useCallback(() => {
+    const owed = afterSettleRef.current;
+    afterSettleRef.current = null;
+    if (owed) owed();
+  }, []);
+
+  /** Register `fn` to run the next time the cube settles from an animation. */
+  const afterSettle = useCallback((fn) => {
+    afterSettleRef.current = fn;
+  }, []);
+
+  /**
    * Stop, and land whatever was mid-air.
    *
    * A turn frozen half-way is a cube in a position no cube can be in, and the
@@ -174,7 +203,14 @@ const useScramblePlayer = (alg, from) => {
     setTurn(null);
     setIndex(pending.forward ? pending.at + 1 : pending.at);
     flushRetract();
-  }, [flushRetract, setIndex, stopClock]);
+    // A move that was interrupted before it finished still *landed* here, so its
+    // waiting data step (the fold, the cancel-drop) runs now rather than
+    // lingering to fire on some later, unrelated animation. **Only when a turn
+    // was actually pending** — an `animate` that opens with nothing in flight
+    // (a fresh gesture's first move) must not trigger a step meant for the move
+    // it is about to draw.
+    flushAfterSettle();
+  }, [flushRetract, flushAfterSettle, setIndex, stopClock]);
 
   /**
    * Animate move `at`, forwards or backwards.
@@ -229,11 +265,16 @@ const useScramblePlayer = (alg, from) => {
         setTurn(null);
         setIndex(forward ? at + 1 : at);
         if (onDone) onDone();
+        // The move has landed and the cube is at rest — the one moment a
+        // data-only rewrite (two quarters → a half turn) can be applied without
+        // it redrawing. Deliberately not in `settle`: that runs at the *start*
+        // of the next animate, before this move has drawn.
+        flushAfterSettle();
       };
 
       frameRef.current = requestAnimationFrame(tick);
     },
-    [setIndex, settle]
+    [setIndex, settle, flushAfterSettle]
   );
 
   // One move toward the goal, plus a beat, then itself again — checking on each
@@ -335,7 +376,7 @@ const useScramblePlayer = (alg, from) => {
    * back and the reset does the work.
    */
   const retract = useCallback(
-    (onDone) => {
+    (onDone, from) => {
       // Pays off any undo still in the air first, so hammering the button
       // removes one move per tap rather than losing the ones that overlap.
       pause();
@@ -346,7 +387,12 @@ const useScramblePlayer = (alg, from) => {
         return;
       }
 
-      animate(at - 1, false, flushRetract);
+      // `from` is how far the move is *still applied* — the pad's backspace omits
+      // it and undoes a whole move from `t = 1`, while a gesture that dragged the
+      // move most of the way back already hands over the little that is left, so
+      // the finger's last frame and the sweep's first are the same picture. The
+      // backwards twin of `handoff`.
+      animate(at - 1, false, flushRetract, Number.isFinite(from) ? { from } : undefined);
       // After `animate`, never before: it settles on the way in, and settling
       // is one of the things that pays this off.
       retractRef.current = onDone;
@@ -375,6 +421,12 @@ const useScramblePlayer = (alg, from) => {
     stopClock();
     pendingRef.current = null;
     retractRef.current = null;
+    // A gesture hands the transport its `t` and appends in the same tick, so a
+    // handoff outliving that tick takes leaving the app in between. Cleared here
+    // anyway, beside the other two: this is the function that says what the
+    // transport looks like on the way back, and a handoff left lying around
+    // would start whatever is appended next part-way round.
+    handoffRef.current = null;
     goalRef.current = movesRef.current.length;
     setTurn(null);
     setPlaying(false);
@@ -404,6 +456,25 @@ const useScramblePlayer = (alg, from) => {
     [pause, setIndex]
   );
 
+  /**
+   * "The next move appended is already `t` of the way round."
+   *
+   * A move entered by *dragging the layer* (`useCubeTouch`) has been turning
+   * under a finger before it was ever a token, and it arrives here the way every
+   * other edit does — as a longer algorithm. Without this the growth below would
+   * animate it from zero, which snaps the layer back to where the drag started
+   * and turns it a second time.
+   *
+   * It is one call rather than an argument to `playTo` because it describes one
+   * *edit*, not a mode: the caller says it immediately before the append that it
+   * belongs to, and anything else that changes the algorithm first clears it. The
+   * sweep itself is `animate`'s existing `from` — the same option the pad's
+   * promotion carries the second quarter of an `R2` on, for the same reason.
+   */
+  const handoff = useCallback((t) => {
+    handoffRef.current = Number.isFinite(t) ? Math.max(0, Math.min(1, t)) : null;
+  }, []);
+
   // A new scramble — or a favorite loaded back — opens fully applied, which is
   // the cube this screen showed before it could play anything. Where you were
   // in the last scramble is not somewhere to be in this one.
@@ -432,7 +503,22 @@ const useScramblePlayer = (alg, from) => {
       previousFrom === from &&
       extendsAlg(previousAlg, alg, heading);
 
+    // Claimed by whichever change arrives next, and spent by that one only: a
+    // handoff left lying around would start some later, unrelated move part-way
+    // through itself.
+    const resumeFrom = handoffRef.current;
+    handoffRef.current = null;
+
     if (growing) {
+      // One move, added on the end, already part-way round because a finger put
+      // it there. Carry on from where the drag left it instead of starting over.
+      if (resumeFrom !== null && moves.length === heading + 1) {
+        goalRef.current = moves.length;
+        setPlaying(false);
+        animate(moves.length - 1, true, undefined, { from: resumeFrom });
+        return;
+      }
+
       // Settles the in-flight turn and walks on from there; if nothing was
       // added after all, it is a no-op.
       playTo(moves.length);
@@ -452,7 +538,13 @@ const useScramblePlayer = (alg, from) => {
     if (carry) {
       goalRef.current = moves.length;
       setPlaying(false);
-      animate(carry.at, true, undefined, { from: 0.5, turns: carry.turns });
+      // Half-way is where the *pad's* second tap finds the layer: the first
+      // quarter has landed and the second has not begun. A **gesture** has
+      // already carried it part of the way into that second quarter, and its `t`
+      // is a fraction of a quarter — half a fraction of the half turn now being
+      // drawn.
+      const from = resumeFrom !== null ? 0.5 + resumeFrom * 0.5 : 0.5;
+      animate(carry.at, true, undefined, { from, turns: carry.turns });
       return;
     }
 
@@ -501,6 +593,8 @@ const useScramblePlayer = (alg, from) => {
     stepBack,
     retract,
     seek,
+    handoff,
+    afterSettle,
     cycleSpeed,
   };
 };
