@@ -13,6 +13,14 @@ const BUILD_NOTES = {
       'Leaving a solve is the back chevron, the Android back button or the iOS edge swipe — the same gesture as anywhere else',
       'The solve screen names the page you are on and the scramble you are solving, so the line that used to say it under the pad is gone',
       'Background the app mid-solve and you come back to the solve, not to the scramble',
+      'The scramble screen lists the solves written against it, as cards — the one you are working on at the top',
+      'Each card says how many moves it holds and when you last wrote it: "12 moves · yesterday"',
+      'Tap a card to open that solve; "New solve" starts another one against the same scramble',
+      'Tap the ⋯ on a card to rename, duplicate, clear or delete that solve — pressing and holding the card does the same',
+      'New scramble and Save are icons on the header now, which is what freed the bottom of the screen for the list',
+      'Compare sits with the solves it compares, and appears once there are two attempts to compare',
+      'Coming back to the cube after backgrounding the app lands you exactly where you were — no spinner, and no solve sliding in over itself',
+      'The transport still starts fresh on the way back: the cube is whole and the speed is 1×, as it always was',
     ]
   },
   '3.1.0': {
