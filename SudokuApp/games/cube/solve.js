@@ -202,14 +202,15 @@ const TOKEN_PARTS = /^([UDLRFBMESudlrfbxyz]w?)([2'’]*)$/;
  * Fold a move into the one already written when they are the same turn twice —
  * `… R` plus another `R` becomes `… R2`.
  *
- * **Not currently wired.** It was the gesture's version of the pad's second tap,
- * but folding `F F` into `F2` on a gesture commit *promotes* the move — changes
- * its `amount` from a quarter to a half — and the renderer keys its polygons by
- * where the move sends them, so the promotion remounts the whole layer mid-turn
- * and flashes (`docs/cube-touch-exploration.md` §8.10). The pad promotes from a
- * resting quarter, where the remount is invisible; a gesture cannot, so the
- * gesture appends `F F` raw. This stays, tested, for the day the renderer can be
- * handed a changing sweep without remounting (§8.2's standing prerequisite).
+ * **Storage only — never on a live commit.** Folding `F F` into `F2` *promotes*
+ * the move, changing its `amount` from a quarter to a half, and the renderer keys
+ * its polygons by where the move sends them — so promoting a move while it is
+ * still animating remounts the whole layer and flashes (§8.10). The gesture
+ * therefore appends its quarter raw and animates it cleanly, and the fold is run
+ * by `consolidateTail` **after the turn has settled**, when the cube is at rest
+ * and the effect renders the rewrite as a no-op. Drawing and storage are two
+ * concerns and this is the seam between them. `condenseRepeat` is the predicate
+ * — *would* these two fold? — that decides whether to schedule that fold.
  *
  * The sibling of `promoteLastToken`, for moves that arrive by **gesture** rather
  * than by a second tap on a key. It cannot reuse that one: the pad knows it was
@@ -308,6 +309,22 @@ export const cancelInverse = (alg, token) => {
   if ((before.amount + added.amount) % 4 !== 0) return null;
 
   return tokens.slice(0, -1).join(' ');
+};
+
+/**
+ * Fold the **last two tokens already written** into a half turn, or `null` if
+ * they do not fold — the settled-storage half of `condenseRepeat`.
+ *
+ * `condenseRepeat` answers "would this incoming move fold into the last one?" and
+ * runs at commit, to decide whether a fold is coming. This runs *after* the move
+ * has landed, on the algorithm as it now stands, and does the fold: it is the
+ * same rule pointed at the tail rather than at an incoming token, so `F F`
+ * becomes `F2` on the settled cube where no redraw follows (§8.10).
+ */
+export const consolidateTail = (alg) => {
+  const tokens = tryTokenize(alg);
+  if (!tokens || tokens.length < 2) return null;
+  return condenseRepeat(tokens.slice(0, -1).join(' '), tokens[tokens.length - 1]);
 };
 
 /**

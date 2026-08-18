@@ -26,6 +26,7 @@ const BUILD_NOTES = {
       'A flick that is still travelling commits without having to get all the way there',
       'Two fingers always orbit, so there is a way to look around that can never be read as a turn',
       'A finger on the cube — even right at a corner — turns it and never pans; panning the view is a two-finger drag',
+      'Spin the same face the same way twice and it tidies up into a single half turn — F2 rather than F F — once the turn has finished',
       'Land on the line between two pieces instead of the middle of a sticker and both layers turn — a wide turn, r or l',
       'The face pointing at you turns by drawing a right angle: a short leg, a corner, and the face goes the way the corner went',
       'Or turn the face pointing at you the easy way: put a finger on a corner of it and drag round — the face spins the way your finger goes',

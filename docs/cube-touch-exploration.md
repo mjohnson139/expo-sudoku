@@ -594,14 +594,12 @@ Open, and only a hand can close them:
    feedback. That may be enough — it is the feedback a real cube gives — or the
    first thing to add. §5.5's warning about style variants applies the moment it
    is.
-5. **Two gesture turns in a row are `R R`, not `R2` — and that is now on purpose.**
-   `condenseRepeat` folded them into a half turn for a while, but folding a
-   gesture's second quarter *promotes* it (`amount` 1 → 2), and a promotion
-   remounts the layer mid-turn and flashes (§8.10). So the gesture appends `R R`
-   raw, which is the same permutation and reads fine. `condenseRepeat` stays in
-   `solve.js`, tested and unwired, for the day the renderer can promote without
-   remounting (§8.2). The pad still writes `R2` from two taps, where the promotion
-   happens at rest and does not flash.
+5. ~~**Two gesture turns in a row are `R R`, not `R2`.**~~ **Folded, after the
+   turn settles (§8.10).** The gesture appends its quarter raw and animates it
+   with no promotion; once the cube is at rest, `consolidateTail` rewrites the
+   last two quarters into `R2` as a data-only step the transport renders as a
+   settle. Drawing and storage kept apart, which is what let the fold come back
+   without the flash it caused when it lived on the live commit.
 
 ## 6. How to know it worked
 
@@ -956,3 +954,28 @@ be handed a changing sweep without remounting, which is a question about what a
 polygon's key should be (source, not destination?) and not a question about
 gestures. Until then, a tidy `F2` from a finger is not worth the flash. The pad
 still writes `F2` from two taps, unchanged.
+
+**Resolved — the fold is back, decoupled from the draw (2026-08-18).** The
+operator's framing was the fix: consolidating to `F2` is a *storage* concern and
+must have nothing to do with drawing. So the gesture appends its quarter raw and
+animates it cleanly — no promotion, no flash — and the fold runs **after the turn
+settles**, on a new `afterSettle` hook in `useScramblePlayer`. At that moment the
+cube is at rest, and `F F` → `F2` is the same permutation, so the transport's
+effect renders the rewrite as a settle rather than an animation. Nothing redraws.
+
+- **`afterSettle(fn)`** registers a data-only edit to run the next time an
+  animation *completes*, and it fires **only** from a tick's natural end, never
+  from `settle` — `settle` runs at the *start* of the next `animate`, to land the
+  previous turn, and firing the fold there would run it before the move it
+  belongs to had drawn.
+- **`condenseRepeat`** is now the *predicate* — would this incoming move fold? —
+  that `commitTurn` uses to decide whether to schedule the fold. **`consolidateTail`**
+  is the storage operation, the same rule pointed at the algorithm's last two
+  tokens after they have landed.
+- The seam is exactly the two-concerns split the operator named: the quarter is
+  drawn once, by the finger and the transport; the token is tidied once, later,
+  by the data layer, and neither reaches into the other.
+
+This also answers §8.2's standing note for this one case without the renderer
+rewrite it asked for: rather than teach the key to survive a changing sweep, the
+sweep is never changed — the promotion is replaced by a rest-state rewrite.

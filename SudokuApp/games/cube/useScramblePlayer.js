@@ -103,6 +103,10 @@ const useScramblePlayer = (alg, from) => {
   const retractRef = useRef(null);
   // How far round the *next* appended move already is. See `handoff`.
   const handoffRef = useRef(null);
+  // A data-only edit to run once the cube is next at rest — the merge of two
+  // quarters into a half turn, which must happen *after* the second quarter has
+  // animated so the promotion never redraws mid-turn (`afterSettle`).
+  const afterSettleRef = useRef(null);
 
   movesRef.current = moves;
 
@@ -154,6 +158,29 @@ const useScramblePlayer = (alg, from) => {
     const owed = retractRef.current;
     retractRef.current = null;
     if (owed) owed();
+  }, []);
+
+  /**
+   * Run the edit that was waiting for the cube to come to rest, if any.
+   *
+   * **Only on a *natural* completion** — the end of a tick — never from `settle`,
+   * which lands the *previous* turn at the *start* of the next `animate`. Firing
+   * it there would run the merge before the move it belongs to had drawn. So the
+   * consolidation of two quarters into a half turn waits for the second quarter
+   * to finish animating and then rewrites the token, and because the cube is
+   * settled and the half turn is the same permutation as the two quarters, the
+   * effect below settles rather than animating — the flash never happens
+   * (docs/cube-touch-exploration.md §8.10). Drawing and storage, kept apart.
+   */
+  const flushAfterSettle = useCallback(() => {
+    const owed = afterSettleRef.current;
+    afterSettleRef.current = null;
+    if (owed) owed();
+  }, []);
+
+  /** Register `fn` to run the next time the cube settles from an animation. */
+  const afterSettle = useCallback((fn) => {
+    afterSettleRef.current = fn;
   }, []);
 
   /**
@@ -231,11 +258,16 @@ const useScramblePlayer = (alg, from) => {
         setTurn(null);
         setIndex(forward ? at + 1 : at);
         if (onDone) onDone();
+        // The move has landed and the cube is at rest — the one moment a
+        // data-only rewrite (two quarters → a half turn) can be applied without
+        // it redrawing. Deliberately not in `settle`: that runs at the *start*
+        // of the next animate, before this move has drawn.
+        flushAfterSettle();
       };
 
       frameRef.current = requestAnimationFrame(tick);
     },
-    [setIndex, settle]
+    [setIndex, settle, flushAfterSettle]
   );
 
   // One move toward the goal, plus a beat, then itself again — checking on each
@@ -555,6 +587,7 @@ const useScramblePlayer = (alg, from) => {
     retract,
     seek,
     handoff,
+    afterSettle,
     cycleSpeed,
   };
 };

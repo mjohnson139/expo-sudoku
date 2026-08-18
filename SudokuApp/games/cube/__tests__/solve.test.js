@@ -20,6 +20,7 @@ import {
   applyPadPress,
   cancelInverse,
   condenseRepeat,
+  consolidateTail,
   describeSolve,
   describeToken,
   dropLastToken,
@@ -545,6 +546,37 @@ describe('cancelInverse', () => {
   it('leaves the rest of the algorithm exactly as written', () => {
     expect(cancelInverse("r U r' R", "R'")).toBe("r U r'");
   });
+});
+
+describe('consolidateTail', () => {
+  it('folds the last two quarters of the same turn into a half', () => {
+    expect(consolidateTail('F F')).toBe('F2');
+    expect(consolidateTail('U R F F')).toBe('U R F2');
+    expect(consolidateTail("R' R'")).toBe('R2');
+    expect(consolidateTail('r r')).toBe('r2');
+  });
+
+  it('is null when the last two do not fold', () => {
+    expect(consolidateTail('F R')).toBeNull();
+    // A quarter and its inverse compose to nothing, not a half — cancelInverse's
+    // job at commit, and by the time this runs they are already gone.
+    expect(consolidateTail("F F'")).toBeNull();
+    // Only quarters fold, and only into a half.
+    expect(consolidateTail('F2 F')).toBeNull();
+    expect(consolidateTail('F F2')).toBeNull();
+  });
+
+  it('needs two tokens to fold', () => {
+    expect(consolidateTail('F')).toBeNull();
+    expect(consolidateTail('')).toBeNull();
+  });
+
+  it('only ever folds the tail, leaving the rest exactly as written', () => {
+    expect(consolidateTail("r U r' F F")).toBe("r U r' F2");
+    // A fold-able pair earlier in the algorithm is not the tail and is left alone.
+    expect(consolidateTail('F F R')).toBeNull();
+  });
+
 
   it('produces something the parser reads back as the same two turns', () => {
     const folded = condenseRepeat('R', 'R');

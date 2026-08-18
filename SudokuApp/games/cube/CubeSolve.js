@@ -27,6 +27,8 @@ import {
   appendToken,
   applyPadPress,
   cancelInverse,
+  condenseRepeat,
+  consolidateTail,
   dropLastToken,
   promoteLastToken,
 } from './solve';
@@ -246,7 +248,7 @@ const CubeSolve = ({ navigation }) => {
   const startingCube = useMemo(() => orientedCube, [orientedCube, openId]);
 
   const player = useScramblePlayer(solve, startingCube);
-  const { handoff, pause, playTo, retract, seek } = player;
+  const { afterSettle, handoff, pause, playTo, retract, seek } = player;
 
   const onOrbit = useCallback(
     (nextYaw, nextPitch) => {
@@ -331,20 +333,29 @@ const CubeSolve = ({ navigation }) => {
       // what stops the transport animating it from zero and snapping the layer
       // back under the finger.
       handoff(t);
-      // **Appended raw, never condensed into the token before it.** Folding two
-      // quarters into a half turn (`F F` → `F2`) is a *promotion*, and a
-      // promotion changes a move's `amount` from 1 to 2 — which is what the
-      // renderer keys its polygons by (`buildScene`: the key names where a face
-      // is going). The gesture drew the second quarter at `amount: 1`; the
-      // transport would redraw it as the `amount: 2` half turn, and revealing
-      // that swap mid-motion remounts the layer and flashes (§8.10). The pad's
-      // second tap promotes from a *resting* quarter, so its remount is
-      // invisible; a gesture promotes mid-turn, so it is not. `F F` is the same
-      // permutation as `F2` and reads fine — a tidy `F2` is not worth the flash.
+      // **The quarter is appended raw and animates cleanly; the fold into a half
+      // turn is a separate, later step.** Folding `F F` → `F2` at commit would
+      // *promote* the move — quarter (`amount: 1`) rewritten as a half
+      // (`amount: 2`) — and the renderer keys its polygons by where a move sends
+      // them, so promoting a move that is still animating remounts the layer and
+      // flashes (§8.10). So the token goes in raw, the transport draws the one
+      // quarter the finger turned, and if that quarter completes a pair,
+      // `afterSettle` runs the fold once the cube is at rest — where `F F` → `F2`
+      // is the same permutation and redraws as nothing. Drawing and storage,
+      // kept apart, which is the whole of it.
+      const willFold = condenseRepeat(solve, move.token) !== null;
       editOpen((current) => withMoves(current, appendToken(current.alg, move.token)));
+      if (willFold) {
+        afterSettle(() =>
+          editOpen((current) => {
+            const folded = consolidateTail(current.alg);
+            return folded !== null ? withMoves(current, folded) : {};
+          })
+        );
+      }
       requestAnimationFrame(() => setGestureTurn(null));
     },
-    [solve, handoff, retract, editOpen]
+    [solve, handoff, retract, afterSettle, editOpen]
   );
 
   /**
