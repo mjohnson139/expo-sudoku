@@ -28,6 +28,30 @@ import { HUB_ROUTE, GAMES } from './games/registry';
  *  - **The hub re-reads progress when you return to it.** It reads on mount,
  *    which was enough when it unmounted behind an open game; on a stack it
  *    stays mounted underneath, so `HubRoute` remounts it on the way back.
+ *
+ * ### The resume remount, and why one game opts out
+ *
+ * `appKey` bumps on `AppState → 'active'` and is keyed onto the open game, so
+ * resuming remounts it and it re-reads its saved snapshot. That is how Sudoku
+ * and Fungiku restore themselves and they keep it.
+ *
+ * **The cube opts out** (`keepsStateOnResume` in `games/registry.js`), for two
+ * reasons found on a device in Cube Flow Step 3a:
+ *
+ *  - It does not need it. `CubeContext` owns everything persisted, above both of
+ *    the cube's screens, and flushes on the way out — so on resume the state in
+ *    memory is *fresher* than the file, and re-reading replaces it with an older
+ *    copy of itself.
+ *  - It was visibly wrong. The cube has **its own navigator** inside it, and a
+ *    remount resets that navigator to its first route — so an open solve had to
+ *    be pushed back onto the stack from the save file, and a native stack
+ *    *animates* a route it is handed. The operator came back to their solve and
+ *    then watched it slide in over itself. No amount of suppressing that
+ *    animation makes rebuilding the stack the right thing to have done.
+ *
+ * What the remount was quietly enforcing for the cube — that the scrub position
+ * and the turn speed do not survive a background (docs/cube-plan.md §7.1) — is
+ * now written down where it belongs, as `rewind` in `useScramblePlayer`.
  */
 const Stack = createNativeStackNavigator();
 
@@ -168,7 +192,12 @@ export default function App() {
               <Stack.Screen key={game.id} name={game.id}>
                 {({ navigation }) => (
                   <game.Screen
-                    key={`${game.id}-${appKey}`}
+                    // The resume remount, unless the game keeps its own state —
+                    // see the docblock above. A constant key is still a key: it
+                    // is this screen's only child either way.
+                    key={
+                      game.keepsStateOnResume ? game.id : `${game.id}-${appKey}`
+                    }
                     onExitToHub={() => navigation.popToTop()}
                   />
                 )}

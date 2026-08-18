@@ -11,6 +11,7 @@ import {
   renderTurn,
   turnDuration,
 } from './player';
+import useAppBackground from './useAppBackground';
 
 /**
  * The clock behind the scrubber: where in a scramble the cube is, and the turn
@@ -352,6 +353,40 @@ const useScramblePlayer = (alg, from) => {
     },
     [animate, flushRetract, pause]
   );
+
+  /**
+   * Back to how the transport opens: stopped, at full speed, algorithm fully
+   * applied (docs/cube-plan.md §7.1).
+   *
+   * **This is a settled rule that used to be enforced by accident.** §7.1's
+   * right-hand column says the scrub position and the turn speed are *not* kept
+   * across a background — they are where you are standing, not what you wrote —
+   * and until now what enforced it was `App.js` remounting the whole game screen
+   * on resume, which threw this hook away and built a fresh one. A mount starts
+   * at `count` with `DEFAULT_SPEED`, so that is exactly what this restores.
+   *
+   * The remount had to go (Cube Flow Step 3a): it also tore down the cube's
+   * nested navigator, so an open solve had to be pushed back onto the stack, and
+   * on a device that push *animated* — you came back to your solve and then
+   * watched it slide in over itself. Nothing about §7.1 needed a remount to be
+   * true, so the rule is written down here instead of falling out of one.
+   */
+  const rewind = useCallback(() => {
+    stopClock();
+    pendingRef.current = null;
+    retractRef.current = null;
+    goalRef.current = movesRef.current.length;
+    setTurn(null);
+    setPlaying(false);
+    setIndex(movesRef.current.length);
+    rateRef.current = DEFAULT_SPEED;
+    setRateState(DEFAULT_SPEED);
+  }, [setIndex, setPlaying, stopClock]);
+
+  // Leaving the app is what §7.1 is about, and `background` rather than
+  // `inactive` is the point — see `useAppBackground`. A glance at Control Centre
+  // is not a reason to lose your place.
+  useAppBackground(rewind);
 
   /**
    * Jump straight to a position — no animation.
