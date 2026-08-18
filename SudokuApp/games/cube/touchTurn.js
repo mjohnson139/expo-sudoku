@@ -149,6 +149,52 @@ export const pickFace = (polygons, x, y) => {
   return null;
 };
 
+/** Distance from `(px, py)` to the segment `a`–`b`. */
+const distanceToSegment = (px, py, a, b) => {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  const t = len2 > 0 ? Math.max(0, Math.min(1, ((px - a[0]) * dx + (py - a[1]) * dy) / len2)) : 0;
+  return Math.hypot(px - (a[0] + t * dx), py - (a[1] + t * dy));
+};
+
+/**
+ * The sticker under this point, or the nearest one within `within` points of it.
+ *
+ * `pickFace` is exact, and at the very corner of the cube that is the problem:
+ * a fingertip's reported point lands a few points *outside* the corner sticker's
+ * polygon, `pickFace` returns null, and null reads as "off the cube" — so a
+ * corner grab pans instead of turning (operator, 2026-08-18). This is the
+ * forgiving version for deciding *whether the cube was touched at all*: a direct
+ * hit is still the frontmost polygon, exactly as `pickFace`; a miss falls back to
+ * the closest non-seam polygon, and takes it only if it is within `within`
+ * points. Beyond that the finger really is off the cube and the caller can orbit.
+ *
+ * It is deliberately **not** what `chooseMove` reads frame to frame — a turn's
+ * layer still comes from an exact hit, so nothing about which move gets written
+ * changes. This only widens the catch that says a finger belongs to the cube.
+ */
+export const nearestFace = (polygons, x, y, within = Infinity) => {
+  let best = null;
+  for (let i = polygons.length - 1; i >= 0; i -= 1) {
+    const polygon = polygons[i];
+    if (polygon.kind === 'seam') continue;
+    if (contains(polygon.points, x, y)) return { pos: polygon.pos, normal: polygon.normal };
+
+    const points = polygon.points;
+    let d = Infinity;
+    for (let k = 0, j = points.length - 1; k < points.length; j = k, k += 1) {
+      d = Math.min(d, distanceToSegment(x, y, points[j], points[k]));
+    }
+    // Strictly closer keeps the frontmost of two equal distances, since the walk
+    // is back to front.
+    if (!best || d < best.d) best = { d, pos: polygon.pos, normal: polygon.normal };
+  }
+
+  if (!best || best.d > within) return null;
+  return { pos: best.pos, normal: best.normal };
+};
+
 const cross = (a, b) => [
   a[1] * b[2] - a[2] * b[1],
   a[2] * b[0] - a[0] * b[2],
@@ -722,6 +768,7 @@ export const shouldCommit = (t, speed = 0, tuning = TUNING) =>
 export default {
   TUNING,
   pickFace,
+  nearestFace,
   moveForDrag,
   faceCornerZone,
   faceCornerMove,

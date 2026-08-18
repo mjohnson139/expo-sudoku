@@ -170,13 +170,21 @@ being taken away. Something has to give. The proposal:
 
 | Gesture | Means |
 |---|---|
-| One finger, starting **on a sticker** | Turn that layer |
+| One finger, starting **on or at the cube** | Turn that layer |
 | **Two fingers**, anywhere | Orbit, always — the escape hatch |
-| One finger starting **off the cube** | Orbit |
+| One finger starting **clearly off the cube** | Orbit |
 
 Two-finger orbit is the load-bearing part: it means there is always a way to
 look around that can never be mistaken for a turn, which is what makes it safe
 for a single finger to be unambiguous in the *other* direction.
+
+**"On the cube" is generous on purpose (§8.9).** The first build read it as an
+exact `pickFace` hit, and a finger going for the very corner of the cube reports
+a point a few pixels *outside* the corner sticker — so the grab fell through to
+orbit and the cube panned instead of turning (operator, device). The rule is now
+what the operator asked for: a finger on the cube *or within a margin of it*
+turns, and only a finger clearly off the cube pans — panning under one finger is
+the exception, two fingers the rule.
 
 **One finger on the cube no longer orbits, and that is the real cost of dropping
 pressure.** The cube fills most of the screen, so orbiting is now two fingers or
@@ -894,3 +902,26 @@ middle still reads as today's straight `U`/`L`.
 - **Device-only, as ever:** the feel of the pivot, the `CORNER_ZONE` band, and
   whether this makes §3.3c redundant are all phone questions. Nothing here is in
   the design canvas. If the corner wins, the draw can retire later.
+
+### 8.9 A corner grab panned instead of turning (added 2026-08-18)
+
+The corner-zone gesture (§3.3d) worked, but a grab that went for the very corner
+sometimes **panned the cube instead** (operator, device). The cause is where
+"is the finger on the cube?" was answered: `pickFace` is an exact point-in-polygon
+test, and a fingertip going for the cube's corner reports a point a few pixels
+past the corner sticker's edge — a miss, and a miss meant orbit.
+
+The operator's rule is the fix: *a finger touching the cube at all should not
+pan; only two fingers pan.* `nearestFace` is the forgiving version of `pickFace`
+— a direct hit is still the frontmost sticker and still decides which layer turns,
+but a miss now falls back to the nearest sticker within `NEAR_MARGIN` of the
+cube's edge. So a corner grab that lands just outside is caught as a turn, and
+only a finger **clearly** off the cube (beyond the margin) still orbits. Two
+fingers orbit anywhere, unchanged.
+
+`nearestFace` is used **only** to decide whether the cube was touched (and to
+seed the corner zone); the move itself still comes from an exact hit frame to
+frame, so nothing about which token gets written changed. `NEAR_MARGIN = 0.12` of
+the cube's edge is the first guess at "within a fingertip", and the dial to bring
+to the phone: too small and corners still pan, too large and a drag in the empty
+margin turns when it meant to orbit.

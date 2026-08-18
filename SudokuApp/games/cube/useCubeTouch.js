@@ -8,6 +8,7 @@ import {
   faceCornerMove,
   faceCornerZone,
   facingFace,
+  nearestFace,
   pickFace,
   shouldCommit,
   turnProgress,
@@ -17,6 +18,13 @@ import {
  *  enough to find a corner, coarse enough that a slow drag does not fill the
  *  path with a hundred copies of the same point. */
 const SAMPLE_POINTS = 3;
+
+/** How far outside a sticker still counts as touching the cube, as a fraction of
+ *  the cube's edge. A finger going for the very corner reports a point a little
+ *  past the silhouette, and a corner grab that misses by that much should turn,
+ *  not pan (operator, 2026-08-18): one finger only orbits when it is clearly off
+ *  the cube. Two fingers always orbit, wherever they are. */
+const NEAR_MARGIN = 0.12;
 
 /**
  * One finger on the cube: orbit it, or turn a layer of it
@@ -223,7 +231,13 @@ const useCubeTouch = ({ scene, size, yaw, pitch, onOrbit, turning = null }) => {
         // Only whether the cube was touched at all is decided here. *Which* face
         // the gesture is about is `chooseMove`'s, on every frame, because the
         // direction the finger goes says it better than the pixel it landed on.
-        g.pick = pickFace(frame.polygons, locationX, locationY);
+        // A finger on — or at the very edge of — the cube turns; only one that
+        // is clearly off it pans. `pickFace` is the exact hit and decides which
+        // sticker; `nearestFace` widens that to a margin so a corner grab whose
+        // reported point lands just outside a sticker is still a turn, not a pan.
+        g.pick =
+          pickFace(frame.polygons, locationX, locationY) ||
+          nearestFace(frame.polygons, locationX, locationY, edge * NEAR_MARGIN);
         g.mode = g.pick ? 'undecided' : 'orbit';
         g.onFacing =
           !!g.pick && g.pick.normal.join() === facingFace(y, p).join();

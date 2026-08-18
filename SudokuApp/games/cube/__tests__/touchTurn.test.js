@@ -19,6 +19,7 @@ import {
   faceCornerZone,
   facingFace,
   moveForDrag,
+  nearestFace,
   pickFace,
   shouldCommit,
   turnProgress,
@@ -174,6 +175,65 @@ describe('pickFace', () => {
       }
     }
     expect(hits.every((hit) => hit !== null)).toBe(true);
+  });
+});
+
+describe('nearestFace — touching the cube, generously', () => {
+  const scene = buildScene(solvedCube(), {
+    size: SIZE,
+    yaw: 0.4,
+    pitch: 0.3,
+    colors: { U: '#fff', D: '#ff0', F: '#0f0', B: '#00f', R: '#f00', L: '#f80' },
+  });
+
+  it('is a direct hit where pickFace is a hit', () => {
+    const at = [SIZE / 2, SIZE / 2];
+    expect(nearestFace(scene.polygons, at[0], at[1], 40)).toEqual(pickFace(scene.polygons, at[0], at[1]));
+  });
+
+  it('catches a point just outside a sticker, which pickFace misses', () => {
+    // Walk in from a corner of the view until pickFace first finds the cube; the
+    // point one step before that is off the silhouette but within a fingertip of
+    // it, and nearestFace should still call it the cube.
+    let edgePoint = null;
+    for (let d = 0; d < SIZE / 2; d += 2) {
+      const at = [d, d];
+      if (pickFace(scene.polygons, at[0], at[1])) {
+        edgePoint = [d - 4, d - 4];
+        break;
+      }
+    }
+    expect(edgePoint).not.toBeNull();
+    expect(pickFace(scene.polygons, edgePoint[0], edgePoint[1])).toBeNull();
+    expect(nearestFace(scene.polygons, edgePoint[0], edgePoint[1], SIZE * 0.12)).not.toBeNull();
+  });
+
+  it('still says null when the finger is nowhere near the cube', () => {
+    expect(nearestFace(scene.polygons, 2, 2, SIZE * 0.12)).toBeNull();
+  });
+
+  it('honours the margin — a point beyond it is not the cube', () => {
+    const square = [
+      [100, 100],
+      [110, 100],
+      [110, 110],
+      [100, 110],
+    ];
+    const polygons = [{ kind: 'tile', pos: [0, 0, 1], normal: [0, 0, 1], points: square }];
+    // 20 points from the nearest edge.
+    expect(nearestFace(polygons, 130, 105, 10)).toBeNull();
+    expect(nearestFace(polygons, 130, 105, 30)).toEqual({ pos: [0, 0, 1], normal: [0, 0, 1] });
+  });
+
+  it('does not catch a seam', () => {
+    const square = [
+      [100, 100],
+      [110, 100],
+      [110, 110],
+      [100, 110],
+    ];
+    const polygons = [{ kind: 'seam', pos: [0, 0, 1], normal: [0, 1, 0], points: square }];
+    expect(nearestFace(polygons, 115, 105, 40)).toBeNull();
   });
 });
 
