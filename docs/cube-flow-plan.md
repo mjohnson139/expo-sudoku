@@ -581,6 +581,93 @@ pill appears on the card and in the solve header; **solves written before this
 step still open, still show their old chips, and are not damaged by the
 upgrade** — this is the one to test hardest.
 
+#### What landed (2026-08-18)
+
+**All of the above, plus two operator decisions taken before a line was
+written**, because both of them changed what got built:
+
+- **Open question 1 — a "no method" option: yes.** The sheet offers **Roux ·
+  CFOP · Freeform**, and Freeform stores `method: null` — *the same value* a
+  pre-Step-4 solve carries. That is what makes it nearly free: the null branch
+  has to exist regardless, since Step 5 keeps `CubePhaseStrip` alive for the
+  solves already in the operator's file, and a scratch attempt is just a new
+  solve landing on it. The alternative would have made `null` a value with no way
+  to reach it, and forced a scratch attempt to call itself Roux.
+- **Open question 8 — recency: `savedAt` keeps its meaning and `editedAt` joins
+  it.** The operator picked the two-field answer over both "leave it" and
+  "redefine `savedAt`". So `savedAt` is still *when the solve was started*, a new
+  `editedAt` is *when it was last written to*, `lastTouched(solve)` is the one
+  reader and falls back to `savedAt` for every record written before this step,
+  and **the card reads it while nothing sorts by it** — a list that re-sorted on
+  every keystroke would reshuffle under the thumb that was writing
+  (`updateSolve`'s own objection).
+
+`editedAt` is bumped by `editSolve`, which is `updateSolve` plus the stamp;
+`editOpen` and `clearSolveById` are built on it, so every authored change is
+stamped in one place. **`renameSolve` deliberately is not** — a name is not the
+work, and renaming a solve three days later does not make it a solve you were
+writing three days later.
+
+**`PHASE_METHODS` is gone** from `solveList.js`; `METHODS` in `games/cube/
+methods.js` replaces it and `CubePhaseModal` reads it there. `methods.test.js`
+pins the promotion against a **literal copy** of the old table — a copy rather
+than an import, because a test that read the live one would pass by construction
+and pin nothing.
+
+**`comparePhases` seeding, precisely.** `methodOrders` hands `mergeLabelOrder` one
+extra sequence per distinct method in play, **filtered to labels some attempt
+actually marked** and fed *first*. So the method decides where its own stages
+sit, the solves' own sequences are left to place anything it has never heard of
+(free text, or a marker from before this step), and no column is invented for a
+stage nobody reached. With no methods stored — every file written before this
+step — the seed is empty and the merge is exactly the merge it always was.
+
+**Layout, in points (§8.6): the cube pays nothing on either screen.** The sheet
+is a modal and adds no row; the method rides on rows that already existed. The
+cost is horizontal and only on the solve screen, where the tag sits in the
+header's `actions` (there is no slot beside a `ScreenHeader` title, and this epic
+is not spending a third sanctioned edit outside `games/cube/` on one). Measured
+in a browser, the tag is **34 points** of the right-hand column at every width,
+and since `rightSectionDense` has `flexShrink: 0` it comes off the title column:
+
+| Width | Title column, before | After |
+|---|---|---|
+| 320×568 | 141 | **107** |
+| 375×667 | 196 | **162** |
+| 393×852 | 214 | **180** |
+
+At 375 and above a 13-character solve name still fits whole. **At 320 it
+truncates by about two characters** — `Jumped to LSE` draws as `Jumped t…` — and
+the scramble subtitle, already ellipsized there, loses a little more. That is the
+one thing on this step worth an opinion on a device, and it is cheap either way:
+**from Step 5 the rail *is* the method**, spelled out in stages, and the tag can
+go.
+
+On the card the method is an accented span **on the meta line, not a bordered
+chip** — a chip is 20-odd points tall and that line is 14, inside a card whose
+height is a constant `solveCards.js` derives the list's cap from. `CARD_HEIGHT`
+is untouched, so the cap and the peek are too.
+
+**Verified in a browser** (Playwright against the web build, three viewports,
+**zero console errors** at each): the sheet opening from `+ New solve`; Roux,
+CFOP and Freeform each showing their stages (and Freeform its sentence); Start
+solve creating and pushing; the tag in the solve header through inspection and
+writing; `9 moves · Roux · in progress` on the card; **a seeded pre-Step-4 save
+file opening with every marker intact** — including a free-text `M-slice tricks`
+— with no method segment on its cards and no tag in its header; the sheet
+defaulting to Freeform after a legacy newest solve; **two same-method attempts
+whose label orders disagree comparing as `First block · Second block · LSE`**
+where before this step they compared as `First block · LSE · Second block`; and
+the page still not scrolling while the list does.
+
+**What a browser pass did *not* cover, and §5's warning applies:** everything the
+device found in Steps 3 and 3.5 was invisible here. Specifically untested by the
+above — the modal's feel on iOS (a fifth `Modal` on this screen, opened one at a
+time on purpose), whether the tag's 34 points are worth it in the hand at 320,
+and whether the nested `<Text>` on the card renders the same on a phone as it
+does under `react-native-web`. Colour and weight only, no font size, is the
+reason to expect it does.
+
 ### 3.5 Step 5 — the phase rail, and the flag key retires
 
 - **The rail is pre-built from `solve.method`'s stages, and pill state is derived
@@ -873,10 +960,11 @@ again for an `x` rotation; background and resume with the pad hidden; and the
 
 ## 6. Open questions for the operator
 
-1. **Does the rail want a "no method" option?** Every solve created after Step 4
-   has a method. A quick scratch attempt with no intention of naming phases has
-   nowhere to go except a method it will ignore. Legacy solves prove the
-   `method: null` path works; whether it should be *offered* is a use question.
+1. ~~**Does the rail want a "no method" option?**~~ **Answered: yes** (operator,
+   2026-08-18, before Step 4 was written). The sheet offers **Freeform** beside
+   Roux and CFOP, and it stores `method: null` — the same value a pre-Step-4
+   solve carries, so it costs no branch that did not have to exist anyway. Open
+   only to being *withdrawn* if a drilling session finds nobody reaches for it.
 2. ~~**Where does Compare belong now?**~~ **Answered by building it** (Step 3):
    the home header was full at four controls, so Compare is a button beside
    `+ New solve` — this question's own alternative. Also on the solve screen, in
@@ -901,13 +989,13 @@ again for an `x` rotation; background and resume with the pad hidden; and the
    (operator, 2026-08-17 — *"I don't miss the reset view"*). Step 3's
    four-control header stands; the solve screen keeps its own `Back to the
    starting view`, which is the one pointing at a place the operator chose.
-8. **Should a card's recency be when the solve was *started* or when it was *last
-   written to*?** New in Step 3, and the only question that step left genuinely
-   open. `savedAt` is creation time and nothing bumps it, so a card reads "3 days
-   ago" for a solve you were writing an hour ago. It has not bitten because a
-   solve is usually written in one sitting — but it is a change to what a stored
-   field *means*, not a UI tweak, and **Step 4 is the natural place to take it**
-   because Step 4 is already touching the record.
+8. ~~**Should a card's recency be when the solve was *started* or when it was
+   *last written to*?**~~ **Answered: both, as two fields** (operator,
+   2026-08-18). `savedAt` keeps meaning *created* — nothing already in a save
+   file was redefined — and `editedAt` joins it meaning *last written to*, which
+   is what the card reads through `lastTouched`, falling back to `savedAt` for
+   every record that predates it. Landed in Step 4. **Nothing sorts by it**, so
+   the list still does not reshuffle under a thumb that is writing.
 9. **Should folds and cancels be undoable at all, or invisible to the ring?**
    Step 6 coalesces them into one undo unit, so a spin undoes as a spin. The
    open part is the fumble: a cancelled `L L'` was *meant* to never happen — does
@@ -918,7 +1006,20 @@ again for an `x` rotation; background and resume with the pad hidden; and the
     return on the first pad tap. It is invisible, which is the standing objection
     (question 3); the counter is that a solver who has started swiping has already
     shown their hand. One session with swipe mode settles it.
-11. **Where do the preferences live, and are they offered together?** Three
+11. **New in Step 4: is the method tag worth 34 points of the solve header at
+    320?** It costs the cube nothing — no row — but `rightSectionDense` does not
+    shrink, so those points come off the title column and a 13-character solve
+    name truncates by about two characters on the smallest phone (375 and above
+    are unaffected). It is a Step 4 stopgap by construction: from Step 5 the rail
+    *is* the method, spelled out in stages, so the answer can simply be "drop the
+    tag". Worth one look in the hand before then.
+12. **New in Step 4: should the sheet remember the last method, rather than
+    deriving it?** `defaultMethod` opens the sheet on the method of the newest
+    solve *for this scramble* — derived, stored nowhere, and right for the common
+    case of trying the same scramble again. A *remembered* pick would be a
+    preference, which is question 13's problem, and inventing a store for it here
+    is how two of them come to exist.
+13. **Where do the preferences live, and are they offered together?** Three
     settings now want a home: the gesture profile (§8.4), the tuning numbers, and
     the swipe-mode toggle (Step 9). None is authored work or view state, so §7.1
     does not rule on them — they are *preferences*, and the app has no settings

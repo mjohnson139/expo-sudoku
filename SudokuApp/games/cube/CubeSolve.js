@@ -41,6 +41,7 @@ import {
   removePhase,
   withMoves,
 } from './solveList';
+import { methodName } from './methods';
 import { moveCount, parseAlg } from './moves';
 import useAppBackground from './useAppBackground';
 import useScramblePlayer from './useScramblePlayer';
@@ -595,6 +596,30 @@ const CubeSolve = ({ navigation }) => {
   }
 
   /**
+   * Which method this solve is, on the header row (docs/cube-flow-plan.md §3.4).
+   *
+   * **A word, not a bordered pill**, and it rides in `actions` rather than beside
+   * the title because `ScreenHeader` has no slot beside the title and this epic
+   * is not spending a third sanctioned edit outside `games/cube/` on one.
+   *
+   * **The trade is measured, in a browser, at all three widths:** the tag is
+   * **34 points** of the right-hand column, and `rightSectionDense` has
+   * `flexShrink: 0`, so those points come off the title column — 141 → 107 at
+   * 320, 196 → 162 at 375, 214 → 180 at 393. At 375 and up a 13-character solve
+   * name still fits whole; at 320 it loses about two characters, and the
+   * scramble subtitle, already ellipsized there, loses a little more.
+   *
+   * **It costs the cube nothing**, which is the number §8.6 actually asks for:
+   * no row, and the header's height is set by the buttons either side of it.
+   *
+   * Nothing for a Freeform or a legacy solve — see `CubeSolveList`, which makes
+   * the same omission for the same reason. And this is a **Step 4 stopgap by
+   * design**: from Step 5 the rail *is* the method, spelled out in stages, and
+   * this word can go (plan §6, question 11).
+   */
+  const method = methodName(shown.method);
+
+  /**
    * The header's controls, which on this screen are the *view* plus Compare.
    *
    * **The notebook button became Compare in Step 3.** It used to open
@@ -611,9 +636,18 @@ const CubeSolve = ({ navigation }) => {
    *
    * Rename, duplicate, clear and delete left with the list. They are a long-press
    * on a card now (`CubeSolveMenu`), which is where the solves are.
+   *
+   * **Step 4 put one non-control in here**, the method tag — see above for what
+   * it costs and why it has nowhere better to be.
    */
   const headerActions = (
     <>
+      {!!method && (
+        <Text key="method" style={[styles.headerTag, { color: CUBE_ACCENT }]}>
+          {method}
+        </Text>
+      )}
+
       {/* Whichever of the two the hold allows, and the rule is V1's Step 5's,
           unchanged: re-orienting is free while the solve is empty and locked
           once it is not, because re-orienting under moves already written would

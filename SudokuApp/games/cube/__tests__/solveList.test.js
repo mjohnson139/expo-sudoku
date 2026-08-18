@@ -12,8 +12,10 @@ import {
   describePhaseSpan,
   describeSolveSize,
   duplicateSolve,
+  editSolve,
   endPhase,
   findSolve,
+  lastTouched,
   isPhaseBoundary,
   nextSolveId,
   normalizeName,
@@ -43,11 +45,37 @@ describe('createSolve', () => {
       id: 's1',
       scramble: SCRAMBLE,
       name: 'Solve 1',
+      // Nothing asked for a method, so there is not one — the sheet is what
+      // asks, and `null` is Freeform.
+      method: null,
       orientation: null,
       alg: '',
       phases: [],
       savedAt: 1,
+      editedAt: 1,
     });
+  });
+
+  it('takes the method it was started with', () => {
+    // The sheet asks before the page exists, because Step 5's rail is built from
+    // this and a method acquired half way through would describe a solve that
+    // was not written that way.
+    expect(make(SCRAMBLE, [], { method: 'roux' }).solve.method).toBe('roux');
+    expect(make(SCRAMBLE, [], { method: 'cfop' }).solve.method).toBe('cfop');
+  });
+
+  it('starts a Freeform solve for no method, and for one it has never heard of', () => {
+    expect(make(SCRAMBLE, [], { method: null }).solve.method).toBeNull();
+    expect(make(SCRAMBLE, [], { method: 'petrus' }).solve.method).toBeNull();
+    expect(make().solve.method).toBeNull();
+  });
+
+  it('was last written to when it was made', () => {
+    // A page nobody has written on yet still has to answer "when did I last work
+    // on this" — the alternative is a card that says nothing about the solve you
+    // are looking at right now.
+    expect(make().solve.editedAt).toBe(1);
+    expect(lastTouched(make().solve)).toBe(1);
   });
 
   it('puts the newest first and mints ids by counting', () => {
@@ -116,11 +144,28 @@ describe('duplicateSolve', () => {
       id: 's2',
       scramble: SCRAMBLE,
       name: 'Solve 1 copy',
+      method: null,
       orientation: 'z2',
       alg: "r U r'",
       phases: [],
       savedAt: 9,
+      editedAt: 9,
     });
+  });
+
+  it('carries the method across — a copy that forgot it would build the wrong rail', () => {
+    const first = make(SCRAMBLE, [], { method: 'cfop' });
+    const { solve } = duplicateSolve(first.solves, 's1', { savedAt: 9 });
+    expect(solve.method).toBe('cfop');
+  });
+
+  it('gives the copy its own dates — a fresh copy has not been worked on since', () => {
+    const first = make(SCRAMBLE, [], { savedAt: 1 });
+    const written = editSolve(first.solves, 's1', { alg: "r U r'" }, { editedAt: 5 });
+    const { solve } = duplicateSolve(written, 's1', { savedAt: 9 });
+
+    expect(solve.savedAt).toBe(9);
+    expect(solve.editedAt).toBe(9);
   });
 
   it('numbers repeated copies', () => {
@@ -245,6 +290,9 @@ describe('describeSolveSize', () => {
 });
 
 describe('sanitizeSolves', () => {
+  // A **pre-Step-4 record**, on purpose: no `method`, no `editedAt`. Every
+  // assertion below that spreads it is therefore also asserting that the upgrade
+  // leaves the rest of the record alone.
   const stored = {
     id: 's4',
     scramble: SCRAMBLE,
@@ -255,8 +303,10 @@ describe('sanitizeSolves', () => {
     savedAt: 12,
   };
 
-  it('reads a well-formed list back unchanged', () => {
-    expect(sanitizeSolves([stored])).toEqual([stored]);
+  it('reads a well-formed list back unchanged, but for the fields Step 4 added', () => {
+    expect(sanitizeSolves([stored])).toEqual([
+      { ...stored, method: null, editedAt: 12 },
+    ]);
   });
 
   it('answers an empty list for anything that is not one — a Step 5 file included', () => {
@@ -312,6 +362,70 @@ describe('sanitizeSolves', () => {
 
   it('replaces a missing timestamp rather than dropping the solve', () => {
     expect(sanitizeSolves([{ ...stored, savedAt: undefined }])[0].savedAt).toBe(0);
+  });
+
+  // ——— Step 4's two new fields: added by shape, with no version bump ———————
+
+  it('maps an absent, unknown or malformed method to null', () => {
+    // `null` is legacy *and* Freeform, deliberately — what it means downstream is
+    // "no stage list to build a rail from", and that is true of both.
+    expect(sanitizeSolves([stored])[0].method).toBeNull();
+    expect(sanitizeSolves([{ ...stored, method: 'petrus' }])[0].method).toBeNull();
+    expect(sanitizeSolves([{ ...stored, method: 'Roux' }])[0].method).toBeNull();
+    expect(sanitizeSolves([{ ...stored, method: 7 }])[0].method).toBeNull();
+    expect(sanitizeSolves([{ ...stored, method: { id: 'roux' } }])[0].method).toBeNull();
+  });
+
+  it('keeps a method it ships', () => {
+    expect(sanitizeSolves([{ ...stored, method: 'roux' }])[0].method).toBe('roux');
+    expect(sanitizeSolves([{ ...stored, method: 'cfop' }])[0].method).toBe('cfop');
+  });
+
+  it('gives a record with no editedAt its own savedAt', () => {
+    expect(sanitizeSolves([stored])[0].editedAt).toBe(12);
+    expect(sanitizeSolves([{ ...stored, editedAt: null }])[0].editedAt).toBe(12);
+    expect(sanitizeSolves([{ ...stored, editedAt: 'yesterday' }])[0].editedAt).toBe(12);
+    // Both missing: 0 in and 0 out, and `describeRecency` says nothing at all
+    // for a solve with no date on it.
+    expect(sanitizeSolves([{ ...stored, savedAt: undefined }])[0].editedAt).toBe(0);
+  });
+
+  it('keeps an editedAt it was given, future dates included', () => {
+    expect(sanitizeSolves([{ ...stored, editedAt: 40 }])[0].editedAt).toBe(40);
+    // A clock set forward, or a file carried between devices. `describeRecency`
+    // already reads a future date as "just now", so there is nothing to clamp.
+    expect(sanitizeSolves([{ ...stored, editedAt: 1e15 }])[0].editedAt).toBe(1e15);
+  });
+
+  it('damages nothing else on a solve written before this step', () => {
+    // **The one to be careful about**, because the failure is silent: a solve
+    // whose markers or hold came back subtly different would still look like a
+    // solve, and only the operator would know it was not theirs any more.
+    const legacy = {
+      id: 's4',
+      scramble: SCRAMBLE,
+      name: 'First block',
+      orientation: 'z2',
+      alg: "r U r'",
+      phases: [{ at: 0, label: 'First block' }],
+      savedAt: 12,
+    };
+
+    expect(sanitizeSolves([legacy])).toEqual([
+      { ...legacy, method: null, editedAt: 12 },
+    ]);
+  });
+
+  it('leaves a legacy solve\'s free-text markers resolvable, whatever they say', () => {
+    // A marker written through the old free-text escape hatch names no shipped
+    // stage, and it is still the operator's work. Nothing about Step 4 touches
+    // it — the rail is Step 5's problem and `method: null` is what tells it to
+    // leave this solve on `CubePhaseStrip`.
+    const clean = sanitizeSolves([
+      { ...stored, phases: [{ at: 0, label: 'M-slice tricks' }] },
+    ]);
+    expect(clean[0].phases).toEqual([{ at: 0, label: 'M-slice tricks' }]);
+    expect(clean[0].method).toBeNull();
   });
 
   it('keeps the phases slot well-formed even though nothing writes one yet', () => {
@@ -732,6 +846,68 @@ const attempt = (id, name, count, phases) => ({
   savedAt: 1,
 });
 
+describe('editSolve', () => {
+  const written = () => make(SCRAMBLE, [], { savedAt: 1 }).solves;
+
+  it('is updateSolve plus a stamp', () => {
+    const next = editSolve(written(), 's1', { alg: "r U r'" }, { editedAt: 40 });
+    expect(next[0].alg).toBe("r U r'");
+    expect(next[0].editedAt).toBe(40);
+    // `savedAt` is when the solve was *started*, and nothing bumps it. Changing
+    // what a stored field means is not a UI tweak (operator, 2026-08-18).
+    expect(next[0].savedAt).toBe(1);
+  });
+
+  it('takes a function of the solve, like updateSolve does', () => {
+    const next = editSolve(written(), 's1', (solve) => withMoves(solve, 'R U'), {
+      editedAt: 40,
+    });
+    expect(next[0].alg).toBe('R U');
+    expect(next[0].editedAt).toBe(40);
+  });
+
+  it('leaves the list alone for an id that names nothing', () => {
+    const list = written();
+    expect(editSolve(list, 'nope', { alg: 'R' }, { editedAt: 40 })).toBe(list);
+  });
+
+  it('does not reorder the list — the card reads the stamp, the order ignores it', () => {
+    // A list that re-sorted on every keystroke would reshuffle under the thumb
+    // that was writing.
+    const two = make(SCRAMBLE, make(SCRAMBLE, [], { savedAt: 1 }).solves, { savedAt: 2 }).solves;
+    const next = editSolve(two, 's1', { alg: 'R' }, { editedAt: 99 });
+    expect(next.map((solve) => solve.id)).toEqual(two.map((solve) => solve.id));
+  });
+});
+
+describe('renameSolve', () => {
+  it('does not stamp the solve as worked on — a name is not the work', () => {
+    const list = editSolve(make(SCRAMBLE, [], { savedAt: 1 }).solves, 's1', { alg: 'R' }, {
+      editedAt: 40,
+    });
+    expect(renameSolve(list, 's1', 'Second block')[0].editedAt).toBe(40);
+  });
+});
+
+describe('lastTouched', () => {
+  it('reads editedAt', () => {
+    expect(lastTouched({ savedAt: 1, editedAt: 40 })).toBe(40);
+  });
+
+  it('falls back to savedAt for a record written before there was one', () => {
+    // The whole of the migration for this field: the most that can honestly be
+    // said about when a pre-Step-4 solve was last written to is when it started.
+    expect(lastTouched({ savedAt: 12 })).toBe(12);
+    expect(lastTouched({ savedAt: 12, editedAt: null })).toBe(12);
+    expect(lastTouched({ savedAt: 12, editedAt: 'yesterday' })).toBe(12);
+  });
+
+  it('answers 0 rather than NaN for a record with no dates at all', () => {
+    expect(lastTouched({})).toBe(0);
+    expect(lastTouched(null)).toBe(0);
+  });
+});
+
 /** Roux markers: first block of `a`, second block of `b`, and the fresh unnamed
  *  boundary the last "end the phase" opens. */
 const roux = (a, b) => [
@@ -942,6 +1118,112 @@ describe('comparePhases', () => {
     const list = [...three];
     comparePhases(list);
     expect(list.map((solve) => solve.id)).toEqual(['s3', 's2', 's1']);
+  });
+});
+
+describe('comparePhases, with methods stored (Step 4)', () => {
+  /** An attempt that knows what method it is. */
+  const withMethod = (id, name, count, phases, method) => ({
+    ...attempt(id, name, count, phases),
+    method,
+  });
+
+  // One attempt that jumped from the first block straight to LSE, and one that
+  // only ever marked the second block. Between them the *labels* are all the
+  // evidence there is, and they say LSE comes second — which is wrong, and is
+  // exactly what `mergeLabelOrder`'s own comment admits to.
+  const disagreeing = (method) => [
+    withMethod('s2', 'Solve 2', 10, [{ at: 0, label: 'Second block' }], method),
+    withMethod(
+      's1',
+      'Solve 1',
+      16,
+      [
+        { at: 0, label: 'First block' },
+        { at: 6, label: 'LSE' },
+      ],
+      method
+    ),
+  ];
+
+  it('orders the columns by the method rather than by what the solves happened to write', () => {
+    expect(comparePhases(disagreeing('roux')).labels).toEqual([
+      'First block',
+      'Second block',
+      'LSE',
+    ]);
+  });
+
+  it('is unchanged for solves with no method — every solve written before this step', () => {
+    // The regression that matters: the seed is empty and the merge is the merge.
+    expect(comparePhases(disagreeing(null)).labels).toEqual([
+      'First block',
+      'LSE',
+      'Second block',
+    ]);
+  });
+
+  it('invents no column for a stage nobody marked', () => {
+    // A Roux solve that only reached the first block must not conjure three
+    // empty columns. A column still means "at least one attempt marked this".
+    const { labels, rows } = comparePhases([
+      withMethod('s1', 'Solve 1', 8, [{ at: 0, label: 'First block' }], 'roux'),
+    ]);
+
+    expect(labels).toEqual(['First block']);
+    expect(rows[0].cells).toHaveLength(1);
+  });
+
+  it('still refuses to line Roux up against CFOP', () => {
+    // Eight columns, each method's in its own order — a `Cross` column and a
+    // `First block` column are not the same column.
+    const { labels } = comparePhases([
+      withMethod('s2', 'Solve 2', 20, [
+        { at: 0, label: 'PLL' },
+        { at: 4, label: 'Cross' },
+      ], 'cfop'),
+      withMethod('s1', 'Solve 1', 20, roux(8, 12), 'roux'),
+    ]);
+
+    expect(labels).toEqual(['First block', 'Second block', 'Cross', 'PLL']);
+  });
+
+  it('leaves a free-text label where the solve that wrote it put it', () => {
+    // The method decides where its own stages sit; a name it has never heard of
+    // is placed by the only evidence there is, which is the solve's own order.
+    const { labels } = comparePhases([
+      withMethod(
+        's1',
+        'Solve 1',
+        20,
+        [
+          { at: 0, label: 'First block' },
+          { at: 6, label: 'M-slice tricks' },
+          { at: 9, label: 'Second block' },
+        ],
+        'roux'
+      ),
+    ]);
+
+    expect(labels).toEqual(['First block', 'M-slice tricks', 'Second block']);
+  });
+
+  it('lets one solve with a method sort the columns for a legacy one beside it', () => {
+    // A drilling session that predates this step and then continues after it:
+    // the new attempt is the only one that says what method it is, and that is
+    // enough to order the whole table.
+    const { labels } = comparePhases([
+      withMethod('s2', 'Solve 2', 16, [
+        { at: 0, label: 'First block' },
+        { at: 6, label: 'Second block' },
+      ], 'roux'),
+      attempt('s1', 'Solve 1', 16, [
+        { at: 0, label: 'First block' },
+        { at: 6, label: 'LSE' },
+      ]),
+    ]);
+
+    expect(labels).toEqual(['First block', 'Second block', 'LSE']);
   });
 });
 

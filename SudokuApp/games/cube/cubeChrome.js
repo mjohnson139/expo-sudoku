@@ -121,6 +121,20 @@ export const styles = StyleSheet.create({
     fontWeight: '700',
     marginLeft: 3,
   },
+  // A **label** on the header row, not a control: no border, no padding, no
+  // target. The solve screen names its method with one (Step 4).
+  //
+  // Deliberately not a bordered chip. `rightSectionDense` does not shrink, so
+  // every point spent here comes off the title column — a chip is 14 points of
+  // border and padding on top of the word, and the word on its own is the whole
+  // message. Same size as `headerActionCount` so it sits on the row's baseline
+  // rather than setting its own.
+  headerTag: {
+    fontSize: 11,
+    fontWeight: '700',
+    marginLeft: 5,
+    letterSpacing: 0.3,
+  },
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',

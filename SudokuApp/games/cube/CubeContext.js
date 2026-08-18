@@ -7,11 +7,11 @@ import { randomScramble } from './scramble';
 import {
   createSolve,
   duplicateSolve,
+  editSolve,
   findSolve,
   removeSolve,
   renameSolve,
   solvesFor,
-  updateSolve,
 } from './solveList';
 import { addFavorite, isFavorite, removeFavorite } from './favorites';
 import { loadCubeState, saveCubeState } from './storage';
@@ -299,23 +299,43 @@ export const CubeProvider = ({ children, fallback = null }) => {
    *
    * `patch` is the fields to change or a function of the solve, and an id that
    * no longer names anything is a no-op rather than a crash.
+   *
+   * **`editSolve` rather than `updateSolve` since Step 4**, which is where the
+   * stamp goes: this is the app's only edit funnel, so `editedAt` is written in
+   * exactly one place instead of at every call site that happens to remember.
+   * The clock is read here rather than passed in for the same reason the save is
+   * debounced here — this is the layer that knows what "now" means, and
+   * `solveList.js` stays a pure module with an injectable one.
    */
   const editOpen = useCallback(
     (patch) => {
-      setSolves((current) => updateSolve(current, openId, patch));
+      setSolves((current) => editSolve(current, openId, patch));
     },
     [openId]
   );
 
-  /** Start a fresh page against the scramble on the cube, and open it. Returns
-   *  the solve, or null when there is no scramble to write one against. */
-  const startNewSolve = useCallback(() => {
-    const { solves: grown, solve: made } = createSolve(solves, scrambleKey);
-    if (!made) return null;
-    setSolves(grown);
-    setOpenId(made.id);
-    return made;
-  }, [solves, scrambleKey]);
+  /**
+   * Start a fresh page against the scramble on the cube, and open it.
+   *
+   * `method` is a method id from `methods.js` or **null** for Freeform, and it
+   * is asked for before this is called (`CubeNewSolveSheet`) rather than set
+   * afterwards — Step 5's rail is built from it, so it has to be true from the
+   * first move. Defaulting to null keeps every other caller honest: a solve
+   * created without an opinion is a Freeform one, which is what a solve created
+   * before this step was.
+   *
+   * Returns the solve, or null when there is no scramble to write one against.
+   */
+  const startNewSolve = useCallback(
+    ({ method = null } = {}) => {
+      const { solves: grown, solve: made } = createSolve(solves, scrambleKey, { method });
+      if (!made) return null;
+      setSolves(grown);
+      setOpenId(made.id);
+      return made;
+    },
+    [solves, scrambleKey]
+  );
 
   /**
    * Put a particular solve on the cube.
@@ -380,9 +400,14 @@ export const CubeProvider = ({ children, fallback = null }) => {
    * as a known wart; Step 6 makes it undoable and is the step that gets to fix
    * it. Pausing the transport when it is the open solve is the caller's job —
    * only the screen holding the transport knows there is one.
+   *
+   * `editSolve` and not `updateSolve`, though this one is reached by id rather
+   * than through `editOpen`: emptying a page is unmistakably writing to it, and
+   * a card that still said "3 days ago" after you had just cleared it would be
+   * describing a solve that no longer exists.
    */
   const clearSolveById = useCallback((id) => {
-    setSolves((current) => updateSolve(current, id, { alg: '', phases: [] }));
+    setSolves((current) => editSolve(current, id, { alg: '', phases: [] }));
   }, []);
 
   // ——— The view (docs/cube-plan.md §7.1) ————————————————————————————————
