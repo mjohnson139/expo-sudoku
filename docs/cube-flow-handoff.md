@@ -380,7 +380,11 @@ purpose), whether the tag's 34 points are worth it in the hand at 320, and
 whether the card's nested `<Text>` renders the same on a phone. Colour and weight
 only, no font size, is the reason to expect it does.
 
-**Device pass: not yet run.** ← *update this line before the step is closed out.*
+**Device pass: passed, 2026-08-19** (operator, `pr-115` preview), with nothing
+further found. The three device-only questions above are retired: the sheet felt
+right on iOS, the 34-point header tag was worth its narrow-screen cost, and the
+nested method text rendered correctly on the card. The operator also opened the
+pre-Step-4 save and confirmed its old markers remained intact.
 
 ---
 

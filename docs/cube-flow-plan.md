@@ -581,9 +581,10 @@ pill appears on the card and in the solve header; **solves written before this
 step still open, still show their old chips, and are not damaged by the
 upgrade** — this is the one to test hardest.
 
-#### What landed (2026-08-18)
+#### What landed
 
-**All of the above, plus two operator decisions taken before a line was
+**Landed 2026-08-19** (PR #115, merged to `epic/cube-flow`; device pass passed
+with nothing further). **All of the above, plus two operator decisions taken before a line was
 written**, because both of them changed what got built:
 
 - **Open question 1 — a "no method" option: yes.** The sheet offers **Roux ·
@@ -667,6 +668,13 @@ time on purpose), whether the tag's 34 points are worth it in the hand at 320,
 and whether the nested `<Text>` on the card renders the same on a phone as it
 does under `react-native-web`. Colour and weight only, no font size, is the
 reason to expect it does.
+
+**The device pass retired all three questions** (operator, `pr-115` preview,
+2026-08-19): the method sheet felt right on iOS, the 34-point header tag was
+worth its cost at the narrow width, and the card's nested method text rendered
+correctly. The operator also confirmed the migration on the pre-Step-4 save —
+its existing solve opened with its old markers intact. Nothing further was
+found.
 
 ### 3.5 Step 5 — the phase rail, and the flag key retires
 
