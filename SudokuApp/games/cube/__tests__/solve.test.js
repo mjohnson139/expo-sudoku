@@ -80,12 +80,13 @@ describe('PAD_LAYOUT', () => {
     expect(column(6)).toEqual(['x', 'y', 'z']);
   });
 
-  it('carries undo and redo, and no flag or Clear', () => {
+  it('carries backspace, undo and redo, and no flag, keyboard or Clear', () => {
     const tools = PAD_LAYOUT.filter((cell) => cell.tool).map((cell) => cell.tool);
-    expect(tools.sort()).toEqual(['keyboard', 'prime', 'redo', 'undo']);
+    expect(tools.sort()).toEqual(['backspace', 'prime', 'redo', 'undo']);
     // Clearing a solve does not belong under a thumb aiming at `R` — it moved
     // to the solves list in Step 8 (plan §8.8).
     expect(tools).not.toContain('clear');
+    expect(tools).not.toContain('keyboard');
   });
 
   it('leaves `2` off the pad, because a half turn is still a second tap', () => {

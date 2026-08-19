@@ -617,7 +617,7 @@ const CubeSolve = ({ navigation }) => {
    * this word can go (plan §6, question 11).
    */
   /**
-   * The header's controls, which on this screen are the *view* plus Compare.
+   * The header's controls: view, Compare, and the algorithm keyboard.
    *
    * **The notebook button became Compare in Step 3.** It used to open
    * `CubeSolvesModal`, which was the list of solves *and* the comparison behind
@@ -634,8 +634,10 @@ const CubeSolve = ({ navigation }) => {
    * Rename, duplicate, clear and delete left with the list. They are a long-press
    * on a card now (`CubeSolveMenu`), which is where the solves are.
    *
-   * **Step 4 put one non-control in here**, the method tag — see above for what
-   * it costs and why it has nowhere better to be.
+   * The keyboard moved here in Step 6 so Backspace could remain a permanent pad
+   * key beside Undo and Redo. It costs 39 horizontal points only; no row and no
+   * cube height. At the 320-point floor the solve title may ellipsize, while its
+   * full text remains the screen-reader label.
    */
   const headerActions = (
     <>
@@ -680,6 +682,15 @@ const CubeSolve = ({ navigation }) => {
           color: titleColor,
           border,
         })}
+
+      {headerAction({
+        name: 'keyboard-outline',
+        label: 'Type an algorithm',
+        hint: 'Opens a field for typing or pasting a whole sequence',
+        onPress: () => setShowTyping(true),
+        color: titleColor,
+        border,
+      })}
     </>
   );
 
@@ -830,7 +841,7 @@ const CubeSolve = ({ navigation }) => {
         <>
           <CubeMovePad
             canUndo={canUndo}
-            canBackspace={!canUndo && solveCount > 0}
+            canBackspace={solveCount > 0}
             canRedo={canRedo}
             promoteKey={promoteKey}
             primed={primed}
@@ -841,7 +852,6 @@ const CubeSolve = ({ navigation }) => {
             onUndo={undoAction}
             onBackspace={backspaceMove}
             onRedo={redoAction}
-            onType={() => setShowTyping(true)}
           />
           {windowHeight >= LEGEND_MIN_HEIGHT && (
             <CubePadLegend theme={theme} accent={CUBE_ACCENT} />

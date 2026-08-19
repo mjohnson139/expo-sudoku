@@ -67,7 +67,7 @@ export const PAD_LAYOUT = [
   { key: 'D', tone: 'face' },
   { tool: 'redo', tone: 'tool' },
   { key: 'S', tone: 'slice' },
-  { tool: 'keyboard', tone: 'tool' },
+  { tool: 'backspace', tone: 'tool' },
   { key: 'z', tone: 'rot' },
 ];
 

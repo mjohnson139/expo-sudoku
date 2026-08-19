@@ -456,13 +456,17 @@ backwards animation; other restores are atomic and immediate.
 
 **Undo has a saved-work boundary; Backspace does not.** History is intentionally
 session-only, so a restored solve can contain moves with nothing left to undo.
-When `canUndo` is false and moves remain, the lower-left key changes its glyph
-and semantics to Backspace. Each deletion still goes through `editOpen` and
-`withMoves`, immediately becoming an undoable action. A held Backspace keeps the
-job it had at touch-down even after the first deletion creates history; otherwise
-the next repeat tick would undo that deletion and put the move straight back.
+The first fallback tried to make the Undo key become Backspace at that boundary;
+it failed immediately because the first deletion created history and turned the
+key back into Undo. They are separate keys now: Backspace permanently occupies
+the pad's former keyboard cell, and typing moves to the solve header. That costs
+the title column **39 horizontal points** but adds no row and costs the cube no
+height. Each
+deletion still goes through `editOpen` and `withMoves`, so it is undoable, but
+neither a rerender nor a cold start can remove the way to delete the next saved
+move. Both Undo and Backspace retain the existing held repeat.
 
-**Automated verification:** `npm test -- --runInBand` passed all 31 suites / 1160
+**Automated verification:** `npm test -- --runInBand` passed all 31 suites / 1157
 tests, including the new bound, round-trip, branch-drop and gesture replacement
 cases in `history.test.js`. A browser/device pass is still required before this
 step can be called landed: web cannot write gesture moves, so only a phone can

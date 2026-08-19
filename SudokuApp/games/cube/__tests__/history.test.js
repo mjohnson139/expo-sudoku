@@ -3,7 +3,6 @@ import {
   canRedo,
   canUndo,
   createHistory,
-  historyKeyMode,
   pushHistory,
   redoHistory,
   replaceHistory,
@@ -47,15 +46,5 @@ describe('solve history', () => {
     const cancelled = replaceHistory(first, snap(''));
     expect(canUndo(cancelled)).toBe(false);
     expect(canRedo(cancelled)).toBe(false);
-  });
-});
-
-describe('the pad history key', () => {
-  test.each([
-    [{ undo: true, moves: true }, 'undo'],
-    [{ undo: false, moves: true }, 'backspace'],
-    [{ undo: false, moves: false }, 'disabled'],
-  ])('chooses %s as %s', (state, expected) => {
-    expect(historyKeyMode(state)).toBe(expected);
   });
 });

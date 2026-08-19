@@ -4,7 +4,6 @@ import * as Haptics from 'expo-haptics';
 import { ALG_FONT } from './algText';
 import CubeGlyph from './CubeGlyph';
 import { padPalette } from './padPalette';
-import { historyKeyMode } from './history';
 import {
   BACKSPACE_REPEAT_MS,
   HOLD_MS,
@@ -85,7 +84,6 @@ const CubeMovePad = ({
   onUndo,
   onBackspace,
   onRedo,
-  onType,
 }) => {
   const palette = padPalette(theme, accent);
 
@@ -155,11 +153,9 @@ const CubeMovePad = ({
     [onKey]
   );
 
-  // The lower-left history key repeats whichever job it had when the finger
-  // went down. That distinction matters for a restored solve: with no in-memory
-  // history it is Backspace, and the first deletion creates an undo entry. A
-  // rerender must not turn the rest of the same hold into Undo and put the move
-  // straight back.
+  // Undo and Backspace are separate keys and each repeats its own action. This
+  // is intentionally not a mode switch: session history may be empty while a
+  // restored solve still contains any number of moves to delete.
   const holdHistoryKey = useCallback((repeat) => {
     repeatTimer.current = setTimeout(() => {
       repeatTick.current = setInterval(repeat, BACKSPACE_REPEAT_MS);
@@ -292,31 +288,29 @@ const CubeMovePad = ({
     // it only while live, which is a state rather than a resting style — and
     // being the loud thing on the pad is the entire job it was added to do.
     const group = primeLive ? palette.accent : palette.tone('tool');
-    const historyMode = historyKeyMode({ undo: canUndo, moves: canBackspace });
-    const backspace = tool === 'undo' && historyMode === 'backspace';
     const disabled = tool === 'undo'
-      ? historyMode === 'disabled'
+      ? !canUndo
+      : tool === 'backspace'
+        ? !canBackspace
       : tool === 'redo'
         ? !canRedo
         : false;
 
     const config = {
       undo: {
-        label: backspace ? 'Delete the last move' : 'Undo the last action',
-        hint: backspace
-          ? 'This solve predates the current editing history. Deletes its last move; hold to keep deleting'
-          : 'Takes back the last move, typed algorithm, or phase lock. Hold to keep undoing',
-        onPress: backspace ? onBackspace : onUndo,
+        label: 'Undo the last action',
+        hint: 'Takes back the last move, typed algorithm, or phase lock. Hold to keep undoing',
+        onPress: onUndo,
+      },
+      backspace: {
+        label: 'Delete the last move',
+        hint: 'Deletes the final saved move. Hold to keep deleting',
+        onPress: onBackspace,
       },
       redo: {
         label: 'Redo the last action',
         hint: 'Restores the action most recently undone',
         onPress: onRedo,
-      },
-      keyboard: {
-        label: 'Type an algorithm',
-        hint: 'Opens a field for typing or pasting a whole sequence',
-        onPress: onType,
       },
       prime: {
         // Reads what it looks like. A hold past the threshold really has armed
@@ -344,7 +338,8 @@ const CubeMovePad = ({
         ]}
         onPressIn={() => {
           setPressed(tool);
-          if (tool === 'undo') holdHistoryKey(backspace ? onBackspace : onUndo);
+          if (tool === 'undo') holdHistoryKey(onUndo);
+          if (tool === 'backspace') holdHistoryKey(onBackspace);
         }}
         onPressOut={() => {
           clearTimers();
@@ -362,11 +357,7 @@ const CubeMovePad = ({
           // the icon.
           <Text style={[styles.primeText, { color: group.ink }]}>′</Text>
         ) : (
-          <CubeGlyph
-            name={backspace ? 'backspace' : tool}
-            size={tool === 'keyboard' ? 20 : 19}
-            color={group.ink}
-          />
+          <CubeGlyph name={tool} size={19} color={group.ink} />
         )}
       </Pressable>
     );

@@ -50,10 +50,3 @@ export const redoHistory = (history) => {
 
 export const canUndo = (history) => history.past.length > 0;
 export const canRedo = (history) => history.future.length > 0;
-
-// The pad cannot strand moves that predate this deliberately session-only ring.
-export const historyKeyMode = ({ undo, moves }) => {
-  if (undo) return 'undo';
-  if (moves) return 'backspace';
-  return 'disabled';
-};

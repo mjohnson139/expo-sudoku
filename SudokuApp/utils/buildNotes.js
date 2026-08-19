@@ -42,7 +42,7 @@ const BUILD_NOTES = {
       'Freeform and older solves keep their existing phase chips, while the flag key and naming sheet are gone',
       'Undo and redo now take back whole actions — a move, pasted algorithm, or phase lock — instead of deleting one token at a time',
       'Undo and redo take the old backspace and flag positions on the move pad, so both actions stay under the same thumb',
-      'When session history runs out but an older solve still has moves, Undo becomes Backspace so every saved move remains editable',
+      'Backspace remains its own key, so every saved move stays deletable even after session-only Undo runs out; typing moves to the solve header',
       'Finger turns stay one undo action after their notation tidies, and turning a layer out and straight back cannot reappear from redo',
     ]
   },
