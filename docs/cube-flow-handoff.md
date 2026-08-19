@@ -388,6 +388,45 @@ pre-Step-4 save and confirmed its old markers remained intact.
 
 ---
 
+## What landed in Step 5 (read this before Step 6)
+
+**The method rail replaced the flag flow.** A method solve permanently shows
+its stages in `CubePhaseRail`; the pure `railStates(method, phases, alg)` derives
+locked, open and upcoming pills. Tapping the one open pill writes the familiar
+two-marker transition through `endPhase`, at `moveCount(alg)` rather than the
+scrubber position. `CubePhaseModal`, the flag key, `canPhase` and `onPhase` are
+gone. The empty pad cell is deliberate and belongs to Step 6 redo. A Freeform or
+legacy (`method: null`) solve keeps its old `CubePhaseStrip`, read-only.
+
+**The rail is a sequence, never a checklist.** Only a consecutive prefix whose
+labels match `method.stages` is locked; the next stage alone is open and every
+later stage is upcoming and disabled. This was fixed after the first device
+pass found that an out-of-order Second block marker could appear complete before
+First block. Keep `phaseRail.test.js`'s literal out-of-order case.
+
+**The open count starts at the preceding locked span's `end`.** Do not replace
+that with `openPhaseStart`: its strict-before-boundary semantics are correct for
+the retired modal's rename case and wrong for the rail. The first build made a
+new Second block briefly show First block's whole count until another move was
+written. It now shows `0` on the same render that First block locks, then `1` on
+the first new move. The count remains `moveCount(alg)` arithmetic, so settled
+gesture folds and cancellations update it without a second counter.
+
+**Layout, in points (§8.6).** A method solve always pays the rail's fixed **28
+points** from the stage; it scrolls horizontally and never wraps. Freeform and
+legacy solves still pay the old strip's 28 points only when markers exist. The
+Step 4 method header tag retired because the rail spells the method out, giving
+the solve title **34 horizontal points back** and costing the cube no extra row.
+
+**Device pass: passed, 2026-08-19** (operator, `pr-118` preview), after the two
+findings above were fixed. The operator called the final ordered progression and
+zero-count handoff *"pretty dang good"*. This is also the evidence for the
+phone-only input path: finger moves accrue to the open stage and the displayed
+count follows the settled algorithm tidy. Browser gesture input remains
+orbit-only and could not establish that.
+
+---
+
 ## Next step — Step 6: undo and redo of whole actions
 
 `docs/cube-flow-plan.md` §3.6 is the brief. Step 5 retired the flag and left its
@@ -473,7 +512,7 @@ variations join the undoable solve state, and their identity is the phase marker
 
 ## Open questions being carried forward
 
-From `docs/cube-flow-plan.md` §6 — none of these block Step 5, and all of them
+From `docs/cube-flow-plan.md` §6 — none of these block Step 6, and all of them
 want a drilling session rather than an opinion:
 
 1. ~~Does the rail want a "no method" option for a scratch attempt?~~
