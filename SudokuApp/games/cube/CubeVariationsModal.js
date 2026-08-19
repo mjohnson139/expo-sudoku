@@ -1,13 +1,12 @@
 import React from 'react';
 import { Modal, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { moveCount } from './moves';
-import { best } from './variations';
+import { best, variationStageCount } from './variations';
 
 const CubeVariationsModal = ({ stage, active, variations, theme, accent, onClose, onTryAgain, onSwitch }) => {
   if (!stage) return null;
   const storedBest = best(variations, stage.at);
   const activeCount = active ? active.count : 0;
-  const bestCount = Math.min(activeCount || Infinity, storedBest ? moveCount(storedBest.alg) : Infinity);
+  const bestCount = Math.min(activeCount || Infinity, storedBest ? variationStageCount(storedBest) : Infinity);
   return (
     <Modal transparent animationType="fade" visible onRequestClose={onClose}>
       <Pressable style={styles.backdrop} onPress={onClose}>
@@ -18,7 +17,7 @@ const CubeVariationsModal = ({ stage, active, variations, theme, accent, onClose
             {activeCount === bestCount && <Text style={[styles.best, { color: accent }]}>best</Text>}
           </View>
           {(variations || []).filter((item) => item.phaseAt === stage.at).map((item) => {
-            const count = moveCount(item.alg);
+            const count = variationStageCount(item);
             return (
               <TouchableOpacity key={item.id} style={[styles.row, { borderColor: theme.colors.numberPad.border }]} onPress={() => onSwitch(item)}>
                 <Text style={{ color: theme.colors.title }}>Saved run · {count} moves</Text>

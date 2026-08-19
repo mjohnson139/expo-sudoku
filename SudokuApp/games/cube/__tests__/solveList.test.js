@@ -429,6 +429,27 @@ describe('sanitizeSolves', () => {
     ]);
   });
 
+  it('sanitizes a branch tree in each continuation’s relative coordinates', () => {
+    expect(sanitizeVariations([{
+      id: 'v1',
+      phaseAt: 2,
+      alg: 'R U F',
+      phases: [{ at: 0, label: 'Second block' }, { at: 2, label: 'CMLL' }],
+      variations: [
+        { id: 'v2', phaseAt: 2, alg: 'F2', savedAt: 4 },
+        { id: 'orphan', phaseAt: 7, alg: 'L', savedAt: 5 },
+      ],
+      savedAt: 3,
+    }], [{ at: 2, label: '' }])).toEqual([{
+      id: 'v1',
+      phaseAt: 2,
+      alg: 'R U F',
+      phases: [{ at: 0, label: 'Second block' }, { at: 2, label: 'CMLL' }],
+      variations: [{ id: 'v2', phaseAt: 2, alg: 'F2', savedAt: 4 }],
+      savedAt: 3,
+    }]);
+  });
+
   it('leaves a legacy solve\'s free-text markers resolvable, whatever they say', () => {
     // A marker written through the old free-text escape hatch names no shipped
     // stage, and it is still the operator's work. Nothing about Step 4 touches

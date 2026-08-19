@@ -41,7 +41,7 @@ import {
 } from './solveList';
 import { railStates } from './phaseRail';
 import { moveCount, parseAlg } from './moves';
-import { fork, switchVariation } from './variations';
+import { fork, switchVariation, variationStageCount } from './variations';
 import useAppBackground from './useAppBackground';
 import useScramblePlayer from './useScramblePlayer';
 import useCubeStage from './useCubeStage';
@@ -562,7 +562,7 @@ const CubeSolve = ({ navigation }) => {
     if (!variationStage) return;
     pause();
     resetGesture();
-    const end = variationStage.at + moveCount(variation.alg);
+    const end = variationStage.at + variationStageCount(variation);
     editOpen((current) => switchVariation(current, variation.id, { label: variationStage.stage }) || {});
     setVariationStage(null);
     setVariationReplay({ at: variationStage.at, end });

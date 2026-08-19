@@ -14,7 +14,7 @@
  * ### A solve
  *
  * ```js
- * { id, scramble, name, method, orientation, alg, phases, savedAt, editedAt }
+ * { id, scramble, name, method, orientation, alg, phases, variations, savedAt, editedAt }
  * ```
  *
  * - **`scramble`** is the scramble it was written against, as normalized
@@ -39,6 +39,9 @@
  *   moves solve first block, this set solves second block"*. Step 4 put the
  *   field in the file and Step 6 filled it in, which is the whole point of
  *   deciding the shape once.
+ * - **`variations`** is a tree flattened only at the active branch. Each entry
+ *   stores the complete continuation from `phaseAt`, including relative phase
+ *   markers and any branches below it. The solve's own `alg` remains flat.
  * - **`savedAt` is when the solve was started and `editedAt` is when it was
  *   last written to.** Two fields rather than one bumped field, decided by the
  *   operator (2026-08-18, docs/cube-flow-plan.md §6 question 8): `savedAt` was
@@ -738,8 +741,9 @@ export const withMoves = (solve, alg) => ({
 const sanitizePhases = (raw, count) => (Array.isArray(raw) ? clampPhases(raw, count) : []);
 
 /** Keep only parseable inactive runs attached to a marker that survived. */
-export const sanitizeVariations = (raw, phases) => {
+export const sanitizeVariations = (raw, phases, depth = 0) => {
   if (!Array.isArray(raw)) return [];
+  if (depth > 12) return [];
   const markers = new Set((phases || []).map((phase) => phase.at));
   const used = new Set();
   let minted = 0;
@@ -753,12 +757,24 @@ export const sanitizeVariations = (raw, phases) => {
       if (!used.has(`v${minted}`)) id = `v${minted}`;
     }
     used.add(id);
-    clean.push({
+    const variation = {
       id,
       phaseAt: item.phaseAt,
       alg,
       savedAt: Number.isFinite(item.savedAt) ? item.savedAt : 0,
-    });
+    };
+    // Step 7's first preview stored only a stage algorithm. Keep reading that
+    // shape; new branch snapshots additionally carry their relative markers
+    // and any alternatives below this fork.
+    if (Array.isArray(item.phases)) {
+      variation.phases = sanitizePhases(item.phases, moveCount(alg));
+      variation.variations = sanitizeVariations(
+        item.variations,
+        variation.phases,
+        depth + 1
+      );
+    }
+    clean.push(variation);
     return clean;
   }, []);
 };

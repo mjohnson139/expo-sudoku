@@ -3,9 +3,15 @@ import { clampPhases, phaseSpans, withMoves } from './solveList';
 
 const join = (tokens) => tokens.join(' ');
 
+const walkIds = (variations, visit) =>
+  (variations || []).forEach((variation) => {
+    visit(variation.id);
+    walkIds(variation.variations, visit);
+  });
+
 export const nextVariationId = (variations) => {
   let highest = 0;
-  (variations || []).forEach(({ id } = {}) => {
+  walkIds(variations, (id) => {
     const match = /^v(\d+)$/.exec(id || '');
     if (match) highest = Math.max(highest, Number(match[1]));
   });
@@ -15,84 +21,116 @@ export const nextVariationId = (variations) => {
 export const variationsAt = (variations, phaseAt) =>
   (variations || []).filter((variation) => variation.phaseAt === phaseAt);
 
-const spanAt = (solve, phaseAt) =>
-  phaseSpans(solve.phases, moveCount(solve.alg)).find((span) => span.at === phaseAt) || null;
+/** A branch stores its continuation and all of the markers below the fork. */
+const branchFrom = (solve, phaseAt) => ({
+  alg: join(tokenize(solve.alg).slice(phaseAt)),
+  phases: (solve.phases || [])
+    .filter((phase) => phase.at >= phaseAt)
+    .map((phase) => ({ ...phase, at: phase.at - phaseAt })),
+  variations: (solve.variations || [])
+    .filter((variation) => variation.phaseAt > phaseAt)
+    .map((variation) => ({ ...variation, phaseAt: variation.phaseAt - phaseAt })),
+});
 
-const rebaseVariations = (variations, from, delta) =>
-  (variations || []).map((variation) => ({
-    ...variation,
-    phaseAt: variation.phaseAt > from ? variation.phaseAt + delta : variation.phaseAt,
-  }));
+const stageCount = (variation) => {
+  const total = moveCount(variation.alg);
+  const phases = variation.phases || [];
+  const next = phases.find((phase) => phase.at > 0);
+  return next ? next.at : total;
+};
 
-/** Stash the selected stage and remove it from the flat active algorithm. */
+/**
+ * Start a new branch at a locked stage.
+ *
+ * Everything from the selected marker onward belongs to the old branch. The
+ * active solve is truncated to the shared prefix, rather than deleting one span
+ * and accidentally leaving later-stage moves behind as the retry's first moves.
+ */
 export const fork = (solve, phaseAt, { savedAt = Date.now() } = {}) => {
-  const span = spanAt(solve, phaseAt);
+  const span = phaseSpans(solve.phases, moveCount(solve.alg)).find(
+    (candidate) => candidate.at === phaseAt
+  );
   if (!span || !span.label || span.count <= 0) return null;
-  const tokens = tokenize(solve.alg);
-  const run = join(tokens.slice(span.at, span.end));
-  const alg = join([...tokens.slice(0, span.at), ...tokens.slice(span.end)]);
-  const delta = -span.count;
+
+  const snapshot = branchFrom(solve, phaseAt);
+  const existing = solve.variations || [];
+  const prefixVariations = existing.filter((variation) => variation.phaseAt <= phaseAt);
+  const alg = join(tokenize(solve.alg).slice(0, phaseAt));
   const phases = clampPhases(
-    solve.phases.map((phase) => ({
-      at: phase.at > span.at ? Math.max(span.at, phase.at + delta) : phase.at,
-      label: phase.at === span.at ? '' : phase.label,
-    })),
+    [
+      ...(solve.phases || []).filter((phase) => phase.at < phaseAt),
+      { at: phaseAt, label: '' },
+    ],
     moveCount(alg)
   );
-  const existing = solve.variations || [];
-  const variations = rebaseVariations(existing, span.at, delta).concat({
-    id: nextVariationId(existing), phaseAt: span.at, alg: run, savedAt,
+  const variations = prefixVariations.concat({
+    id: nextVariationId(existing),
+    phaseAt,
+    ...snapshot,
+    savedAt,
   });
   return { ...withMoves({ ...solve, phases }, alg), variations };
 };
 
-/** Replace the active run at a marker with a stored one, keeping the displaced run. */
+/** Select a branch, stashing the entire displaced continuation beside it. */
 export const switchVariation = (
   solve,
   variationId,
   { label = '', savedAt = Date.now() } = {}
 ) => {
-  const target = (solve.variations || []).find((item) => item.id === variationId);
+  const existing = solve.variations || [];
+  const target = existing.find((variation) => variation.id === variationId);
   if (!target) return null;
-  const span = spanAt(solve, target.phaseAt);
-  if (!span) return null;
-  const tokens = tokenize(solve.alg);
+  const phaseAt = target.phaseAt;
+  if (!(solve.phases || []).some((phase) => phase.at === phaseAt)) return null;
+
+  const active = branchFrom(solve, phaseAt);
+  const prefix = tokenize(solve.alg).slice(0, phaseAt);
   const chosen = tokenize(target.alg);
-  const active = join(tokens.slice(span.at, span.end));
-  const alg = join([...tokens.slice(0, span.at), ...chosen, ...tokens.slice(span.end)]);
-  const delta = chosen.length - span.count;
-  const shiftedPhases = solve.phases.map((phase) => ({
-      at: phase.at > span.at ? phase.at + delta : phase.at,
-      label: phase.at === span.at && label ? label : phase.label,
-    }));
-  const chosenEnd = span.at + chosen.length;
-  if (label && !shiftedPhases.some((phase) => phase.at === chosenEnd)) {
-    shiftedPhases.push({ at: chosenEnd, label: '' });
-  }
+  const alg = join([...prefix, ...chosen]);
+  const restoredPhases = (target.phases && target.phases.length > 0
+    ? target.phases
+    : [{ at: 0, label }, { at: chosen.length, label: '' }]
+  ).map((phase) => ({ ...phase, at: phase.at + phaseAt }));
   const phases = clampPhases(
-    shiftedPhases,
+    [
+      ...(solve.phases || []).filter((phase) => phase.at < phaseAt),
+      ...restoredPhases,
+    ],
     moveCount(alg)
   );
-  let variations = (solve.variations || [])
-    .filter((item) => item.id !== variationId)
-    .map((item) => ({ ...item, phaseAt: item.phaseAt > span.at ? item.phaseAt + delta : item.phaseAt }));
-  if (active) {
-    variations = variations.concat({
-      id: nextVariationId(solve.variations), phaseAt: span.at, alg: active, savedAt,
+
+  const siblings = existing.filter(
+    (variation) => variation.id !== variationId && variation.phaseAt <= phaseAt
+  );
+  let variations = siblings.concat(
+    (target.variations || []).map((variation) => ({
+      ...variation,
+      phaseAt: variation.phaseAt + phaseAt,
+    }))
+  );
+  if (active.alg) {
+    variations.push({
+      id: nextVariationId(existing),
+      phaseAt,
+      ...active,
+      savedAt,
     });
   }
   return { ...withMoves({ ...solve, phases }, alg), variations };
 };
 
-/** Shortest stored run; creation order, then id, is the deterministic tie break. */
+/** Shortest stage run; creation time, then id, is the deterministic tie break. */
 export const best = (variations, phaseAt) =>
   variationsAt(variations, phaseAt).reduce((winner, item) => {
     if (!winner) return item;
-    const count = moveCount(item.alg);
-    const winningCount = moveCount(winner.alg);
+    const count = stageCount(item);
+    const winningCount = stageCount(winner);
     if (count !== winningCount) return count < winningCount ? item : winner;
     if (item.savedAt !== winner.savedAt) return item.savedAt < winner.savedAt ? item : winner;
     return item.id < winner.id ? item : winner;
   }, null);
 
-export default { best, fork, switchVariation, variationsAt };
+export const variationStageCount = stageCount;
+
+export default { best, fork, switchVariation, variationStageCount, variationsAt };
