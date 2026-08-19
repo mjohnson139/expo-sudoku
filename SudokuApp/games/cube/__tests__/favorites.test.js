@@ -98,6 +98,11 @@ describe('sanitizeFavorites', () => {
 });
 
 describe('readCubeSave', () => {
+  // Deliberately a **pre-Step-4 record**: no `method`, no `editedAt`. Cube Flow
+  // Step 4 added both by shape rather than by a version bump, so what this
+  // fixture is really testing is that a file written by an older build still
+  // comes back as the operator left it, with the two new fields filled in and
+  // nothing else touched.
   const SOLVE = {
     id: 's1',
     scramble: ALG,
@@ -107,6 +112,11 @@ describe('readCubeSave', () => {
     phases: [],
     savedAt: 7,
   };
+
+  /** The same solve as this build stores it: no method, and last written to when
+   *  it was started — which is the most that can honestly be said about a record
+   *  that never carried the field. */
+  const UPGRADED = { ...SOLVE, method: null, editedAt: 7 };
 
   it('reads a well-formed save', () => {
     expect(
@@ -119,7 +129,7 @@ describe('readCubeSave', () => {
     ).toEqual({
       scramble: ALG,
       favorites: [{ alg: OTHER, savedAt: 7 }],
-      solves: [SOLVE],
+      solves: [UPGRADED],
       workspace: { solveId: 's1', view: null },
     });
   });
@@ -186,7 +196,7 @@ describe('readCubeSave', () => {
       // asked for (plan §7.1).
       expect(
         readCubeSave({ scramble: ALG, favorites: [], solves: [SOLVE] }).solves
-      ).toEqual([SOLVE]);
+      ).toEqual([UPGRADED]);
     });
   });
 });

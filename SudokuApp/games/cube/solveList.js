@@ -14,7 +14,7 @@
  * ### A solve
  *
  * ```js
- * { id, scramble, name, orientation, alg, phases, savedAt }
+ * { id, scramble, name, method, orientation, alg, phases, savedAt, editedAt }
  * ```
  *
  * - **`scramble`** is the scramble it was written against, as normalized
@@ -29,12 +29,35 @@
  *   block, try the second block differently" starts life as a copy. So a solve
  *   has no natural key and is given one. It is minted by counting rather than
  *   by clock or dice, so the file is deterministic and so are the tests.
+ * - **`method`** is a method id from `methods.js`, or **`null`** — which means
+ *   *Freeform*, and also means *written before Cube Flow's Step 4*. One value
+ *   for both, deliberately, because what it means downstream is "there is no
+ *   stage list here" and that is equally true of each. See `methods.js`.
  * - **`orientation`** is the hold, as a rotation prefix — `null` while it is
  *   still being inspected, `''` for the reference hold, otherwise notation.
  * - **`phases`** is the annotation on the move groups (plan §8.5) — *"these
  *   moves solve first block, this set solves second block"*. Step 4 put the
  *   field in the file and Step 6 filled it in, which is the whole point of
  *   deciding the shape once.
+ * - **`savedAt` is when the solve was started and `editedAt` is when it was
+ *   last written to.** Two fields rather than one bumped field, decided by the
+ *   operator (2026-08-18, docs/cube-flow-plan.md §6 question 8): `savedAt` was
+ *   already in everyone's file meaning *created*, and quietly redefining a
+ *   stored field is not a UI tweak. So it keeps its meaning and `editedAt`
+ *   joins it, falling back to `savedAt` for a record that predates it — which
+ *   is every record written before this step, and is exactly right for them.
+ *   **Only the card reads `editedAt`**, because "when did I last work on this"
+ *   is the card's question; nothing sorts by it (see `editSolve`).
+ *
+ * ### Migration is by shape, and there is no version bump
+ *
+ * `storage.js` is explicit that nothing branches on `_v` — `readCubeSave` reads
+ * every version by shape, because a key that is absent and a key that is corrupt
+ * want the same answer anyway. Both of this step's new fields are therefore
+ * added by `sanitizeSolves` alone: an absent or unknown `method` is `null`, an
+ * absent `editedAt` is the record's `savedAt`, and **nothing else on a
+ * pre-existing record is touched.** A solve written by an older build opens with
+ * its markers, its hold and its moves exactly as it left them.
  *
  * ### Phases are markers, not ranges (plan §8.5)
  *
@@ -54,6 +77,7 @@
  */
 
 import { wrapAngle } from './geometry';
+import { sanitizeMethodId, stagesOf } from './methods';
 import { isValidAlg, moveCount, normalizeAlg } from './moves';
 
 /**
@@ -145,10 +169,20 @@ export const defaultSolveName = (solves, scramble) => {
  * just made and looking it back up by name would be the one lookup that can be
  * wrong.
  *
+ * `method` is an id from `methods.js` or null, and it is **asked for before the
+ * solve exists** (`CubeNewSolveSheet`) rather than set afterwards — Step 5
+ * builds the phase rail out of it, so a solve that acquired one half way through
+ * would be a rail that appeared over markers written without it. An id this
+ * build does not know is `null`, the same answer storage gives.
+ *
  * @returns {{solves: Array, solve: Object|null}} `solve` is null — and the list
  *   unchanged — when `scramble` is not an algorithm to solve.
  */
-export const createSolve = (solves, scramble, { name, savedAt = Date.now() } = {}) => {
+export const createSolve = (
+  solves,
+  scramble,
+  { name, method = null, savedAt = Date.now() } = {}
+) => {
   const key = normalizeAlg(scramble);
   const list = solves || [];
   if (key.length === 0 || !isValidAlg(key)) return { solves: list, solve: null };
@@ -160,10 +194,15 @@ export const createSolve = (solves, scramble, { name, savedAt = Date.now() } = {
     id: nextSolveId(list),
     scramble: key,
     name: wanted.length > 0 ? uniqueName(wanted, taken) : defaultSolveName(list, key),
+    method: sanitizeMethodId(method),
     orientation: null,
     alg: '',
     phases: [],
     savedAt,
+    // A page nobody has written on yet was last written to when it was made.
+    // The alternative — null until the first move — is a card that says nothing
+    // about the solve you are looking at right now.
+    editedAt: savedAt,
   };
 
   return { solves: [solve, ...list].slice(0, MAX_SOLVES), solve };
@@ -175,6 +214,16 @@ export const createSolve = (solves, scramble, { name, savedAt = Date.now() } = {
  * **This is the one that matters for drilling**: "same first block, try the
  * second block differently" is how the practice actually goes, and it starts by
  * keeping what you already had.
+ *
+ * **The method comes across with everything else**, by the spread — and it has
+ * to: the copy is the same attempt at the same scramble by the same method, and
+ * a copy that forgot it would build the wrong rail in Step 5. It is spelled out
+ * here rather than left to the reader of a `...source` because it is exactly the
+ * sort of thing a later rewrite of this function loses quietly
+ * (`solveList.test.js` pins it).
+ *
+ * The two dates are the copy's own: `savedAt` because the copy was made now, and
+ * `editedAt` with it because a fresh copy has not been worked on since.
  */
 export const duplicateSolve = (solves, id, { savedAt = Date.now() } = {}) => {
   const list = solves || [];
@@ -189,6 +238,7 @@ export const duplicateSolve = (solves, id, { savedAt = Date.now() } = {}) => {
     name: uniqueName(normalizeName(`${source.name} copy`), taken),
     phases: [...source.phases],
     savedAt,
+    editedAt: savedAt,
   };
 
   return { solves: [solve, ...list].slice(0, MAX_SOLVES), solve };
@@ -224,9 +274,51 @@ export const updateSolve = (solves, id, patch) => {
   return changed ? next : list;
 };
 
+/**
+ * Change a solve's **contents**, and stamp it as worked on.
+ *
+ * `updateSolve` plus `editedAt`, and the split between the two is the whole
+ * point of there being two functions. **What `editedAt` answers is "when did I
+ * last work on this solve"**, so it is bumped by the things that change what is
+ * *written* — the moves, the hold, the markers, a clear — and not by the things
+ * that change what the solve is *called* or where it sits. Renaming a solve
+ * three days later does not make it a solve you were writing three days later.
+ *
+ * `CubeContext.editOpen` is the app's only edit funnel and it is built on this,
+ * so every authored change is stamped in one place rather than at each call
+ * site. The clock is a parameter for the reason `createSolve`'s is: a test that
+ * had to reach `Date.now()` would be a stopwatch race.
+ *
+ * **Nothing sorts by `editedAt`.** The list is creation order and stays that way
+ * — a list that re-sorted on every keystroke would reshuffle under the thumb
+ * that was writing, which is the objection `updateSolve`'s own comment makes.
+ * The card *reads* it (`lastTouched`); the order ignores it.
+ */
+export const editSolve = (solves, id, patch, { editedAt = Date.now() } = {}) =>
+  updateSolve(solves, id, (solve) => ({
+    ...(typeof patch === 'function' ? patch(solve) : patch),
+    editedAt,
+  }));
+
+/**
+ * When this solve was last worked on — `editedAt`, or `savedAt` for a record
+ * written before there was one.
+ *
+ * The fallback is the migration, and it is the whole migration: a solve from
+ * before this step has no `editedAt`, and the most honest thing that can be said
+ * about when it was last written to is when it was started. `sanitizeSolves`
+ * applies the same fallback on the way in, so this is belt and braces for a
+ * record still in flight — and one function, so the file and the screen cannot
+ * answer differently.
+ */
+export const lastTouched = (solve) =>
+  solve && Number.isFinite(solve.editedAt) ? solve.editedAt : (solve && solve.savedAt) || 0;
+
 /** Rename a solve, keeping names distinct within their scramble so the picker
  *  never shows two rows that read the same. An empty name is refused rather
- *  than kept — a row with no name is a row you cannot ask for. */
+ *  than kept — a row with no name is a row you cannot ask for.
+ *
+ *  Deliberately `updateSolve` and not `editSolve`: a name is not the work. */
 export const renameSolve = (solves, id, name) => {
   const list = solves || [];
   const solve = findSolve(list, id);
@@ -247,19 +339,17 @@ export const renameSolve = (solves, id, name) => {
 // ——— Phases: annotating the move groups (plan §8.5) ————————————————————————
 
 /**
- * The method's own vocabulary, offered a tap at a time.
+ * **`PHASE_METHODS` retired here** (Cube Flow Step 4, docs/cube-flow-plan.md
+ * §3.4).
  *
- * *"These moves solve first block. This set solves second block."* Those are the
- * names, and typing them on a phone is the thing that would stop anyone doing
- * it — so the two methods this app is likely to see are spelled out and a label
- * is one tap. Free text is the escape hatch, not the primary route.
- *
- * Roux comes first because it is what the operator is drilling (plan §8.2).
+ * It was this file's chip vocabulary — `{ name, labels }` for Roux and CFOP,
+ * offered a tap at a time so that naming a group of moves did not mean typing on
+ * a phone. It is `METHODS` in `games/cube/methods.js` now, as `{ id, name,
+ * stages }`, because a solve *stores* its method from this step on and Step 5
+ * builds a rail out of the stages. `CubePhaseModal` reads it there; the labels
+ * are the same strings, and `methods.test.js` pins that against a literal copy
+ * of the old table so no marker already in a save file is orphaned.
  */
-export const PHASE_METHODS = [
-  { name: 'Roux', labels: ['First block', 'Second block', 'CMLL', 'LSE'] },
-  { name: 'CFOP', labels: ['Cross', 'F2L', 'OLL', 'PLL'] },
-];
 
 /** What a group with no name yet is called — the moves written since the last
  *  marker, which is a real span with a real count and simply has not been
@@ -449,8 +539,14 @@ export const announcePhaseSpan = (span) => {
  * The cursor is what makes a partial solve harmless: an attempt that names only
  * `First block` and `CMLL` still leaves `Second block` between them rather than
  * pushing it to the end. The flip side is that a solve which jumped from the
- * first block straight to LSE puts `LSE` directly after `First block` — which is
- * all the evidence there is, since nothing here knows what Roux's phases mean.
+ * first block straight to LSE puts `LSE` directly after `First block` — which
+ * used to be all the evidence there was, since nothing here knew what Roux's
+ * phases mean.
+ *
+ * **Since Step 4 something does**, and it is fed in as one more sequence: see
+ * `methodOrders` below. The merge itself is unchanged, and with no methods
+ * stored — every solve in the file written before Step 4 — it produces exactly
+ * what it always did.
  */
 const mergeLabelOrder = (sequences) => {
   const order = [];
@@ -499,6 +595,42 @@ const countByLabel = (spans) => {
 };
 
 /**
+ * The column orders the *methods* assert — one sequence per method in play.
+ *
+ * `mergeLabelOrder` can only ever reason from the orders the solves themselves
+ * wrote, and that is thin evidence: an attempt that marked `First block` and
+ * then `LSE` is, read literally, saying LSE comes second. Since Step 4 a solve
+ * says which method it is, so the method's own stage list can be handed to the
+ * merge as evidence too — and being fed **first**, it is the evidence that
+ * decides, with the solves' own sequences left to place anything the method
+ * never heard of (a free-text label, or a marker from before this step).
+ *
+ * **Filtered to labels some solve actually marked**, which is the part that
+ * keeps this honest: a Roux solve that only ever reached the first block must
+ * not conjure `CMLL` and `LSE` columns full of nothing. A column still means
+ * "at least one of these attempts marked this".
+ *
+ * One sequence per distinct method rather than one merged list, in the order the
+ * methods first appear, so a file holding Roux attempts and CFOP attempts gets
+ * Roux's four columns and then CFOP's four — the same eight columns
+ * `mergeLabelOrder`'s own comment calls the honest answer, now each in its
+ * method's order instead of in whichever order the attempts happened to be
+ * written.
+ */
+const methodOrders = (counted, used) => {
+  const seen = [];
+
+  counted.forEach(({ solve }) => {
+    const id = solve && solve.method;
+    if (id && !seen.includes(id)) seen.push(id);
+  });
+
+  return seen
+    .map((id) => stagesOf(id).filter((stage) => used.has(stage)))
+    .filter((stages) => stages.length > 0);
+};
+
+/**
  * The attempts at one scramble, side by side (plan §8.10).
  *
  * *"Am I getting better at this scramble?"* is the question a single solve
@@ -536,7 +668,14 @@ export const comparePhases = (solves) => {
     totals: countByLabel(phaseSpans(solve && solve.phases, moveCount(solve && solve.alg))),
   }));
 
-  const labels = mergeLabelOrder(counted.map(({ totals }) => [...totals.keys()]));
+  // Every label some attempt actually marked — what a column is allowed to be.
+  const used = new Set();
+  counted.forEach(({ totals }) => totals.forEach((_value, label) => used.add(label)));
+
+  const labels = mergeLabelOrder([
+    ...methodOrders(counted, used),
+    ...counted.map(({ totals }) => [...totals.keys()]),
+  ]);
 
   // The fewest moves in each column, and how many solves are in it — one entry
   // is a sample of one and gets no marker.
@@ -624,6 +763,21 @@ const sanitizeOrientation = (raw) => {
  *
  * Ids are repaired rather than trusted too — a missing or duplicated one is
  * re-minted, since two rows with one id is a picker that opens the wrong solve.
+ *
+ * ### Step 4's two new fields are added here and nowhere else
+ *
+ * **This is the whole of the migration, and no `_v` bump goes with it** — see
+ * the note at the top of this file. A record that has never heard of `method`
+ * gets `null`, which is the legacy-and-Freeform value; a record that has never
+ * heard of `editedAt` gets its own `savedAt`, which is the most that can honestly
+ * be said about when it was last written to. **Nothing else on it changes.**
+ * That is the property worth being careful about, because the failure mode is
+ * silent: a solve whose markers or hold came back subtly different would look
+ * like a solve, and only the operator would know it was not theirs any more.
+ *
+ * An `editedAt` from the *future* is left alone rather than clamped — the two
+ * ways to get one are a clock that was set forward and a file carried between
+ * devices, and `describeRecency` already reads a future date as "just now".
  */
 export const sanitizeSolves = (raw) => {
   if (!Array.isArray(raw)) return [];
@@ -657,14 +811,18 @@ export const sanitizeSolves = (raw) => {
         : nextSolveId([...usedIds].map((used) => ({ id: used })));
     usedIds.add(id);
 
+    const savedAt = Number.isFinite(entry.savedAt) ? entry.savedAt : 0;
+
     clean.push({
       id,
       scramble,
       name,
+      method: sanitizeMethodId(entry.method),
       orientation: sanitizeOrientation(entry.orientation),
       alg,
       phases: sanitizePhases(entry.phases, moveCount(alg)),
-      savedAt: Number.isFinite(entry.savedAt) ? entry.savedAt : 0,
+      savedAt,
+      editedAt: Number.isFinite(entry.editedAt) ? entry.editedAt : savedAt,
     });
   });
 
@@ -751,7 +909,6 @@ export const describeSolveSize = (solve) => {
 export default {
   MAX_SOLVES,
   MAX_PHASES,
-  PHASE_METHODS,
   createSolve,
   duplicateSolve,
   removeSolve,
@@ -759,6 +916,8 @@ export default {
   renameSolve,
   findSolve,
   solvesFor,
+  editSolve,
+  lastTouched,
   sanitizeSolves,
   sanitizeWorkspace,
   describeSolveSize,

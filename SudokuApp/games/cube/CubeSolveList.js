@@ -1,7 +1,8 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { describeSolveSize } from './solveList';
+import { methodName } from './methods';
+import { describeSolveSize, lastTouched } from './solveList';
 import { describeRecency } from './recency';
 import {
   ACTION_HEIGHT,
@@ -92,9 +93,22 @@ const CubeSolveList = ({
             // The clause that says *when*, except on the card that is on the
             // cube — for that one the answer to "when" is "now", and what the
             // operator wants to know is that this is the page they are on.
-            const when = current ? 'in progress' : describeRecency(solve.savedAt, now);
+            //
+            // **`lastTouched`, not `savedAt`, since Step 4** (operator,
+            // 2026-08-18, plan §6 question 8): `savedAt` is when the solve was
+            // *started* and nothing bumps it, so a card read "3 days ago" for a
+            // solve you had been writing an hour earlier. `savedAt` keeps that
+            // meaning — quietly redefining a stored field is not a UI tweak —
+            // and `editedAt` joins it, falling back to `savedAt` for every
+            // record written before it existed.
+            const when = current ? 'in progress' : describeRecency(lastTouched(solve), now);
             const size = describeSolveSize(solve);
-            const meta = when ? `${size} · ${when}` : size;
+            // Null for a Freeform solve **and** for one written before Step 4 —
+            // they are the same value, and a card that labelled every legacy
+            // record "Freeform" would be making a claim about them nothing here
+            // can support (`methods.js`). No method, no segment.
+            const method = methodName(solve.method);
+            const meta = [size, method, when].filter(Boolean).join(' · ');
 
             return (
               // A plain View, with the tappable region inside it — **not one
@@ -129,8 +143,28 @@ const CubeSolveList = ({
                     <Text style={[styles.cardName, { color: titleColor }]} numberOfLines={1}>
                       {solve.name}
                     </Text>
+                    {/* The method is the same 11-point line as the rest of the
+                        meta, in the accent and a heavier weight — **a coloured
+                        span, not a bordered chip.** A chip is 20-odd points tall
+                        with its padding, and this line is 14 inside a card whose
+                        height is a constant `solveCards.js` derives the list's
+                        cap from; a taller card is a change to that file and to
+                        how many cards a short phone fits. The colour carries it
+                        for nothing.
+
+                        Nested `<Text>` with **only** colour and weight on it: a
+                        font size in here would change the line's height on
+                        Android, and layout is the thing this file's other
+                        comments are careful about. Truncation still belongs to
+                        the outer `numberOfLines={1}`, and the screen reader hears
+                        the flat `meta` string off the row above. */}
                     <Text style={[styles.cardMeta, { color: titleColor }]} numberOfLines={1}>
-                      {meta}
+                      {size}
+                      {method ? ' · ' : ''}
+                      {method ? (
+                        <Text style={[styles.cardMethod, { color: accent }]}>{method}</Text>
+                      ) : null}
+                      {when ? ` · ${when}` : ''}
                     </Text>
                   </View>
                   <MaterialCommunityIcons
@@ -269,6 +303,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     opacity: 0.65,
+  },
+  // No `fontSize` and no `lineHeight`: it inherits the meta line's, so the card
+  // is exactly as tall with a method on it as without one.
+  cardMethod: {
+    fontWeight: '700',
   },
   chevron: {
     marginLeft: 4,
