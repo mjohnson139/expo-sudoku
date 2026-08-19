@@ -25,6 +25,7 @@ import {
   removeSolve,
   renameSolve,
   sanitizeSolves,
+  sanitizeVariations,
   sanitizeWorkspace,
   solvesFor,
   updateSolve,
@@ -51,6 +52,7 @@ describe('createSolve', () => {
       orientation: null,
       alg: '',
       phases: [],
+      variations: [],
       savedAt: 1,
       editedAt: 1,
     });
@@ -148,6 +150,7 @@ describe('duplicateSolve', () => {
       orientation: 'z2',
       alg: "r U r'",
       phases: [],
+      variations: [],
       savedAt: 9,
       editedAt: 9,
     });
@@ -305,7 +308,7 @@ describe('sanitizeSolves', () => {
 
   it('reads a well-formed list back unchanged, but for the fields Step 4 added', () => {
     expect(sanitizeSolves([stored])).toEqual([
-      { ...stored, method: null, editedAt: 12 },
+      { ...stored, method: null, editedAt: 12, variations: [] },
     ]);
   });
 
@@ -412,7 +415,17 @@ describe('sanitizeSolves', () => {
     };
 
     expect(sanitizeSolves([legacy])).toEqual([
-      { ...legacy, method: null, editedAt: 12 },
+      { ...legacy, method: null, editedAt: 12, variations: [] },
+    ]);
+  });
+
+  it('keeps valid variations and drops invalid and orphaned ones locally', () => {
+    expect(sanitizeVariations([
+      { id: 'v1', phaseAt: 0, alg: 'R U', savedAt: 3 },
+      { id: 'v2', phaseAt: 2, alg: 'R', savedAt: 4 },
+      { id: 'v3', phaseAt: 0, alg: 'not moves', savedAt: 5 },
+    ], [{ at: 0, label: 'First block' }])).toEqual([
+      { id: 'v1', phaseAt: 0, alg: 'R U', savedAt: 3 },
     ]);
   });
 

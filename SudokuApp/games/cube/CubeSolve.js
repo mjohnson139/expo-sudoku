@@ -11,6 +11,7 @@ import CubeMoveTrack from './CubeMoveTrack';
 import CubePadLegend from './CubePadLegend';
 import CubePhaseRail from './CubePhaseRail';
 import CubePhaseStrip from './CubePhaseStrip';
+import CubeVariationsModal from './CubeVariationsModal';
 import CubeScrubber from './CubeScrubber';
 import { ALG_FONT } from './algText';
 import { applyMoves } from './cubeState';
@@ -40,6 +41,7 @@ import {
 } from './solveList';
 import { railStates } from './phaseRail';
 import { moveCount, parseAlg } from './moves';
+import { fork, switchVariation } from './variations';
 import useAppBackground from './useAppBackground';
 import useScramblePlayer from './useScramblePlayer';
 import useCubeStage from './useCubeStage';
@@ -121,6 +123,8 @@ const CubeSolve = ({ navigation }) => {
 
   const [showCompare, setShowCompare] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
+  const [variationStage, setVariationStage] = useState(null);
+  const [variationReplay, setVariationReplay] = useState(null);
 
   /**
    * The key a second tap would promote to a half turn, or null
@@ -542,6 +546,35 @@ const CubeSolve = ({ navigation }) => {
     [shown.method, phases, solve]
   );
 
+  const activeVariationSpan = variationStage
+    ? spans.find((span) => span.at === variationStage.at) || null
+    : null;
+
+  const tryStageAgain = useCallback(() => {
+    if (!variationStage) return;
+    pause();
+    resetGesture();
+    editOpen((current) => fork(current, variationStage.at) || {});
+    setVariationStage(null);
+  }, [variationStage, pause, resetGesture, editOpen]);
+
+  const chooseVariation = useCallback((variation) => {
+    if (!variationStage) return;
+    pause();
+    resetGesture();
+    const end = variationStage.at + moveCount(variation.alg);
+    editOpen((current) => switchVariation(current, variation.id, { label: variationStage.stage }) || {});
+    setVariationStage(null);
+    setVariationReplay({ at: variationStage.at, end });
+  }, [variationStage, pause, resetGesture, editOpen]);
+
+  useEffect(() => {
+    if (!variationReplay) return;
+    seek(variationReplay.at);
+    if (variationReplay.end > variationReplay.at) playTo(variationReplay.end);
+    setVariationReplay(null);
+  }, [solve, variationReplay, seek, playTo]);
+
   // The boundaries, for the dividers in the move track. A set, because the track
   // asks this once per token.
   const marks = useMemo(() => new Set(phases.map((phase) => phase.at)), [phases]);
@@ -703,11 +736,24 @@ const CubeSolve = ({ navigation }) => {
       {!inspecting && rail.length > 0 && (
         <CubePhaseRail
           states={rail}
+          variations={shown.variations || []}
           accent={CUBE_ACCENT}
           theme={theme}
           onLock={endPhaseHere}
+          onExpand={setVariationStage}
         />
       )}
+
+      <CubeVariationsModal
+        stage={variationStage}
+        active={activeVariationSpan}
+        variations={shown.variations || []}
+        theme={theme}
+        accent={CUBE_ACCENT}
+        onClose={() => setVariationStage(null)}
+        onTryAgain={tryStageAgain}
+        onSwitch={chooseVariation}
+      />
       {!inspecting && rail.length === 0 && spans.length > 0 && (
         <CubePhaseStrip
           spans={spans}

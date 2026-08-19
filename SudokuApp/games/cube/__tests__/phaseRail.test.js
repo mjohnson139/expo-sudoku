@@ -3,7 +3,7 @@ import { railStates } from '../phaseRail';
 describe('railStates', () => {
   it('builds the method stages as open then upcoming before the first move', () => {
     expect(railStates('roux', [], '')).toEqual([
-      { stage: 'First block', state: 'open', count: 0 },
+      { stage: 'First block', state: 'open', count: 0, at: 0 },
       { stage: 'Second block', state: 'upcoming', count: null },
       { stage: 'CMLL', state: 'upcoming', count: null },
       { stage: 'LSE', state: 'upcoming', count: null },
@@ -13,8 +13,8 @@ describe('railStates', () => {
   it('locks marked stages and derives the open count from the algorithm', () => {
     const phases = [{ at: 0, label: 'First block' }, { at: 2, label: '' }];
     expect(railStates('roux', phases, "R U R' F2")).toEqual([
-      { stage: 'First block', state: 'locked', count: 2 },
-      { stage: 'Second block', state: 'open', count: 2 },
+      { stage: 'First block', state: 'locked', count: 2, at: 0 },
+      { stage: 'Second block', state: 'open', count: 2, at: 2 },
       { stage: 'CMLL', state: 'upcoming', count: null },
       { stage: 'LSE', state: 'upcoming', count: null },
     ]);
@@ -23,14 +23,14 @@ describe('railStates', () => {
   it('opens the next stage at zero as soon as the prior stage locks', () => {
     const phases = [{ at: 0, label: 'First block' }, { at: 2, label: '' }];
     const states = railStates('roux', phases, 'R U');
-    expect(states[0]).toEqual({ stage: 'First block', state: 'locked', count: 2 });
-    expect(states[1]).toEqual({ stage: 'Second block', state: 'open', count: 0 });
+    expect(states[0]).toEqual({ stage: 'First block', state: 'locked', count: 2, at: 0 });
+    expect(states[1]).toEqual({ stage: 'Second block', state: 'open', count: 0, at: 2 });
   });
 
   it('only locks stages in method order', () => {
     const phases = [{ at: 0, label: 'Second block' }, { at: 2, label: '' }];
     expect(railStates('roux', phases, 'R U')).toEqual([
-      { stage: 'First block', state: 'open', count: 2 },
+      { stage: 'First block', state: 'open', count: 2, at: 0 },
       { stage: 'Second block', state: 'upcoming', count: null },
       { stage: 'CMLL', state: 'upcoming', count: null },
       { stage: 'LSE', state: 'upcoming', count: null },

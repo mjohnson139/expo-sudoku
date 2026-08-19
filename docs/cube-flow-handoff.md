@@ -446,80 +446,54 @@ compact control right-aligned above the scrubber.
 
 ---
 
-## Next step — Step 7: variations per phase
+## What landed in Step 7 (read this before Step 8)
 
-`docs/cube-flow-plan.md` §3.7 is the brief. Add alternate runs for a locked method
-stage without changing the solve's flat `alg`; the active run stays in `alg`, and
-only inactive runs are stored.
+**Variations keep inactive stage runs beside the flat active algorithm.** A locked rail pill opens a bottom sheet; Try again stashes the current span and reopens its marker, while choosing a stored run atomically splices it into `alg`, rebases markers and variation identities, and replays only that stage. `variations.js` owns fork, switch and deterministic-best selection. All UI writes still use `editOpen`, and move patches use `withMoves`.
+
+The solve shape now includes `variations: [{ id, phaseAt, alg, savedAt }]`. `sanitizeVariations` retains only parseable runs whose `phaseAt` resolves to a surviving marker. Old records gain an empty list without changing other authored fields. The rail remains a fixed 28-point horizontal row; expanded detail is a modal and costs the cube **0 points**.
+
+Pure tests cover fork/switch round trips, deterministic ties, migration and orphan removal. The required device pass remains outstanding for targets, stage-only replay, Backspace after switching and small-phone composition.
+
+---
+
+## Next step — Step 8: the layout budget pass
+
+`docs/cube-flow-plan.md` §3.8 is the brief. Measure and tune the completed writing screen; this is accounting and small correction, not a feature redesign.
 
 ### Scope
 
-- Add `variations: [{ id, phaseAt, alg, savedAt }]` to solve records. Identity is
-  the marker position (`phaseAt`), not merely the label.
-- Add pure `games/cube/variations.js` with **fork**, **switch**, and **best**.
-  Each returns one `{ alg, phases, variations }` patch through `editOpen`; move
-  changes still obey `withMoves`.
-- Fork always stashes the current stage run, removes that span from the active
-  algorithm, reopens the stage, and preserves downstream structure honestly.
-- Switch stashes the displaced active run, splices the chosen stored run into the
-  flat algorithm, and rebases/clamps every affected marker and variation.
-- Best chooses the shortest run with a deterministic tie break.
-- Extend `sanitizeSolves` beside `sanitizePhases`: keep parseable variations whose
-  `phaseAt` resolves to a surviving marker; drop invalid/orphaned entries without
-  changing any other field on old records.
-- A locked rail pill with alternatives shows their count and expands to list the
-  active run and stored runs; mark the shortest as best. Selecting a run switches
-  it and replays from the phase entry with existing `seek` + `playTo`.
+- Measure writing mode at **320×568, 375×667 and 393×852**, including method rail, variation badge, pad and conditional legend.
+- Record exact fixed-row and cube sizes in the plan, handoff and PR.
+- Confirm the rail remains one horizontally scrolling 28-point row and the variation sheet adds no steady-state height.
+- Confirm `LEGEND_MIN_HEIGHT = 780` still drops the 29-point legend at the intended boundary.
+- Make only spacing/threshold changes proved necessary. Do not rebuild the tick track or hide the pad; Step 9 owns pad hiding.
 
 ### Files to read first
 
-- `games/cube/solveList.js` and `__tests__/solveList.test.js` — record creation,
-  shape-tolerant migration, phases, `withMoves`, and the literal legacy fixture.
-- `games/cube/CubePhaseRail.js`, `phaseRail.js`, and their tests — the ordered
-  rail and its fixed 28-point horizontal budget.
-- `games/cube/CubeSolve.js` — rail locking and the existing phase playback path.
-- `games/cube/useScramblePlayer.js` — switching must look like a replacement and
-  replay only the selected stage rather than animate the whole solve into it.
-- `docs/cube-plan.md` §8.5 — markers remain the source of truth, never ranges.
+- `docs/cube-flow-plan.md` §3.8 and `docs/cube-plan.md` §8.6/§8.8.
+- `games/cube/CubeSolve.js`, `cubeChrome.js`, `useCubeStage.js`, `CubePhaseRail.js`, `CubeMovePad.js`, `CubePadLegend.js` and `CubeVariationsModal.js`.
 
 ### Easy to get wrong
 
-1. Keep `alg` flat. Do not teach the player, track, comparison, or storage layer
-   about segmented algorithms.
-2. `phaseAt`, not label, is identity. Labels may repeat or change.
-3. Fork/switch is atomic across `alg`, `phases`, and `variations`, even without a
-   general Undo stack. Switching back explicitly must round-trip to the original.
-4. A shorter/longer selected run shifts every later marker. Rebase them and every
-   variation identity; do not leave an inactive run pointing at a removed marker.
-5. The migration must damage nothing on pre-Step-7 records. Invalid new data is
-   dropped locally, never used as a reason to rebuild the solve.
-6. The rail may scroll horizontally but may not wrap or silently grow beyond its
-   28-point row. Expanded detail needs an explicit layout cost.
-7. Do not resurrect Step 6 history to make switching reversible. The explicit
-   inverse is selecting the previous stored run again.
+1. Size the cube first; do not make it silently pay for an overflowing row.
+2. Measure all three heights, not only responsive widths in a tall browser.
+3. The rail scrolls horizontally and never wraps or exceeds 28 points.
+4. Keep the pad shown and Backspace in its existing cell; Step 9 owns both changes.
+5. Browser padding and phone safe areas differ. Label browser evidence and require a device pass.
 
 ### What must be visible in Expo Go
 
-Lock a stage, choose Try again, write a different run, and retain the original.
-The rail shows the alternative count, identifies the shortest run, and switches
-between runs while replaying from that stage's entry. Switching back restores the
-original algorithm and downstream markers. Background/resume and a cold start
-keep every variation. Backspace remains available and the retired flag cell
-remains empty.
+At 320 points wide the title, track, rail with variation badge, cube, scrubber and pad remain usable without page scrolling; only the rail scrolls sideways. The short phone omits the legend, the tall phone shows it, and opening variations overlays rather than shrinking the cube.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/`, including `variations.test.js`, migration fixtures,
-  fork/switch round-trips, deterministic best ties, and orphan removal.
-- In a browser: fork, write, switch twice, verify exact structural round-trip,
-  reload valid/invalid seeded records, and check page/rail overflow.
-- Require a device pass for rail expansion targets, stage-only replay feel,
-  Backspace after a switch, and the small-phone layout. Record device-only findings.
+- `npm test` from `SudokuApp/`.
+- Browser screenshots and measurements at all three sizes, including page/rail overflow and sheet-open states.
+- A smallest-phone device pass for cube size, safe areas, rail targets and sheet composition. Record device-only findings.
 
-### Then rewrite this file for Step 8
+### Then rewrite this file for Step 9
 
-Step 8 is the full three-width layout budget pass. Carry forward the actual
-expanded-rail cost. Step 9 owns pad hiding and the off-pad Backspace placement.
+Step 9 persists swipe mode, hides the 152-point pad on demand, and gives Backspace a compact off-pad home only while hidden.
 
 ---
 

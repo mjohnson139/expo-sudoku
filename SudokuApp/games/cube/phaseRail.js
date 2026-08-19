@@ -32,9 +32,9 @@ export const railStates = (method, phases, alg) => {
 
   return stages.map((stage, index) => {
     if (index < lockedCount) {
-      return { stage, state: 'locked', count: named[index].count };
+      return { stage, state: 'locked', count: named[index].count, at: named[index].at };
     }
-    if (index === lockedCount) return { stage, state: 'open', count: liveCount };
+    if (index === lockedCount) return { stage, state: 'open', count: liveCount, at: openStart };
     return { stage, state: 'upcoming', count: null };
   });
 };

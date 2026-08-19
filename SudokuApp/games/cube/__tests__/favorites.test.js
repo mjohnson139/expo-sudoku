@@ -116,7 +116,7 @@ describe('readCubeSave', () => {
   /** The same solve as this build stores it: no method, and last written to when
    *  it was started — which is the most that can honestly be said about a record
    *  that never carried the field. */
-  const UPGRADED = { ...SOLVE, method: null, editedAt: 7 };
+  const UPGRADED = { ...SOLVE, method: null, editedAt: 7, variations: [] };
 
   it('reads a well-formed save', () => {
     expect(

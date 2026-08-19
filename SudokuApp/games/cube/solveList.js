@@ -198,6 +198,7 @@ export const createSolve = (
     orientation: null,
     alg: '',
     phases: [],
+    variations: [],
     savedAt,
     // A page nobody has written on yet was last written to when it was made.
     // The alternative — null until the first move — is a card that says nothing
@@ -237,6 +238,7 @@ export const duplicateSolve = (solves, id, { savedAt = Date.now() } = {}) => {
     id: nextSolveId(list),
     name: uniqueName(normalizeName(`${source.name} copy`), taken),
     phases: [...source.phases],
+    variations: (source.variations || []).map((variation) => ({ ...variation })),
     savedAt,
     editedAt: savedAt,
   };
@@ -735,6 +737,32 @@ export const withMoves = (solve, alg) => ({
  */
 const sanitizePhases = (raw, count) => (Array.isArray(raw) ? clampPhases(raw, count) : []);
 
+/** Keep only parseable inactive runs attached to a marker that survived. */
+export const sanitizeVariations = (raw, phases) => {
+  if (!Array.isArray(raw)) return [];
+  const markers = new Set((phases || []).map((phase) => phase.at));
+  const used = new Set();
+  let minted = 0;
+  return raw.reduce((clean, item) => {
+    if (!item || typeof item !== 'object' || !markers.has(item.phaseAt)) return clean;
+    const alg = normalizeAlg(item.alg);
+    if (!alg || !isValidAlg(alg)) return clean;
+    let id = typeof item.id === 'string' && item.id && !used.has(item.id) ? item.id : null;
+    while (!id) {
+      minted += 1;
+      if (!used.has(`v${minted}`)) id = `v${minted}`;
+    }
+    used.add(id);
+    clean.push({
+      id,
+      phaseAt: item.phaseAt,
+      alg,
+      savedAt: Number.isFinite(item.savedAt) ? item.savedAt : 0,
+    });
+    return clean;
+  }, []);
+};
+
 /**
  * A hold, brought into shape.
  *
@@ -813,6 +841,7 @@ export const sanitizeSolves = (raw) => {
 
     const savedAt = Number.isFinite(entry.savedAt) ? entry.savedAt : 0;
 
+    const phases = sanitizePhases(entry.phases, moveCount(alg));
     clean.push({
       id,
       scramble,
@@ -820,7 +849,8 @@ export const sanitizeSolves = (raw) => {
       method: sanitizeMethodId(entry.method),
       orientation: sanitizeOrientation(entry.orientation),
       alg,
-      phases: sanitizePhases(entry.phases, moveCount(alg)),
+      phases,
+      variations: sanitizeVariations(entry.variations, phases),
       savedAt,
       editedAt: Number.isFinite(entry.editedAt) ? entry.editedAt : savedAt,
     });

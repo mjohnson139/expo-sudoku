@@ -6,7 +6,7 @@ import { mix } from '../../utils/color';
 const LOCKED = '#2e7d32';
 
 /** The method's permanent, horizontally scrolling stage row. */
-const CubePhaseRail = ({ states, accent, theme, onLock }) => (
+const CubePhaseRail = ({ states, variations = [], accent, theme, onLock, onExpand }) => (
   <ScrollView
     style={styles.rail}
     contentContainerStyle={styles.body}
@@ -17,6 +17,9 @@ const CubePhaseRail = ({ states, accent, theme, onLock }) => (
     {states.map((item) => {
       const open = item.state === 'open';
       const locked = item.state === 'locked';
+      const alternatives = locked
+        ? variations.filter((variation) => variation.phaseAt === item.at).length
+        : 0;
       const color = locked
         ? LOCKED
         : open
@@ -30,9 +33,9 @@ const CubePhaseRail = ({ states, accent, theme, onLock }) => (
             { borderColor: color },
             item.state === 'upcoming' && styles.upcoming,
           ]}
-          onPress={open ? () => onLock(item.stage) : undefined}
-          disabled={!open}
-          accessibilityRole={open ? 'button' : 'text'}
+          onPress={open ? () => onLock(item.stage) : locked ? () => onExpand(item) : undefined}
+          disabled={!open && !locked}
+          accessibilityRole={open || locked ? 'button' : 'text'}
           accessibilityLabel={`${item.stage}, ${item.state}${item.count == null ? '' : `, ${item.count} moves`}`}
           accessibilityHint={open ? 'Locks this stage at the end of the written solve' : undefined}
         >
@@ -40,6 +43,7 @@ const CubePhaseRail = ({ states, accent, theme, onLock }) => (
           <Text style={[styles.text, { color }]} numberOfLines={1}>
             {item.stage}{item.count == null ? '' : ` · ${item.count}`}
           </Text>
+          {alternatives > 0 && <Text style={[styles.badge, { color }]}>+{alternatives}</Text>}
         </TouchableOpacity>
       );
     })}
@@ -60,6 +64,7 @@ const styles = StyleSheet.create({
   },
   upcoming: { borderStyle: 'dashed', opacity: 0.7 },
   text: { fontSize: 11, fontWeight: '600' },
+  badge: { fontSize: 10, fontWeight: '800', marginLeft: 4 },
 });
 
 export default CubePhaseRail;
