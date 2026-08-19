@@ -625,11 +625,11 @@ worth keeping regardless.
 2. **Should an engaged turn be haptic?** `expo-haptics` is already a dependency
    and a light impact on engage is exactly the "it caught" feedback that
    pressure would have given you for free.
-3. **What does an accidental turn cost?** Cube Flow Step 6 builds undo/redo of
-   whole actions. Until it lands, an accidental gesture-entered move is undone
-   by the pad's backspace, which removes the token — acceptable for a spike,
-   probably not acceptable to ship without Step 6 underneath it.
-   **Now a prerequisite rather than a question — see §8.5.1.**
+3. ~~**What does an accidental turn cost?**~~ **Backspace.** Step 6's whole-action
+   history was built on PR #119 and rejected on a device: session history stranded
+   persisted moves, while persisting complete history would require a new storage
+   model with no honest migration for old flat algorithms. Immediate inverse
+   turns already cancel; Backspace is the durable correction for anything kept.
 4. **Is 50% the right commit point?** Guessed, and it is `COMMIT_T = 0.22` rather
    than 50% as this line originally assumed. A drilling session settles it, and
    §8.4 is how it stops being a round trip per number.
@@ -777,11 +777,11 @@ on that read path.
 Six interactions, in descending order of how much they matter. **None of them are
 edits to `docs/cube-flow-plan.md` yet** — see §8.6.
 
-1. **Step 6 (undo/redo) stops being a nicety and becomes a prerequisite.** §7's
-   open question 3 already said an accidental gesture move is undone only by
-   backspace dropping a token — acceptable for a spike, not to ship. Gesture
-   input makes accidental moves *routine* in a way a keypad never did.
-   **Gesture input is not finished until Step 6 lands.**
+1. **Backspace stays the recovery tool.** Step 6's undo/redo experiment was
+   rejected after device testing PR #119. Gesture input makes accidental moves
+   more likely, but the direct, persistent answer proved more reliable than a
+   session timeline: immediate inverses cancel, and Backspace removes a kept
+   token with the existing backwards animation.
 2. **Step 8 (layout budget) gains a lever it did not have.** V1's open question 13
    said the next win must come from *hiding* chrome rather than cutting it. If
    the cube is the primary input, the 152pt pad becomes secondary — it shrinks
