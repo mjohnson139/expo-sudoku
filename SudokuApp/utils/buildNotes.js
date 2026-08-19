@@ -40,7 +40,7 @@ const BUILD_NOTES = {
       'Solves written before all this still open, still show their markers, and are not changed by the upgrade',
       'A method solve now shows every stage as a rail: the open stage counts moves live, and tapping it locks that count and opens the next stage',
       'Freeform and older solves keep their existing phase chips, while the flag key and naming sheet are gone',
-      'Locked method stages can now keep alternate runs: Try again preserves the old run, marks the shortest, and lets you switch back while replaying only that stage',
+      'Method stages can keep alternate runs: Try again preserves the old branch, and the + badge beside the current retry opens the previous attempts so you can switch back',
     ]
   },
   '3.1.0': {

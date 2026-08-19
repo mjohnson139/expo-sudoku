@@ -13,7 +13,9 @@ const CubeVariationsModal = ({ stage, active, variations, theme, accent, onClose
         <Pressable style={[styles.sheet, { backgroundColor: theme.colors.background }]} onPress={() => {}}>
           <Text style={[styles.title, { color: theme.colors.title }]}>{stage.stage} runs</Text>
           <View style={[styles.row, { borderColor: accent }]}>
-            <Text style={{ color: theme.colors.title }}>Active · {activeCount} moves</Text>
+            <Text style={{ color: theme.colors.title }}>
+              {stage.state === 'open' ? 'Current retry' : 'Active'} · {activeCount} moves
+            </Text>
             {activeCount === bestCount && <Text style={[styles.best, { color: accent }]}>best</Text>}
           </View>
           {(variations || []).filter((item) => item.phaseAt === stage.at).map((item) => {
@@ -25,9 +27,11 @@ const CubeVariationsModal = ({ stage, active, variations, theme, accent, onClose
               </TouchableOpacity>
             );
           })}
-          <TouchableOpacity style={[styles.try, { backgroundColor: accent }]} onPress={onTryAgain}>
-            <Text style={styles.tryText}>Try again</Text>
-          </TouchableOpacity>
+          {stage.state === 'locked' && (
+            <TouchableOpacity style={[styles.try, { backgroundColor: accent }]} onPress={onTryAgain}>
+              <Text style={styles.tryText}>Try again</Text>
+            </TouchableOpacity>
+          )}
         </Pressable>
       </Pressable>
     </Modal>
