@@ -45,7 +45,7 @@ matching.
 ## 1. What this epic changes, and why
 
 V1 shipped and merged on 2026-08-08. It answers *"am I getting better at this
-scramble?"*, and four things about how it answers are wrong — not broken, but
+scramble?"*, and three things about how it answers are wrong — not broken, but
 wrong in the way that only shows up after a fortnight of using the thing.
 
 **A scramble and its solves are related by a hidden flag.** `solving` is a
@@ -66,9 +66,6 @@ happens to be standing — `endPhaseHere` passes `player.index`
 chosen, the stages are *known*. Asking the operator to remember to mark a
 boundary they already declared is asking twice.
 
-**Undo only removes tokens.** There is no undo stack in the codebase; `undoMove`
-is `dropLastToken` plus a backwards animation (`CubeScreen.js:746`). Nothing
-takes back a phase lock.
 
 ### The shape that replaces it
 
@@ -77,10 +74,10 @@ for the scramble are cards under it. Tapping one pushes the solve screen with a
 standard back button and a standard edge swipe — a pattern nobody has to learn,
 replacing a mode flip nobody could see. Method is chosen when a solve is created
 and drives the phase rail, the comparison columns, and eventually the algorithm
-tagger. Undo and redo take the pad slots that backspace and the flag vacate.
+tagger. Backspace remains the direct, durable way to remove a move.
 
 **What this retires:** the bottom Solve button, the asymmetric top back-arrow,
-the flag key, the flag-time method picker, backspace, and the segmented
+the flag key, the flag-time method picker, and the segmented
 `Scramble | Solve` control that an earlier design round proposed and this one
 rejected. New scramble and Save move into the home header, which is what frees
 the bottom of the scramble screen for the list.
@@ -118,8 +115,8 @@ the bottom of the scramble screen for the list.
 Eight steps as planned, plus two that gesture input added — **3.5**, turning the
 cube by dragging it, and **9**, the swipe mode it makes possible. The risky
 infrastructure is quarantined in Step 1, the large refactor in Step 2, and the
-two biggest design changes are last because nothing depends on them — so a wrong
-call in Step 6 or 7 costs a step, not the epic.
+largest remaining design change is last because nothing depends on it — so a wrong
+call in Step 7 costs a step, not the epic.
 
 **Step 3.5 is a guest that grew.** It came out of a side exploration
 (`docs/cube-touch-exploration.md`) that was never on this roadmap, and it is an
@@ -140,10 +137,10 @@ everyone.
 | 3.5 | Turn the cube by dragging it | a finger writes the move — layers, wides, the facing face, folds and cancels — *unplanned, landed* |
 | 4 | Method as data | `method` on the record, the new-solve sheet |
 | 5 | The phase rail | pre-built stages; the flag key retires |
-| 6 | Undo and redo | whole actions; the pad's bottom row is rebuilt |
+| 6 | Undo and redo | **dropped after device testing; PR #119 closed unmerged** |
 | 7 | Variations per phase | alternative attempts at one stage |
 | 8 | Layout budget pass | the §8.6 accounting, at three widths |
-| 9 | Swipe mode — hide the pad | a finger-only mode: cube, scrubber, undo/redo, no keyboard — *added by 3.5* |
+| 9 | Swipe mode — hide the pad | a finger-only mode: cube, scrubber, backspace, no keyboard — *added by 3.5* |
 
 ### 3.1 Step 1 — put the app on a real stack
 
@@ -447,21 +444,22 @@ thing being chosen. **Web degrades to orbit-only**, which has consequences below
 
 **Why it fits the epic rather than fighting it:** the gesture commits through
 `editOpen` + `withMoves` + `appendToken` — the sanctioned funnel, no second door
-— so a gesture-entered move is undoable, phase-clamped, persisted and comparable
+— so a gesture-entered move is phase-clamped, persisted and comparable
 like any other. It adds **no** sanctioned edit outside `games/cube/`, and it
 costs the cube **zero points**: no new rows on either screen.
 
 **What it changes about the steps after it:**
 
-- **Step 6 stops being a nicety and becomes a prerequisite.** An accidental
-  gesture-entered move is undone today only by backspace dropping a token.
-  Gesture input makes accidental moves *routine* in a way a keypad never did.
-  **Gesture input is not finished until Step 6 lands.**
+- **Backspace remains the recovery path.** Device testing of PR #119 found that a
+  session-only history strands persisted moves, while persisting a complete
+  authored-action timeline would be a new storage model with no honest migration
+  for existing flat algorithms. The operator chose the direct tool: Backspace
+  stays, including its backwards animation and held repeat.
 - **It answers V1's open question 13, and that became Step 9.** Question 13 said
   the next layout win must come from *hiding* chrome rather than cutting it. With
   the cube as a full input, the 152pt pad can be *hidden* — the swipe mode of
   Step 9 — not merely shrunk. **This step deliberately does not touch
-  `PAD_LAYOUT`**, so Steps 5, 6 and 8 inherit it exactly as written, and Step 9
+  `PAD_LAYOUT`**, so Steps 5 and 8 inherit it exactly as written, and Step 9
   spends the room. The pad stays the only way to write `x`/`y`/`z` and a rotation
   the fingers cannot reach, so it is hidden, never removed.
 - **Steps 5 and 7 need no structural change and get easier.** The rail counts a
@@ -703,10 +701,9 @@ found.
   method to build a rail from.
 - **Pad:** remove the `flag` cell from `PAD_LAYOUT` (`solve.js:51-72`, row 3
   col 3); `canPhase` and `onPhase` go with it. `solve.test.js:32-40` pins
-  `PAD_LAYOUT.length === PAD_COLUMNS * PAD_ROWS` and "no empty cells left", and
-  Step 6 fills the slot with redo — so either **land Steps 5 and 6 on one
-  branch**, or leave the slot as a documented gap for exactly one step and change
-  that test deliberately rather than incidentally.
+  `PAD_LAYOUT.length === PAD_COLUMNS * PAD_ROWS`. The retired flag slot remains
+  a documented gap. Preserve it until a real control earns the cell; do not fill
+  it merely to make the grid look complete.
 
 **Tests:** extend `solveList.test.js` for `endPhase` at `moveCount(alg)`. New
 `phaseRail.test.js` for a pure `railStates(method, phases, alg)` — the
@@ -719,8 +716,8 @@ the next; a legacy solve still shows its old chips; the pad has no flag key.
 
 **Landed 2026-08-19** (PR #118, merged to `epic/cube-flow`). The method rail is
 a permanent, horizontally scrolling 28-point row; the old naming modal and flag
-key are gone, with the flag's pad cell left as a deliberate one-step gap for
-Step 6 redo. Freeform and legacy solves keep their read-only phase strip. The
+key are gone, with the flag's pad cell left as a deliberate gap. Freeform and
+legacy solves keep their read-only phase strip. The
 Step 4 header tag retired too: the rail now says the method in full, returning
 34 horizontal points to the solve title without changing the cube's height.
 
@@ -744,61 +741,29 @@ handoff were *"pretty dang good"*. The pass also covers the phone-only primary
 input path: finger turns accrue to the open stage and their settled tidy is read
 from the algorithm rather than from a second counter.
 
-### 3.6 Step 6 — undo and redo of whole actions
+### 3.6 Step 6 — undo and redo of whole actions — dropped
 
-- **Model: a bounded snapshot ring, not an inverse-action log.** The undoable
-  state of a solve is `{ alg, phases }` — a short string and a small array — plus
-  Step 7's variations. Snapshots are a few hundred bytes, they compose trivially
-  with `withMoves` / `clampPhases` (a restored snapshot is already clamped), and
-  they cannot drift the way a log of inverses can. `games/cube/history.js` is
-  pure: `push`, `undo`, `redo`, `canRedo`, bounded at ~50.
-- **A snapshot is a *settled* state, and Step 3.5's deferred tidies must not each
-  become one.** A gesture writes a move and then, once the turn settles, may
-  rewrite the storage — `F F` → `F2`, or the drop of a cancelled `L L'` — as a
-  second `editOpen`. Pushed naively that is two ring entries, and one spin would
-  cost two undos, a cancelled fumble would leave `L L'` recoverable by redo. So
-  **the fold and the cancel-drop coalesce into the snapshot of the move that
-  triggered them**, not their own: one spin is one undo (back to before the pair),
-  and a cancel leaves nothing to undo *to*. The clean seam is to push on the
-  settled `afterSettle` state, or to have the tidy replace the top snapshot rather
-  than add one — decide it here, because it is the difference between undo feeling
-  like moves and undo feeling like keystrokes.
-- **Session-only, in a ref on `CubeContext`, deliberately not persisted.** V1
-  §7.1's rule is that *authored work* survives backgrounding. Gesture history is
-  not authored work, and a redo stack that outlives a cold start is a surprise
-  rather than a feature. Say so where the ref is declared, or someone will
-  "fix" it.
-- **It composes with `retract`, it does not replace it.** Undo dispatches on what
-  the top snapshot changed: a trailing-token difference with the cube at the end
-  of the alg routes through `retract` (`useScramblePlayer.js:336-354`) so the
-  backwards animation is kept; a phase lock has nothing to animate and applies
-  immediately. `resetGesture()` runs on every undo and redo, as it does today.
-- **Pad:** `backspace` → **undo** at row 3 col 1; the vacated flag slot at row 3
-  col 3 → **redo**, `tone: 'tool'`, dimmed through the existing `disabled` style
-  when `!canRedo`. The long-press repeat the design asks for **already exists** —
-  `REPEAT_AFTER_MS = 400` then `setInterval(onUndo, 120)`
-  (`CubeMovePad.js:158-162`) is exactly "long-press undo scrubs back at 120ms per
-  step". No new gesture code.
-- **But undo/redo cannot live *only* on the pad, because Step 9 hides the pad.**
-  A finger-only session still fumbles and still wants undo. So undo/redo need a
-  home that survives the pad being gone — the natural one is a small control strip
-  beside the scrubber (the two rows that stay in swipe mode), with the pad's own
-  undo/redo keys mirroring it. **Put the undo/redo handlers on `CubeContext` and
-  wire both surfaces to them** — the pad key and the strip button call one
-  `undo`/`redo`, so `editOpen` stays the only funnel and the two cannot disagree.
-  Building it this way is what lets Step 9 be a layout change and not a rewrite.
-- `clearSolve` becomes undoable, which it is not today — it is a snapshot like
-  any other, and V1 flagged its double spelling as a known wart.
+**Dropped 2026-08-19 after device testing PR #119; the PR was closed unmerged.**
+The implementation proved the requirement was wrong for this notebook. A
+session-only ring stopped at the moment the solve was opened, leaving older
+persisted moves unreachable once Undo ran out. Making Backspace a fallback did
+not fix the model: its first deletion created history and changed the control
+back to Undo. Keeping three independent controls displaced the algorithm keyboard
+and crowded the solve header.
 
-**Tests:** `history.test.js` — round-trips, the bound, and the invariant that a
-fresh edit drops the redo stack. Update `solve.test.js`'s `PAD_LAYOUT` pins.
+Persisting the ring was rejected rather than promoted into scope. Persisting only
+the current session merely moves the same boundary across a cold start; removing
+that boundary requires the complete authored-action history from solve creation.
+Existing flat `alg` strings cannot be migrated honestly into that model — a pasted
+algorithm and the same tokens entered one by one have indistinguishable saved
+state but different action boundaries. Variations would make every snapshot larger
+and raise a second source-of-truth problem.
 
-**Operator tests:** undo removes the last move with the backwards animation as
-before; undo after locking a phase unlocks it; redo replays both; redo is dim
-until there is something to redo; long-press scrubs; redo dies when you type;
-**a gesture move undoes as one unit** — spinning `F F` and undoing once goes back
-to before the pair, not to `F`; **a cancelled `L L'` is not resurrectable** by
-redo; and undo/redo work with the pad hidden once Step 9 lands.
+**Decision:** keep Backspace as the durable, direct move-removal tool. Keep its
+backwards `retract` animation, marker clamping through `withMoves`, and held repeat.
+The retired flag cell remains empty. A mistaken rail lock or variation choice gets
+an explicit domain action if device use proves it needs one; it does not justify a
+general history subsystem. No code from PR #119 lands on `epic/cube-flow`.
 
 ### 3.7 Step 7 — variations per phase
 
@@ -822,7 +787,6 @@ The largest data change, and last on purpose — nothing above depends on it.
   row (in-use filled, shortest marked `best`); picking one is *switch*, which
   replays from the phase's entry through the existing `seek` + `playTo` pair
   (`CubeScreen.js:850-856`).
-- Switches push onto Step 6's history, which is why that step comes first.
 - `sanitizeSolves` gains a `sanitizeVariations` beside `sanitizePhases`, clamping
   `phaseAt` to a real marker and dropping unparseable algs — the same shape-based
   tolerance as everything else on the read path.
@@ -832,8 +796,8 @@ switching twice returns the original; `best` ties break deterministically; a
 variation pointing at a dropped marker is discarded on load.
 
 **Operator tests:** lock a phase, "try again", write a shorter run, see it marked
-best, switch between them and watch the cube replay from the phase's entry; undo
-a switch; background and resume with variations stored.
+best, switch between them and watch the cube replay from the phase's entry; switch back
+to the original explicitly; background and resume with variations stored.
 
 ### 3.8 Step 8 — the layout budget pass
 
@@ -850,7 +814,7 @@ neutral by construction:
 | header subtitle | **+~12pt** — the dense header gains a permanent second line |
 | `CubePhaseStrip` (~28pt, conditional) | replaced by `CubePhaseRail` (~28pt, **permanent**) |
 | tick track | **not rebuilt** |
-| pad | unchanged at 152pt — flag out, redo in |
+| pad | unchanged at 152pt — flag out, its cell remains empty; Backspace stays |
 
 Net ≈ **+13pt** against V1's ~340pt of fixed rows in writing mode. **Verify by
 measurement at 320×568, 375×667 and 393×852** — the three widths §8.8 already
@@ -868,18 +832,17 @@ scrolls**, horizontally, as `CubePhaseStrip` already does
 finger can write every layer, every wide and the facing face (§3.3d), the pad is
 no longer the *only* way in — so a drilling session that is all swipes can hide
 it and give the room back to the cube. The operator's ask, 2026-08-18: *keep the
-keyboard, but let someone who is just swiping hide it and see only the scrubber
-and undo/redo.*
+keyboard, but let someone who is just swiping hide it and see only the scrubber.*
 
 - **A toggle, not a mode you get trapped in.** The pad hides and shows on demand;
   it is never removed, because it is still the only way to write `x`/`y`/`z` and
   the wide turns a finger cannot reach. Hidden, the solve screen is **cube +
-  move track + phase rail + scrubber + undo/redo** — everything about *the moves*
+  move track + phase rail + scrubber + Backspace** — everything about *the moves*
   stays; only the keyboard goes.
-- **This is why Step 6 put undo/redo on `CubeContext` and beside the scrubber.**
-  With the pad gone, its undo/redo keys go with it, so the control strip is the
-  home that survives. Step 9 is a layout change on top of that, not a rewrite —
-  if Step 6 wired undo/redo only to the pad, this step pays for it.
+- **Backspace needs an off-pad home only when the pad actually hides.** Do not
+  pre-place it in an earlier step. Start with the operator's proposed compact
+  control right-aligned above the scrubber, then judge the composition on a phone.
+  It calls the existing Backspace path; there is no history state to mirror.
 - **The budget, the other way.** Step 8 accounts for the pad *shown*; this is the
   pad *hidden*: **−152pt of pad** (and its legend), all of it back to the cube.
   On the 320×568 phone that is the difference between a 182pt cube and something
@@ -898,11 +861,10 @@ and undo/redo.*
 
 **Tests:** the mode is layout, which the node runner cannot see, so the pins are
 on the *preference* — its default, its persistence by shape, and that hiding the
-pad does not drop undo/redo (a pure check that the control strip carries them
-independent of `PAD_LAYOUT`).
+pad does not drop Backspace (a pure check that its off-pad control calls the same
+handler as the pad).
 
-**Operator tests:** hide the pad mid-solve and keep writing by finger; undo and
-redo from the strip with the pad gone; the cube measurably bigger; show the pad
+**Operator tests:** hide the pad mid-solve and keep writing by finger; Backspace from above the scrubber with the pad gone; the cube measurably bigger; show the pad
 again for an `x` rotation; background and resume with the pad hidden; and the
 `x`/`y`/`z` reachability that keeps it a hide and not a removal.
 
@@ -1031,11 +993,9 @@ again for an `x` rotation; background and resume with the pad hidden; and the
    is what the card reads through `lastTouched`, falling back to `savedAt` for
    every record that predates it. Landed in Step 4. **Nothing sorts by it**, so
    the list still does not reshuffle under a thumb that is writing.
-9. **Should folds and cancels be undoable at all, or invisible to the ring?**
-   Step 6 coalesces them into one undo unit, so a spin undoes as a spin. The
-   open part is the fumble: a cancelled `L L'` was *meant* to never happen — does
-   undo bring it back (you can see what you tried), or is it gone for good (it was
-   never real)? A drilling session with undo in hand decides it.
+9. ~~**Should folds and cancels be undoable?**~~ **Closed with Step 6.** There is
+   no history ring. Folds remain settled storage tidies; an immediate inverse
+   remains a fumble that disappears. Backspace removes the last stored move.
 10. **Does the pad auto-hide, or only toggle?** Step 9 ships a toggle and asks
     whether the pad should hide itself the first time a finger writes a move and
     return on the first pad tap. It is invisible, which is the standing objection
