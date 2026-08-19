@@ -388,110 +388,86 @@ pre-Step-4 save and confirmed its old markers remained intact.
 
 ---
 
-## Next step — Step 5: the phase rail, and the flag key retires
+## Next step — Step 6: undo and redo of whole actions
 
-`docs/cube-flow-plan.md` §3.5 is the brief. Step 4 gave a solve a **method**;
-this step turns that method's stages into the thing on the screen, and retires
-the free-text machinery it replaces.
-
-### Read §3.5's last bullet first, and decide whether 5 and 6 land together
-
-Removing the `flag` cell leaves a hole in `PAD_LAYOUT`, and
-**`solve.test.js:32-40` pins that the pad has no empty cells**. Step 6's redo
-fills it. So either land Steps 5 and 6 on one branch, or leave the slot as a
-documented gap for exactly one step and change that test *deliberately* rather
-than incidentally. **Decide this before writing code** — it decides the size of
-the branch.
+`docs/cube-flow-plan.md` §3.6 is the brief. Step 5 retired the flag and left its
+pad cell as one documented gap; this step fills that cell with redo and replaces
+token deletion with history that takes back whole authored actions.
 
 ### Scope
 
-- **`games/cube/phaseRail.js` is new and pure**: `railStates(method, phases, alg)`
-  → the locked / open / upcoming derivation, one entry per stage.
-  `trackLayout.js` and `compareLayout.js` are the precedent — arithmetic in its
-  own file with its own suite, because the test runner has no renderer.
-- **The rail is pre-built from `stagesOf(solve.method)` and pill state is
-  *derived*, never stored.** A stage with a marker is **locked** (green check,
-  final count); the first without one is **open** (accent outline, a live count);
-  the rest are dashed **upcoming** and not tappable.
-- **The open pill's count is `moveCount(solve.alg)` arithmetic, not a running
-  tally.** That is what makes a gesture move count for free — and so does its
-  *tidy*: when Step 3.5's fold settles `F F` → `F2`, or a cancel drops `L L'`,
-  the alg shortens and the count follows on the same read. **Worth one pinning
-  test** that the count is derived, because a running tally is exactly what the
-  deferred tidy would desync.
-- **Tapping the open pill locks it.** Reuse `endPhase` (`solveList.js`) exactly
-  as it stands — it already names the marker where the group started and opens a
-  fresh one, which is precisely this transition, and V1 spent a step getting it
-  right.
-- **One deliberate behaviour change: `at` becomes `moveCount(solve.alg)`** — the
-  end of what has been *written* — instead of `player.index`, where the cube
-  happens to be *standing*. It removes the class of bug where scrubbing back and
-  tapping the flag marks the wrong place.
-- **`CubePhaseModal` retires** with the chip grid and the free-text field.
-  `CubePhaseStrip` **stays**, read-only, for `method: null` solves.
-- **Pad:** remove the `flag` cell from `PAD_LAYOUT` (`solve.js`, row 3 col 3);
-  `canPhase` and `onPhase` go with it.
+- Add pure `games/cube/history.js`: a bounded snapshot ring over `{ alg, phases }`
+  (and a seam for Step 7 variations), with its own node tests. Undo and redo
+  restore snapshots; a fresh edit after undo discards the redo branch.
+- Put the ring at the state-owner boundary after reading `CubeContext.editSolve`
+  and `editOpen`. `editOpen` remains the only edit funnel and `withMoves` remains
+  the only moves-edit patch; history wraps that door rather than opening another.
+- Coalesce Step 3.5's deferred gesture tidy with the gesture that caused it. A
+  folded `F F` is one undo unit, and a cancelled `L L'` cannot be resurrected by
+  undo. Use the transport's `afterSettle` seam rather than snapshotting the raw
+  and tidied strings as two authored actions.
+- Undo and redo must be exposed on `CubeContext`, not owned only by the pad.
+  Mirror them in a compact strip beside `CubeScrubber`, because Step 9 hides the
+  pad and still needs both actions. Replace the existing backspace with undo and
+  put redo in Step 5's gap (row 3, column 3).
+- Clear history when the open solve changes, is cleared, deleted or replaced.
+  A cold start restores the solve, not an in-memory editing timeline.
 
-### The files to read first
+### Files to read first
 
-- `games/cube/methods.js` — `stagesOf` is the rail's input, and its `null`
-  contract is the legacy branch.
-- `games/cube/solveList.js` — `endPhase`, `openPhaseStart`, `phaseSpans`,
-  `clampPhases`. Untouched by Step 4 and still the shape rules.
-- `games/cube/CubeSolve.js` — where `CubePhaseStrip` is rendered, the
-  `showPhases` state, and the header whose method tag this step may remove.
-- `games/cube/solve.js` and `__tests__/solve.test.js:32-40` — `PAD_LAYOUT`, and
-  the test that pins it full.
-- `games/cube/CubePhaseStrip.js` — what a legacy solve keeps, and the horizontal
-  scroll (`:84-89`) the rail borrows if it overflows.
+- `games/cube/CubeContext.js` — `editSolve`, `editOpen`, clear/delete, and the
+  single persisted writer.
+- `games/cube/CubeSolve.js` — every authored path, especially gesture
+  `afterSettle`, pad entry, typing, phase locking and today's `undoMove`.
+- `games/cube/useScramblePlayer.js` — retract and `afterSettle`; history must
+  preserve the visible backwards animation without creating an extra snapshot.
+- `games/cube/solve.js`, `CubeMovePad.js`, and `__tests__/solve.test.js` — the
+  pad geometry and the temporary gap Step 5 deliberately pinned.
+- `games/cube/CubeScrubber.js` — the permanent off-pad home for undo/redo.
+- `docs/cube-touch-exploration.md` §8.10 — drawing first, storage tidy only
+  after settle; history may not reintroduce the flashes that rule fixed.
 
 ### Easy to get wrong
 
-1. **A `method: null` solve is not a broken solve, it is a legacy one** — and
-   since Step 4 it is also a *chosen* one (Freeform). Every screen reading
-   `method` needs the null branch, and it must not try to distinguish the two.
-2. **The rail must not be a second source of truth for the counts.**
-   `phaseSpans` counts; the rail arranges. A second implementation of "how long
-   is the first block" is how a rail and a Compare table come to disagree.
-3. **Derive from `moveCount(alg)`, never a tally.** See above — Step 3.5's
-   deferred fold is what breaks a tally, and it is invisible in a browser.
-4. **`endPhase` is reused, not reimplemented.** It writes *two* markers, and the
-   second is not bookkeeping: without it a named group's span would run to the
-   end of the solve and "First block · 8" would quietly become "First block · 12"
-   as the second block was written.
-5. **The `flag` key's removal is a pinned test.** See the decision above.
-6. **The rail is a permanent row where `CubePhaseStrip` was conditional.** That
-   is §3.8's accounting, and it is the first row this epic adds unconditionally.
-   Say what it costs the cube in points. **If it pushes the small phone past its
-   budget, the rail scrolls horizontally — the cube does not shrink.**
-7. **`editOpen` is still the only edit funnel**, and `withMoves` is still the only
-   moves-edit patch. A rail callback is not a reason for a second door.
+1. Snapshot authored actions, not transient transport positions or each call to
+   `editOpen`. A gesture plus its deferred fold/cancel is exactly one action.
+2. Restoring `{ alg, phases }` is atomic. Undoing a rail lock restores both its
+   marker pair and the rail state; undoing a move cannot leave a marker beyond
+   the new algorithm.
+3. A new edit after undo drops redo, while navigating/scrubbing/playback is not
+   an edit and does not.
+4. The ring is bounded and never persisted. Switching solves must never offer an
+   undo from the page previously open.
+5. Keep undo/redo reachable off-pad. Step 9 removes the keyboard entirely.
+6. Preserve the gesture drawing/storage seam: never rewrite a live move's amount
+   to make history easier.
+7. Account for the scrubber-side strip in points. The pad stays the same height;
+   if the extra strip costs the small phone, reduce its own footprint rather
+   than shrinking the cube without saying so.
 
 ### What must be visible in Expo Go
 
-The rail shows the method's stages from the first move; the open pill counts up
-as you type **and as you turn the cube with a finger**; tapping it locks with the
-right count and opens the next; a legacy or Freeform solve still shows its old
-chips; the pad has no flag key.
+Undo takes back a typed move, a finger turn, a pasted algorithm and a phase lock
+as whole actions; redo restores each. A repeated finger turn folded to `F2`
+undoes once, and a turn immediately cancelled by its inverse does not reappear.
+Undo and redo work from both the pad and beside the scrubber, and redo disables
+after a new edit. Switching solves starts with no borrowed history.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/` — green, plus the new `phaseRail.test.js` and the
-  extended `solveList.test.js`.
-- **Open a save file written before Step 4** (the epic's own EAS branch is one)
-  and check its solves still show `CubePhaseStrip` and their markers.
-- **A device pass, and say which findings came from the device.** §5's warning is
-  sharper than ever here: the count following a gesture *tidy* is this step's
-  headline behaviour and **a browser cannot see it at all**, because gesture is
-  orbit-only on web.
+- `npm test` from `SudokuApp/`, including the new `history.test.js` and updated
+  pad pins.
+- Exercise each authored path and the redo-branch rule in a browser, but be
+  explicit that browser gesture input remains orbit-only.
+- Require a device pass for gesture coalescing, cancel-drop, the backwards
+  animation and the scrubber-side controls. Record which findings came only from
+  the device.
 
-### Then rewrite this file for Step 6
+### Then rewrite this file for Step 7
 
-Step 6 is undo/redo as a bounded snapshot ring (`games/cube/history.js`), and it
-carries two constraints Step 3.5 added: the deferred fold and cancel-drop must
-**coalesce into one undo unit**, and undo/redo needs a home **off the pad** — on
-`CubeContext`, mirrored by a strip beside the scrubber — because Step 9 hides the
-pad. Read §3.6 before choosing where the ring lives.
+Step 7 adds variations per phase. Read §3.7 before choosing the snapshot shape:
+variations join the undoable solve state, and their identity is the phase marker
+(`phaseAt`), not merely its label.
 
 ---
 
