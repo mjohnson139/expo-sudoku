@@ -531,11 +531,10 @@ want a drilling session rather than an opinion:
 10. **New in Step 3.5:** does the pad auto-hide when a finger starts writing, or
     only toggle? Step 9 ships the toggle and leaves the auto-hide to a drilling
     session — it is invisible, which is question 3's standing objection.
-11. **New in Step 4:** is the method tag worth **34 points** of the solve
-    header's title column at 320? It costs the cube no row, but
-    `rightSectionDense` does not shrink, so a 13-character solve name truncates
-    by about two characters on the smallest phone (375 and up are unaffected).
-    **Step 5 can simply delete it** — from there the rail *is* the method.
+11. ~~**Is the method tag worth 34 points of the solve header at 320?**~~
+    **Answered: yes for Step 4** (operator, device pass 2026-08-19). The narrow
+    title and subtitle were acceptable in the hand. It remains a stopgap:
+    **Step 5 can simply delete it** once the rail itself says the method.
 12. **New in Step 4:** should the sheet *remember* the last method rather than
     deriving it? `defaultMethod` opens on the method of the newest solve **for
     this scramble** — derived, stored nowhere, and right for "try that scramble
