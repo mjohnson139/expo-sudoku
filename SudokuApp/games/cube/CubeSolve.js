@@ -9,7 +9,7 @@ import CubeCompareModal from './CubeCompareModal';
 import CubeMovePad from './CubeMovePad';
 import CubeMoveTrack from './CubeMoveTrack';
 import CubePadLegend from './CubePadLegend';
-import CubePhaseModal from './CubePhaseModal';
+import CubePhaseRail from './CubePhaseRail';
 import CubePhaseStrip from './CubePhaseStrip';
 import CubeScrubber from './CubeScrubber';
 import { ALG_FONT } from './algText';
@@ -35,13 +35,10 @@ import {
 } from './solve';
 import {
   endPhase,
-  isPhaseBoundary,
-  openPhaseStart,
   phaseSpans,
-  removePhase,
   withMoves,
 } from './solveList';
-import { methodName } from './methods';
+import { railStates } from './phaseRail';
 import { moveCount, parseAlg } from './moves';
 import useAppBackground from './useAppBackground';
 import useScramblePlayer from './useScramblePlayer';
@@ -124,7 +121,6 @@ const CubeSolve = ({ navigation }) => {
 
   const [showCompare, setShowCompare] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
-  const [showPhases, setShowPhases] = useState(false);
 
   /**
    * The key a second tap would promote to a half turn, or null
@@ -494,44 +490,24 @@ const CubeSolve = ({ navigation }) => {
   // ——— Phases (docs/cube-plan.md §8.5) —————————————————————————————————————
 
   /**
-   * Open the flag.
-   *
-   * `pause` first, and it matters more here than anywhere else on this screen:
-   * **the position is the argument.** A marker is written at where the cube is,
-   * so a turn still in flight is a boundary about to land one move away from
-   * where the operator is looking.
-   */
-  const openPhases = useCallback(() => {
-    pause();
-    resetGesture();
-    setShowPhases(true);
-  }, [pause, resetGesture]);
-
-  /**
-   * Close the group of moves the operator has just written, and name it.
-   *
-   * "Here" is **where the cube is**, not the end of the solve. While writing they
-   * are the same place — every entered move animates to the end — and when they
-   * are not, scrubbing back to where the first block finished and marking it
-   * there is the obvious thing to want.
+   * Lock the open method stage at the end of what has been written. The rail is
+   * deliberately independent of the scrub position: standing earlier in the
+   * solve must not put a marker in the wrong place.
    */
   const endPhaseHere = useCallback(
     (label) => {
+      pause();
+      resetGesture();
       editOpen((current) => ({
-        phases: endPhase(current.phases, player.index, label, moveCount(current.alg)),
+        phases: endPhase(
+          current.phases,
+          moveCount(current.alg),
+          label,
+          moveCount(current.alg)
+        ),
       }));
-      setShowPhases(false);
     },
-    [editOpen, player.index]
-  );
-
-  // Stays open: a mis-tapped name is usually one of several things being tidied
-  // up, and the list is where the tidying happens.
-  const dropPhase = useCallback(
-    (at) => {
-      editOpen((current) => ({ phases: removePhase(current.phases, at) }));
-    },
-    [editOpen]
+    [pause, resetGesture, editOpen]
   );
 
   /**
@@ -561,14 +537,10 @@ const CubeSolve = ({ navigation }) => {
   // to be a subtraction over the boundaries rather than a number kept alongside
   // them — a stored count is a second thing to keep honest on every edit.
   const spans = useMemo(() => phaseSpans(phases, solveCount), [phases, solveCount]);
-
-  // The group of moves that ends where the cube is, and therefore whether there
-  // is anything to name at all. `renaming` is the case where a boundary is
-  // already sitting here: the last "end the phase" put it there, so a name can
-  // only mean the group behind it.
-  const openStart = openPhaseStart(phases, player.index);
-  const openMoves = Math.max(0, player.index - openStart);
-  const renamingPhase = isPhaseBoundary(phases, player.index);
+  const rail = useMemo(
+    () => railStates(shown.method, phases, solve),
+    [shown.method, phases, solve]
+  );
 
   // The boundaries, for the dividers in the move track. A set, because the track
   // asks this once per token.
@@ -617,8 +589,6 @@ const CubeSolve = ({ navigation }) => {
    * design**: from Step 5 the rail *is* the method, spelled out in stages, and
    * this word can go (plan §6, question 11).
    */
-  const method = methodName(shown.method);
-
   /**
    * The header's controls, which on this screen are the *view* plus Compare.
    *
@@ -642,12 +612,6 @@ const CubeSolve = ({ navigation }) => {
    */
   const headerActions = (
     <>
-      {!!method && (
-        <Text key="method" style={[styles.headerTag, { color: CUBE_ACCENT }]}>
-          {method}
-        </Text>
-      )}
-
       {/* Whichever of the two the hold allows, and the rule is V1's Step 5's,
           unchanged: re-orienting is free while the solve is empty and locked
           once it is not, because re-orienting under moves already written would
@@ -731,12 +695,20 @@ const CubeSolve = ({ navigation }) => {
         />
       )}
 
-      {/* Directly under the moves it is describing, and only once there is
-          something to describe — a solve with no markers costs the cube nothing.
+      {/* Directly under the moves it is describing. A method rail is permanent;
+          Freeform and legacy chips appear only when their old markers exist.
           Above the cube rather than below the pad because it is about the
           *moves*, and the eye should not have to cross the cube to get from
           `First block · 8` to the eight moves it counted. */}
-      {!inspecting && spans.length > 0 && (
+      {!inspecting && rail.length > 0 && (
+        <CubePhaseRail
+          states={rail}
+          accent={CUBE_ACCENT}
+          theme={theme}
+          onLock={endPhaseHere}
+        />
+      )}
+      {!inspecting && rail.length === 0 && spans.length > 0 && (
         <CubePhaseStrip
           spans={spans}
           index={player.index}
@@ -831,10 +803,6 @@ const CubeSolve = ({ navigation }) => {
         <>
           <CubeMovePad
             canUndo={solveCount > 0}
-            // Live once there is anything to say about — moves to name, or
-            // markers to take back off. Only a solve with neither has nothing
-            // for the flag to do.
-            canPhase={solveCount > 0 || phases.length > 0}
             promoteKey={promoteKey}
             primed={primed}
             accent={CUBE_ACCENT}
@@ -843,7 +811,6 @@ const CubeSolve = ({ navigation }) => {
             onPrime={tapPrime}
             onUndo={undoMove}
             onType={() => setShowTyping(true)}
-            onPhase={openPhases}
           />
           {windowHeight >= LEGEND_MIN_HEIGHT && (
             <CubePadLegend theme={theme} accent={CUBE_ACCENT} />
@@ -858,19 +825,6 @@ const CubeSolve = ({ navigation }) => {
         solves={mySolves}
         currentId={openSolve ? openSolve.id : null}
         onClose={() => setShowCompare(false)}
-      />
-
-      <CubePhaseModal
-        visible={showPhases}
-        theme={theme}
-        accent={CUBE_ACCENT}
-        at={player.index}
-        openCount={openMoves}
-        renaming={renamingPhase}
-        spans={spans}
-        onEnd={endPhaseHere}
-        onRemove={dropPhase}
-        onClose={() => setShowPhases(false)}
       />
 
       <CubeAlgInputModal

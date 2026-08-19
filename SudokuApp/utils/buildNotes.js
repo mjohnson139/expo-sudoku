@@ -34,10 +34,12 @@ const BUILD_NOTES = {
       'Turn a layer and immediately turn it straight back and both come off the solve — figuring a piece out is not a move you keep',
       'Starting a solve now asks which method it is: Roux, CFOP, or Freeform if you would rather just write',
       'The method\'s stages are listed before you commit, numbered and in order, so the pick is a plan rather than a word',
-      'The method rides on the solve\'s card and in its header, so a list of attempts says what each one was',
+      'The method rides on the solve\'s card, so a list of attempts says what each one was',
       'Comparing two attempts at the same method lines the columns up the way the method runs, rather than guessing from the order you named things',
       'A card now says when you last wrote to a solve rather than when you started it',
       'Solves written before all this still open, still show their markers, and are not changed by the upgrade',
+      'A method solve now shows every stage as a rail: the open stage counts moves live, and tapping it locks that count and opens the next stage',
+      'Freeform and older solves keep their existing phase chips, while the flag key and naming sheet are gone',
     ]
   },
   '3.1.0': {
