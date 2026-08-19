@@ -113,6 +113,10 @@ const CubeSolve = ({ navigation }) => {
     yaw,
     pitch,
     editOpen,
+    undoOpen,
+    redoOpen,
+    canUndo,
+    canRedo,
     turnTo,
     rememberView,
     showOtherSide,
@@ -331,12 +335,12 @@ const CubeSolve = ({ navigation }) => {
       // so removing both redraws as nothing (§8.10).
       if (cancelInverse(solve, move.token) !== null) {
         handoff(t);
-        editOpen((current) => withMoves(current, appendToken(current.alg, move.token)));
+        editOpen((current) => withMoves(current, appendToken(current.alg, move.token)), { history: 'skip' });
         afterSettle(() =>
           editOpen((current) => {
             const cancelled = cancelTail(current.alg);
             return cancelled !== null ? withMoves(current, cancelled) : {};
-          })
+          }, { history: 'replace' })
         );
         requestAnimationFrame(() => setGestureTurn(null));
         return;
@@ -360,14 +364,16 @@ const CubeSolve = ({ navigation }) => {
       // is the same permutation and redraws as nothing. Drawing and storage,
       // kept apart, which is the whole of it.
       const willFold = condenseRepeat(solve, move.token) !== null;
-      editOpen((current) => withMoves(current, appendToken(current.alg, move.token)));
+      editOpen((current) => withMoves(current, appendToken(current.alg, move.token)), { history: 'skip' });
       if (willFold) {
         afterSettle(() =>
           editOpen((current) => {
             const folded = consolidateTail(current.alg);
             return folded !== null ? withMoves(current, folded) : {};
-          })
+          }, { history: 'replace' })
         );
+      } else {
+        afterSettle(() => editOpen({}, { history: 'push' }));
       }
       requestAnimationFrame(() => setGestureTurn(null));
     },
@@ -464,10 +470,31 @@ const CubeSolve = ({ navigation }) => {
   // **Disarming the promotion here is the belt to `promoteLastToken`'s braces.**
   // The move the promotion would rewrite is the move this is deleting, and undo
   // takes 260ms to land it.
-  const undoMove = useCallback(() => {
+  const undoAction = useCallback(() => {
+    resetGesture();
+    undoOpen((current, next, restore) => {
+      const removesTrailingMove = dropLastToken(current.alg) === next.alg;
+      if (removesTrailingMove && player.index === moveCount(current.alg)) retract(restore);
+      else {
+        pause();
+        restore();
+      }
+    });
+  }, [undoOpen, retract, pause, player.index, resetGesture]);
+
+  // A restored solve has authored moves but deliberately no session history.
+  // Once Undo reaches that boundary, Backspace remains available so old work is
+  // still editable; the deletion itself enters history and can be undone.
+  const backspaceMove = useCallback(() => {
     resetGesture();
     retract(() => editOpen((current) => withMoves(current, dropLastToken(current.alg))));
   }, [retract, editOpen, resetGesture]);
+
+  const redoAction = useCallback(() => {
+    resetGesture();
+    pause();
+    redoOpen();
+  }, [redoOpen, pause, resetGesture]);
 
   const addTyped = useCallback(
     (text) => {
@@ -802,14 +829,18 @@ const CubeSolve = ({ navigation }) => {
       ) : (
         <>
           <CubeMovePad
-            canUndo={solveCount > 0}
+            canUndo={canUndo}
+            canBackspace={!canUndo && solveCount > 0}
+            canRedo={canRedo}
             promoteKey={promoteKey}
             primed={primed}
             accent={CUBE_ACCENT}
             theme={theme}
             onKey={tapKey}
             onPrime={tapPrime}
-            onUndo={undoMove}
+            onUndo={undoAction}
+            onBackspace={backspaceMove}
+            onRedo={redoAction}
             onType={() => setShowTyping(true)}
           />
           {windowHeight >= LEGEND_MIN_HEIGHT && (

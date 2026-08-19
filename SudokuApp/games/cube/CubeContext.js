@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { cubeFromAlg, solvedCube } from './cubeState';
 import { DEFAULT_PITCH, DEFAULT_YAW, wrapAngle } from './geometry';
@@ -15,6 +15,16 @@ import {
 } from './solveList';
 import { addFavorite, isFavorite, removeFavorite } from './favorites';
 import { loadCubeState, saveCubeState } from './storage';
+import {
+  canRedo as historyCanRedo,
+  canUndo as historyCanUndo,
+  createHistory,
+  pushHistory,
+  redoHistory,
+  replaceHistory,
+  snapshotOf,
+  undoHistory,
+} from './history';
 
 /**
  * Everything the cube persists, owned above both of its screens
@@ -81,6 +91,10 @@ export const CubeProvider = ({ children, fallback = null }) => {
   const [solves, setSolves] = useState([]);
   // Which solve is on the cube, by id.
   const [openId, setOpenId] = useState(null);
+  // Session-only on purpose: authored solve state is persisted, but an editing
+  // timeline does not survive a cold start or travel between solve pages.
+  const historyRef = useRef({ id: null, value: createHistory(snapshotOf(null)) });
+  const [historyVersion, setHistoryVersion] = useState(0);
 
   /**
    * Is the solve route mounted?
@@ -254,6 +268,11 @@ export const CubeProvider = ({ children, fallback = null }) => {
     return found && found.scramble === scrambleKey ? found : null;
   }, [solves, openId, scrambleKey]);
 
+  useEffect(() => {
+    historyRef.current = { id: openId, value: createHistory(snapshotOf(openSolve)) };
+    setHistoryVersion((current) => current + 1);
+  }, [openId]);
+
   const saved = isFavorite(favorites, scramble);
 
   /**
@@ -308,11 +327,42 @@ export const CubeProvider = ({ children, fallback = null }) => {
    * `solveList.js` stays a pure module with an injectable one.
    */
   const editOpen = useCallback(
-    (patch) => {
-      setSolves((current) => editSolve(current, openId, patch));
+    (patch, { history = 'push' } = {}) => {
+      setSolves((current) => {
+        const grown = editSolve(current, openId, patch);
+        const next = findSolve(grown, openId);
+        if (next && history !== 'skip') {
+          const ring = historyRef.current.id === openId
+            ? historyRef.current.value
+            : createHistory(snapshotOf(findSolve(current, openId)));
+          historyRef.current = {
+            id: openId,
+            value: history === 'replace'
+              ? replaceHistory(ring, snapshotOf(next))
+              : pushHistory(ring, snapshotOf(next)),
+          };
+          setHistoryVersion((version) => version + 1);
+        }
+        return grown;
+      });
     },
     [openId]
   );
+
+  const restoreHistory = useCallback((direction, defer) => {
+    const entry = historyRef.current;
+    if (entry.id !== openId) return;
+    const next = direction === 'undo' ? undoHistory(entry.value) : redoHistory(entry.value);
+    if (next === entry.value) return;
+    historyRef.current = { id: openId, value: next };
+    setHistoryVersion((version) => version + 1);
+    const restore = () => setSolves((current) => editSolve(current, openId, next.present));
+    if (defer) defer(entry.value.present, next.present, restore);
+    else restore();
+  }, [openId]);
+
+  const undoOpen = useCallback((defer) => restoreHistory('undo', defer), [restoreHistory]);
+  const redoOpen = useCallback((defer) => restoreHistory('redo', defer), [restoreHistory]);
 
   /**
    * Start a fresh page against the scramble on the cube, and open it.
@@ -407,8 +457,12 @@ export const CubeProvider = ({ children, fallback = null }) => {
    * describing a solve that no longer exists.
    */
   const clearSolveById = useCallback((id) => {
+    if (id === openId) {
+      editOpen({ alg: '', phases: [] });
+      return;
+    }
     setSolves((current) => editSolve(current, id, { alg: '', phases: [] }));
-  }, []);
+  }, [editOpen, openId]);
 
   // ——— The view (docs/cube-plan.md §7.1) ————————————————————————————————
 
@@ -472,6 +526,10 @@ export const CubeProvider = ({ children, fallback = null }) => {
       toggleSaved,
       removeSaved,
       editOpen,
+      undoOpen,
+      redoOpen,
+      canUndo: historyRef.current.id === openId && historyCanUndo(historyRef.current.value),
+      canRedo: historyRef.current.id === openId && historyCanRedo(historyRef.current.value),
       startNewSolve,
       showSolve,
       copySolve,
@@ -499,11 +557,14 @@ export const CubeProvider = ({ children, fallback = null }) => {
       clearRestoredOpen,
       yaw,
       pitch,
+      historyVersion,
       showScramble,
       newScramble,
       toggleSaved,
       removeSaved,
       editOpen,
+      undoOpen,
+      redoOpen,
       startNewSolve,
       showSolve,
       copySolve,

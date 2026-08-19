@@ -63,10 +63,9 @@ export const PAD_LAYOUT = [
   { key: 'r', tone: 'wide' },
   { key: 'y', tone: 'rot' },
 
-  { tool: 'backspace', tone: 'tool' },
+  { tool: 'undo', tone: 'tool' },
   { key: 'D', tone: 'face' },
-  // Step 5 retires the flag. Step 6's redo takes this documented gap.
-  { gap: true },
+  { tool: 'redo', tone: 'tool' },
   { key: 'S', tone: 'slice' },
   { tool: 'keyboard', tone: 'tool' },
   { key: 'z', tone: 'rot' },

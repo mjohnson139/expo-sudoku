@@ -273,8 +273,10 @@ three fixes.
   remounts the layer and flashes. Any new move-entry path obeys it.
 - **Step 6 (undo/redo) gained two constraints.** The deferred fold/cancel must
   **coalesce** into one undo unit (a spin is one undo; a cancelled `L L'` is not
-  resurrectable), and undo/redo must have a home **off the pad** (on
-  `CubeContext`, mirrored by a strip beside the scrubber) because Step 9 hides it.
+  resurrectable), and undo/redo handlers must live on `CubeContext` so Step 9
+  can give them an off-pad home when it hides the keyboard. That placement was
+  deliberately tabled in Step 6; start Step 9 with them right-aligned above the
+  scrubber.
 - **Step 8 / new Step 9.** The pad can now be *hidden*, not just shrunk — the
   swipe mode of **Step 9**, the concrete answer to V1's open question 13. Step 3.5
   did not touch `PAD_LAYOUT`, so Steps 5, 6 and 8 are unchanged as written.
@@ -427,86 +429,124 @@ orbit-only and could not establish that.
 
 ---
 
-## Next step — Step 6: undo and redo of whole actions
+## What landed in Step 6 (read this before Step 7)
 
-`docs/cube-flow-plan.md` §3.6 is the brief. Step 5 retired the flag and left its
-pad cell as one documented gap; this step fills that cell with redo and replaces
-token deletion with history that takes back whole authored actions.
+**Undo and redo are whole authored actions now.** The session-only bounded ring
+in `history.js` snapshots `{ alg, phases }` atomically at `CubeContext.editOpen`.
+It is cleared whenever the open solve changes and is deliberately never saved.
+Typing, pasting, pad moves, phase locks and Clear all enter the same history;
+scrubbing and playback do not. A fresh edit after undo drops redo.
+
+**Gesture tidy is part of the gesture.** The raw quarter still draws first and
+the fold/cancel still waits for `afterSettle`; only then does history replace the
+raw action. Thus `F F → F2` undoes to before the pair in one press, while a
+cancelled `L L'` collapses the prior action and cannot be recovered with redo.
+Do not move that history write ahead of settle: doing so reopens Step 3.5's
+flash bug.
+
+**The controls live on the pad for now.** Undo replaces backspace at pad row 3
+column 1, and redo fills the retired flag cell at row 3 column 3. An off-pad home
+was tried as a second row inside `CubeScrubber` and withdrawn before the device
+pass: its placement belongs with Step 9, when the keyboard actually hides and
+the remaining composition can be judged. The operator's starting direction is
+**right-aligned above the scrubber**. The pad remains its fixed height and this
+step costs the cube **0 points**.
+Undoing a trailing move at the end still routes through `retract`, preserving the
+backwards animation; other restores are atomic and immediate.
+
+**Undo has a saved-work boundary; Backspace does not.** History is intentionally
+session-only, so a restored solve can contain moves with nothing left to undo.
+When `canUndo` is false and moves remain, the lower-left key changes its glyph
+and semantics to Backspace. Each deletion still goes through `editOpen` and
+`withMoves`, immediately becoming an undoable action. A held Backspace keeps the
+job it had at touch-down even after the first deletion creates history; otherwise
+the next repeat tick would undo that deletion and put the move straight back.
+
+**Automated verification:** `npm test -- --runInBand` passed all 31 suites / 1160
+tests, including the new bound, round-trip, branch-drop and gesture replacement
+cases in `history.test.js`. A browser/device pass is still required before this
+step can be called landed: web cannot write gesture moves, so only a phone can
+verify fold/cancel coalescing, the backwards turn and the pad controls.
+
+---
+
+## Next step — Step 7: variations per phase
+
+`docs/cube-flow-plan.md` §3.7 is the brief. A locked method stage gains alternate
+runs without changing the solve's flat `alg`; the active run stays spliced into
+the solve and only inactive runs are stored.
 
 ### Scope
 
-- Add pure `games/cube/history.js`: a bounded snapshot ring over `{ alg, phases }`
-  (and a seam for Step 7 variations), with its own node tests. Undo and redo
-  restore snapshots; a fresh edit after undo discards the redo branch.
-- Put the ring at the state-owner boundary after reading `CubeContext.editSolve`
-  and `editOpen`. `editOpen` remains the only edit funnel and `withMoves` remains
-  the only moves-edit patch; history wraps that door rather than opening another.
-- Coalesce Step 3.5's deferred gesture tidy with the gesture that caused it. A
-  folded `F F` is one undo unit, and a cancelled `L L'` cannot be resurrected by
-  undo. Use the transport's `afterSettle` seam rather than snapshotting the raw
-  and tidied strings as two authored actions.
-- Undo and redo must be exposed on `CubeContext`, not owned only by the pad.
-  Mirror them in a compact strip beside `CubeScrubber`, because Step 9 hides the
-  pad and still needs both actions. Replace the existing backspace with undo and
-  put redo in Step 5's gap (row 3, column 3).
-- Clear history when the open solve changes, is cleared, deleted or replaced.
-  A cold start restores the solve, not an in-memory editing timeline.
+- Add `variations: [{ id, phaseAt, alg, savedAt }]` to a solve. A variation is
+  keyed by the phase marker's `at`, not merely its label, and stores only runs
+  that are not currently active.
+- Add pure `games/cube/variations.js` with fork, switch and best. Each operation
+  returns one `{ alg, phases, variations }` patch through `editOpen`; move edits
+  continue to obey `withMoves`.
+- Fork always stashes the current span, clears it from the active algorithm and
+  reopens the phase. Switch stashes the displaced run, splices the selected run
+  into `alg`, and re-clamps markers. Best is the shortest run with a deterministic
+  tie break.
+- Extend Step 6 history snapshots to include `variations`. A fork or switch is
+  one atomic undoable action; restoring it must not split the active algorithm,
+  markers and inactive runs across different moments.
+- Extend solve sanitization beside `sanitizePhases`: keep valid stored runs whose
+  `phaseAt` resolves to a surviving marker, and drop invalid notation or orphaned
+  markers without damaging any pre-Step-7 field.
+- Expand locked rail pills that have variations. Show the active run, count,
+  and shortest/best state; switching replays from the phase entry with the
+  existing `seek` then `playTo` path.
 
 ### Files to read first
 
-- `games/cube/CubeContext.js` — `editSolve`, `editOpen`, clear/delete, and the
-  single persisted writer.
-- `games/cube/CubeSolve.js` — every authored path, especially gesture
-  `afterSettle`, pad entry, typing, phase locking and today's `undoMove`.
-- `games/cube/useScramblePlayer.js` — retract and `afterSettle`; history must
-  preserve the visible backwards animation without creating an extra snapshot.
-- `games/cube/solve.js`, `CubeMovePad.js`, and `__tests__/solve.test.js` — the
-  pad geometry and the temporary gap Step 5 deliberately pinned.
-- `games/cube/CubeScrubber.js` — the permanent off-pad home for undo/redo.
-- `docs/cube-touch-exploration.md` §8.10 — drawing first, storage tidy only
-  after settle; history may not reintroduce the flashes that rule fixed.
+- `games/cube/solveList.js` and its tests — record creation, shape-tolerant
+  sanitization, marker clamping, `withMoves`, and the literal legacy fixture.
+- `games/cube/history.js` and `CubeContext.js` — add variations to the atomic
+  snapshot without persisting the ring or creating a second writer.
+- `games/cube/CubePhaseRail.js`, `phaseRail.js`, and their tests — locked/open
+  sequence rules and the fixed 28-point horizontal rail.
+- `games/cube/CubeSolve.js` — rail locking, phase playback, and the existing
+  `seek` + `playTo` path a selected run should reuse.
+- `docs/cube-plan.md` §8.5 — markers remain the source of truth, never ranges.
 
 ### Easy to get wrong
 
-1. Snapshot authored actions, not transient transport positions or each call to
-   `editOpen`. A gesture plus its deferred fold/cancel is exactly one action.
-2. Restoring `{ alg, phases }` is atomic. Undoing a rail lock restores both its
-   marker pair and the rail state; undoing a move cannot leave a marker beyond
-   the new algorithm.
-3. A new edit after undo drops redo, while navigating/scrubbing/playback is not
-   an edit and does not.
-4. The ring is bounded and never persisted. Switching solves must never offer an
-   undo from the page previously open.
-5. Keep undo/redo reachable off-pad. Step 9 removes the keyboard entirely.
-6. Preserve the gesture drawing/storage seam: never rewrite a live move's amount
-   to make history easier.
-7. Account for the scrubber-side strip in points. The pad stays the same height;
-   if the extra strip costs the small phone, reduce its own footprint rather
-   than shrinking the cube without saying so.
+1. Keep `alg` flat. Teaching the player, track, comparison, or storage layer
+   about phase segments defeats the design and multiplies the migration surface.
+2. `phaseAt`, not label, is identity. Labels may repeat or be renamed; a marker
+   locates the exact span whose alternate run is stored.
+3. Fork/switch patches and their history snapshots are atomic across `alg`,
+   `phases`, and `variations`. Undo must restore all three together.
+4. Switching changes downstream marker indices. Re-clamp/rebase every affected
+   marker and variation; never leave an inactive run pointing at a dropped one.
+5. The read migration is shape-tolerant and must damage nothing on old records.
+   Unknown new data is dropped locally, not used as a reason to rebuild a solve.
+6. Rail expansion may not wrap or silently grow the fixed 28-point rail. If it
+   needs height, account for the exact cube cost at 320, 375 and 393 points.
 
 ### What must be visible in Expo Go
 
-Undo takes back a typed move, a finger turn, a pasted algorithm and a phase lock
-as whole actions; redo restores each. A repeated finger turn folded to `F2`
-undoes once, and a turn immediately cancelled by its inverse does not reappear.
-Undo and redo work from both the pad and beside the scrubber, and redo disables
-after a new edit. Switching solves starts with no borrowed history.
+A locked stage can be retried without losing its current run. The rail shows how
+many alternatives exist, expands to show the active and shortest run, and lets a
+stored run become active while the cube replays it from that stage's entry.
+Undo restores the pre-fork/pre-switch algorithm, markers and alternatives in one
+press. Background/resume and a cold start keep the stored variations.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/`, including the new `history.test.js` and updated
-  pad pins.
-- Exercise each authored path and the redo-branch rule in a browser, but be
-  explicit that browser gesture input remains orbit-only.
-- Require a device pass for gesture coalescing, cancel-drop, the backwards
-  animation and the scrubber-side controls. Record which findings came only from
-  the device.
+- `npm test` from `SudokuApp/`, including new `variations.test.js`, sanitization
+  fixtures and extended history round-trips.
+- In a browser, fork, write, switch twice, verify the original returns, verify
+  best/tie behavior, undo a switch, and reload seeded valid/invalid data.
+- Require a device pass for the expanded rail's touch targets, replay feel, and
+  the small-phone layout. Record any finding that was device-only.
 
-### Then rewrite this file for Step 7
+### Then rewrite this file for Step 8
 
-Step 7 adds variations per phase. Read §3.7 before choosing the snapshot shape:
-variations join the undoable solve state, and their identity is the phase marker
-(`phaseAt`), not merely its label.
+Step 8 is the full three-width layout budget pass. Carry forward whatever the
+expanded rail costs. Step 9 owns the still-unsettled off-pad undo/redo placement;
+start with a compact right-aligned strip above the scrubber, not inside it.
 
 ---
 

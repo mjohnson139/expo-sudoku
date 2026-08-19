@@ -38,12 +38,12 @@ describe('PAD_LAYOUT', () => {
     expect(PAD_LAYOUT).toHaveLength(PAD_COLUMNS * PAD_ROWS);
   });
 
-  it('leaves exactly the retired flag slot for Step 6 redo', () => {
+  it('puts redo in the retired flag slot', () => {
     // The design left column 3 row 1 deliberately empty. The operator used the
     // hold on a phone and found its feedback lives under the thumb causing it,
     // so the armed `′` came back as a second route and took that cell.
-    expect(PAD_LAYOUT.filter((cell) => cell.gap)).toHaveLength(1);
-    expect(PAD_LAYOUT[2 + PAD_COLUMNS * 2].gap).toBe(true);
+    expect(PAD_LAYOUT.filter((cell) => cell.gap)).toHaveLength(0);
+    expect(PAD_LAYOUT[2 + PAD_COLUMNS * 2].tool).toBe('redo');
     expect(PAD_LAYOUT[2].tool).toBe('prime');
   });
 
@@ -80,9 +80,9 @@ describe('PAD_LAYOUT', () => {
     expect(column(6)).toEqual(['x', 'y', 'z']);
   });
 
-  it('carries the three remaining tools, and no flag or Clear', () => {
+  it('carries undo and redo, and no flag or Clear', () => {
     const tools = PAD_LAYOUT.filter((cell) => cell.tool).map((cell) => cell.tool);
-    expect(tools.sort()).toEqual(['backspace', 'keyboard', 'prime']);
+    expect(tools.sort()).toEqual(['keyboard', 'prime', 'redo', 'undo']);
     // Clearing a solve does not belong under a thumb aiming at `R` — it moved
     // to the solves list in Step 8 (plan §8.8).
     expect(tools).not.toContain('clear');

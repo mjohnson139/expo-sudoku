@@ -40,6 +40,10 @@ const BUILD_NOTES = {
       'Solves written before all this still open, still show their markers, and are not changed by the upgrade',
       'A method solve now shows every stage as a rail: the open stage counts moves live, and tapping it locks that count and opens the next stage',
       'Freeform and older solves keep their existing phase chips, while the flag key and naming sheet are gone',
+      'Undo and redo now take back whole actions — a move, pasted algorithm, or phase lock — instead of deleting one token at a time',
+      'Undo and redo take the old backspace and flag positions on the move pad, so both actions stay under the same thumb',
+      'When session history runs out but an older solve still has moves, Undo becomes Backspace so every saved move remains editable',
+      'Finger turns stay one undo action after their notation tidies, and turning a layer out and straight back cannot reappear from redo',
     ]
   },
   '3.1.0': {

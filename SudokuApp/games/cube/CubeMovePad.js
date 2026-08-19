@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { ALG_FONT } from './algText';
 import CubeGlyph from './CubeGlyph';
 import { padPalette } from './padPalette';
+import { historyKeyMode } from './history';
 import {
   BACKSPACE_REPEAT_MS,
   HOLD_MS,
@@ -68,6 +69,8 @@ const REPEAT_AFTER_MS = 400;
  */
 const CubeMovePad = ({
   canUndo,
+  canBackspace,
+  canRedo,
   // The key a second tap would promote — `R` when the solve ends `… R` and `R`
   // was the last key pressed. Drawn as a `2` in the corner, which is the
   // design's fourth hold state: the pad says "again and this becomes R2" rather
@@ -80,6 +83,8 @@ const CubeMovePad = ({
   onKey,
   onPrime,
   onUndo,
+  onBackspace,
+  onRedo,
   onType,
 }) => {
   const palette = padPalette(theme, accent);
@@ -150,14 +155,16 @@ const CubeMovePad = ({
     [onKey]
   );
 
-  // Backspace is the one key that repeats: holding it deletes back through the
-  // solve at 120ms a token, after a pause long enough that a single tap is
-  // never two.
-  const holdBackspace = useCallback(() => {
+  // The lower-left history key repeats whichever job it had when the finger
+  // went down. That distinction matters for a restored solve: with no in-memory
+  // history it is Backspace, and the first deletion creates an undo entry. A
+  // rerender must not turn the rest of the same hold into Undo and put the move
+  // straight back.
+  const holdHistoryKey = useCallback((repeat) => {
     repeatTimer.current = setTimeout(() => {
-      repeatTick.current = setInterval(onUndo, BACKSPACE_REPEAT_MS);
+      repeatTick.current = setInterval(repeat, BACKSPACE_REPEAT_MS);
     }, REPEAT_AFTER_MS);
-  }, [onUndo]);
+  }, []);
 
   const rows = [];
   for (let i = 0; i < PAD_LAYOUT.length; i += PAD_COLUMNS) {
@@ -285,13 +292,26 @@ const CubeMovePad = ({
     // it only while live, which is a state rather than a resting style — and
     // being the loud thing on the pad is the entire job it was added to do.
     const group = primeLive ? palette.accent : palette.tone('tool');
-    const disabled = tool === 'backspace' ? !canUndo : false;
+    const historyMode = historyKeyMode({ undo: canUndo, moves: canBackspace });
+    const backspace = tool === 'undo' && historyMode === 'backspace';
+    const disabled = tool === 'undo'
+      ? historyMode === 'disabled'
+      : tool === 'redo'
+        ? !canRedo
+        : false;
 
     const config = {
-      backspace: {
-        label: 'Undo the last move',
-        hint: 'Removes the last move whole, and turns it back. Hold to keep deleting',
-        onPress: onUndo,
+      undo: {
+        label: backspace ? 'Delete the last move' : 'Undo the last action',
+        hint: backspace
+          ? 'This solve predates the current editing history. Deletes its last move; hold to keep deleting'
+          : 'Takes back the last move, typed algorithm, or phase lock. Hold to keep undoing',
+        onPress: backspace ? onBackspace : onUndo,
+      },
+      redo: {
+        label: 'Redo the last action',
+        hint: 'Restores the action most recently undone',
+        onPress: onRedo,
       },
       keyboard: {
         label: 'Type an algorithm',
@@ -324,7 +344,7 @@ const CubeMovePad = ({
         ]}
         onPressIn={() => {
           setPressed(tool);
-          if (tool === 'backspace') holdBackspace();
+          if (tool === 'undo') holdHistoryKey(backspace ? onBackspace : onUndo);
         }}
         onPressOut={() => {
           clearTimers();
@@ -342,7 +362,11 @@ const CubeMovePad = ({
           // the icon.
           <Text style={[styles.primeText, { color: group.ink }]}>′</Text>
         ) : (
-          <CubeGlyph name={tool} size={tool === 'keyboard' ? 20 : 19} color={group.ink} />
+          <CubeGlyph
+            name={backspace ? 'backspace' : tool}
+            size={tool === 'keyboard' ? 20 : 19}
+            color={group.ink}
+          />
         )}
       </Pressable>
     );
