@@ -1,6 +1,6 @@
 import { stagesOf } from './methods';
 import { moveCount } from './moves';
-import { openPhaseStart, phaseSpans } from './solveList';
+import { phaseSpans } from './solveList';
 
 /**
  * Derive the method rail from the solve itself. Nothing displayed here is
@@ -10,16 +10,31 @@ import { openPhaseStart, phaseSpans } from './solveList';
 export const railStates = (method, phases, alg) => {
   const stages = stagesOf(method);
   const total = moveCount(alg);
-  const spans = phaseSpans(phases, total);
-  const locked = new Map(
-    spans.filter((span) => span.label.length > 0).map((span) => [span.label, span.count])
-  );
-  const firstOpen = stages.findIndex((stage) => !locked.has(stage));
-  const liveCount = Math.max(0, total - openPhaseStart(phases, total));
+  const named = phaseSpans(phases, total).filter((span) => span.label.length > 0);
+
+  // A method is a sequence, not a checklist. Only the consecutive prefix of
+  // markers that matches its stages is complete: an old/out-of-order marker
+  // for Second block must never unlock it ahead of First block.
+  let lockedCount = 0;
+  while (
+    lockedCount < stages.length &&
+    lockedCount < named.length &&
+    named[lockedCount].label === stages[lockedCount]
+  ) {
+    lockedCount += 1;
+  }
+
+  // The previous locked span ends at the divider `endPhase` wrote. Measuring
+  // from that boundary makes the newly opened stage start at 0 immediately,
+  // before its first move, rather than briefly inheriting the prior count.
+  const openStart = lockedCount > 0 ? named[lockedCount - 1].end : 0;
+  const liveCount = Math.max(0, total - openStart);
 
   return stages.map((stage, index) => {
-    if (locked.has(stage)) return { stage, state: 'locked', count: locked.get(stage) };
-    if (index === firstOpen) return { stage, state: 'open', count: liveCount };
+    if (index < lockedCount) {
+      return { stage, state: 'locked', count: named[index].count };
+    }
+    if (index === lockedCount) return { stage, state: 'open', count: liveCount };
     return { stage, state: 'upcoming', count: null };
   });
 };

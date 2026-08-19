@@ -20,6 +20,23 @@ describe('railStates', () => {
     ]);
   });
 
+  it('opens the next stage at zero as soon as the prior stage locks', () => {
+    const phases = [{ at: 0, label: 'First block' }, { at: 2, label: '' }];
+    const states = railStates('roux', phases, 'R U');
+    expect(states[0]).toEqual({ stage: 'First block', state: 'locked', count: 2 });
+    expect(states[1]).toEqual({ stage: 'Second block', state: 'open', count: 0 });
+  });
+
+  it('only locks stages in method order', () => {
+    const phases = [{ at: 0, label: 'Second block' }, { at: 2, label: '' }];
+    expect(railStates('roux', phases, 'R U')).toEqual([
+      { stage: 'First block', state: 'open', count: 2 },
+      { stage: 'Second block', state: 'upcoming', count: null },
+      { stage: 'CMLL', state: 'upcoming', count: null },
+      { stage: 'LSE', state: 'upcoming', count: null },
+    ]);
+  });
+
   it('follows a tidied algorithm rather than retaining a running tally', () => {
     const phases = [{ at: 0, label: 'First block' }, { at: 1, label: '' }];
     expect(railStates('roux', phases, 'R F F')[1].count).toBe(2);
