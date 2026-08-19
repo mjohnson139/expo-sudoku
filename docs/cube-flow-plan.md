@@ -1014,13 +1014,11 @@ again for an `x` rotation; background and resume with the pad hidden; and the
     return on the first pad tap. It is invisible, which is the standing objection
     (question 3); the counter is that a solver who has started swiping has already
     shown their hand. One session with swipe mode settles it.
-11. **New in Step 4: is the method tag worth 34 points of the solve header at
-    320?** It costs the cube nothing — no row — but `rightSectionDense` does not
-    shrink, so those points come off the title column and a 13-character solve
-    name truncates by about two characters on the smallest phone (375 and above
-    are unaffected). It is a Step 4 stopgap by construction: from Step 5 the rail
-    *is* the method, spelled out in stages, so the answer can simply be "drop the
-    tag". Worth one look in the hand before then.
+11. ~~**Is the method tag worth 34 points of the solve header at 320?**~~
+    **Answered: yes for Step 4** (operator, device pass 2026-08-19). The narrow
+    title and subtitle were acceptable in the hand. It remains a stopgap by
+    construction: from Step 5 the rail *is* the method, so Step 5 may drop the
+    tag rather than paying twice to say the same thing.
 12. **New in Step 4: should the sheet remember the last method, rather than
     deriving it?** `defaultMethod` opens the sheet on the method of the newest
     solve *for this scramble* — derived, stored nowhere, and right for the common
