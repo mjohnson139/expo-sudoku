@@ -8,6 +8,7 @@ import CubeCompareModal from './CubeCompareModal';
 import CubeFavoritesModal from './CubeFavoritesModal';
 import CubeMoveTrack from './CubeMoveTrack';
 import CubeNameModal from './CubeNameModal';
+import CubeNewSolveSheet from './CubeNewSolveSheet';
 import CubeScrubber from './CubeScrubber';
 import CubeSolveList from './CubeSolveList';
 import CubeSolveMenu from './CubeSolveMenu';
@@ -87,6 +88,9 @@ const CubeHome = ({ navigation, onExitToHub }) => {
 
   const [showFavorites, setShowFavorites] = useState(false);
   const [showCompare, setShowCompare] = useState(false);
+  // Step 4's sheet: `+ New solve` opens this rather than creating a solve, and
+  // `Start solve` is what creates and pushes.
+  const [showNewSolve, setShowNewSolve] = useState(false);
   // The solve a long-press opened the menu for, and the one being renamed —
   // separately, because the two modals are opened one at a time rather than
   // stacked (a Modal over a Modal is reliable on web and finicky on iOS).
@@ -198,14 +202,35 @@ const CubeHome = ({ navigation, onExitToHub }) => {
     [pause, showSolve, navigation]
   );
 
-  /** A fresh page against this scramble, opened. `startNewSolve` returns null
-   *  when there is no scramble to write one against, and then there is nothing
-   *  to push to. */
+  /**
+   * A fresh page against this scramble — in two halves since Step 4, with the
+   * method sheet between them.
+   *
+   * The card used to create and push on one tap. It asks first now, because
+   * Step 5 builds the phase rail out of `solve.method` and a rail that appeared
+   * over markers written before the method was chosen would be a rail describing
+   * a solve that was not written that way (docs/cube-flow-plan.md §3.4).
+   *
+   * The pause stays with the *opening* of the sheet rather than with the push:
+   * the scramble should stop playing the moment the operator's attention leaves
+   * it, and a sheet they close again is not a reason to start it up.
+   */
   const openNewSolve = useCallback(() => {
     pause();
-    if (!startNewSolve()) return;
-    navigation.navigate(SOLVE_ROUTE);
-  }, [pause, startNewSolve, navigation]);
+    setShowNewSolve(true);
+  }, [pause]);
+
+  /** `Start solve` — create with the method that was picked, and push.
+   *  `startNewSolve` returns null when there is no scramble to write one
+   *  against, and then there is nothing to push to. */
+  const startSolveWith = useCallback(
+    (method) => {
+      setShowNewSolve(false);
+      if (!startNewSolve({ method })) return;
+      navigation.navigate(SOLVE_ROUTE);
+    },
+    [startNewSolve, navigation]
+  );
 
   // ——— The long-press menu (plan §3.3) ——————————————————————————————————
 
@@ -450,6 +475,19 @@ const CubeHome = ({ navigation, onExitToHub }) => {
         onNew={openNewSolve}
         onManage={setManagingId}
         onCompare={() => setShowCompare(true)}
+      />
+
+      {/* The fifth modal on this screen, and the fifth opened one at a time on
+          purpose — a Modal over a Modal is reliable on web and finicky on iOS.
+          Nothing else on this screen can be open while the sheet is: it is
+          reached from the action row under the list, not from a card. */}
+      <CubeNewSolveSheet
+        visible={showNewSolve}
+        theme={theme}
+        accent={CUBE_ACCENT}
+        mySolves={mySolves}
+        onStart={startSolveWith}
+        onClose={() => setShowNewSolve(false)}
       />
 
       <CubeSolveMenu

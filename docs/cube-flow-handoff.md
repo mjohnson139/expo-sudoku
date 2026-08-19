@@ -73,8 +73,9 @@ open.
   chevron and its subtitle monospaced — every other caller keeps the header it
   had); and **Step 3a** (`keepsStateOnResume` in `games/registry.js` plus the one
   line in `App.js` that reads it, so the cube opts out of the resume remount —
-  Sudoku and Fungiku keep theirs). A step that needs a fourth should say why in
-  its PR. **`utils/buildNotes.js` does not count** — the release entry is mandated
+  Sudoku and Fungiku keep theirs). **Step 4 needed no fourth** — the method
+  sheet, the card's method segment and the solve header's method tag are all
+  inside `games/cube/`. A step that needs one should say why in its PR. **`utils/buildNotes.js` does not count** — the release entry is mandated
   by the plan, and every step extends `3.2.0`'s.
 - **`editOpen` is the only edit funnel** for the open solve, and `withMoves` is
   the only sanctioned moves-edit patch. Two writers is how the file and the
@@ -93,7 +94,7 @@ open.
 
 ---
 
-## What landed in Steps 1–3 (read this before Step 4)
+## What landed in Steps 1–3 (still current)
 
 **Step 1** put the app on `@react-navigation/native` + `native-stack` (v7).
 `App.js` is `SafeAreaProvider` → the `SafeAreaView` carrying the simulator-tap
@@ -240,7 +241,7 @@ the web container's padding is not a phone's safe area.
 
 ---
 
-## What landed in Step 3.5 (read this before Step 4)
+## What landed in Step 3.5 (still current)
 
 **Turning the cube by dragging it** — an unplanned step that grew into the epic's
 primary input. A finger writes every layer, every wide, and the face pointing at
@@ -289,104 +290,220 @@ does not.
 
 ---
 
-## Next step — Step 4: method as data
+## What landed in Step 4 (read this before Step 5)
 
-`docs/cube-flow-plan.md` §3.4 is the brief. Step 3 gave a solve a card; this step
-gives it a **method**, which is what Step 5's rail is built from and what stops
-`comparePhases` guessing its own column order.
+**Method as data.** `PHASE_METHODS` was a chip vocabulary in `solveList.js`; it
+is `METHODS` in the new **`games/cube/methods.js`** now, as `{ id, name, stages }`
+for Roux and CFOP, and **a solve stores a method id**. `docs/cube-flow-plan.md`
+§3.4 carries the full landed note; this is what Step 5 has to know.
+
+New files: `methods.js` (`METHODS`, `findMethod`, `stagesOf`, `methodName`,
+`sanitizeMethodId`, `defaultMethod`, `FREEFORM_NAME`, `FREEFORM_BLURB`) and
+`CubeNewSolveSheet.js`. `PHASE_METHODS` is **deleted**; `CubePhaseModal` reads
+`METHODS` and `method.stages`.
+
+**Two operator decisions were taken before a line was written**, and both are
+load-bearing for Step 5:
+
+- **Open question 1 answered: yes, there is a "no method" option.** The sheet is
+  **Roux · CFOP · Freeform**, and Freeform stores `method: null` — *the same
+  value* every pre-Step-4 solve carries. **So `null` is two things at once on
+  purpose**, and Step 5 must not try to tell them apart: what it means is "there
+  is no stage list to build a rail from", which is equally true of a legacy
+  record and a deliberate scratch attempt. Both keep `CubePhaseStrip`.
+- **Open question 8 answered: `savedAt` keeps its meaning and `editedAt` joins
+  it.** `savedAt` is still *when the solve was started*; `editedAt` is *when it
+  was last written to*; **`lastTouched(solve)` is the one reader** and falls back
+  to `savedAt` for every record that predates the field. The card reads it and
+  **nothing sorts by it** — a list that re-sorted on every keystroke would
+  reshuffle under the thumb that was writing.
+
+Seven things Step 5 inherits and should not rediscover:
+
+- **`editSolve` is the stamping funnel, and `editOpen` is built on it.**
+  `editSolve(solves, id, patch, { editedAt })` is `updateSolve` plus the stamp;
+  `CubeContext.editOpen` and `clearSolveById` both go through it, so every
+  authored change is stamped in one place. **`renameSolve` deliberately does
+  not** — a name is not the work. A new write path in Step 5 goes through
+  `editOpen`, which means it is stamped for free.
+- **The migration is `sanitizeSolves` and nothing else, and there is no `_v`
+  bump.** An absent or unknown `method` is `null`; an absent `editedAt` is the
+  record's own `savedAt`; **nothing else on a pre-existing record changes.** That
+  is the property to protect, because the failure is silent — a solve whose
+  markers came back subtly different would still look like a solve.
+  `solveList.test.js` has a *damages nothing else* test that spreads a literal
+  pre-Step-4 record; keep it passing.
+- **`methods.test.js` pins the promotion against a literal copy of the old
+  `PHASE_METHODS`**, not against an import of it. If Step 5 changes a stage
+  string, that test is what tells you a marker in somebody's file just became
+  unresolvable. **Do not "fix" it by editing the copy.**
+- **`stagesOf(null)` is a shared frozen `[]`.** So the rail over a legacy solve
+  is *no rail*, with no branch to write and no memo churn. `METHODS` and every
+  stage list are frozen — a screen that pushed onto one would be editing every
+  solve that ever used it.
+- **`comparePhases` is seeded by the method now** (`methodOrders`): one extra
+  sequence per distinct method in play, **filtered to labels some attempt
+  actually marked**, fed to `mergeLabelOrder` *first*. The method orders its own
+  stages, the solves' own sequences place anything it has never heard of, and no
+  column is invented for a stage nobody reached. With no methods stored the seed
+  is empty and the behaviour is exactly what it was.
+- **`defaultMethod(mySolves)` opens the sheet on the newest solve's method**,
+  Roux when there is none. Derived, stored nowhere — a remembered preference
+  would be the first entry in a settings store this epic has not decided on
+  (§6 question 13).
+- **The method tag on the solve header is a Step 4 stopgap and Step 5 may remove
+  it.** It is a plain `<Text>` in the header's `actions`
+  (`cubeChrome.headerTag`), costing **34 points of the title column at every
+  width** and zero rows. At 320×568 that takes the title column 141 → 107 and
+  truncates a 13-character solve name by about two characters. **From Step 5 the
+  rail *is* the method**, so the honest thing may be to delete the tag — see §6
+  question 11. On the card the method is an accented span on the meta line;
+  `CARD_HEIGHT` is untouched, so the list's cap and its 14-point peek are too.
+
+**Layout, in points (§8.6): the cube pays nothing on either screen.** The sheet
+is a modal, and the method rides on rows that already existed.
+
+**Verified in a browser** (Playwright against the web build, three viewports,
+zero console errors at each): the sheet from `+ New solve`; all three picks and
+their stage lists; Start solve creating and pushing; the tag in the solve header
+through inspection and writing; `9 moves · Roux · in progress` on the card; **a
+seeded pre-Step-4 save opening with every marker intact** (free-text ones
+included), no method segment on its cards, no tag in its header, and the sheet
+defaulting to Freeform after it; **two same-method attempts whose label orders
+disagree comparing as `First block · Second block · LSE`** where before this step
+they compared as `First block · LSE · Second block`; and the page still not
+scrolling while the list does.
+
+**What the browser pass could not cover:** the sheet's feel on iOS (it is the
+fifth `Modal` on the scramble screen, and they are opened one at a time on
+purpose), whether the tag's 34 points are worth it in the hand at 320, and
+whether the card's nested `<Text>` renders the same on a phone. Colour and weight
+only, no font size, is the reason to expect it does.
+
+**Device pass: passed, 2026-08-19** (operator, `pr-115` preview), with nothing
+further found. The three device-only questions above are retired: the sheet felt
+right on iOS, the 34-point header tag was worth its narrow-screen cost, and the
+nested method text rendered correctly on the card. The operator also opened the
+pre-Step-4 save and confirmed its old markers remained intact.
+
+---
+
+## Next step — Step 5: the phase rail, and the flag key retires
+
+`docs/cube-flow-plan.md` §3.5 is the brief. Step 4 gave a solve a **method**;
+this step turns that method's stages into the thing on the screen, and retires
+the free-text machinery it replaces.
+
+### Read §3.5's last bullet first, and decide whether 5 and 6 land together
+
+Removing the `flag` cell leaves a hole in `PAD_LAYOUT`, and
+**`solve.test.js:32-40` pins that the pad has no empty cells**. Step 6's redo
+fills it. So either land Steps 5 and 6 on one branch, or leave the slot as a
+documented gap for exactly one step and change that test *deliberately* rather
+than incidentally. **Decide this before writing code** — it decides the size of
+the branch.
 
 ### Scope
 
-- **`games/cube/methods.js` is new and pure.** It promotes `PHASE_METHODS`
-  (`solveList.js:259` — today a `{ name, labels }` chip vocabulary) into
-  `{ id, name, stages }` for Roux and CFOP, plus `findMethod` and `stagesOf`.
-  Shipped presets are **read-only constants**. User-definable methods, the
-  journey screen and packs belong to the separate *Cube Methods & Algorithms*
-  design and are **not in this epic**.
-- **The solve record gains `method`** — a method id, or `null`.
-  `createSolve(solves, scramble, { method })`. Nothing else about the record
-  changes.
-- **Migration is by shape and needs no `_v` bump.** `storage.js:29-36` is explicit
-  that nothing branches on the version. A pre-Step-4 solve simply has no
-  `method`; `sanitizeSolves` maps a missing or unknown id to `null`, meaning
-  **legacy / freeform** — such a solve keeps its free-text markers and today's
-  `CubePhaseStrip`, read-only. **This is what lets Step 5 retire the flag key
-  without rewriting anyone's saved work**, and it is why `method` lands before
-  the rail rather than with it.
-- **`CubeNewSolveSheet.js` opens from the `+ New solve` card**: Roux or CFOP, the
-  numbered stage list for the pick, and **Start solve**, which creates the solve
-  and pushes. Today that card calls `openNewSolve` in `CubeHome` — `startNewSolve`
-  then `navigate` — and the sheet goes between the two.
-- **`comparePhases` gets better for free.** `mergeLabelOrder` (`:455`) exists to
-  guess a column order from label sequences; with `method` stored, same-method
-  solves align by the method's own stage list. Worth doing here, while the reason
-  is in front of you.
+- **`games/cube/phaseRail.js` is new and pure**: `railStates(method, phases, alg)`
+  → the locked / open / upcoming derivation, one entry per stage.
+  `trackLayout.js` and `compareLayout.js` are the precedent — arithmetic in its
+  own file with its own suite, because the test runner has no renderer.
+- **The rail is pre-built from `stagesOf(solve.method)` and pill state is
+  *derived*, never stored.** A stage with a marker is **locked** (green check,
+  final count); the first without one is **open** (accent outline, a live count);
+  the rest are dashed **upcoming** and not tappable.
+- **The open pill's count is `moveCount(solve.alg)` arithmetic, not a running
+  tally.** That is what makes a gesture move count for free — and so does its
+  *tidy*: when Step 3.5's fold settles `F F` → `F2`, or a cancel drops `L L'`,
+  the alg shortens and the count follows on the same read. **Worth one pinning
+  test** that the count is derived, because a running tally is exactly what the
+  deferred tidy would desync.
+- **Tapping the open pill locks it.** Reuse `endPhase` (`solveList.js`) exactly
+  as it stands — it already names the marker where the group started and opens a
+  fresh one, which is precisely this transition, and V1 spent a step getting it
+  right.
+- **One deliberate behaviour change: `at` becomes `moveCount(solve.alg)`** — the
+  end of what has been *written* — instead of `player.index`, where the cube
+  happens to be *standing*. It removes the class of bug where scrubbing back and
+  tapping the flag marks the wrong place.
+- **`CubePhaseModal` retires** with the chip grid and the free-text field.
+  `CubePhaseStrip` **stays**, read-only, for `method: null` solves.
+- **Pad:** remove the `flag` cell from `PAD_LAYOUT` (`solve.js`, row 3 col 3);
+  `canPhase` and `onPhase` go with it.
 
 ### The files to read first
 
-- `games/cube/solveList.js` — `PHASE_METHODS`, `createSolve`, `duplicateSolve`,
-  `sanitizeSolves`, `comparePhases` and `mergeLabelOrder`. This is the step's
-  centre of gravity.
-- `games/cube/CubeHome.js` — `openNewSolve`, and the header's four-control
-  budget above.
-- `games/cube/CubeSolveList.js` — the card's meta line, where the pill goes, and
-  `solveCards.js` beside it for why the card's height is a constant.
-- `games/cube/storage.js` — the read path, and why no version bump is needed.
+- `games/cube/methods.js` — `stagesOf` is the rail's input, and its `null`
+  contract is the legacy branch.
+- `games/cube/solveList.js` — `endPhase`, `openPhaseStart`, `phaseSpans`,
+  `clampPhases`. Untouched by Step 4 and still the shape rules.
+- `games/cube/CubeSolve.js` — where `CubePhaseStrip` is rendered, the
+  `showPhases` state, and the header whose method tag this step may remove.
+- `games/cube/solve.js` and `__tests__/solve.test.js:32-40` — `PAD_LAYOUT`, and
+  the test that pins it full.
+- `games/cube/CubePhaseStrip.js` — what a legacy solve keeps, and the horizontal
+  scroll (`:84-89`) the rail borrows if it overflows.
 
 ### Easy to get wrong
 
-1. **A saved solve must not be damaged by the upgrade.** This is the one to test
-   hardest, and the one a test can only half-cover: `sanitizeSolves` has to map
-   absent and unknown ids to `null` without touching anything else on the record.
-2. **A `method: null` solve is not a broken solve, it is a legacy one.** Every
-   screen that reads `method` needs the null branch, and it is the branch Step 5
-   keeps `CubePhaseStrip` alive for.
-3. **No saved label may be orphaned.** `solve.test.js:32-40` is the precedent for
-   a cross-module pin: assert that **every label the old `PHASE_METHODS` could
-   have written still resolves** against the new stage lists.
-4. **The pill goes on a card whose height is a constant.** See `solveCards.js` —
-   change the constant, not the stylesheet, and the list's cap follows.
-5. **The sheet is a third modal on the scramble screen.** `CubeSolveMenu`,
-   `CubeNameModal`, `CubeCompareModal` and `CubeFavoritesModal` are already there
-   and are opened one at a time on purpose — a Modal over a Modal is reliable on
-   web and finicky on iOS.
-6. **`duplicateSolve` must carry the method across.** It spreads `...source`, so
-   it does already — but it is the sort of thing a rewrite quietly loses, and a
-   copy that forgot its method would build the wrong rail in Step 5.
+1. **A `method: null` solve is not a broken solve, it is a legacy one** — and
+   since Step 4 it is also a *chosen* one (Freeform). Every screen reading
+   `method` needs the null branch, and it must not try to distinguish the two.
+2. **The rail must not be a second source of truth for the counts.**
+   `phaseSpans` counts; the rail arranges. A second implementation of "how long
+   is the first block" is how a rail and a Compare table come to disagree.
+3. **Derive from `moveCount(alg)`, never a tally.** See above — Step 3.5's
+   deferred fold is what breaks a tally, and it is invisible in a browser.
+4. **`endPhase` is reused, not reimplemented.** It writes *two* markers, and the
+   second is not bookkeeping: without it a named group's span would run to the
+   end of the solve and "First block · 8" would quietly become "First block · 12"
+   as the second block was written.
+5. **The `flag` key's removal is a pinned test.** See the decision above.
+6. **The rail is a permanent row where `CubePhaseStrip` was conditional.** That
+   is §3.8's accounting, and it is the first row this epic adds unconditionally.
+   Say what it costs the cube in points. **If it pushes the small phone past its
+   budget, the rail scrolls horizontally — the cube does not shrink.**
+7. **`editOpen` is still the only edit funnel**, and `withMoves` is still the only
+   moves-edit patch. A rail callback is not a reason for a second door.
 
 ### What must be visible in Expo Go
 
-Starting a solve asks which method, and shows that method's numbered stages
-before you commit; the pill appears on the card and in the solve header; a solve
-written before this step still opens, still shows its old chips, and is not
-damaged.
+The rail shows the method's stages from the first move; the open pill counts up
+as you type **and as you turn the cube with a finger**; tapping it locks with the
+right count and opens the next; a legacy or Freeform solve still shows its old
+chips; the pad has no flag key.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/` — green, plus the new `methods.test.js` and the
+- `npm test` from `SudokuApp/` — green, plus the new `phaseRail.test.js` and the
   extended `solveList.test.js`.
-- **Open a save file written before this step** (the epic's own EAS branch is one)
-  and check every solve in it still opens with its markers.
-- Compare two same-method solves and check the columns come from the method
-  rather than from label order.
-- **A device pass**, and write down which findings came from the device.
+- **Open a save file written before Step 4** (the epic's own EAS branch is one)
+  and check its solves still show `CubePhaseStrip` and their markers.
+- **A device pass, and say which findings came from the device.** §5's warning is
+  sharper than ever here: the count following a gesture *tidy* is this step's
+  headline behaviour and **a browser cannot see it at all**, because gesture is
+  orbit-only on web.
 
-### Then rewrite this file for Step 5
+### Then rewrite this file for Step 6
 
-Step 5 builds the phase rail from `solve.method`'s stages, derives pill state
-rather than storing it, moves `at` to `moveCount(alg)`, and retires the flag key
-— which leaves a hole in `PAD_LAYOUT` that Step 6's redo fills, so read §3.5's
-last bullet before choosing whether to land 5 and 6 together.
+Step 6 is undo/redo as a bounded snapshot ring (`games/cube/history.js`), and it
+carries two constraints Step 3.5 added: the deferred fold and cancel-drop must
+**coalesce into one undo unit**, and undo/redo needs a home **off the pad** — on
+`CubeContext`, mirrored by a strip beside the scrubber — because Step 9 hides the
+pad. Read §3.6 before choosing where the ring lives.
 
 ---
 
 ## Open questions being carried forward
 
-From `docs/cube-flow-plan.md` §6 — none of these block Step 4, and all of them
+From `docs/cube-flow-plan.md` §6 — none of these block Step 5, and all of them
 want a drilling session rather than an opinion:
 
-1. Does the rail want a "no method" option for a scratch attempt? **Step 4 is
-   where this becomes a decision**, because Step 4 is the sheet that asks.
+1. ~~Does the rail want a "no method" option for a scratch attempt?~~
+   **Answered: yes** (operator, 2026-08-18). The sheet offers **Freeform**, which
+   stores `method: null` and so costs no branch that did not have to exist for
+   legacy solves anyway. Open only to being *withdrawn* if nobody reaches for it.
 2. ~~Where does the Compare table belong now?~~ **Shipped as a button beside
    `+ New solve`, not a header button** — the header was full at four controls.
    Still worth the operator's opinion, but it is built, not open.
@@ -403,24 +520,30 @@ want a drilling session rather than an opinion:
    (operator, 2026-08-17 — *"I don't miss the reset view"*). The four-control
    header stands, and the solve screen keeps its own `Back to the starting view`,
    which is the one that points at a place the operator chose.
-8. **New in Step 3, and the only one Step 3 left genuinely open: should a card's
-   recency be when the solve was *started* or when it was *last written to*?**
-   `savedAt` is creation time today and nothing bumps it, so a card reads
-   "3 days ago" for a solve you were writing an hour ago. It has not bitten
-   because a solve is usually written in one sitting. Changing it is a change to
-   what a stored field *means*, not a UI tweak — so it wants the operator's word,
-   and **Step 4 is a natural place to take it**, since Step 4 is already touching
-   the record.
+8. ~~Should a card's recency be when the solve was *started* or when it was
+   *last written to*?~~ **Answered: both, as two fields** (operator, 2026-08-18),
+   and landed in Step 4. `savedAt` keeps meaning *created* — nothing already in a
+   save file was redefined — and `editedAt` joins it meaning *last written to*,
+   read through `lastTouched` with a fallback to `savedAt`. Nothing sorts by it.
 9. **New in Step 3.5:** should a fold or a cancel be undoable, or invisible to the
    undo ring? Step 6 coalesces them into one unit; the open part is whether a
    cancelled `L L'` comes *back* on undo or is gone for good.
 10. **New in Step 3.5:** does the pad auto-hide when a finger starts writing, or
     only toggle? Step 9 ships the toggle and leaves the auto-hide to a drilling
     session — it is invisible, which is question 3's standing objection.
-11. **New in Step 3.5:** where do the three preferences live — the gesture profile
+11. **New in Step 4:** is the method tag worth **34 points** of the solve
+    header's title column at 320? It costs the cube no row, but
+    `rightSectionDense` does not shrink, so a 13-character solve name truncates
+    by about two characters on the smallest phone (375 and up are unaffected).
+    **Step 5 can simply delete it** — from there the rail *is* the method.
+12. **New in Step 4:** should the sheet *remember* the last method rather than
+    deriving it? `defaultMethod` opens on the method of the newest solve **for
+    this scramble** — derived, stored nowhere, and right for "try that scramble
+    again". A remembered pick is a preference, which is question 13.
+13. **New in Step 3.5:** where do the three preferences live — the gesture profile
     (§8.4), the tuning numbers, the swipe-mode toggle? None is authored work or
     view state; decide the settings store once, before the second one invents its
-    own.
+    own. **Step 4 deliberately did not open one** (see question 12).
 
 **Three things Step 3's device pass settled by silence rather than by answer**,
 and none of them are open any more: the 14-point list peek reads as "more below",

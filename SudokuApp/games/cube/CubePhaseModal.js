@@ -11,12 +11,8 @@ import {
   View,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import {
-  MAX_SOLVE_NAME,
-  PHASE_METHODS,
-  describePhaseSpan,
-  normalizeName,
-} from './solveList';
+import { METHODS } from './methods';
+import { MAX_SOLVE_NAME, describePhaseSpan, normalizeName } from './solveList';
 
 const ICON_SIZE = 20;
 
@@ -124,11 +120,16 @@ const CubePhaseModal = ({
           </Text>
 
           <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollBody}>
-            {PHASE_METHODS.map((method) => (
-              <View key={method.name}>
+            {/* The vocabulary is `methods.js`'s now — Step 4 promoted this file's
+                old `PHASE_METHODS` into `{ id, name, stages }` so that a solve
+                could *store* which method it is. The chips are the same strings
+                they always were, which is what keeps every marker already in a
+                save file resolvable (`methods.test.js`). */}
+            {METHODS.map((method) => (
+              <View key={method.id}>
                 <Text style={[styles.method, { color: titleColor }]}>{method.name}</Text>
                 <View style={styles.chips}>
-                  {method.labels.map((label) => (
+                  {method.stages.map((label) => (
                     <TouchableOpacity
                       key={label}
                       style={[
