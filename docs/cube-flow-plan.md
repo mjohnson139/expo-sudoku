@@ -717,6 +717,33 @@ locked/open/upcoming derivation is exactly what `trackLayout.js` and
 open pill counts up as you type; tapping it locks with the right count and opens
 the next; a legacy solve still shows its old chips; the pad has no flag key.
 
+**Landed 2026-08-19** (PR #118, merged to `epic/cube-flow`). The method rail is
+a permanent, horizontally scrolling 28-point row; the old naming modal and flag
+key are gone, with the flag's pad cell left as a deliberate one-step gap for
+Step 6 redo. Freeform and legacy solves keep their read-only phase strip. The
+Step 4 header tag retired too: the rail now says the method in full, returning
+34 horizontal points to the solve title without changing the cube's height.
+
+The first device pass found two related state-derivation bugs that the component
+shape did not make obvious:
+
+- The next stage initially inherited the completed stage's count. The generic
+  `openPhaseStart` helper intentionally looks *strictly before* a boundary so
+  the old modal can rename a just-closed phase; that is the wrong arithmetic for
+  a rail standing just after the divider. The rail now measures from the locked
+  span's `end`, so the next stage reads `0` immediately and `1` after its first
+  move.
+- Stored labels were initially treated as an independent checklist, so an
+  out-of-order `Second block` marker could lock ahead of `First block`. A method
+  is a sequence: only the consecutive prefix matching `method.stages` is locked,
+  exactly one following stage is open, and everything after it is upcoming.
+
+**Device pass: passed, 2026-08-19** (operator, `pr-118` preview), after the two
+fixes above. The operator confirmed the ordered progression and zero-count
+handoff were *"pretty dang good"*. The pass also covers the phone-only primary
+input path: finger turns accrue to the open stage and their settled tidy is read
+from the algorithm rather than from a second counter.
+
 ### 3.6 Step 6 — undo and redo of whole actions
 
 - **Model: a bounded snapshot ring, not an inverse-action log.** The undoable

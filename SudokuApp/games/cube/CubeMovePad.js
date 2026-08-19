@@ -68,7 +68,6 @@ const REPEAT_AFTER_MS = 400;
  */
 const CubeMovePad = ({
   canUndo,
-  canPhase,
   // The key a second tap would promote — `R` when the solve ends `… R` and `R`
   // was the last key pressed. Drawn as a `2` in the corner, which is the
   // design's fourth hold state: the pad says "again and this becomes R2" rather
@@ -82,7 +81,6 @@ const CubeMovePad = ({
   onPrime,
   onUndo,
   onType,
-  onPhase,
 }) => {
   const palette = padPalette(theme, accent);
 
@@ -265,7 +263,6 @@ const CubeMovePad = ({
 
   const toolKey = (cell) => {
     const { tool } = cell;
-    const isFlag = tool === 'flag';
     const isPrime = tool === 'prime';
 
     /**
@@ -287,8 +284,8 @@ const CubeMovePad = ({
     // The flag is the design's one accent fill *at rest*. The prime key borrows
     // it only while live, which is a state rather than a resting style — and
     // being the loud thing on the pad is the entire job it was added to do.
-    const group = isFlag || primeLive ? palette.accent : palette.tone('tool');
-    const disabled = tool === 'backspace' ? !canUndo : isFlag ? !canPhase : false;
+    const group = primeLive ? palette.accent : palette.tone('tool');
+    const disabled = tool === 'backspace' ? !canUndo : false;
 
     const config = {
       backspace: {
@@ -300,11 +297,6 @@ const CubeMovePad = ({
         label: 'Type an algorithm',
         hint: 'Opens a field for typing or pasting a whole sequence',
         onPress: onType,
-      },
-      flag: {
-        label: 'End the phase here',
-        hint: 'Names the group of moves since the last marker, and lists the ones already marked',
-        onPress: onPhase,
       },
       prime: {
         // Reads what it looks like. A hold past the threshold really has armed
