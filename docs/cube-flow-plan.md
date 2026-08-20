@@ -139,8 +139,8 @@ everyone.
 | 5 | The phase rail | pre-built stages; the flag key retires |
 | 6 | Undo and redo | **dropped after device testing; PR #119 closed unmerged** |
 | 7 | Variations per phase | **dropped after device testing; PR #121 closed unmerged — duplicate a solve instead** |
-| 8 | Layout budget pass | the §8.6 accounting, at three widths |
-| 9 | Swipe mode — hide the pad | a finger-only mode: cube, scrubber, backspace, no keyboard — *added by 3.5* |
+| 8 | Fix the method rail | place and move stage boundaries at the scrubber position; includes the shown-pad layout budget |
+| 9 | Swipe mode — hide the move pad | auto-hide after a committed finger turn, an unambiguous way back, and the hidden-pad budget — *added by 3.5* |
 
 ### 3.1 Step 1 — put the app on a real stack
 
@@ -321,7 +321,7 @@ each viewport, before → after, by how many solves the scramble has:
 So the tall phone pays **nothing**, the 667 pays nothing until the second solve,
 and the small phone is the one that pays — **−118 at worst**, landing at 182,
 which is still half again V1's 123-point solve-screen cube at the same size.
-Step 8's table should be re-based on this plus Step 2's −28 on the solve screen.
+Step 8's measurements should be re-based on this plus Step 2's −28 on the solve screen.
 
 #### Step 3a — the resume remount had to go (found on a device)
 
@@ -741,6 +741,11 @@ handoff were *"pretty dang good"*. The pass also covers the phone-only primary
 input path: finger turns accrue to the open stage and their settled tidy is read
 from the algorithm rather than from a second counter.
 
+**Superseded behaviour, 2026-08-20:** the rail's presentation survives, but its
+"only the next stage is tappable, always at `moveCount(alg)`" editing rule does
+not. Step 8 makes the scrubber the marker cursor so a completed solve can be
+annotated afterwards and an existing boundary can be moved.
+
 ### 3.6 Step 6 — undo and redo of whole actions — dropped
 
 **Dropped 2026-08-19 after device testing PR #119; the PR was closed unmerged.**
@@ -786,74 +791,101 @@ This is a scope decision, not a deferred implementation brief. Reopening
 variations would require new evidence that duplicate solves are inadequate and a
 fresh interaction design; do not restart PR #121's model from this section.
 
-### 3.8 Step 8 — the layout budget pass
+### 3.8 Step 8 — fix the method rail: markers follow the scrubber
 
-V1 §8.6's rule is that the cube is sized first and every other row justifies
-itself in points. Open question 13 says the next win must come from **hiding**
-chrome rather than cutting it — and gesture input (Step 3.5) is what makes the
-biggest piece of chrome, the pad, hideable. **That hide is its own step (Step 9);
-this one is the steady-state accounting** with the pad shown, and it is close to
-neutral by construction:
+Step 5 made the rail good at one workflow: mark each stage at the moment it is
+finished. It deliberately ignored `player.index` and always wrote at the end of
+`alg`. Device use rejected that constraint. A solve can be entered first and
+annotated afterwards, and a boundary placed in the wrong spot needs to be moved
+without deleting moves. **The scrubber is the cursor for both jobs.**
 
-| Row | Change |
-|---|---|
-| `solveBar` (~27pt) | **removed** — its content is the solve header's subtitle now |
-| header subtitle | **+~12pt** — the dense header gains a permanent second line |
-| `CubePhaseStrip` (~28pt, conditional) | replaced by `CubePhaseRail` (~28pt, **permanent**) |
-| tick track | **not rebuilt** |
-| pad | unchanged at 152pt — flag out, its cell remains empty; Backspace stays |
+- **Every method-stage pill is an editing control.** Put the scrubber on the move
+  where a stage ends and tap that stage's pill. The boundary after that stage is
+  created at `player.index`; tapping a marked stage at another position moves
+  the same boundary. This explicitly reverses Step 5's `moveCount(alg)` decision.
+- **The pill names the span before its boundary.** Marking First block at 8 means
+  First block is moves 1–8 and the next stage begins at 8. Marking Second block
+  at 15 makes it moves 9–15. Markers remain `{ at, label }`, never stored ranges;
+  counts still derive from consecutive marker subtraction (V1 §8.5).
+- **The sequence stays honest.** A stage cannot be placed before the preceding
+  stage or after an already-marked following stage. Moving a boundary changes the
+  two adjacent counts and preserves every later boundary. The final stage may be
+  marked before the end of `alg`; moves after it are visibly unassigned rather
+  than silently counted into the method.
+- **Prospective marking still works.** While writing live, the scrubber normally
+  stands at the end, so tapping the next stage is the same one-tap flow Step 5
+  shipped. The fix adds retrospective placement and correction; it does not make
+  the common path longer.
+- **The rail must show what is editable.** Marked, current-at-scrubber and
+  unavailable states need distinct visible/accessibility treatment. Do not bring
+  back the flag key or a modal: the stage name is already the control and the
+  scrubber is already the position.
+- **Freeform and legacy solves remain read-only.** They have no method sequence
+  from which to build safe editing constraints; their existing phase strip stays.
 
-Net ≈ **+13pt** against V1's ~340pt of fixed rows in writing mode. **Verify by
-measurement at 320×568, 375×667 and 393×852** — the three widths §8.8 already
-reasons about — and confirm `LEGEND_MIN_HEIGHT = 780` still drops the pad legend
-in the right place. **Put the numbers in the PR**, as every layout-touching step
-in V1 did.
+The pure seam is a new marker operation in `solveList.js` (for example
+`placeMethodBoundary(phases, stages, stage, at, moveCount)`). It owns create,
+move, ordering and refusal. `CubeSolve` supplies `player.index`; no marker
+arithmetic belongs in the component. Tests cover a completed unmarked solve,
+placing all stages afterwards, moving an early boundary with later markers
+intact, invalid crossings, a final boundary before the algorithm end, move-fold
+counts, Backspace clamping and literal legacy records.
 
-If the rail pushes the small phone past its budget, **the rail is the row that
-scrolls**, horizontally, as `CubePhaseStrip` already does
-(`CubePhaseStrip.js:84-89`) — not the cube that shrinks.
+**Layout is part of this fix, not a separate feature.** With the move pad shown,
+measure 320×568, 375×667 and 393×852; confirm the rail remains one horizontally
+scrolling 28-point row, `LEGEND_MIN_HEIGHT = 780` still removes the 29-point
+legend at the intended boundary, and the page never scrolls. Put the fixed-row
+and cube sizes in the PR. If the budget fails, the rail scrolls — the cube does
+not shrink to pay for it.
 
-### 3.9 Step 9 — swipe mode, hiding the pad
+**Operator tests:** enter a complete solve without marking anything; scrub to the
+end of First block and place it, then place Second block, CMLL and LSE; move First
+block earlier and later while every downstream boundary stays put; continue
+writing after a marked final stage; background/resume and cold-start with edited
+markers; repeat the live one-tap workflow with finger-entered moves.
+
+### 3.9 Step 9 — swipe mode: auto-hide the move pad
 
 **Added by Step 3.5, and the concrete answer to V1's open question 13.** Once a
-finger can write every layer, every wide and the facing face (§3.3d), the pad is
-no longer the *only* way in — so a drilling session that is all swipes can hide
-it and give the room back to the cube. The operator's ask, 2026-08-18: *keep the
-keyboard, but let someone who is just swiping hide it and see only the scrubber.*
+finger can write every layer, every wide and the facing face (§3.3d), the 152pt
+move pad can leave when the operator demonstrates they are using the cube.
 
-- **A toggle, not a mode you get trapped in.** The pad hides and shows on demand;
-  it is never removed, because it is still the only way to write `x`/`y`/`z` and
-  the wide turns a finger cannot reach. Hidden, the solve screen is **cube +
-  move track + phase rail + scrubber + Backspace** — everything about *the moves*
-  stays; only the keyboard goes.
-- **Backspace needs an off-pad home only when the pad actually hides.** Do not
-  pre-place it in an earlier step. Start with the operator's proposed compact
-  control right-aligned above the scrubber, then judge the composition on a phone.
-  It calls the existing Backspace path; there is no history state to mirror.
-- **The budget, the other way.** Step 8 accounts for the pad *shown*; this is the
-  pad *hidden*: **−152pt of pad** (and its legend), all of it back to the cube.
-  On the 320×568 phone that is the difference between a 182pt cube and something
-  close to the inspection screen's near-doubled one. **Measure at the three
-  widths and put the numbers in the PR**, both states.
-- **The toggle is a preference, like the gesture profile (§8.4) and the tuning
-  panel.** Neither authored work nor view state, so §7.1 does not rule on it; it
-  wants the same small `preferences` slice on `CubeContext`'s save file that
-  those want, migrating by shape. Decide the three together rather than inventing
-  a settings home three times.
-- **Auto-hide is a question, not an assumption.** The app could hide the pad the
-  first time a finger writes a move and show it on the first pad tap. Cheaper than
-  a toggle to reach, invisible like every gesture this epic has had to give a
-  control (open questions 3 and §3.3d). Ship the toggle; let a drilling session
-  say whether the auto-hide earns its surprise.
+- **Start with auto-hide, but never trap the operator.** The first *committed
+  finger turn* hides the move pad. An orbit, a turn that springs back, playback,
+  a scrubber seek and a typed/pasted algorithm do not. A persistent, explicit
+  **Show move pad** control appears in the hidden state and restores it in one
+  tap. Device testing decides whether auto-hide survives or becomes manual-only.
+- **Call it the move pad, not the keyboard.** The pad already has a keyboard icon
+  whose established meaning is **Type an algorithm** (`CubeMovePad.js`). That
+  icon cannot also mean hide/show. Audit the icon and label together: the new
+  hide/show affordance must use a different symbol and explicit accessibility
+  copy, and the text-entry control may be renamed or re-iconed if the two still
+  read as one concept on a phone.
+- **Hidden means chrome hidden, not capability lost.** The solve screen keeps the
+  move track, editable method rail, cube, scrubber and Backspace. Backspace gets
+  a compact off-pad home only while hidden and calls the exact existing path.
+  Showing the pad restores `x`/`y`/`z`, typed algorithms and any wide turn a
+  finger cannot reach.
+- **Persistence is a product question this step must settle.** Auto-hide itself
+  is evidence from the current interaction, not necessarily a remembered
+  preference. Test both: returning to the solve with the pad still hidden versus
+  starting shown on each visit. Persist only if the device flow is less
+  surprising, through one shape-migrated `preferences` slice rather than an
+  authored solve field.
+- **Budget both states.** Reuse Step 8's three viewports. Record the pad-shown
+  baseline and the pad-hidden result (nominally −152pt plus the legend), prove the
+  page does not scroll, and prove the cube receives the recovered room.
 
-**Tests:** the mode is layout, which the node runner cannot see, so the pins are
-on the *preference* — its default, its persistence by shape, and that hiding the
-pad does not drop Backspace (a pure check that its off-pad control calls the same
-handler as the pad).
+**Tests:** pin the pure auto-hide event rule (only a committed finger turn), the
+show action, whichever persistence decision the device pass takes, and that the
+hidden Backspace control invokes the existing handler. The browser can verify
+layout and labels but not gesture entry; the auto-hide decision requires a phone.
 
-**Operator tests:** hide the pad mid-solve and keep writing by finger; Backspace from above the scrubber with the pad gone; the cube measurably bigger; show the pad
-again for an `x` rotation; background and resume with the pad hidden; and the
-`x`/`y`/`z` reachability that keeps it a hide and not a removal.
+**Operator tests:** commit the first finger turn and see the pad hide; cancel a
+turn and orbit without hiding it; show the pad in one obvious tap; distinguish
+Show/Hide move pad from Type an algorithm without explanation; type an algorithm,
+use `x`/`y`/`z`, Backspace in both states, background/resume, cold-start, and
+compare cube sizes at all three reference viewports.
 
 ## 4. What this epic does not do
 
@@ -960,10 +992,9 @@ again for an `x` rotation; background and resume with the pad hidden; and the
    long-press remains as a shortcut. **The lesson generalizes and the next
    invisible-gesture proposal should cite it:** discoverability is not "will they
    find it if they look", it is "is there anything giving them a reason to look".
-4. **Should the rail lock automatically?** Tapping to lock is explicit and cheap,
-   but the app knows the stage is finished the moment the cube reaches that
-   stage's goal state — V1's untaken analysis step is exactly the machinery that
-   would know. Deliberately not assumed here.
+4. ~~**Should the rail lock automatically?**~~ **No for this epic.** Step 8 makes
+   every method boundary an explicit scrubber-positioned edit. Automatic state
+   recognition remains future analysis work and must not move authored markers.
 5. **Does the tick track come back once the rail exists?** Decided *out* for this
    epic on V1's evidence. The design redraws it grouped by phase, which is the
    version that was never tried. One drilling session with the rail settles it.
@@ -984,11 +1015,11 @@ again for an `x` rotation; background and resume with the pad hidden; and the
 9. ~~**Should folds and cancels be undoable?**~~ **Closed with Step 6.** There is
    no history ring. Folds remain settled storage tidies; an immediate inverse
    remains a fumble that disappears. Backspace removes the last stored move.
-10. **Does the pad auto-hide, or only toggle?** Step 9 ships a toggle and asks
-    whether the pad should hide itself the first time a finger writes a move and
-    return on the first pad tap. It is invisible, which is the standing objection
-    (question 3); the counter is that a solver who has started swiping has already
-    shown their hand. One session with swipe mode settles it.
+10. **Does auto-hide survive the Step 9 device pass?** The first implementation
+    hides the move pad only after a committed finger turn and always draws an
+    explicit Show move pad control. A cancel or orbit never hides it. If that
+    still surprises in the hand, Step 9 falls back to manual hide/show rather
+    than weakening the escape path.
 11. ~~**Is the method tag worth 34 points of the solve header at 320?**~~
     **Answered: yes for Step 4** (operator, device pass 2026-08-19). The narrow
     title and subtitle were acceptable in the hand. It remains a stopgap by

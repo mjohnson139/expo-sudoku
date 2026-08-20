@@ -457,56 +457,79 @@ copy to the boundary, and continue; the original card remains complete. No Step
 
 ---
 
-## Next step — Step 8: the layout budget pass
+## Next step — Step 8: fix the method rail at the scrubber
 
-`docs/cube-flow-plan.md` §3.8 is the brief. Measure the completed steady-state
-screens rather than adding another interaction.
+`docs/cube-flow-plan.md` §3.8 is the brief. Replace Step 5's write-only rail rule
+with marker editing at `player.index`, so a completed solve can be annotated
+afterwards and a misplaced boundary can be moved.
 
 ### Scope
 
-- Measure writing mode at **320×568, 375×667 and 393×852**, with the method rail,
-  pad and conditional legend visible.
-- Record the exact fixed-row and resulting cube sizes in the plan, handoff and PR.
-- Confirm the rail remains one 28-point horizontally scrolling row.
-- Confirm `LEGEND_MIN_HEIGHT = 780` still removes the 29-point legend at the
-  intended boundary.
-- Make only the smallest spacing or threshold corrections the measurements
-  prove. Do not rebuild the tick track or hide the pad; Step 9 owns pad hiding.
+- Make every method-stage pill an explicit marker-edit control. Position the
+  scrubber where the stage ends, then tap the stage to create or move its ending
+  boundary there.
+- Keep markers as `{ at, label }`, never ranges. Counts remain derived from
+  consecutive boundaries.
+- Preserve method order: refuse a boundary before its predecessor or after its
+  already-marked successor; moving one boundary preserves all later boundaries.
+- Allow the final stage to end before `alg` ends, leaving later moves visibly
+  unassigned.
+- Keep the live workflow cheap: when the scrubber is at the end, tapping the next
+  stage behaves like today's lock.
+- Keep Freeform and legacy phase strips read-only. Do not restore the flag key or
+  a phase modal.
+- Include the shown-pad layout budget at 320×568, 375×667 and 393×852. The rail
+  remains one horizontally scrolling 28-point row and the cube is sized first.
 
 ### Files to read first
 
-- `docs/cube-flow-plan.md` §3.8 and `docs/cube-plan.md` §8.6/§8.8.
-- `games/cube/CubeSolve.js`, `cubeChrome.js`, `useCubeStage.js` and
-  `CubePhaseRail.js` for every row in writing mode.
-- `games/cube/CubeMovePad.js` and `CubePadLegend.js` for the 152/29-point costs.
+- `games/cube/solveList.js` and `__tests__/solveList.test.js` — marker invariants,
+  `clampPhases`, `endPhase`, `phaseSpans` and literal migration fixtures.
+- `games/cube/phaseRail.js`, `CubePhaseRail.js` and `phaseRail.test.js` — Step 5's
+  ordered presentation and the rule this step deliberately changes.
+- `games/cube/CubeSolve.js` and `useScramblePlayer.js` — `player.index` is the
+  cursor; do not derive it again or use `moveCount(alg)` for placement.
+- `docs/cube-plan.md` §8.5 and §8.6 — markers, not ranges; size the cube first.
 
 ### Easy to get wrong
 
-1. Size the cube first; do not make it silently pay for an overflowing row.
-2. Measure all three heights, not only responsive widths in a tall browser.
-3. The rail scrolls horizontally and never wraps or grows beyond 28 points.
-4. Keep the pad shown and Backspace in its existing cell. Step 9 owns both the
-   hide toggle and the off-pad Backspace home.
-5. Browser padding and phone safe areas differ; label browser numbers as browser
-   evidence and require a device pass for feel.
+1. A pill represents the stage ending at the scrubber, not a label starting at
+   the scrubber. First block at 8 means moves 1–8; Second block at 15 means 9–15.
+2. Put create/move/order/refusal arithmetic in one pure function. The component
+   supplies the stage and `player.index`; it does not patch arrays itself.
+3. Moving First block must alter the First/Second counts without shifting a
+   stored CMLL or LSE boundary.
+4. Scrubbing is playback state, but tapping a stage authors a persisted marker.
+   Backgrounding without tapping persists nothing new.
+5. Backspace and gesture fold/cancel still clamp markers through `withMoves`.
+6. Marked, at-cursor and unavailable states must be visibly and accessibly
+   distinct within the fixed 28-point row.
+7. Browser gesture input is orbit-only. Retrospective scrubber editing is browser
+   testable; the live finger-entry path still requires Expo Go.
 
 ### What must be visible in Expo Go
 
-At 320 points wide the title, move track, rail, cube, scrubber and full pad remain
-usable without page scrolling; the rail alone scrolls sideways. The short phone
-omits the legend and the tall phone shows it.
+Enter a complete solve with no stage taps. Scrub to each boundary and assign First
+block, Second block, CMLL and LSE. Move an early boundary and see only its adjacent
+counts change. Put LSE before the algorithm end and see the tail remain unassigned.
+The ordinary live flow still works by tapping the next stage while standing at the
+end. No flag key or modal returns.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/`.
-- Browser screenshots and measurements at all three sizes, including page and
-  rail overflow checks.
-- A smallest-phone device pass for cube size, safe areas and rail targets.
+- `npm test` from `SudokuApp/`, including pure tests for retrospective placement,
+  moves, crossing refusal, a final early boundary, Backspace clamping and legacy
+  records.
+- In a browser, seed a complete unmarked solve; place every stage, move each
+  boundary both ways, reload, and measure/photograph all three viewports.
+- Require a device pass for pill targets, scrubber-to-marker feel, finger-entered
+  live marking, and the small-phone layout. Record device-only findings.
 
 ### Then rewrite this file for Step 9
 
-Step 9 adds swipe mode: persist the preference, hide the 152-point pad on demand,
-and give Backspace a compact off-pad home only while hidden.
+Step 9 starts with auto-hide after the first committed finger turn, provides an
+unambiguous Show move pad escape, gives Backspace an off-pad home, and resolves
+the collision with the existing keyboard icon meaning Type an algorithm.
 
 ---
 
@@ -527,8 +550,8 @@ want a drilling session rather than an opinion:
    Step 3b put a `⋯` on the card and kept the long-press as a shortcut. **Cite
    this before proposing another invisible gesture:** the test is not "will they
    find it if they look", it is "is anything giving them a reason to look".
-4. Should the rail lock a phase automatically when the cube reaches the stage's
-   goal state?
+4. ~~Should the rail lock automatically?~~ **No for this epic.** Step 8 makes
+   stage boundaries explicit scrubber-positioned edits; automatic recognition is future analysis.
 5. Does the phase-split tick track come back once the rail exists?
 6. ~~How many variations per phase is too many?~~ **Closed with dropped Step 7.**
    Alternate attempts are duplicated solves and share the existing 100-solve cap.
@@ -544,9 +567,9 @@ want a drilling session rather than an opinion:
 9. ~~**Should a fold or cancel be undoable?**~~ **Closed with dropped Step 6.**
    There is no history ring. Folds tidy after settle, immediate inverses disappear,
    and Backspace removes the last stored move.
-10. **New in Step 3.5:** does the pad auto-hide when a finger starts writing, or
-    only toggle? Step 9 ships the toggle and leaves the auto-hide to a drilling
-    session — it is invisible, which is question 3's standing objection.
+10. **Does auto-hide survive Step 9's device pass?** Start by hiding only after a
+    committed finger turn, never an orbit or cancel, and always show an explicit escape.
+    Fall back to manual-only if that is still surprising.
 11. ~~**Is the method tag worth 34 points of the solve header at 320?**~~
     **Answered: yes for Step 4** (operator, device pass 2026-08-19). The narrow
     title and subtitle were acceptable in the hand. It remains a stopgap:
