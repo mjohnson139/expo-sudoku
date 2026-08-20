@@ -28,3 +28,7 @@ export const drawerEvent = (dy, threshold = 18) => {
   if (dy >= threshold) return PAD_EVENTS.HIDE;
   return null;
 };
+
+/** The handle follows a finger, without wandering out of its 44-point target. */
+export const drawerHandleOffset = (dy, limit = 14) =>
+  Math.max(-limit, Math.min(dy, limit));

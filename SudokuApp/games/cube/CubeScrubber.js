@@ -1,11 +1,11 @@
-import React, { useMemo } from 'react';
-import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useRef } from 'react';
+import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ALG_FONT } from './algText';
 import CubeGlyph from './CubeGlyph';
 import { padPalette } from './padPalette';
 import { announcePosition, describePosition, describeSpeed } from './player';
-import { drawerEvent, PAD_EVENTS } from './swipeMode';
+import { drawerEvent, drawerHandleOffset, PAD_EVENTS } from './swipeMode';
 
 /**
  * The transport under the cube (plan §8.8, Step 8).
@@ -59,6 +59,7 @@ const CubeScrubber = ({
 
   const atStart = index <= 0;
   const atEnd = index >= count;
+  const handleOffset = useRef(new Animated.Value(0)).current;
 
   const setPadFromEvent = (event) => {
     if (event === PAD_EVENTS.SHOW) onShowPad?.();
@@ -69,9 +70,30 @@ const CubeScrubber = ({
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 4,
-        onPanResponderRelease: (_, gesture) => setPadFromEvent(drawerEvent(gesture.dy)),
+        onPanResponderMove: (_, gesture) => {
+          // Move the visible handle with the thumb. The pad itself snaps only
+          // after release, so the measured cube is never resized every frame.
+          handleOffset.setValue(drawerHandleOffset(gesture.dy));
+        },
+        onPanResponderRelease: (_, gesture) => {
+          Animated.spring(handleOffset, {
+            toValue: 0,
+            speed: 28,
+            bounciness: 4,
+            useNativeDriver: true,
+          }).start();
+          setPadFromEvent(drawerEvent(gesture.dy));
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(handleOffset, {
+            toValue: 0,
+            speed: 28,
+            bounciness: 4,
+            useNativeDriver: true,
+          }).start();
+        },
       }),
-    [onShowPad, onHidePad]
+    [handleOffset, onShowPad, onHidePad]
   );
 
   const button = (name, label, onPress, disabled, primary) => (
@@ -117,13 +139,17 @@ const CubeScrubber = ({
           accessibilityState={{ expanded: padShown }}
           {...drawerPan.panHandlers}
         >
-          <View style={[styles.drawerHandle, { backgroundColor: palette.faint }]} />
-          <MaterialCommunityIcons
-            name={padShown ? 'chevron-down' : 'chevron-up'}
-            size={18}
-            color={palette.faint}
-            style={styles.drawerChevron}
-          />
+          <Animated.View
+            style={[styles.drawerHandleContents, { transform: [{ translateY: handleOffset }] }]}
+          >
+            <View style={[styles.drawerHandle, { backgroundColor: palette.faint }]} />
+            <MaterialCommunityIcons
+              name={padShown ? 'chevron-down' : 'chevron-up'}
+              size={18}
+              color={palette.faint}
+              style={styles.drawerChevron}
+            />
+          </Animated.View>
         </Pressable>
       )}
 
@@ -265,6 +291,11 @@ const styles = StyleSheet.create({
     width: 34,
     height: 4,
     borderRadius: 2,
+  },
+  drawerHandleContents: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   drawerChevron: {
     marginLeft: 5,
