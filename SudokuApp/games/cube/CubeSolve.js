@@ -34,11 +34,12 @@ import {
   promoteLastToken,
 } from './solve';
 import {
-  endPhase,
   phaseSpans,
+  placeMethodBoundary,
   withMoves,
 } from './solveList';
 import { railStates } from './phaseRail';
+import { stagesOf } from './methods';
 import { moveCount, parseAlg } from './moves';
 import useAppBackground from './useAppBackground';
 import useScramblePlayer from './useScramblePlayer';
@@ -489,25 +490,22 @@ const CubeSolve = ({ navigation }) => {
 
   // ——— Phases (docs/cube-plan.md §8.5) —————————————————————————————————————
 
-  /**
-   * Lock the open method stage at the end of what has been written. The rail is
-   * deliberately independent of the scrub position: standing earlier in the
-   * solve must not put a marker in the wrong place.
-   */
-  const endPhaseHere = useCallback(
+  /** Place or move a method boundary at the transport's existing cursor. */
+  const placePhaseHere = useCallback(
     (label) => {
       pause();
       resetGesture();
       editOpen((current) => ({
-        phases: endPhase(
+        phases: placeMethodBoundary(
           current.phases,
-          moveCount(current.alg),
+          stagesOf(current.method),
           label,
+          player.index,
           moveCount(current.alg)
         ),
       }));
     },
-    [pause, resetGesture, editOpen]
+    [pause, resetGesture, editOpen, player.index]
   );
 
   /**
@@ -538,8 +536,8 @@ const CubeSolve = ({ navigation }) => {
   // them — a stored count is a second thing to keep honest on every edit.
   const spans = useMemo(() => phaseSpans(phases, solveCount), [phases, solveCount]);
   const rail = useMemo(
-    () => railStates(shown.method, phases, solve),
-    [shown.method, phases, solve]
+    () => railStates(shown.method, phases, solve, player.index),
+    [shown.method, phases, solve, player.index]
   );
 
   // The boundaries, for the dividers in the move track. A set, because the track
@@ -705,7 +703,7 @@ const CubeSolve = ({ navigation }) => {
           states={rail}
           accent={CUBE_ACCENT}
           theme={theme}
-          onLock={endPhaseHere}
+          onPlace={placePhaseHere}
         />
       )}
       {!inspecting && rail.length === 0 && spans.length > 0 && (

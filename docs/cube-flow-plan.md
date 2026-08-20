@@ -844,6 +844,19 @@ block earlier and later while every downstream boundary stays put; continue
 writing after a marked final stage; background/resume and cold-start with edited
 markers; repeat the live one-tap workflow with finger-entered moves.
 
+**Landed 2026-08-20** (PR #124, merged to `epic/cube-flow`). The scrubber is now
+the single marker cursor. `placeMethodBoundary` owns retrospective creation,
+movement and crossing refusal; the screen supplies `player.index`, and the rail
+derives marked, at-cursor and unavailable presentation from the same markers.
+Moving one boundary keeps every later marker fixed, and placing LSE before the
+algorithm end leaves an unnamed tail rather than silently extending LSE.
+
+The fixed **28-point** rail budget did not change. The device pass was clean:
+the operator tested the preview and reported that it was *"working great"*.
+That retires the phone-only questions for pill targets, scrubber-to-marker feel,
+finger-entered live marking and the small-phone layout; Freeform and legacy
+phase strips remain read-only, and neither the flag key nor a modal returned.
+
 ### 3.9 Step 9 — swipe mode: auto-hide the move pad
 
 **Added by Step 3.5, and the concrete answer to V1's open question 13.** Once a
