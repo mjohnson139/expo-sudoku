@@ -492,72 +492,75 @@ finding or follow-up fix was needed.
 
 ---
 
-## Next step — Step 9: swipe mode and an auto-hiding move pad
+## Next step — Cube Flow epic closeout
 
-`docs/cube-flow-plan.md` §3.9 is the brief. After a committed finger turn proves
-the operator is using the cube directly, hide the 152-point move pad and return
-that room to the cube without hiding authored work or trapping the operator.
+Step 9 is the final planned delivery. **Do not merge the epic to `main` until
+Step 9 has passed on a device.** Begin with the `feature/cube-flow-step-9`
+preview and close that delivery step through the normal device-pass process;
+then prepare the accumulated epic for its final regression and merge.
 
 ### Scope
 
-- Hide the pad after the first **committed finger turn** only. Orbiting, cancelled
-  turns, playback, scrubber seeks and typed/pasted algorithms do not trigger it.
-- Keep the move track, editable rail, cube and scrubber. Add an explicit **Show
-  move pad** control and compact off-pad Backspace using the existing delete path.
-- Do not overload the keyboard icon: it already means **Type an algorithm**. Use
-  a distinct icon and explicit accessibility copy for pad visibility.
-- Decide on-device whether hidden state survives reopening a solve. If persisted,
-  use one migrated `preferences` slice, never a solve field.
-- Measure shown and hidden states at 320×568, 375×667 and 393×852. The cube is
-  sized first and the page never scrolls.
+- Device-test Step 9's committed-turn auto-hide, explicit escape, compact
+  Backspace and both layout states. If auto-hide surprises in the hand, change it
+  to manual-only rather than weakening the escape.
+- Settle the persistence decision. The implementation deliberately treats pad
+  visibility as local view state: background/resume keeps it, while reopening a
+  solve and a cold start begin shown. Persist it only if the device evidence is
+  clearly better, through one migrated `preferences` slice rather than a solve.
+- Close Step 9's PR into `epic/cube-flow`, record its landed note in
+  `docs/cube-flow-plan.md`, and update issue #107.
+- Run the complete Cube Flow regression before proposing `epic/cube-flow` to
+  `main`. Resolve every remaining open question below or carry it explicitly;
+  do not invent another delivery feature during closeout.
 
 ### Files to read first
 
-- `games/cube/CubeSolve.js`, `CubeMovePad.js` and `cubeChrome.js` — the current
-  pad, typing and Backspace paths and the solve-screen budget.
-- `games/cube/useTouchTurn.js` and the gesture commit path in `CubeSolve.js` —
-  distinguish authored finger turns from orbit and cancellation.
-- `games/cube/useCubeStage.js` — stage measurement and its binding dimension.
-- `docs/cube-flow-plan.md` §3.9 and `docs/cube-plan.md` §8.6.
+- This handoff and `docs/cube-flow-plan.md`, especially §§3.9, 5 and 6.
+- `games/cube/CubeSolve.js`, `swipeMode.js`, `CubeMovePad.js`,
+  `useCubeTouch.js`, and `useCubeStage.js` for Step 9.
+- `.github/dev-process.md` and the landed notes for Steps 1–8 before the final
+  regression.
 
 ### Easy to get wrong
 
-1. Auto-hide follows the committed gesture callback, never finger-down or a
-   pending gesture; a cancelled fold leaves the pad shown.
-2. Showing the pad is one obvious tap. Never rely on an invisible gesture or the
-   existing Type an algorithm key.
-3. Backspace retains its retract animation, whole-token deletion and marker
-   clamping. Do not create a second deletion path.
-4. Visibility may remeasure the stage, but must not disturb player position,
-   orientation, markers, the algorithm or promotion state.
-5. Accessibility must say **Show move pad** or **Delete last move**; icon-only
-   ambiguity is a regression.
-6. Browser input cannot validate the primary finger-turn trigger. It needs Expo Go.
+1. Browser gestures are orbit-only. A browser cannot prove either commit or
+   cancellation behaviour; only Expo Go can pass Step 9.
+2. Backspace in the hidden row must call the existing retract-and-delete path,
+   including whole-token deletion and marker clamping.
+3. Pad visibility is not authored work. Never put it on a solve record.
+4. The hidden row costs **50 points including its top margin**, versus the shown
+   pad's 152 points before any tall-phone legend; verify measured device sizes
+   rather than treating that arithmetic as a result.
+5. Regression means Sudoku and Fungiku too. This epic's few sanctioned shared
+   edits must not change either game's navigation, resume or layout behaviour.
 
 ### What must be visible in Expo Go
 
-Start with the pad shown. Orbit and cancel a turn and see it remain. Commit a
-finger turn and see the pad leave, the cube gain room, and obvious Show move pad
-and Backspace controls remain. Show it in one tap; type an algorithm and confirm
-that route does not hide it. Verify Backspace in both states, then route round
-trips, background/resume and cold-start to judge the persistence rule. Check the
-small-phone cube and targets in both states.
+With the pad initially shown, orbit and cancel without hiding it, then commit a
+finger turn and see the pad leave. The cube must gain the recovered room without
+jumping transport position or orientation. **Show move pad** and **Delete last
+move** must be unmistakable and reachable; show in one tap, type an algorithm,
+and use Backspace in both states. Verify route round trips, background/resume and
+a cold start, then run the full cube flow from scramble cards through methods,
+rail editing, Compare and persistence. Smoke-test Sudoku and Fungiku.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/`, including pure trigger/exclusion/manual-show tests,
-  Backspace reuse and any preferences migration.
-- In a browser, exercise both layouts, Type an algorithm, Backspace, route round
-  trips and reload; measure and photograph both states at all three viewports and
-  check horizontal and page overflow.
-- Require a device pass for committed versus cancelled finger turns, the escape,
-  Backspace reach, transition feel and small-phone layout. Record device findings.
+- `npm test` from `SudokuApp/`.
+- Browser screenshots and measurements for shown and hidden states at 320×568,
+  375×667 and 393×852, including horizontal and page-overflow checks.
+- An Expo Go device pass for commit versus cancel, discoverability, Backspace,
+  transition feel, persistence and the small-phone layout.
+- A final device regression of the accumulated epic before opening its PR to
+  `main`. Record which findings came from a device.
 
 ### Then rewrite this file
 
-Step 9 is the final planned delivery. Rewrite this as the epic closeout brief:
-run the full regression, resolve or carry every open question, update landed
-notes and prepare `epic/cube-flow` for `main` only after the device pass.
+Once the device pass and final regression are complete, replace this handoff
+with a closed-epic record: merged PRs, final test evidence, resolved/carried open
+questions, release/build notes, and the exact operational steps needed to merge
+`epic/cube-flow` to `main` and rebuild channels if still outstanding.
 
 ## Open questions being carried forward
 

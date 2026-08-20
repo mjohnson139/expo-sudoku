@@ -164,6 +164,43 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 5,
   },
+  // Replaces the 152-point pad after a committed finger turn. The labelled
+  // escape and Backspace share one 40-point row, returning 112 points to the
+  // measured stage while keeping both targets comfortably tappable.
+  hiddenPadRow: {
+    alignSelf: 'stretch',
+    height: 40,
+    marginTop: 10,
+    paddingHorizontal: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  hiddenPadButton: {
+    height: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+  },
+  hiddenPadButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginLeft: 7,
+  },
+  hiddenPadDelete: {
+    width: 44,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+  },
+  hiddenPadDisabled: {
+    opacity: 0.35,
+  },
   // Takes the leftover — but the leftover is not an afterthought, which is the
   // whole of V1's Step 7 (docs/cube-plan.md §8.6). Every row above and below
   // this one has to justify its height against what it costs the cube.
