@@ -1,10 +1,10 @@
-import React, { useMemo, useRef } from 'react';
-import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ALG_FONT } from './algText';
 import CubeGlyph from './CubeGlyph';
 import { padPalette } from './padPalette';
 import { announcePosition, describePosition, describeSpeed } from './player';
-import { drawerEvent, drawerHandleOffset, PAD_EVENTS } from './swipeMode';
+import { drawerEvent } from './swipeMode';
 
 /**
  * The transport under the cube (plan §8.8, Step 8).
@@ -51,6 +51,8 @@ const CubeScrubber = ({
   padShown,
   onShowPad,
   onHidePad,
+  onDragPad,
+  onReleasePad,
   canDelete = false,
   onDelete,
 }) => {
@@ -60,12 +62,6 @@ const CubeScrubber = ({
 
   const atStart = index <= 0;
   const atEnd = index >= count;
-  const handleOffset = useRef(new Animated.Value(0)).current;
-
-  const setPadFromEvent = (event) => {
-    if (event === PAD_EVENTS.SHOW) onShowPad?.();
-    if (event === PAD_EVENTS.HIDE) onHidePad?.();
-  };
 
   const drawerPan = useMemo(
     () =>
@@ -76,29 +72,18 @@ const CubeScrubber = ({
         onStartShouldSetPanResponder: () => false,
         onMoveShouldSetPanResponderCapture: (_, gesture) => Math.abs(gesture.dy) > 4,
         onPanResponderMove: (_, gesture) => {
-          // Move the visible handle with the thumb. The pad itself snaps only
-          // after release, so the measured cube is never resized every frame.
-          handleOffset.setValue(drawerHandleOffset(gesture.dy));
+          // The whole drawer edge follows the thumb; CubeSolve owns the pad's
+          // animated height because the measured stage is its sibling.
+          onDragPad?.(gesture.dy);
         },
         onPanResponderRelease: (_, gesture) => {
-          Animated.spring(handleOffset, {
-            toValue: 0,
-            speed: 28,
-            bounciness: 4,
-            useNativeDriver: true,
-          }).start();
-          setPadFromEvent(drawerEvent(gesture.dy));
+          onReleasePad?.(drawerEvent(gesture.dy));
         },
         onPanResponderTerminate: () => {
-          Animated.spring(handleOffset, {
-            toValue: 0,
-            speed: 28,
-            bounciness: 4,
-            useNativeDriver: true,
-          }).start();
+          onReleasePad?.(null);
         },
       }),
-    [handleOffset, onShowPad, onHidePad]
+    [onDragPad, onReleasePad]
   );
 
   const button = (name, label, onPress, disabled, primary) => (
@@ -147,9 +132,7 @@ const CubeScrubber = ({
                 accessibilityHint={padShown ? 'Tap or drag down to hide the move pad' : 'Tap or drag up to show the move pad'}
                 accessibilityState={{ expanded: padShown }}
               >
-                <Animated.View style={{ transform: [{ translateY: handleOffset }] }}>
-                  <View style={[styles.drawerHandle, { backgroundColor: palette.faint }]} />
-                </Animated.View>
+                <View style={[styles.drawerHandle, { backgroundColor: palette.faint }]} />
               </Pressable>
             </View>
 

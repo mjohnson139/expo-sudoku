@@ -1,12 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutAnimation, Platform, Text, TouchableOpacity, UIManager, View } from 'react-native';
+import { Animated, Easing, Platform, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
 import CubeView from './CubeView';
 import CubeAlgInputModal from './CubeAlgInputModal';
 import CubeCompareModal from './CubeCompareModal';
-import CubeMovePad from './CubeMovePad';
+import CubeMovePad, { KEY_GAP, KEY_HEIGHT, PAD_TOP } from './CubeMovePad';
 import CubeMoveTrack from './CubeMoveTrack';
 import CubePadLegend from './CubePadLegend';
 import CubePhaseRail from './CubePhaseRail';
@@ -49,6 +49,7 @@ import { useCube, useReportsSolveRoute } from './CubeContext';
 import { mix } from '../../utils/color';
 import {
   PAD_EVENTS,
+  drawerHeightForDrag,
   initialPadVisibility,
   reducePadVisibility,
 } from './swipeMode';
@@ -77,6 +78,8 @@ const NO_PHASES = [];
  * oscillates.
  */
 const LEGEND_MIN_HEIGHT = 780;
+const PAD_HEIGHT = PAD_TOP + (KEY_HEIGHT * 3) + (KEY_GAP * 2);
+const LEGEND_HEIGHT = 29;
 
 /**
  * Writing a solve — the pushed screen (docs/cube-flow-plan.md §3.2).
@@ -124,6 +127,7 @@ const CubeSolve = ({ navigation }) => {
     showOtherSide,
     startView,
   } = useCube();
+  const { measureStage, cubeSize, room, windowHeight } = useCubeStage();
 
   const [showCompare, setShowCompare] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
@@ -131,25 +135,34 @@ const CubeSolve = ({ navigation }) => {
   // the full pad; backgrounding the still-mounted screen leaves it as it was.
   const [padShown, setPadShown] = useState(initialPadVisibility);
   const padShownRef = useRef(initialPadVisibility);
+  const fullPadHeight = PAD_HEIGHT + (windowHeight >= LEGEND_MIN_HEIGHT ? LEGEND_HEIGHT : 0);
+  const padHeight = useRef(new Animated.Value(fullPadHeight)).current;
 
-  useEffect(() => {
-    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-      UIManager.setLayoutAnimationEnabledExperimental(true);
-    }
-  }, []);
+  const animatePadTo = useCallback((shown) => {
+    Animated.timing(padHeight, {
+      toValue: shown ? fullPadHeight : 0,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      // Height has to participate in layout so the stage and drawer edge move.
+      useNativeDriver: false,
+    }).start();
+  }, [padHeight, fullPadHeight]);
 
   const changePad = useCallback((event) => {
     const next = reducePadVisibility(padShownRef.current, event);
-    if (next === padShownRef.current) return;
+    if (next === padShownRef.current) {
+      animatePadTo(next);
+      return;
+    }
     padShownRef.current = next;
-    LayoutAnimation.configureNext({
-      duration: 220,
-      update: { type: LayoutAnimation.Types.easeInEaseOut },
-      create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
-      delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
-    });
     setPadShown(next);
-  }, []);
+    animatePadTo(next);
+  }, [animatePadTo]);
+
+  const dragPad = useCallback((dy) => {
+    padHeight.stopAnimation();
+    padHeight.setValue(drawerHeightForDrag(padShownRef.current, dy, fullPadHeight));
+  }, [padHeight, fullPadHeight]);
 
   /**
    * The key a second tap would promote to a half turn, or null
@@ -176,8 +189,6 @@ const CubeSolve = ({ navigation }) => {
    * accent and every move key relabels itself.
    */
   const [primed, setPrimed] = useState(false);
-
-  const { measureStage, cubeSize, room, windowHeight } = useCubeStage();
 
   useReportsSolveRoute(navigation, true);
 
@@ -794,6 +805,8 @@ const CubeSolve = ({ navigation }) => {
           padShown={padShown}
           onShowPad={() => changePad(PAD_EVENTS.SHOW)}
           onHidePad={() => changePad(PAD_EVENTS.HIDE)}
+          onDragPad={dragPad}
+          onReleasePad={(event) => changePad(event)}
           canDelete={solveCount > 0}
           onDelete={undoMove}
         />
@@ -840,8 +853,11 @@ const CubeSolve = ({ navigation }) => {
         </>
       ) : (
         <>
-          {padShown && (
-            <>
+          <Animated.View style={{ height: padHeight, alignSelf: 'stretch', overflow: 'hidden' }}>
+            <View
+              pointerEvents={padShown ? 'auto' : 'none'}
+              style={{ minHeight: PAD_HEIGHT, alignSelf: 'stretch' }}
+            >
               <CubeMovePad
                 canUndo={solveCount > 0}
                 promoteKey={promoteKey}
@@ -856,8 +872,8 @@ const CubeSolve = ({ navigation }) => {
               {windowHeight >= LEGEND_MIN_HEIGHT && (
                 <CubePadLegend theme={theme} accent={CUBE_ACCENT} />
               )}
-            </>
-          )}
+            </View>
+          </Animated.View>
         </>
       )}
 
