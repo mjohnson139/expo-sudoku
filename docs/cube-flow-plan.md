@@ -115,8 +115,8 @@ the bottom of the scramble screen for the list.
 Eight steps as planned, plus two that gesture input added — **3.5**, turning the
 cube by dragging it, and **9**, the swipe mode it makes possible. The risky
 infrastructure is quarantined in Step 1, the large refactor in Step 2, and the
-largest remaining design change is last because nothing depends on it — so a wrong
-call in Step 7 costs a step, not the epic.
+largest remaining design change was isolated because nothing depended on it — so
+when device use rejected Step 7, it cost a step rather than the epic.
 
 **Step 3.5 is a guest that grew.** It came out of a side exploration
 (`docs/cube-touch-exploration.md`) that was never on this roadmap, and it is an
@@ -138,7 +138,7 @@ everyone.
 | 4 | Method as data | `method` on the record, the new-solve sheet |
 | 5 | The phase rail | pre-built stages; the flag key retires |
 | 6 | Undo and redo | **dropped after device testing; PR #119 closed unmerged** |
-| 7 | Variations per phase | alternative attempts at one stage |
+| 7 | Variations per phase | **dropped after device testing; PR #121 closed unmerged — duplicate a solve instead** |
 | 8 | Layout budget pass | the §8.6 accounting, at three widths |
 | 9 | Swipe mode — hide the pad | a finger-only mode: cube, scrubber, backspace, no keyboard — *added by 3.5* |
 
@@ -462,9 +462,9 @@ costs the cube **zero points**: no new rows on either screen.
   `PAD_LAYOUT`**, so Steps 5 and 8 inherit it exactly as written, and Step 9
   spends the room. The pad stays the only way to write `x`/`y`/`z` and a rotation
   the fingers cannot reach, so it is hidden, never removed.
-- **Steps 5 and 7 need no structural change and get easier.** The rail counts a
-  gesture move for free — worth one pinning test in Step 5. Step 7's "retrying
-  always forks" is worth far more with a cheap input.
+- **Step 5 needs no structural change and gets easier.** The rail counts a
+  gesture move for free — pinned in Step 5. The variation idea this note once
+  carried into Step 7 was later dropped after device testing.
 - **§5's browser warning gets sharper.** This is orbit-only on web, so **no
   browser pass can check the primary input path** — the same blind spot as Step
   3a's `react-native-screens` finding. Two of the three things this epic most
@@ -761,43 +761,30 @@ and raise a second source-of-truth problem.
 
 **Decision:** keep Backspace as the durable, direct move-removal tool. Keep its
 backwards `retract` animation, marker clamping through `withMoves`, and held repeat.
-The retired flag cell remains empty. A mistaken rail lock or variation choice gets
-an explicit domain action if device use proves it needs one; it does not justify a
+The retired flag cell remains empty. A mistaken rail lock does not justify a
 general history subsystem. No code from PR #119 lands on `epic/cube-flow`.
 
-### 3.7 Step 7 — variations per phase
+### 3.7 Step 7 — variations per phase — dropped
 
-The largest data change, and last on purpose — nothing above depends on it.
+**Dropped 2026-08-20 after device testing PR #121; the PR was closed unmerged.**
+The first model treated an alternative as one phase run. Retrying an earlier
+stage then either attached later-stage moves to the retry or destroyed the
+complete attempt they belonged to. Promoting the record into a branch tree could
+preserve the data, but the resulting rail, `+N` return path and branch picker were
+confusing in the hand and duplicated a structure the scramble screen already
+expresses clearly: several solve cards against one scramble.
 
-- **Keep `alg` a flat string.** The record gains
-  `variations: [{ id, phaseAt, alg, savedAt }]` holding only the runs **not**
-  currently in use; the in-use run stays spliced into `alg`. This is the decision
-  that keeps `useScramblePlayer`, `CubeMoveTrack`, `phaseSpans`, `comparePhases`
-  and the whole storage layer working unchanged — `player.js` is index-based and
-  has no phase awareness at all, and it should stay that way.
-- **`games/cube/variations.js` is pure and owns three operations:** **fork**
-  (stash the phase's current run, clear its span, reopen the phase), **switch**
-  (splice a stored run back into `alg`, stash the displaced one, re-clamp), and
-  **best** (shortest run for a phase). Each returns an `{ alg, phases,
-  variations }` patch, so `editOpen` stays the only writer and `withMoves` stays
-  the only moves-edit contract.
-- The design's rule that **retrying always forks and never edits A** falls out of
-  this: "try again" is *fork*, unconditionally, so a worse attempt costs nothing.
-- Rail: a locked pill with variations wears a count badge; tapping expands the
-  row (in-use filled, shortest marked `best`); picking one is *switch*, which
-  replays from the phase's entry through the existing `seek` + `playTo` pair
-  (`CubeScreen.js:850-856`).
-- `sanitizeSolves` gains a `sanitizeVariations` beside `sanitizePhases`, clamping
-  `phaseAt` to a real marker and dropping unparseable algs — the same shape-based
-  tolerance as everything else on the read path.
+**Decision:** one solve remains one linear attempt. To try a stage again without
+losing the complete attempt, use the existing card menu's **Duplicate** action,
+open the copy, Backspace to the desired boundary, and continue there. The original
+card remains the complete solve and the copy is the new branch in the only place
+the app already teaches people to find attempts. No `variations` field, nested
+branch storage, rail badge, branch modal or fork/switch logic lands on
+`epic/cube-flow`.
 
-**Tests:** `variations.test.js` — fork/switch round-trips preserve structure;
-switching twice returns the original; `best` ties break deterministically; a
-variation pointing at a dropped marker is discarded on load.
-
-**Operator tests:** lock a phase, "try again", write a shorter run, see it marked
-best, switch between them and watch the cube replay from the phase's entry; switch back
-to the original explicitly; background and resume with variations stored.
+This is a scope decision, not a deferred implementation brief. Reopening
+variations would require new evidence that duplicate solves are inadequate and a
+fresh interaction design; do not restart PR #121's model from this section.
 
 ### 3.8 Step 8 — the layout budget pass
 
@@ -935,7 +922,7 @@ again for an `x` rotation; background and resume with the pad hidden; and the
   a third.
 - **`removePhase` does not clamp or re-sort** (`solveList.js:377`), unlike every
   other phase mutator. It is safe today only because it returns a subset of an
-  already-clamped list. Step 7 splices spans; check this holds.
+  already-clamped list. Dropped Step 7 was the only planned span-splicing path.
 - **`orientation` has three states** — `null`, `''`, notation — and the
   `null → ''` fallback on unparseable text is load-bearing for `inspecting`.
   Nothing in this epic may collapse them to two.
@@ -980,8 +967,9 @@ again for an `x` rotation; background and resume with the pad hidden; and the
 5. **Does the tick track come back once the rail exists?** Decided *out* for this
    epic on V1's evidence. The design redraws it grouped by phase, which is the
    version that was never tried. One drilling session with the rail settles it.
-6. **How many variations is too many?** No cap is specified. `MAX_PHASES` is 40
-   and `MAX_SOLVES` 100; variations need a number before the file finds one.
+6. ~~**How many variations is too many?**~~ **Closed with dropped Step 7.**
+   Alternate attempts are separate solves and use the existing `MAX_SOLVES = 100`
+   file bound; there is no second collection to cap.
 7. ~~**Does the scramble screen miss `Reset the view`?**~~ **Answered: no**
    (operator, 2026-08-17 — *"I don't miss the reset view"*). Step 3's
    four-control header stands; the solve screen keeps its own `Back to the

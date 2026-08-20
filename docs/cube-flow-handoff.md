@@ -388,7 +388,7 @@ pre-Step-4 save and confirmed its old markers remained intact.
 
 ---
 
-## What landed in Step 5 (read this before Step 7)
+## What landed in Step 5 (still current)
 
 **The method rail replaced the flag flow.** A method solve permanently shows
 its stages in `CubePhaseRail`; the pure `railStates(method, phases, alg)` derives
@@ -440,92 +440,79 @@ flat algorithms honestly.
 
 **Settled replacement:** Backspace stays, with its existing `retract` animation,
 `withMoves` marker clamping and held repeat. The retired flag cell stays empty.
-Step 7 reverses a variation switch explicitly by choosing the previous run. Step
-9 gives Backspace an off-pad home only while the pad is hidden, beginning with a
+Step 9 gives Backspace an off-pad home only while the pad is hidden, beginning with a
 compact control right-aligned above the scrubber.
 
 ---
 
-## Next step — Step 7: variations per phase
+## Dropped step — Step 7: variations per phase
 
-`docs/cube-flow-plan.md` §3.7 is the brief. Add alternate runs for a locked method
-stage without changing the solve's flat `alg`; the active run stays in `alg`, and
-only inactive runs are stored.
+**Dropped 2026-08-20 after device testing PR #121; the PR was closed unmerged.**
+Retrying an earlier stage proved to be a branch of the whole remaining solve,
+not one replaceable phase span. The branch-tree revision preserved the data but
+made the rail and the path back to a complete attempt confusing. The scramble
+screen already has the clearer model: duplicate the solve card, Backspace the
+copy to the boundary, and continue; the original card remains complete. No Step
+7 code or save shape lands on the epic branch.
+
+---
+
+## Next step — Step 8: the layout budget pass
+
+`docs/cube-flow-plan.md` §3.8 is the brief. Measure the completed steady-state
+screens rather than adding another interaction.
 
 ### Scope
 
-- Add `variations: [{ id, phaseAt, alg, savedAt }]` to solve records. Identity is
-  the marker position (`phaseAt`), not merely the label.
-- Add pure `games/cube/variations.js` with **fork**, **switch**, and **best**.
-  Each returns one `{ alg, phases, variations }` patch through `editOpen`; move
-  changes still obey `withMoves`.
-- Fork always stashes the current stage run, removes that span from the active
-  algorithm, reopens the stage, and preserves downstream structure honestly.
-- Switch stashes the displaced active run, splices the chosen stored run into the
-  flat algorithm, and rebases/clamps every affected marker and variation.
-- Best chooses the shortest run with a deterministic tie break.
-- Extend `sanitizeSolves` beside `sanitizePhases`: keep parseable variations whose
-  `phaseAt` resolves to a surviving marker; drop invalid/orphaned entries without
-  changing any other field on old records.
-- A locked rail pill with alternatives shows their count and expands to list the
-  active run and stored runs; mark the shortest as best. Selecting a run switches
-  it and replays from the phase entry with existing `seek` + `playTo`.
+- Measure writing mode at **320×568, 375×667 and 393×852**, with the method rail,
+  pad and conditional legend visible.
+- Record the exact fixed-row and resulting cube sizes in the plan, handoff and PR.
+- Confirm the rail remains one 28-point horizontally scrolling row.
+- Confirm `LEGEND_MIN_HEIGHT = 780` still removes the 29-point legend at the
+  intended boundary.
+- Make only the smallest spacing or threshold corrections the measurements
+  prove. Do not rebuild the tick track or hide the pad; Step 9 owns pad hiding.
 
 ### Files to read first
 
-- `games/cube/solveList.js` and `__tests__/solveList.test.js` — record creation,
-  shape-tolerant migration, phases, `withMoves`, and the literal legacy fixture.
-- `games/cube/CubePhaseRail.js`, `phaseRail.js`, and their tests — the ordered
-  rail and its fixed 28-point horizontal budget.
-- `games/cube/CubeSolve.js` — rail locking and the existing phase playback path.
-- `games/cube/useScramblePlayer.js` — switching must look like a replacement and
-  replay only the selected stage rather than animate the whole solve into it.
-- `docs/cube-plan.md` §8.5 — markers remain the source of truth, never ranges.
+- `docs/cube-flow-plan.md` §3.8 and `docs/cube-plan.md` §8.6/§8.8.
+- `games/cube/CubeSolve.js`, `cubeChrome.js`, `useCubeStage.js` and
+  `CubePhaseRail.js` for every row in writing mode.
+- `games/cube/CubeMovePad.js` and `CubePadLegend.js` for the 152/29-point costs.
 
 ### Easy to get wrong
 
-1. Keep `alg` flat. Do not teach the player, track, comparison, or storage layer
-   about segmented algorithms.
-2. `phaseAt`, not label, is identity. Labels may repeat or change.
-3. Fork/switch is atomic across `alg`, `phases`, and `variations`, even without a
-   general Undo stack. Switching back explicitly must round-trip to the original.
-4. A shorter/longer selected run shifts every later marker. Rebase them and every
-   variation identity; do not leave an inactive run pointing at a removed marker.
-5. The migration must damage nothing on pre-Step-7 records. Invalid new data is
-   dropped locally, never used as a reason to rebuild the solve.
-6. The rail may scroll horizontally but may not wrap or silently grow beyond its
-   28-point row. Expanded detail needs an explicit layout cost.
-7. Do not resurrect Step 6 history to make switching reversible. The explicit
-   inverse is selecting the previous stored run again.
+1. Size the cube first; do not make it silently pay for an overflowing row.
+2. Measure all three heights, not only responsive widths in a tall browser.
+3. The rail scrolls horizontally and never wraps or grows beyond 28 points.
+4. Keep the pad shown and Backspace in its existing cell. Step 9 owns both the
+   hide toggle and the off-pad Backspace home.
+5. Browser padding and phone safe areas differ; label browser numbers as browser
+   evidence and require a device pass for feel.
 
 ### What must be visible in Expo Go
 
-Lock a stage, choose Try again, write a different run, and retain the original.
-The rail shows the alternative count, identifies the shortest run, and switches
-between runs while replaying from that stage's entry. Switching back restores the
-original algorithm and downstream markers. Background/resume and a cold start
-keep every variation. Backspace remains available and the retired flag cell
-remains empty.
+At 320 points wide the title, move track, rail, cube, scrubber and full pad remain
+usable without page scrolling; the rail alone scrolls sideways. The short phone
+omits the legend and the tall phone shows it.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/`, including `variations.test.js`, migration fixtures,
-  fork/switch round-trips, deterministic best ties, and orphan removal.
-- In a browser: fork, write, switch twice, verify exact structural round-trip,
-  reload valid/invalid seeded records, and check page/rail overflow.
-- Require a device pass for rail expansion targets, stage-only replay feel,
-  Backspace after a switch, and the small-phone layout. Record device-only findings.
+- `npm test` from `SudokuApp/`.
+- Browser screenshots and measurements at all three sizes, including page and
+  rail overflow checks.
+- A smallest-phone device pass for cube size, safe areas and rail targets.
 
-### Then rewrite this file for Step 8
+### Then rewrite this file for Step 9
 
-Step 8 is the full three-width layout budget pass. Carry forward the actual
-expanded-rail cost. Step 9 owns pad hiding and the off-pad Backspace placement.
+Step 9 adds swipe mode: persist the preference, hide the 152-point pad on demand,
+and give Backspace a compact off-pad home only while hidden.
 
 ---
 
 ## Open questions being carried forward
 
-From `docs/cube-flow-plan.md` §6 — none of these block Step 7, and all of them
+From `docs/cube-flow-plan.md` §6 — none of these block Step 8, and all of them
 want a drilling session rather than an opinion:
 
 1. ~~Does the rail want a "no method" option for a scratch attempt?~~
@@ -543,7 +530,8 @@ want a drilling session rather than an opinion:
 4. Should the rail lock a phase automatically when the cube reaches the stage's
    goal state?
 5. Does the phase-split tick track come back once the rail exists?
-6. How many variations per phase is too many?
+6. ~~How many variations per phase is too many?~~ **Closed with dropped Step 7.**
+   Alternate attempts are duplicated solves and share the existing 100-solve cap.
 7. ~~**Does the scramble screen miss `Reset the view`?**~~ **Answered: no**
    (operator, 2026-08-17 — *"I don't miss the reset view"*). The four-control
    header stands, and the solve screen keeps its own `Back to the starting view`,
