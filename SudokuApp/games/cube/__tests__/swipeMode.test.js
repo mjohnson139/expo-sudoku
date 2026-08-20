@@ -36,4 +36,5 @@ describe('move pad visibility', () => {
     expect(drawerHandleOffset(-40)).toBe(-14);
     expect(drawerHandleOffset(40)).toBe(14);
   });
+
 });

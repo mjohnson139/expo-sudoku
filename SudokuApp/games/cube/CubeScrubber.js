@@ -1,6 +1,5 @@
 import React, { useMemo, useRef } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ALG_FONT } from './algText';
 import CubeGlyph from './CubeGlyph';
 import { padPalette } from './padPalette';
@@ -52,6 +51,8 @@ const CubeScrubber = ({
   padShown,
   onShowPad,
   onHidePad,
+  canDelete = false,
+  onDelete,
 }) => {
   const palette = padPalette(theme, accent);
   const surface = theme.colors.numberPad.background;
@@ -69,7 +70,11 @@ const CubeScrubber = ({
   const drawerPan = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 4,
+        // Leave touch-down to the Pressable so a tap stays a real tap. Capture
+        // only once it moves: putting both systems on the same node meant the
+        // Pressable won on iOS and the drag callbacks never ran.
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponderCapture: (_, gesture) => Math.abs(gesture.dy) > 4,
         onPanResponderMove: (_, gesture) => {
           // Move the visible handle with the thumb. The pad itself snaps only
           // after release, so the measured cube is never resized every frame.
@@ -127,33 +132,42 @@ const CubeScrubber = ({
 
   return (
     <View style={styles.drawer}>
-      {/* This is the drawer's leading edge, so it stays above the scrubber when
-          the pad below is gone instead of falling against the home indicator. */}
-      {typeof padShown === 'boolean' && (
-        <Pressable
-          style={styles.drawerHandleTarget}
-          onPress={padShown ? onHidePad : onShowPad}
-          accessibilityRole="button"
-          accessibilityLabel={padShown ? 'Hide move pad' : 'Show move pad'}
-          accessibilityHint={padShown ? 'Swipe down to hide the move pad' : 'Swipe up to show the move pad'}
-          accessibilityState={{ expanded: padShown }}
-          {...drawerPan.panHandlers}
-        >
-          <Animated.View
-            style={[styles.drawerHandleContents, { transform: [{ translateY: handleOffset }] }]}
-          >
-            <View style={[styles.drawerHandle, { backgroundColor: palette.faint }]} />
-            <MaterialCommunityIcons
-              name={padShown ? 'chevron-down' : 'chevron-up'}
-              size={18}
-              color={palette.faint}
-              style={styles.drawerChevron}
-            />
-          </Animated.View>
-        </Pressable>
-      )}
-
       <View style={[styles.card, { backgroundColor: surface, borderColor: border }]}>
+        {/* The grabber is part of the transport card, not a loose glyph in the
+            cube's room. One responder owns both tap and drag so iOS cannot hand
+            the gesture to a Pressable before PanResponder sees it. */}
+        {typeof padShown === 'boolean' && (
+          <View style={styles.drawerTop}>
+            <View style={styles.drawerHandleTarget} {...drawerPan.panHandlers}>
+              <Pressable
+                style={styles.drawerHandlePress}
+                onPress={padShown ? onHidePad : onShowPad}
+                accessibilityRole="button"
+                accessibilityLabel={padShown ? 'Hide move pad' : 'Show move pad'}
+                accessibilityHint={padShown ? 'Tap or drag down to hide the move pad' : 'Tap or drag up to show the move pad'}
+                accessibilityState={{ expanded: padShown }}
+              >
+                <Animated.View style={{ transform: [{ translateY: handleOffset }] }}>
+                  <View style={[styles.drawerHandle, { backgroundColor: palette.faint }]} />
+                </Animated.View>
+              </Pressable>
+            </View>
+
+            {!padShown && (
+              <Pressable
+                style={[styles.drawerDelete, { borderColor: border }]}
+                onPress={onDelete}
+                disabled={!canDelete}
+                accessibilityRole="button"
+                accessibilityLabel="Delete last move"
+                accessibilityHint="Turns the last move backward, then removes it"
+                accessibilityState={{ disabled: !canDelete }}
+              >
+                <CubeGlyph name="backspace" size={20} color={palette.ink} />
+              </Pressable>
+            )}
+          </View>
+        )}
         <View style={styles.row}>
           <Text
             style={[styles.counter, { color: palette.ink }]}
@@ -210,7 +224,7 @@ const styles = StyleSheet.create({
   // 7's.
   card: {
     alignSelf: 'stretch',
-    paddingTop: 9,
+    paddingTop: 0,
     // 8 rather than the design's 10, for the same 320-point reason as the gap.
     paddingHorizontal: 8,
     paddingBottom: 10,
@@ -280,25 +294,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  drawerTop: {
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: -2,
+  },
   drawerHandleTarget: {
     height: 44,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  drawerHandlePress: {
     alignSelf: 'stretch',
-    flexDirection: 'row',
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   drawerHandle: {
-    width: 34,
-    height: 4,
-    borderRadius: 2,
+    width: 38,
+    height: 5,
+    borderRadius: 3,
   },
-  drawerHandleContents: {
-    flexDirection: 'row',
+  drawerDelete: {
+    width: 40,
+    height: 36,
+    borderWidth: 1,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  drawerChevron: {
-    marginLeft: 5,
   },
 });
 

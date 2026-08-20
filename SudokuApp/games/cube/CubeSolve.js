@@ -794,6 +794,8 @@ const CubeSolve = ({ navigation }) => {
           padShown={padShown}
           onShowPad={() => changePad(PAD_EVENTS.SHOW)}
           onHidePad={() => changePad(PAD_EVENTS.HIDE)}
+          canDelete={solveCount > 0}
+          onDelete={undoMove}
         />
       )}
 
