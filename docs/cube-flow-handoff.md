@@ -440,8 +440,8 @@ flat algorithms honestly.
 
 **Settled replacement:** Backspace stays on the move pad, with its existing
 `retract` animation, `withMoves` marker clamping and held repeat. The retired
-flag cell stays empty. Step 9's hidden state is intentionally only the scrubber
-and its drawer handle; pull the handle up to reach Backspace again.
+flag cell stays empty. Step 9's hidden state is intentionally the handle above
+the scrubber, then the scrubber; pull the handle up to reach Backspace again.
 
 ---
 
@@ -501,7 +501,7 @@ then prepare the accumulated epic for its final regression and merge.
 
 ### Scope
 
-- Device-test Step 9's settled-turn auto-hide, scrubber drawer handle and both
+- Device-test Step 9's settled-turn auto-hide, above-scrubber drawer handle and both
   layout states. If auto-hide surprises in the hand, change it
   to manual-only rather than weakening the escape.
 - Settle the persistence decision. The implementation deliberately treats pad
@@ -526,11 +526,11 @@ then prepare the accumulated epic for its final regression and merge.
 
 1. Browser gestures are orbit-only. A browser cannot prove either commit or
    cancellation behaviour; only Expo Go can pass Step 9.
-2. The handle is part of the scrubber and spends no separate hidden-state row.
-   Swipe down hides and swipe up shows; its accessible tap action toggles too.
+2. The 44-point handle is the drawer's leading edge above the scrubber. Swipe
+   down hides and swipe up shows; its accessible tap action toggles too.
 3. Pad visibility is not authored work. Never put it on a solve record.
-4. The hidden state costs **zero additional points** beyond the scrubber, versus
-   the shown pad's 152 points before any tall-phone legend; verify measured
+4. The handle costs **44 points** in both states; the shown pad costs another
+   152 points before any tall-phone legend. Verify measured
    device sizes rather than treating that arithmetic as a result.
 5. Regression means Sudoku and Fungiku too. This epic's few sanctioned shared
    edits must not change either game's navigation, resume or layout behaviour.
@@ -539,7 +539,7 @@ then prepare the accumulated epic for its final regression and merge.
 
 With the pad initially shown, orbit and cancel without hiding it, then commit a
 finger turn and see the pad leave. The cube must gain the recovered room without
-jumping transport position or orientation. Pull the scrubber handle up to show
+jumping transport position or orientation. Pull the handle above the scrubber up to show
 the pad and down to hide it; type an algorithm and use Backspace while shown.
 Verify route round trips, background/resume and
 a cold start, then run the full cube flow from scramble cards through methods,

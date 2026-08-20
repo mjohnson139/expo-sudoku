@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ALG_FONT } from './algText';
 import CubeGlyph from './CubeGlyph';
 import { padPalette } from './padPalette';
@@ -103,8 +104,31 @@ const CubeScrubber = ({
   );
 
   return (
-    <View style={[styles.card, { backgroundColor: surface, borderColor: border }]}>
-      <View style={styles.row}>
+    <View style={styles.drawer}>
+      {/* This is the drawer's leading edge, so it stays above the scrubber when
+          the pad below is gone instead of falling against the home indicator. */}
+      {typeof padShown === 'boolean' && (
+        <Pressable
+          style={styles.drawerHandleTarget}
+          onPress={padShown ? onHidePad : onShowPad}
+          accessibilityRole="button"
+          accessibilityLabel={padShown ? 'Hide move pad' : 'Show move pad'}
+          accessibilityHint={padShown ? 'Swipe down to hide the move pad' : 'Swipe up to show the move pad'}
+          accessibilityState={{ expanded: padShown }}
+          {...drawerPan.panHandlers}
+        >
+          <View style={[styles.drawerHandle, { backgroundColor: palette.faint }]} />
+          <MaterialCommunityIcons
+            name={padShown ? 'chevron-down' : 'chevron-up'}
+            size={18}
+            color={palette.faint}
+            style={styles.drawerChevron}
+          />
+        </Pressable>
+      )}
+
+      <View style={[styles.card, { backgroundColor: surface, borderColor: border }]}>
+        <View style={styles.row}>
         <Text
           style={[styles.counter, { color: palette.ink }]}
           accessibilityLabel={announcePosition(index, count, noun)}
@@ -143,26 +167,16 @@ const CubeScrubber = ({
             {describeSpeed(rate)}
           </Text>
         </Pressable>
+        </View>
       </View>
-      {/* The scrubber is the drawer's fixed edge: it never leaves, so its
-          handle is available in both states without spending another row. */}
-      {typeof padShown === 'boolean' && (
-        <Pressable
-          style={styles.drawerHandleTarget}
-          onPress={padShown ? onHidePad : onShowPad}
-          accessibilityRole="button"
-          accessibilityLabel={padShown ? 'Hide move pad' : 'Show move pad'}
-          accessibilityHint={padShown ? 'Swipe down to hide the move pad' : 'Swipe up to show the move pad'}
-          {...drawerPan.panHandlers}
-        >
-          <View style={[styles.drawerHandle, { backgroundColor: palette.faint }]} />
-        </Pressable>
-      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  drawer: {
+    alignSelf: 'stretch',
+  },
   // The design gives this card "10pt side margins" — **measured from the screen
   // edge**, which the page's own padding already provides. Setting them here as
   // well double-counted them and pushed the transport 1pt off the right edge of
@@ -170,14 +184,12 @@ const styles = StyleSheet.create({
   // 7's.
   card: {
     alignSelf: 'stretch',
-    marginTop: 6,
     paddingTop: 9,
     // 8 rather than the design's 10, for the same 320-point reason as the gap.
     paddingHorizontal: 8,
     paddingBottom: 10,
     borderWidth: 1,
     borderRadius: 12,
-    position: 'relative',
   },
   row: {
     flexDirection: 'row',
@@ -243,12 +255,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   drawerHandleTarget: {
-    position: 'absolute',
-    bottom: 0,
-    left: '50%',
-    width: 54,
-    height: 18,
-    marginLeft: -27,
+    height: 44,
+    alignSelf: 'stretch',
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -256,6 +265,9 @@ const styles = StyleSheet.create({
     width: 34,
     height: 4,
     borderRadius: 2,
+  },
+  drawerChevron: {
+    marginLeft: 5,
   },
 });
 
