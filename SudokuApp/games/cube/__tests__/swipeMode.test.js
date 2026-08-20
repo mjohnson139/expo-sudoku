@@ -2,7 +2,7 @@ import {
   PAD_EVENTS,
   initialPadVisibility,
   drawerEvent,
-  drawerHeightForDrag,
+  drawerHandleOffset,
   reducePadVisibility,
 } from '../swipeMode';
 
@@ -30,13 +30,11 @@ describe('move pad visibility', () => {
     expect(drawerEvent(8)).toBeNull();
   });
 
-  test('the drawer edge follows the finger between its two detents', () => {
-    expect(drawerHeightForDrag(true, 40, 152)).toBe(112);
-    expect(drawerHeightForDrag(true, -40, 152)).toBe(152);
-    expect(drawerHeightForDrag(false, -40, 152)).toBe(40);
-    expect(drawerHeightForDrag(false, 40, 152)).toBe(0);
-    expect(drawerHeightForDrag(true, 300, 152)).toBe(0);
-    expect(drawerHeightForDrag(false, -300, 152)).toBe(152);
+  test('the drawer handle follows the finger inside its target', () => {
+    expect(drawerHandleOffset(-8)).toBe(-8);
+    expect(drawerHandleOffset(9)).toBe(9);
+    expect(drawerHandleOffset(-40)).toBe(-14);
+    expect(drawerHandleOffset(40)).toBe(14);
   });
 
 });

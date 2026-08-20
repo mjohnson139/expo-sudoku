@@ -29,11 +29,6 @@ export const drawerEvent = (dy, threshold = 18) => {
   return null;
 };
 
-/**
- * Height of the pad while the drawer edge is under a finger.
- *
- * A shown pad follows a downward pull; a hidden pad follows an upward pull.
- * Pulling the other way does not stretch it beyond either detent.
- */
-export const drawerHeightForDrag = (shown, dy, height) =>
-  Math.max(0, Math.min(height, shown ? height - dy : -dy));
+/** The handle follows a finger, without wandering out of its 44-point target. */
+export const drawerHandleOffset = (dy, limit = 14) =>
+  Math.max(-limit, Math.min(dy, limit));

@@ -43,7 +43,6 @@ const BUILD_NOTES = {
       'Freeform and older solves keep their existing phase chips, while the flag key and naming sheet are gone',
       'Turn a layer with your finger and the move pad gets out of the way, giving its room back to the cube',
       'The scrubber and move pad are one drawer: its handle stays above the scrubber, so it is easy to grab in either state',
-      'Pull that drawer and its whole edge follows your finger, then finishes opening or closing after you let go past the threshold',
       'Backspace stays on the transport card while the move pad is hidden',
       'A finger turn finishes animating before the move pad slides away, so the cube never changes size mid-turn',
     ]

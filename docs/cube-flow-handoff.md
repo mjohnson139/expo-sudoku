@@ -526,10 +526,9 @@ then prepare the accumulated epic for its final regression and merge.
 
 1. Browser gestures are orbit-only. A browser cannot prove either commit or
    cancellation behaviour; only Expo Go can pass Step 9.
-2. The 44-point handle row is built into the transport card. Tap toggles; the
-   drawer edge follows a vertical drag, then release past 18 points finishes
-   hiding downward or showing upward. It has no directional arrow to compete
-   with the grabber.
+2. The 44-point handle row is built into the transport card. Tap toggles; a
+   downward drag hides and an upward drag shows. It has no directional arrow to
+   compete with the grabber.
 3. Pad visibility is not authored work. Never put it on a solve record.
 4. The handle costs **44 points** in both states; the shown pad costs another
    152 points before any tall-phone legend. Verify measured
