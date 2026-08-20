@@ -1,50 +1,32 @@
 import { railStates } from '../phaseRail';
 
 describe('railStates', () => {
-  it('builds the method stages as open then upcoming before the first move', () => {
-    expect(railStates('roux', [], '')).toEqual([
-      { stage: 'First block', state: 'open', count: 0 },
-      { stage: 'Second block', state: 'upcoming', count: null },
-      { stage: 'CMLL', state: 'upcoming', count: null },
-      { stage: 'LSE', state: 'upcoming', count: null },
-    ]);
+  it('makes only the first stage available on an unmarked completed solve', () => {
+    const states = railStates('roux', [], 'R U F L', 2);
+    expect(states[0]).toMatchObject({ stage: 'First block', state: 'unmarked', available: true });
+    expect(states[1]).toMatchObject({ stage: 'Second block', state: 'unavailable', available: false });
   });
 
-  it('locks marked stages and derives the open count from the algorithm', () => {
-    const phases = [{ at: 0, label: 'First block' }, { at: 2, label: '' }];
-    expect(railStates('roux', phases, "R U R' F2")).toEqual([
-      { stage: 'First block', state: 'locked', count: 2 },
-      { stage: 'Second block', state: 'open', count: 2 },
-      { stage: 'CMLL', state: 'upcoming', count: null },
-      { stage: 'LSE', state: 'upcoming', count: null },
-    ]);
+  it('shows counts, the boundary at the cursor, and valid edits distinctly', () => {
+    const phases = [
+      { at: 0, label: 'First block' },
+      { at: 2, label: 'Second block' },
+      { at: 4, label: '' },
+    ];
+    const states = railStates('roux', phases, 'R U F L B D', 2);
+    expect(states[0]).toMatchObject({ state: 'marked', count: 2, atCursor: true, available: true });
+    expect(states[1]).toMatchObject({ state: 'marked', count: 2, atCursor: false, available: false });
+    expect(states[2]).toMatchObject({ state: 'unavailable', count: null });
   });
 
-  it('opens the next stage at zero as soon as the prior stage locks', () => {
-    const phases = [{ at: 0, label: 'First block' }, { at: 2, label: '' }];
-    const states = railStates('roux', phases, 'R U');
-    expect(states[0]).toEqual({ stage: 'First block', state: 'locked', count: 2 });
-    expect(states[1]).toEqual({ stage: 'Second block', state: 'open', count: 0 });
-  });
-
-  it('only locks stages in method order', () => {
-    const phases = [{ at: 0, label: 'Second block' }, { at: 2, label: '' }];
-    expect(railStates('roux', phases, 'R U')).toEqual([
-      { stage: 'First block', state: 'open', count: 2 },
-      { stage: 'Second block', state: 'upcoming', count: null },
-      { stage: 'CMLL', state: 'upcoming', count: null },
-      { stage: 'LSE', state: 'upcoming', count: null },
-    ]);
-  });
-
-  it('follows a tidied algorithm rather than retaining a running tally', () => {
+  it('follows folded move counts rather than retaining a tally', () => {
     const phases = [{ at: 0, label: 'First block' }, { at: 1, label: '' }];
-    expect(railStates('roux', phases, 'R F F')[1].count).toBe(2);
-    expect(railStates('roux', phases, 'R F2')[1].count).toBe(1);
+    expect(railStates('roux', phases, 'R F F', 2)[0].count).toBe(1);
+    expect(railStates('roux', phases, 'R F2', 2)[0].count).toBe(1);
   });
 
   it('has no rail for legacy, Freeform, or unknown methods', () => {
-    expect(railStates(null, [{ at: 0, label: 'First block' }], 'R')).toEqual([]);
-    expect(railStates('unknown', [], 'R')).toEqual([]);
+    expect(railStates(null, [{ at: 0, label: 'First block' }], 'R', 1)).toEqual([]);
+    expect(railStates('unknown', [], 'R', 1)).toEqual([]);
   });
 });

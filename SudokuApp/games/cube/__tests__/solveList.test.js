@@ -21,6 +21,7 @@ import {
   normalizeName,
   openPhaseStart,
   phaseSpans,
+  placeMethodBoundary,
   removePhase,
   removeSolve,
   renameSolve,
@@ -602,6 +603,61 @@ describe('endPhase', () => {
     expect(endPhase(full, MAX_PHASES + 1, 'One more', MAX_PHASES + 1)).toHaveLength(
       MAX_PHASES
     );
+  });
+});
+
+describe('placeMethodBoundary', () => {
+  const stages = ['First block', 'Second block', 'CMLL', 'LSE'];
+
+  it('annotates a completed solve retrospectively', () => {
+    let phases = placeMethodBoundary([], stages, stages[0], 8, 30);
+    phases = placeMethodBoundary(phases, stages, stages[1], 15, 30);
+    phases = placeMethodBoundary(phases, stages, stages[2], 22, 30);
+    phases = placeMethodBoundary(phases, stages, stages[3], 28, 30);
+    expect(phases).toEqual([
+      { at: 0, label: 'First block' },
+      { at: 8, label: 'Second block' },
+      { at: 15, label: 'CMLL' },
+      { at: 22, label: 'LSE' },
+      { at: 28, label: '' },
+    ]);
+    expect(phaseSpans(phases, 30).map((span) => span.count)).toEqual([8, 7, 7, 6, 2]);
+  });
+
+  it('moves one boundary without shifting later boundaries', () => {
+    const phases = [
+      { at: 0, label: 'First block' },
+      { at: 8, label: 'Second block' },
+      { at: 15, label: 'CMLL' },
+      { at: 22, label: 'LSE' },
+      { at: 28, label: '' },
+    ];
+    expect(placeMethodBoundary(phases, stages, stages[0], 10, 30)).toEqual([
+      { at: 0, label: 'First block' },
+      { at: 10, label: 'Second block' },
+      { at: 15, label: 'CMLL' },
+      { at: 22, label: 'LSE' },
+      { at: 28, label: '' },
+    ]);
+  });
+
+  it('refuses skipped stages and crossings in either direction', () => {
+    expect(placeMethodBoundary([], stages, 'Second block', 8, 30)).toEqual([]);
+    const phases = [
+      { at: 0, label: 'First block' },
+      { at: 8, label: 'Second block' },
+      { at: 15, label: 'CMLL' },
+      { at: 22, label: '' },
+    ];
+    expect(placeMethodBoundary(phases, stages, 'Second block', 8, 30)).toEqual(phases);
+    expect(placeMethodBoundary(phases, stages, 'Second block', 22, 30)).toEqual(phases);
+  });
+
+  it('clamps literal legacy records before refusing to rewrite them', () => {
+    const legacy = [{ at: 40, label: 'old' }, { at: 0, label: 'Custom' }];
+    expect(placeMethodBoundary(legacy, stages, 'First block', 8, 20)).toEqual([
+      { at: 0, label: 'Custom' },
+    ]);
   });
 });
 
