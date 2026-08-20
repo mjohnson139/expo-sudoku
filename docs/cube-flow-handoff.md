@@ -457,6 +457,41 @@ copy to the boundary, and continue; the original card remains complete. No Step
 
 ---
 
+## What landed in Step 8 (still current)
+
+**The scrubber is the method-marker cursor.** Every method stage is now an edit
+control: place the scrubber where that stage ends and tap its pill to create or
+move the boundary. `CubeSolve` passes `player.index` to the pure
+`placeMethodBoundary`; marker arithmetic still never lives in the component.
+The ordinary live path is unchanged in cost because the player stands at the
+algorithm end while moves are being entered.
+
+**Markers remain boundaries, never ranges.** A stage label is stored at its
+span's start and the following marker is its end. Moving First block moves the
+marker carrying Second block, so only those two adjacent counts change; CMLL,
+LSE and every later position remain fixed. A final boundary before the end opens
+an unnamed tail. Edits before a predecessor, across a successor, out of method
+order or against a legacy label are refused by `placeMethodBoundary`.
+
+**The rail has four explicit states to preserve.** A marked pill has its derived
+count; a boundary exactly at `player.index` gains the selected treatment; a
+valid edit position is enabled; and a position that would cross a neighbour is
+dashed, muted and disabled. The accessibility state and hint say the same thing.
+Do not make the component infer validity separately from `railStates`.
+
+**Layout, in points (§8.6).** The rail is still one horizontally scrolling,
+non-wrapping **28-point** row. Step 8 added no row and did not bring back the flag
+key or phase modal, so its cost to the cube versus Step 5 is **0 points**.
+Freeform and legacy solves still use their read-only phase strip.
+
+**Device pass: passed, 2026-08-20** (operator, PR #124 preview). The operator
+reported that it was *"working great"*. This clean pass covers the things the
+browser could not establish: pill target feel, scrubber-to-marker feel, the live
+finger-entry workflow and the small-phone rail/cube layout. No device-only
+finding or follow-up fix was needed.
+
+---
+
 ## Next step — Step 9: swipe mode and an auto-hiding move pad
 
 `docs/cube-flow-plan.md` §3.9 is the brief. After a committed finger turn proves
@@ -526,7 +561,7 @@ notes and prepare `epic/cube-flow` for `main` only after the device pass.
 
 ## Open questions being carried forward
 
-From `docs/cube-flow-plan.md` §6 — none of these block Step 8, and all of them
+From `docs/cube-flow-plan.md` §6 — none of these block Step 9, and all of them
 want a drilling session rather than an opinion:
 
 1. ~~Does the rail want a "no method" option for a scratch attempt?~~
