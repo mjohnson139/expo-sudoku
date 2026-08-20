@@ -458,6 +458,55 @@ export const endPhase = (phases, at, label, count) => {
 };
 
 /**
+ * Create or move the boundary which ends one stage of a named method.
+ *
+ * Method markers keep the same V1 shape: the stage name is stored at the
+ * beginning of its span and the following marker is its ending boundary.  A
+ * move therefore changes only that following marker; later markers retain
+ * both their positions and labels.  Returning the clamped input is a refusal:
+ * stages must be authored in order and every span must contain at least one
+ * move, so a boundary may not cross either neighbour.
+ */
+export const placeMethodBoundary = (phases, stages, stage, at, count) => {
+  const list = clampPhases(phases, count);
+  const total = Number.isInteger(count) && count > 0 ? count : 0;
+  const names = Array.isArray(stages) ? stages.map(normalizeName).filter(Boolean) : [];
+  const stageIndex = names.indexOf(normalizeName(stage));
+  if (stageIndex < 0 || !Number.isInteger(at) || at <= 0 || at > total) return list;
+
+  // Only the consecutive method prefix is editable. This also refuses legacy
+  // or corrupt marker sets instead of silently rewriting their annotations.
+  const named = list.filter((marker) => marker.label.length > 0);
+  let markedCount = 0;
+  while (markedCount < names.length && named[markedCount]?.label === names[markedCount]) {
+    markedCount += 1;
+  }
+  if (named.length > markedCount) return list;
+  if (stageIndex > markedCount) return list;
+
+  const start = stageIndex === 0
+    ? 0
+    : (named[stageIndex]?.at ?? list.find((marker) => marker.label.length === 0)?.at);
+  if (start == null) return list;
+  const oldEnd = stageIndex + 1 < markedCount
+    ? named[stageIndex + 1].at
+    : list.find((marker) => marker.at > start && marker.label.length === 0)?.at;
+  const successor = stageIndex + 2 < markedCount
+    ? named[stageIndex + 2].at
+    : list.find((marker) => marker.at > (oldEnd ?? start) && marker.label.length === 0)?.at;
+  if (at <= start || (successor != null && at >= successor)) return list;
+
+  const withoutOldEnd = oldEnd == null ? list : list.filter((marker) => marker.at !== oldEnd);
+  const startLabel = names[stageIndex];
+  const withStart = withoutOldEnd.filter((marker) => marker.at !== start);
+  withStart.push({ at: start, label: startLabel });
+
+  const endLabel = stageIndex + 1 < markedCount ? names[stageIndex + 1] : '';
+  withStart.push({ at, label: endLabel });
+  return clampPhases(withStart, total);
+};
+
+/**
  * Forget one marker.
  *
  * The two groups either side of it become one, which is what removing a boundary
@@ -925,6 +974,7 @@ export default {
   openPhaseStart,
   isPhaseBoundary,
   endPhase,
+  placeMethodBoundary,
   removePhase,
   phaseSpans,
   currentSpan,

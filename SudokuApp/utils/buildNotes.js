@@ -39,6 +39,7 @@ const BUILD_NOTES = {
       'A card now says when you last wrote to a solve rather than when you started it',
       'Solves written before all this still open, still show their markers, and are not changed by the upgrade',
       'A method solve now shows every stage as a rail: the open stage counts moves live, and tapping it locks that count and opens the next stage',
+      'The rail now follows the scrubber: tap any stage to place or move its ending boundary, including after the solve is complete',
       'Freeform and older solves keep their existing phase chips, while the flag key and naming sheet are gone',
     ]
   },
