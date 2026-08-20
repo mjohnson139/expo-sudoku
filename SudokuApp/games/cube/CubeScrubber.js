@@ -129,44 +129,44 @@ const CubeScrubber = ({
 
       <View style={[styles.card, { backgroundColor: surface, borderColor: border }]}>
         <View style={styles.row}>
-        <Text
-          style={[styles.counter, { color: palette.ink }]}
-          accessibilityLabel={announcePosition(index, count, noun)}
-          numberOfLines={1}
-        >
-          {describePosition(index, count)}
-        </Text>
-
-        <View style={styles.buttons}>
-          {button('jumpStart', startLabel, () => onSeek(0), atStart)}
-          {button('stepPrev', 'Previous move', onStepBack, atStart)}
-          {button(
-            playing ? 'pause' : 'play',
-            playing ? 'Pause' : `Play the ${noun}`,
-            onPlayPause,
-            count === 0,
-            true
-          )}
-          {button('stepNext', 'Next move', onStepForward, atEnd)}
-          {button('jumpEnd', `Jump to the end of the ${noun}`, () => onSeek(count), atEnd)}
-        </View>
-
-        {/* Tap to cycle rather than a slider or a menu: three speeds is a short
-            enough cycle to be worth the one tap. */}
-        <Pressable
-          style={styles.speed}
-          onPress={onCycleSpeed}
-          accessibilityRole="button"
-          accessibilityLabel={`Turn speed, ${describeSpeed(rate)}`}
-          accessibilityHint="Cycles through half, normal and double speed"
-        >
           <Text
-            style={[styles.speedText, { color: rate === 1 ? palette.faint : accent }]}
+            style={[styles.counter, { color: palette.ink }]}
+            accessibilityLabel={announcePosition(index, count, noun)}
             numberOfLines={1}
           >
-            {describeSpeed(rate)}
+            {describePosition(index, count)}
           </Text>
-        </Pressable>
+
+          <View style={styles.buttons}>
+            {button('jumpStart', startLabel, () => onSeek(0), atStart)}
+            {button('stepPrev', 'Previous move', onStepBack, atStart)}
+            {button(
+              playing ? 'pause' : 'play',
+              playing ? 'Pause' : `Play the ${noun}`,
+              onPlayPause,
+              count === 0,
+              true
+            )}
+            {button('stepNext', 'Next move', onStepForward, atEnd)}
+            {button('jumpEnd', `Jump to the end of the ${noun}`, () => onSeek(count), atEnd)}
+          </View>
+
+          {/* Tap to cycle rather than a slider or a menu: three speeds is a short
+              enough cycle to be worth the one tap. */}
+          <Pressable
+            style={styles.speed}
+            onPress={onCycleSpeed}
+            accessibilityRole="button"
+            accessibilityLabel={`Turn speed, ${describeSpeed(rate)}`}
+            accessibilityHint="Cycles through half, normal and double speed"
+          >
+            <Text
+              style={[styles.speedText, { color: rate === 1 ? palette.faint : accent }]}
+              numberOfLines={1}
+            >
+              {describeSpeed(rate)}
+            </Text>
+          </Pressable>
         </View>
       </View>
     </View>
