@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Text, TouchableOpacity, View } from 'react-native';
+import { LayoutAnimation, Platform, Text, TouchableOpacity, UIManager, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
@@ -130,6 +130,26 @@ const CubeSolve = ({ navigation }) => {
   // View state, deliberately. Reopening or cold-starting a solve begins with
   // the full pad; backgrounding the still-mounted screen leaves it as it was.
   const [padShown, setPadShown] = useState(initialPadVisibility);
+  const padShownRef = useRef(initialPadVisibility);
+
+  useEffect(() => {
+    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
+
+  const changePad = useCallback((event) => {
+    const next = reducePadVisibility(padShownRef.current, event);
+    if (next === padShownRef.current) return;
+    padShownRef.current = next;
+    LayoutAnimation.configureNext({
+      duration: 220,
+      update: { type: LayoutAnimation.Types.easeInEaseOut },
+      create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+      delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+    });
+    setPadShown(next);
+  }, []);
 
   /**
    * The key a second tap would promote to a half turn, or null
@@ -328,9 +348,7 @@ const CubeSolve = ({ navigation }) => {
       // This callback is reached only after useCubeTouch has crossed a turn's
       // commit threshold. Orbit and spring-back cancellation never enter it,
       // while playback, seeking and typed input use entirely separate paths.
-      setPadShown((current) =>
-        reducePadVisibility(current, PAD_EVENTS.FINGER_TURN_COMMITTED)
-      );
+      const hidePadAfterTurn = () => changePad(PAD_EVENTS.FINGER_TURN_COMMITTED);
       // **A move that undoes the one just written is a fumble, not notation.**
       // Turning a layer and immediately turning it back is figuring a piece out,
       // so it comes off the solve rather than being kept as `L L'` (operator,
@@ -347,12 +365,13 @@ const CubeSolve = ({ navigation }) => {
       if (cancelInverse(solve, move.token) !== null) {
         handoff(t);
         editOpen((current) => withMoves(current, appendToken(current.alg, move.token)));
-        afterSettle(() =>
+        afterSettle(() => {
           editOpen((current) => {
             const cancelled = cancelTail(current.alg);
             return cancelled !== null ? withMoves(current, cancelled) : {};
-          })
-        );
+          });
+          hidePadAfterTurn();
+        });
         requestAnimationFrame(() => setGestureTurn(null));
         return;
       }
@@ -377,16 +396,19 @@ const CubeSolve = ({ navigation }) => {
       const willFold = condenseRepeat(solve, move.token) !== null;
       editOpen((current) => withMoves(current, appendToken(current.alg, move.token)));
       if (willFold) {
-        afterSettle(() =>
+        afterSettle(() => {
           editOpen((current) => {
             const folded = consolidateTail(current.alg);
             return folded !== null ? withMoves(current, folded) : {};
-          })
-        );
+          });
+          hidePadAfterTurn();
+        });
+      } else {
+        afterSettle(hidePadAfterTurn);
       }
       requestAnimationFrame(() => setGestureTurn(null));
     },
-    [solve, handoff, retract, afterSettle, editOpen]
+    [solve, handoff, afterSettle, editOpen, changePad]
   );
 
   /**
@@ -769,6 +791,9 @@ const CubeSolve = ({ navigation }) => {
           onStepForward={player.stepForward}
           onSeek={seek}
           onCycleSpeed={player.cycleSpeed}
+          padShown={padShown}
+          onShowPad={() => changePad(PAD_EVENTS.SHOW)}
+          onHidePad={() => changePad(PAD_EVENTS.HIDE)}
         />
       )}
 
@@ -813,7 +838,7 @@ const CubeSolve = ({ navigation }) => {
         </>
       ) : (
         <>
-          {padShown ? (
+          {padShown && (
             <>
               <CubeMovePad
                 canUndo={solveCount > 0}
@@ -830,37 +855,6 @@ const CubeSolve = ({ navigation }) => {
                 <CubePadLegend theme={theme} accent={CUBE_ACCENT} />
               )}
             </>
-          ) : (
-            <View style={styles.hiddenPadRow}>
-              <TouchableOpacity
-                style={[styles.hiddenPadButton, { borderColor: border }]}
-                onPress={() =>
-                  setPadShown((current) => reducePadVisibility(current, PAD_EVENTS.SHOW))
-                }
-                accessibilityRole="button"
-                accessibilityLabel="Show move pad"
-                accessibilityHint="Restores the full move pad"
-              >
-                <MaterialCommunityIcons name="dialpad" size={18} color={titleColor} />
-                <Text style={[styles.hiddenPadButtonText, { color: titleColor }]}>Show move pad</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.hiddenPadDelete,
-                  { borderColor: border },
-                  solveCount === 0 && styles.hiddenPadDisabled,
-                ]}
-                onPress={undoMove}
-                disabled={solveCount === 0}
-                accessibilityRole="button"
-                accessibilityLabel="Delete last move"
-                accessibilityHint="Turns the last move backward, then removes it"
-                accessibilityState={{ disabled: solveCount === 0 }}
-              >
-                <MaterialCommunityIcons name="backspace-outline" size={20} color={titleColor} />
-              </TouchableOpacity>
-            </View>
           )}
         </>
       )}

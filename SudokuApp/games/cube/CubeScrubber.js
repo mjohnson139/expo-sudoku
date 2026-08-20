@@ -1,9 +1,10 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ALG_FONT } from './algText';
 import CubeGlyph from './CubeGlyph';
 import { padPalette } from './padPalette';
 import { announcePosition, describePosition, describeSpeed } from './player';
+import { drawerEvent, PAD_EVENTS } from './swipeMode';
 
 /**
  * The transport under the cube (plan §8.8, Step 8).
@@ -47,6 +48,9 @@ const CubeScrubber = ({
   onStepForward,
   onSeek,
   onCycleSpeed,
+  padShown,
+  onShowPad,
+  onHidePad,
 }) => {
   const palette = padPalette(theme, accent);
   const surface = theme.colors.numberPad.background;
@@ -54,6 +58,20 @@ const CubeScrubber = ({
 
   const atStart = index <= 0;
   const atEnd = index >= count;
+
+  const setPadFromEvent = (event) => {
+    if (event === PAD_EVENTS.SHOW) onShowPad?.();
+    if (event === PAD_EVENTS.HIDE) onHidePad?.();
+  };
+
+  const drawerPan = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 4,
+        onPanResponderRelease: (_, gesture) => setPadFromEvent(drawerEvent(gesture.dy)),
+      }),
+    [onShowPad, onHidePad]
+  );
 
   const button = (name, label, onPress, disabled, primary) => (
     <Pressable
@@ -126,6 +144,20 @@ const CubeScrubber = ({
           </Text>
         </Pressable>
       </View>
+      {/* The scrubber is the drawer's fixed edge: it never leaves, so its
+          handle is available in both states without spending another row. */}
+      {typeof padShown === 'boolean' && (
+        <Pressable
+          style={styles.drawerHandleTarget}
+          onPress={padShown ? onHidePad : onShowPad}
+          accessibilityRole="button"
+          accessibilityLabel={padShown ? 'Hide move pad' : 'Show move pad'}
+          accessibilityHint={padShown ? 'Swipe down to hide the move pad' : 'Swipe up to show the move pad'}
+          {...drawerPan.panHandlers}
+        >
+          <View style={[styles.drawerHandle, { backgroundColor: palette.faint }]} />
+        </Pressable>
+      )}
     </View>
   );
 };
@@ -145,6 +177,7 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderWidth: 1,
     borderRadius: 12,
+    position: 'relative',
   },
   row: {
     flexDirection: 'row',
@@ -208,6 +241,21 @@ const styles = StyleSheet.create({
     fontFamily: ALG_FONT,
     fontSize: 12,
     fontWeight: '600',
+  },
+  drawerHandleTarget: {
+    position: 'absolute',
+    bottom: 0,
+    left: '50%',
+    width: 54,
+    height: 18,
+    marginLeft: -27,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  drawerHandle: {
+    width: 34,
+    height: 4,
+    borderRadius: 2,
   },
 });
 

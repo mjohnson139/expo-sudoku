@@ -42,7 +42,8 @@ const BUILD_NOTES = {
       'The rail now follows the scrubber: tap any stage to place or move its ending boundary, including after the solve is complete',
       'Freeform and older solves keep their existing phase chips, while the flag key and naming sheet are gone',
       'Turn a layer with your finger and the move pad gets out of the way, giving its room back to the cube',
-      'Show move pad brings every key back in one tap, and Backspace stays beside it while the pad is hidden',
+      'The scrubber has a small drawer handle: pull down to hide the move pad and pull up to bring every key back',
+      'A finger turn finishes animating before the move pad slides away, so the cube never changes size mid-turn',
     ]
   },
   '3.1.0': {

@@ -10,6 +10,7 @@
 export const PAD_EVENTS = Object.freeze({
   FINGER_TURN_COMMITTED: 'finger-turn-committed',
   SHOW: 'show',
+  HIDE: 'hide',
 });
 
 export const initialPadVisibility = true;
@@ -17,6 +18,13 @@ export const initialPadVisibility = true;
 export const reducePadVisibility = (shown, event) => {
   if (event === PAD_EVENTS.FINGER_TURN_COMMITTED) return false;
   if (event === PAD_EVENTS.SHOW) return true;
+  if (event === PAD_EVENTS.HIDE) return false;
   return shown;
 };
 
+/** Turn a vertical handle drag into an action, ignoring incidental movement. */
+export const drawerEvent = (dy, threshold = 18) => {
+  if (dy <= -threshold) return PAD_EVENTS.SHOW;
+  if (dy >= threshold) return PAD_EVENTS.HIDE;
+  return null;
+};

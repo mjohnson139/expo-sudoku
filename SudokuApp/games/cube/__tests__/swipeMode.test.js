@@ -1,6 +1,7 @@
 import {
   PAD_EVENTS,
   initialPadVisibility,
+  drawerEvent,
   reducePadVisibility,
 } from '../swipeMode';
 
@@ -21,5 +22,10 @@ describe('move pad visibility', () => {
   test('manual show is the escape from the hidden state', () => {
     expect(reducePadVisibility(false, PAD_EVENTS.SHOW)).toBe(true);
   });
-});
 
+  test('the scrubber handle opens up and closes down', () => {
+    expect(drawerEvent(-24)).toBe(PAD_EVENTS.SHOW);
+    expect(drawerEvent(24)).toBe(PAD_EVENTS.HIDE);
+    expect(drawerEvent(8)).toBeNull();
+  });
+});
