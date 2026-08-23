@@ -4,7 +4,7 @@
 const BUILD_NOTES = {
   '3.2.0': {
     title: 'Cube Flow — the scramble is home',
-    date: '2026-08-16',
+    date: '2026-08-23',
     notes: [
       'The app moves between screens on a real navigator now, which is what lets a solve become a screen of its own',
       'Android\'s back button leaves a game and returns to the hub',
