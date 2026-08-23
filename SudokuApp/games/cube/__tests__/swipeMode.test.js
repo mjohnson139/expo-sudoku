@@ -11,13 +11,21 @@ describe('move pad visibility', () => {
     expect(initialPadVisibility).toBe(true);
   });
 
-  test('only a committed finger turn auto-hides the pad', () => {
-    const excluded = ['orbit', 'turn-cancelled', 'playback', 'seek', 'typed-algorithm'];
+  test('writing and transport events never change pad visibility', () => {
+    const events = [
+      'finger-turn-committed',
+      'pad-move',
+      'orbit',
+      'turn-cancelled',
+      'playback',
+      'seek',
+      'typed-algorithm',
+    ];
 
-    excluded.forEach((event) => {
+    events.forEach((event) => {
       expect(reducePadVisibility(true, event)).toBe(true);
+      expect(reducePadVisibility(false, event)).toBe(false);
     });
-    expect(reducePadVisibility(true, PAD_EVENTS.FINGER_TURN_COMMITTED)).toBe(false);
   });
 
   test('manual show is the escape from the hidden state', () => {

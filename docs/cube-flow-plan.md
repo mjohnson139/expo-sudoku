@@ -140,7 +140,7 @@ everyone.
 | 6 | Undo and redo | **dropped after device testing; PR #119 closed unmerged** |
 | 7 | Variations per phase | **dropped after device testing; PR #121 closed unmerged — duplicate a solve instead** |
 | 8 | Fix the method rail | place and move stage boundaries at the scrubber position; includes the shown-pad layout budget |
-| 9 | Swipe mode — hide the move pad | auto-hide after a committed finger turn, an unambiguous way back, and the hidden-pad budget — *added by 3.5* |
+| 9 | Swipe mode — hide the move pad | a manual scrubber drawer, an unambiguous way back, and the hidden-pad budget — *added by 3.5* |
 
 ### 3.1 Step 1 — put the app on a real stack
 
@@ -857,17 +857,17 @@ That retires the phone-only questions for pill targets, scrubber-to-marker feel,
 finger-entered live marking and the small-phone layout; Freeform and legacy
 phase strips remain read-only, and neither the flag key nor a modal returned.
 
-### 3.9 Step 9 — swipe mode: auto-hide the move pad
+### 3.9 Step 9 — swipe mode: manually hide the move pad
 
 **Added by Step 3.5, and the concrete answer to V1's open question 13.** Once a
 finger can write every layer, every wide and the facing face (§3.3d), the 152pt
-move pad can leave when the operator demonstrates they are using the cube.
+move pad can leave when the operator asks it to.
 
-- **Start with auto-hide, but never trap the operator.** The first *committed
-  finger turn* hides the move pad. An orbit, a turn that springs back, playback,
-  a scrubber seek and a typed/pasted algorithm do not. A persistent, explicit
-  **Show move pad** control appears in the hidden state and restores it in one
-  tap. Device testing decides whether auto-hide survives or becomes manual-only.
+- **Manual only.** Device testing rejected automatic hiding: writing a move must
+  never change the surrounding layout. The transport card carries a persistent
+  drawer handle; tap it or pull down to hide and up to show. It remains visible
+  in both states, and its accessibility copy says **Hide move pad** or **Show
+  move pad** explicitly.
 - **Call it the move pad, not the keyboard.** The pad already has a keyboard icon
   whose established meaning is **Type an algorithm** (`CubeMovePad.js`). That
   icon cannot also mean hide/show. Audit the icon and label together: the new
@@ -879,23 +879,20 @@ move pad can leave when the operator demonstrates they are using the cube.
   a compact off-pad home only while hidden and calls the exact existing path.
   Showing the pad restores `x`/`y`/`z`, typed algorithms and any wide turn a
   finger cannot reach.
-- **Persistence is a product question this step must settle.** Auto-hide itself
-  is evidence from the current interaction, not necessarily a remembered
-  preference. Test both: returning to the solve with the pad still hidden versus
-  starting shown on each visit. Persist only if the device flow is less
-  surprising, through one shape-migrated `preferences` slice rather than an
-  authored solve field.
+- **Visibility is local view state.** Background/resume preserves the mounted
+  screen, while reopening a solve or cold-starting begins shown. It is not an
+  authored solve field and does not open a preferences store.
 - **Budget both states.** Reuse Step 8's three viewports. Record the pad-shown
   baseline and the pad-hidden result (nominally −152pt plus the legend), prove the
   page does not scroll, and prove the cube receives the recovered room.
 
-**Tests:** pin the pure auto-hide event rule (only a committed finger turn), the
-show action, whichever persistence decision the device pass takes, and that the
-hidden Backspace control invokes the existing handler. The browser can verify
-layout and labels but not gesture entry; the auto-hide decision requires a phone.
+**Tests:** pin manual show/hide, the drag threshold, that writing and transport
+events never change visibility, and that the hidden Backspace control invokes
+the existing handler. The browser can verify layout and labels; drawer feel
+requires a phone.
 
-**Operator tests:** commit the first finger turn and see the pad hide; cancel a
-turn and orbit without hiding it; show the pad in one obvious tap; distinguish
+**Operator tests:** write finger and pad moves and see the pad remain; hide and
+show it by tap and pull; distinguish
 Show/Hide move pad from Type an algorithm without explanation; type an algorithm,
 use `x`/`y`/`z`, Backspace in both states, background/resume, cold-start, and
 compare cube sizes at all three reference viewports.
@@ -1028,11 +1025,9 @@ compare cube sizes at all three reference viewports.
 9. ~~**Should folds and cancels be undoable?**~~ **Closed with Step 6.** There is
    no history ring. Folds remain settled storage tidies; an immediate inverse
    remains a fumble that disappears. Backspace removes the last stored move.
-10. **Does auto-hide survive the Step 9 device pass?** The first implementation
-    hides the move pad only after a committed finger turn and always draws an
-    explicit Show move pad control. A cancel or orbit never hides it. If that
-    still surprises in the hand, Step 9 falls back to manual hide/show rather
-    than weakening the escape path.
+10. ~~**Does auto-hide survive the Step 9 device pass?**~~ **No** (operator,
+    2026-08-23). The move pad is a manual drawer. Writing a move never hides it;
+    tap or pull the persistent transport-card handle to hide or show it.
 11. ~~**Is the method tag worth 34 points of the solve header at 320?**~~
     **Answered: yes for Step 4** (operator, device pass 2026-08-19). The narrow
     title and subtitle were acceptable in the hand. It remains a stopgap by

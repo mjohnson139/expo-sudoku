@@ -345,10 +345,6 @@ const CubeSolve = ({ navigation }) => {
    */
   const commitTurn = useCallback(
     (move, t) => {
-      // This callback is reached only after useCubeTouch has crossed a turn's
-      // commit threshold. Orbit and spring-back cancellation never enter it,
-      // while playback, seeking and typed input use entirely separate paths.
-      const hidePadAfterTurn = () => changePad(PAD_EVENTS.FINGER_TURN_COMMITTED);
       // **A move that undoes the one just written is a fumble, not notation.**
       // Turning a layer and immediately turning it back is figuring a piece out,
       // so it comes off the solve rather than being kept as `L L'` (operator,
@@ -370,7 +366,6 @@ const CubeSolve = ({ navigation }) => {
             const cancelled = cancelTail(current.alg);
             return cancelled !== null ? withMoves(current, cancelled) : {};
           });
-          hidePadAfterTurn();
         });
         requestAnimationFrame(() => setGestureTurn(null));
         return;
@@ -401,14 +396,11 @@ const CubeSolve = ({ navigation }) => {
             const folded = consolidateTail(current.alg);
             return folded !== null ? withMoves(current, folded) : {};
           });
-          hidePadAfterTurn();
         });
-      } else {
-        afterSettle(hidePadAfterTurn);
       }
       requestAnimationFrame(() => setGestureTurn(null));
     },
-    [solve, handoff, afterSettle, editOpen, changePad]
+    [solve, handoff, afterSettle, editOpen]
   );
 
   /**

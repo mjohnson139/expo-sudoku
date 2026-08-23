@@ -41,10 +41,9 @@ const BUILD_NOTES = {
       'A method solve now shows every stage as a rail: the open stage counts moves live, and tapping it locks that count and opens the next stage',
       'The rail now follows the scrubber: tap any stage to place or move its ending boundary, including after the solve is complete',
       'Freeform and older solves keep their existing phase chips, while the flag key and naming sheet are gone',
-      'Turn a layer with your finger and the move pad gets out of the way, giving its room back to the cube',
       'The scrubber and move pad are one drawer: its handle stays above the scrubber, so it is easy to grab in either state',
       'Backspace stays on the transport card while the move pad is hidden',
-      'A finger turn finishes animating before the move pad slides away, so the cube never changes size mid-turn',
+      'The drawer never hides itself while you write: tap or pull its handle when you want more room for the cube',
     ]
   },
   '3.1.0': {

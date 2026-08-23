@@ -501,9 +501,8 @@ then prepare the accumulated epic for its final regression and merge.
 
 ### Scope
 
-- Device-test Step 9's settled-turn auto-hide, transport-card drawer handle and both
-  layout states. If auto-hide surprises in the hand, change it
-  to manual-only rather than weakening the escape.
+- Device-test Step 9's manual transport-card drawer handle and both layout
+  states. Writing a move must never hide the pad.
 - Settle the persistence decision. The implementation deliberately treats pad
   visibility as local view state: background/resume keeps it, while reopening a
   solve and a cold start begin shown. Persist it only if the device evidence is
@@ -538,9 +537,8 @@ then prepare the accumulated epic for its final regression and merge.
 
 ### What must be visible in Expo Go
 
-With the pad initially shown, orbit and cancel without hiding it, then commit a
-finger turn and see the pad leave. The cube must gain the recovered room without
-jumping transport position or orientation. Tap or pull the handle in the
+With the pad initially shown, orbit, cancel and commit finger turns without
+hiding it. Tap or pull the handle in the
 transport card up to show the pad and down to hide it; type an algorithm and use
 Backspace in both states.
 Verify route round trips, background/resume and
@@ -552,7 +550,7 @@ rail editing, Compare and persistence. Smoke-test Sudoku and Fungiku.
 - `npm test` from `SudokuApp/`.
 - Browser screenshots and measurements for shown and hidden states at 320×568,
   375×667 and 393×852, including horizontal and page-overflow checks.
-- An Expo Go device pass for commit versus cancel, discoverability, Backspace,
+- An Expo Go device pass for manual drawer feel, discoverability, Backspace,
   transition feel, persistence and the small-phone layout.
 - A final device regression of the accumulated epic before opening its PR to
   `main`. Record which findings came from a device.
@@ -598,9 +596,8 @@ want a drilling session rather than an opinion:
 9. ~~**Should a fold or cancel be undoable?**~~ **Closed with dropped Step 6.**
    There is no history ring. Folds tidy after settle, immediate inverses disappear,
    and Backspace removes the last stored move.
-10. **Does auto-hide survive Step 9's device pass?** Start by hiding only after a
-    committed finger turn, never an orbit or cancel, and always show an explicit escape.
-    Fall back to manual-only if that is still surprising.
+10. ~~**Does auto-hide survive Step 9's device pass?**~~ **No** (operator,
+    2026-08-23). The drawer is manual-only; writing a move never hides it.
 11. ~~**Is the method tag worth 34 points of the solve header at 320?**~~
     **Answered: yes for Step 4** (operator, device pass 2026-08-19). The narrow
     title and subtitle were acceptable in the hand. It remains a stopgap:
