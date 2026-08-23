@@ -438,10 +438,10 @@ displaced the keyboard. Persisting only the session moves the same boundary
 across cold start, while persisting complete authored history cannot migrate old
 flat algorithms honestly.
 
-**Settled replacement:** Backspace stays, with its existing `retract` animation,
-`withMoves` marker clamping and held repeat. The retired flag cell stays empty.
-Step 9 gives Backspace an off-pad home only while the pad is hidden, beginning with a
-compact control right-aligned above the scrubber.
+**Settled replacement:** Backspace keeps its existing `retract` animation and
+`withMoves` marker clamping. It stays on the move pad while shown and gets a
+compact button in the transport card while hidden; both call the same path. The
+retired flag cell stays empty.
 
 ---
 
@@ -492,72 +492,70 @@ finding or follow-up fix was needed.
 
 ---
 
-## Next step — Step 9: swipe mode and an auto-hiding move pad
+## Next step — Cube Flow epic closeout
 
-`docs/cube-flow-plan.md` §3.9 is the brief. After a committed finger turn proves
-the operator is using the cube directly, hide the 152-point move pad and return
-that room to the cube without hiding authored work or trapping the operator.
+Step 9 passed its iterative device review and merged to `epic/cube-flow` on
+2026-08-23 as PR #125. All planned delivery steps are now closed. Prepare the
+accumulated epic for its final regression and merge to `main`.
 
 ### Scope
 
-- Hide the pad after the first **committed finger turn** only. Orbiting, cancelled
-  turns, playback, scrubber seeks and typed/pasted algorithms do not trigger it.
-- Keep the move track, editable rail, cube and scrubber. Add an explicit **Show
-  move pad** control and compact off-pad Backspace using the existing delete path.
-- Do not overload the keyboard icon: it already means **Type an algorithm**. Use
-  a distinct icon and explicit accessibility copy for pad visibility.
-- Decide on-device whether hidden state survives reopening a solve. If persisted,
-  use one migrated `preferences` slice, never a solve field.
-- Measure shown and hidden states at 320×568, 375×667 and 393×852. The cube is
-  sized first and the page never scrolls.
+- Run the complete Cube Flow regression before proposing `epic/cube-flow` to
+  `main`. Resolve every remaining open question below or carry it explicitly;
+  do not invent another delivery feature during closeout.
+- Confirm the 3.2.0 build notes and app version, and account for the outstanding
+  preview/production native rebuild required by Step 1's navigator dependency.
+- Open the epic PR from `epic/cube-flow` to `main` only after the accumulated
+  device regression passes.
 
 ### Files to read first
 
-- `games/cube/CubeSolve.js`, `CubeMovePad.js` and `cubeChrome.js` — the current
-  pad, typing and Backspace paths and the solve-screen budget.
-- `games/cube/useTouchTurn.js` and the gesture commit path in `CubeSolve.js` —
-  distinguish authored finger turns from orbit and cancellation.
-- `games/cube/useCubeStage.js` — stage measurement and its binding dimension.
-- `docs/cube-flow-plan.md` §3.9 and `docs/cube-plan.md` §8.6.
+- This handoff and `docs/cube-flow-plan.md`, especially §§3.9, 5 and 6.
+- `games/cube/CubeSolve.js`, `swipeMode.js`, `CubeMovePad.js`,
+  `useCubeTouch.js`, and `useCubeStage.js` for Step 9.
+- `.github/dev-process.md` and the landed notes for Steps 1–8 before the final
+  regression.
 
 ### Easy to get wrong
 
-1. Auto-hide follows the committed gesture callback, never finger-down or a
-   pending gesture; a cancelled fold leaves the pad shown.
-2. Showing the pad is one obvious tap. Never rely on an invisible gesture or the
-   existing Type an algorithm key.
-3. Backspace retains its retract animation, whole-token deletion and marker
-   clamping. Do not create a second deletion path.
-4. Visibility may remeasure the stage, but must not disturb player position,
-   orientation, markers, the algorithm or promotion state.
-5. Accessibility must say **Show move pad** or **Delete last move**; icon-only
-   ambiguity is a regression.
-6. Browser input cannot validate the primary finger-turn trigger. It needs Expo Go.
+1. Browser gestures are orbit-only. A browser cannot prove either commit or
+   cancellation behaviour; only Expo Go can pass Step 9.
+2. The 44-point handle row is built into the transport card. Tap toggles; a
+   downward drag hides and an upward drag shows. It has no directional arrow to
+   compete with the grabber.
+3. Pad visibility is not authored work. Never put it on a solve record.
+4. The handle costs **44 points** in both states; the shown pad costs another
+   152 points before any tall-phone legend. Verify measured
+   device sizes rather than treating that arithmetic as a result.
+5. Regression means Sudoku and Fungiku too. This epic's few sanctioned shared
+   edits must not change either game's navigation, resume or layout behaviour.
 
 ### What must be visible in Expo Go
 
-Start with the pad shown. Orbit and cancel a turn and see it remain. Commit a
-finger turn and see the pad leave, the cube gain room, and obvious Show move pad
-and Backspace controls remain. Show it in one tap; type an algorithm and confirm
-that route does not hide it. Verify Backspace in both states, then route round
-trips, background/resume and cold-start to judge the persistence rule. Check the
-small-phone cube and targets in both states.
+With the pad initially shown, orbit, cancel and commit finger turns without
+hiding it. Tap or pull the handle in the
+transport card up to show the pad and down to hide it; type an algorithm and use
+Backspace in both states.
+Verify route round trips, background/resume and
+a cold start, then run the full cube flow from scramble cards through methods,
+rail editing, Compare and persistence. Smoke-test Sudoku and Fungiku.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/`, including pure trigger/exclusion/manual-show tests,
-  Backspace reuse and any preferences migration.
-- In a browser, exercise both layouts, Type an algorithm, Backspace, route round
-  trips and reload; measure and photograph both states at all three viewports and
-  check horizontal and page overflow.
-- Require a device pass for committed versus cancelled finger turns, the escape,
-  Backspace reach, transition feel and small-phone layout. Record device findings.
+- `npm test` from `SudokuApp/`.
+- Browser screenshots and measurements for shown and hidden states at 320×568,
+  375×667 and 393×852, including horizontal and page-overflow checks.
+- An Expo Go device pass for manual drawer feel, discoverability, Backspace,
+  transition feel, persistence and the small-phone layout.
+- A final device regression of the accumulated epic before opening its PR to
+  `main`. Record which findings came from a device.
 
 ### Then rewrite this file
 
-Step 9 is the final planned delivery. Rewrite this as the epic closeout brief:
-run the full regression, resolve or carry every open question, update landed
-notes and prepare `epic/cube-flow` for `main` only after the device pass.
+Once the device pass and final regression are complete, replace this handoff
+with a closed-epic record: merged PRs, final test evidence, resolved/carried open
+questions, release/build notes, and the exact operational steps needed to merge
+`epic/cube-flow` to `main` and rebuild channels if still outstanding.
 
 ## Open questions being carried forward
 
@@ -593,9 +591,8 @@ want a drilling session rather than an opinion:
 9. ~~**Should a fold or cancel be undoable?**~~ **Closed with dropped Step 6.**
    There is no history ring. Folds tidy after settle, immediate inverses disappear,
    and Backspace removes the last stored move.
-10. **Does auto-hide survive Step 9's device pass?** Start by hiding only after a
-    committed finger turn, never an orbit or cancel, and always show an explicit escape.
-    Fall back to manual-only if that is still surprising.
+10. ~~**Does auto-hide survive Step 9's device pass?**~~ **No** (operator,
+    2026-08-23). The drawer is manual-only; writing a move never hides it.
 11. ~~**Is the method tag worth 34 points of the solve header at 320?**~~
     **Answered: yes for Step 4** (operator, device pass 2026-08-19). The narrow
     title and subtitle were acceptable in the hand. It remains a stopgap:

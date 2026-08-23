@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Text, TouchableOpacity, View } from 'react-native';
+import { LayoutAnimation, Platform, Text, TouchableOpacity, UIManager, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
@@ -47,6 +47,11 @@ import useCubeStage from './useCubeStage';
 import { CUBE_ACCENT, headerAction, styles } from './cubeChrome';
 import { useCube, useReportsSolveRoute } from './CubeContext';
 import { mix } from '../../utils/color';
+import {
+  PAD_EVENTS,
+  initialPadVisibility,
+  reducePadVisibility,
+} from './swipeMode';
 
 /** The markers of a solve that is not there. A shared constant rather than a
  *  fresh `[]`, so the memos reading it are not rebuilt on every render. */
@@ -122,6 +127,29 @@ const CubeSolve = ({ navigation }) => {
 
   const [showCompare, setShowCompare] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
+  // View state, deliberately. Reopening or cold-starting a solve begins with
+  // the full pad; backgrounding the still-mounted screen leaves it as it was.
+  const [padShown, setPadShown] = useState(initialPadVisibility);
+  const padShownRef = useRef(initialPadVisibility);
+
+  useEffect(() => {
+    if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+      UIManager.setLayoutAnimationEnabledExperimental(true);
+    }
+  }, []);
+
+  const changePad = useCallback((event) => {
+    const next = reducePadVisibility(padShownRef.current, event);
+    if (next === padShownRef.current) return;
+    padShownRef.current = next;
+    LayoutAnimation.configureNext({
+      duration: 220,
+      update: { type: LayoutAnimation.Types.easeInEaseOut },
+      create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+      delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+    });
+    setPadShown(next);
+  }, []);
 
   /**
    * The key a second tap would promote to a half turn, or null
@@ -333,12 +361,12 @@ const CubeSolve = ({ navigation }) => {
       if (cancelInverse(solve, move.token) !== null) {
         handoff(t);
         editOpen((current) => withMoves(current, appendToken(current.alg, move.token)));
-        afterSettle(() =>
+        afterSettle(() => {
           editOpen((current) => {
             const cancelled = cancelTail(current.alg);
             return cancelled !== null ? withMoves(current, cancelled) : {};
-          })
-        );
+          });
+        });
         requestAnimationFrame(() => setGestureTurn(null));
         return;
       }
@@ -363,16 +391,16 @@ const CubeSolve = ({ navigation }) => {
       const willFold = condenseRepeat(solve, move.token) !== null;
       editOpen((current) => withMoves(current, appendToken(current.alg, move.token)));
       if (willFold) {
-        afterSettle(() =>
+        afterSettle(() => {
           editOpen((current) => {
             const folded = consolidateTail(current.alg);
             return folded !== null ? withMoves(current, folded) : {};
-          })
-        );
+          });
+        });
       }
       requestAnimationFrame(() => setGestureTurn(null));
     },
-    [solve, handoff, retract, afterSettle, editOpen]
+    [solve, handoff, afterSettle, editOpen]
   );
 
   /**
@@ -755,6 +783,11 @@ const CubeSolve = ({ navigation }) => {
           onStepForward={player.stepForward}
           onSeek={seek}
           onCycleSpeed={player.cycleSpeed}
+          padShown={padShown}
+          onShowPad={() => changePad(PAD_EVENTS.SHOW)}
+          onHidePad={() => changePad(PAD_EVENTS.HIDE)}
+          canDelete={solveCount > 0}
+          onDelete={undoMove}
         />
       )}
 
@@ -799,19 +832,23 @@ const CubeSolve = ({ navigation }) => {
         </>
       ) : (
         <>
-          <CubeMovePad
-            canUndo={solveCount > 0}
-            promoteKey={promoteKey}
-            primed={primed}
-            accent={CUBE_ACCENT}
-            theme={theme}
-            onKey={tapKey}
-            onPrime={tapPrime}
-            onUndo={undoMove}
-            onType={() => setShowTyping(true)}
-          />
-          {windowHeight >= LEGEND_MIN_HEIGHT && (
-            <CubePadLegend theme={theme} accent={CUBE_ACCENT} />
+          {padShown && (
+            <>
+              <CubeMovePad
+                canUndo={solveCount > 0}
+                promoteKey={promoteKey}
+                primed={primed}
+                accent={CUBE_ACCENT}
+                theme={theme}
+                onKey={tapKey}
+                onPrime={tapPrime}
+                onUndo={undoMove}
+                onType={() => setShowTyping(true)}
+              />
+              {windowHeight >= LEGEND_MIN_HEIGHT && (
+                <CubePadLegend theme={theme} accent={CUBE_ACCENT} />
+              )}
+            </>
           )}
         </>
       )}
