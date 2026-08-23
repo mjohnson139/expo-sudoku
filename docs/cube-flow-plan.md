@@ -897,6 +897,21 @@ Show/Hide move pad from Type an algorithm without explanation; type an algorithm
 use `x`/`y`/`z`, Backspace in both states, background/resume, cold-start, and
 compare cube sizes at all three reference viewports.
 
+**Landed 2026-08-23** (PR #125, merged to `epic/cube-flow`). The move pad is a
+manual drawer attached to the transport card. Its persistent 44-point handle
+toggles on tap and accepts an upward/downward pull; while hidden, compact
+Backspace calls the existing retract-and-delete path. Visibility is local view
+state: background/resume keeps it, while reopening a solve starts shown.
+
+The device pass took several rounds and changed the brief materially. Automatic
+hiding after a committed finger turn was rejected: writing a move now never
+changes the layout. A handle floating above the transport was hard to read as
+belonging to the pad, and nesting the drag responder directly with its Pressable
+lost drags on iOS. The landed handle lives inside the transport card; its wrapper
+captures only after vertical movement so tapping remains a real Pressable action.
+A full-pad-edge tracking experiment made the drawer feel constrained and was
+reverted in full. The final operator closeout accepted the simpler manual drawer.
+
 ## 4. What this epic does not do
 
 - **Algorithm tagging.** The design draws it and labels it *future*. It needs the

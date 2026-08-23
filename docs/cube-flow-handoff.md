@@ -494,24 +494,19 @@ finding or follow-up fix was needed.
 
 ## Next step — Cube Flow epic closeout
 
-Step 9 is the final planned delivery. **Do not merge the epic to `main` until
-Step 9 has passed on a device.** Begin with the `feature/cube-flow-step-9`
-preview and close that delivery step through the normal device-pass process;
-then prepare the accumulated epic for its final regression and merge.
+Step 9 passed its iterative device review and merged to `epic/cube-flow` on
+2026-08-23 as PR #125. All planned delivery steps are now closed. Prepare the
+accumulated epic for its final regression and merge to `main`.
 
 ### Scope
 
-- Device-test Step 9's manual transport-card drawer handle and both layout
-  states. Writing a move must never hide the pad.
-- Settle the persistence decision. The implementation deliberately treats pad
-  visibility as local view state: background/resume keeps it, while reopening a
-  solve and a cold start begin shown. Persist it only if the device evidence is
-  clearly better, through one migrated `preferences` slice rather than a solve.
-- Close Step 9's PR into `epic/cube-flow`, record its landed note in
-  `docs/cube-flow-plan.md`, and update issue #107.
 - Run the complete Cube Flow regression before proposing `epic/cube-flow` to
   `main`. Resolve every remaining open question below or carry it explicitly;
   do not invent another delivery feature during closeout.
+- Confirm the 3.2.0 build notes and app version, and account for the outstanding
+  preview/production native rebuild required by Step 1's navigator dependency.
+- Open the epic PR from `epic/cube-flow` to `main` only after the accumulated
+  device regression passes.
 
 ### Files to read first
 
