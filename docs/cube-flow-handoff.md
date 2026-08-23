@@ -1,31 +1,48 @@
-# Cube Flow — next-step handoff
+# Cube Flow — the epic is closed
 
-**If you are a session picking up Cube Flow work: this file is your entry point.
-Read it first, then do the step described under "Next step" below.**
+**This epic shipped on 2026-08-23 and there is no next step.** All nine delivery
+steps landed (two more were dropped after device testing), `epic/cube-flow`
+merged to `main`, and the release is **3.2.0**.
 
-It always describes **exactly one step — the next one**. It is rewritten at the
-end of every step so the following session can start from a one-line prompt.
+> **If you are a session picking up cube work, read
+> `docs/cube-methods-handoff.md` instead.** Cube work continues in a third epic,
+> **Cube Methods & Algorithms**, which builds the content the stages this epic
+> created are made of: one shared algorithm library, user-definable methods, and
+> a journey through them. Its plan is `docs/cube-methods-plan.md` and its
+> tracker is issue **#126**.
 
-## The one-line prompt that starts a session
+This file is a **record** now rather than a brief, and it is still the fastest
+way to understand the code this epic left behind: what each step landed, what the
+device found that the browser could not, the golden rules, and the open questions
+that were never closed. Read it before editing anything under `games/cube/`.
 
-```
-Work in mjohnson139/expo-sudoku. Continue the Cube Flow epic: check out
-epic/cube-flow, read docs/cube-flow-handoff.md and do the next step it describes.
-```
+## What closed the epic
 
-Nothing else needs to be pasted.
+- **Step 9** (the manual move-pad drawer) passed its device review and merged to
+  `epic/cube-flow` on 2026-08-23 as PR #125, the last of the delivery steps.
+- **The accumulated epic was regressed on a device by the operator**
+  (2026-08-23) — the whole flow end to end on the epic branch's Expo Go build,
+  with nothing reported. That is the pass this merge stands on, and it is the
+  only kind of evidence that could have settled it: this epic shipped one bug
+  that was invisible in a browser and one input path (finger turns) that a
+  browser cannot exercise at all.
+- **`npm test`: 1160 tests in 31 suites, green**, on `ab37625`.
+- `epic/cube-flow` → `main` as the epic PR. The branch is done; nothing else
+  should be based on it.
 
-## Before you finish: rewrite this file
+### The one thing still owed after the merge
 
-**This is part of every step's definition of done.** Before you open your PR,
-replace the "Next step" section with a brief for the step *after* yours, at the
-same level of detail — scope, the files to read, the behaviours that are easy to
-get wrong, what must be visible in Expo Go, and how to verify. Carry the open
-questions forward.
+**The standalone `preview` and `production` binaries must be rebuilt.** Step 1
+added `react-native-screens`, an EAS Update cannot ship native code, and
+`app.json` pins `runtimeVersion.policy: "sdkVersion"` — so an old binary does not
+fail, it **silently keeps serving the old bundle**. This was written down in the
+plan at Step 1 (§2, *what react-navigation costs*) precisely because nothing
+breaks loudly when it is forgotten. Expo Go and the EAS Update channels are
+unaffected.
 
 ---
 
-## Standing context (true for every step)
+## Standing context (still true for anything that touches the cube)
 
 - **Repo:** `mjohnson139/expo-sudoku`. App code is in **`SudokuApp/`**
   (Expo · React Native · JavaScript).
@@ -41,7 +58,8 @@ questions forward.
 - **The design:** `Cube Flow.dc.html` in the Claude Design project
   `2acc14f2-7f7e-434f-a29d-e0fe29fa876a`, settled 2026-08-16. That project's
   `design-decisions.md` has the settled summary in prose.
-- **Tracker:** GitHub issue **#107**. Tick your step's checkboxes as you go.
+- **Tracker:** GitHub issue **#107** — closed with the epic, and the place its
+  step-by-step history is reconstructable from.
 - **Process:** `.github/dev-process.md` — one delivery step per branch, commit
   after each step, **open the PR as soon as the step is pushed**, and **prompt
   the operator to test after each step.** The PR is what triggers the automatic
@@ -49,25 +67,29 @@ questions forward.
   `pr-<N>` and comments the QR code, and that build is what the operator tests.
   Holding the PR back leaves them nothing to open.
 
-### Branching
+### Branching — **the epic branch is done**
+
+The flow was rebuilt on an epic branch so `main` never carried a half-rebuilt
+screen:
 
 ```
-main ─── epic/cube-flow ─── feature/cube-flow-<step>   (PRs target epic/cube-flow)
+main ─── epic/cube-flow ─── feature/cube-flow-<step>   (PRs targeted epic/cube-flow)
 ```
 
-Branch from **`epic/cube-flow`** and open your PR **against** it. The epic merges
-to `main` once the flow is worth shipping, so `main` never carries a half-rebuilt
-screen.
+`epic/cube-flow` merged to `main` on 2026-08-23 and **nothing new should be
+branched from it.** Cube work branches from `epic/cube-methods` (see
+`docs/cube-methods-handoff.md`); anything else branches from `main`.
 
-`epic/cube-flow` is cut from `main` at `a691be2`, the commit that closed the V1
-cube epic. Pushing it publishes an EAS Update branch of the same name, so the
-epic is always openable in Expo Go (project → Branches) even with no step PR
-open.
+For the record, while it was live: `epic/cube-flow` was cut from `main` at
+`a691be2`, the commit that closed the V1 cube epic, and pushing it published an
+EAS Update branch of the same name — so the epic was always openable in Expo Go
+(project → Branches) even with no step PR open. `epic/cube-methods` inherits
+that arrangement.
 
-### Golden rules
+### Golden rules — **these outlive the epic**
 
 - **The cube's code lives under `games/cube/`.** Sudoku and Fungiku keep working
-  exactly as they do. Two edits outside it have been sanctioned so far: **Step 1**
+  exactly as they do. Three edits outside it were sanctioned: **Step 1**
   (`App.js`, `package.json`, for the navigator) and **Step 2** (four optional
   props on `components/ScreenHeader.js`, so a header's corner can be a back
   chevron and its subtitle monospaced — every other caller keeps the header it
@@ -75,13 +97,17 @@ open.
   line in `App.js` that reads it, so the cube opts out of the resume remount —
   Sudoku and Fungiku keep theirs). **Step 4 needed no fourth** — the method
   sheet, the card's method segment and the solve header's method tag are all
-  inside `games/cube/`. A step that needs one should say why in its PR. **`utils/buildNotes.js` does not count** — the release entry is mandated
-  by the plan, and every step extends `3.2.0`'s.
+  inside `games/cube/`. **Steps 4 through 9 needed no fourth**, and Step 3.5 — the largest step of the
+  epic — touched only `games/cube/`. So the final count is three, all of them in
+  the first three steps. A step that needs one should say why in its PR.
+  **`utils/buildNotes.js` does not count** — the release entry is mandated by the
+  plan, and every step of this epic extended `3.2.0`'s.
 - **`editOpen` is the only edit funnel** for the open solve, and `withMoves` is
   the only sanctioned moves-edit patch. Two writers is how the file and the
   screen learn to disagree.
 - **Say what a new row costs the cube, in points, in the PR.** V1 §8.6's rule.
-  It is what made the layout legible in the end, and this epic is adding rows.
+  It is what made the layout legible in the end, and it is what let Step 9 prove
+  a hidden pad gives the cube its 152 points back rather than assuming it.
 - **Pure modules carry the logic.** The test runner is `testEnvironment: "node"`
   with no jsdom and no renderer, so nothing that could be *wrong* belongs inside a
   component. `trackLayout.js` and `compareLayout.js` are the pattern: arithmetic
@@ -290,7 +316,7 @@ does not.
 
 ---
 
-## What landed in Step 4 (read this before Step 5)
+## What landed in Step 4 (still current)
 
 **Method as data.** `PHASE_METHODS` was a chip vocabulary in `solveList.js`; it
 is `METHODS` in the new **`games/cube/methods.js`** now, as `{ id, name, stages }`
@@ -492,75 +518,93 @@ finding or follow-up fix was needed.
 
 ---
 
-## Next step — Cube Flow epic closeout
+## What landed in Step 9 (still current)
 
-Step 9 passed its iterative device review and merged to `epic/cube-flow` on
-2026-08-23 as PR #125. All planned delivery steps are now closed. Prepare the
-accumulated epic for its final regression and merge to `main`.
+**The move pad is a manual drawer on the transport card.** A persistent
+44-point handle toggles on tap and takes an upward or downward pull
+(`swipeMode.js`: `drawerEvent`, `drawerHandleOffset`). While the pad is hidden
+the solve screen keeps the move track, the editable method rail, the cube, the
+scrubber and a compact Backspace that calls the existing retract-and-delete
+path. Showing the pad brings back `x`/`y`/`z`, typed algorithms and the wide
+turns a finger cannot reach.
 
-### Scope
+**Visibility is view state and nothing else.** Every solve screen opens with the
+pad shown; background and resume keep it as it was because the screen stays
+mounted; reopening a solve or cold-starting begins shown. It is not a field on a
+solve and it did not open a preferences store — `swipeMode.js` says so at the
+top, and Cube Flow's open question 13 is still open on purpose.
 
-- Run the complete Cube Flow regression before proposing `epic/cube-flow` to
-  `main`. Resolve every remaining open question below or carry it explicitly;
-  do not invent another delivery feature during closeout.
-- Confirm the 3.2.0 build notes and app version, and account for the outstanding
-  preview/production native rebuild required by Step 1's navigator dependency.
-- Open the epic PR from `epic/cube-flow` to `main` only after the accumulated
-  device regression passes.
+**Three things the device rejected that the brief had proposed**, and all three
+are worth knowing before touching this drawer again:
 
-### Files to read first
+- **Automatic hiding is out.** Writing a move must never change the surrounding
+  layout. The pad hides when the operator asks and at no other time — open
+  question 10, answered by the operator on 2026-08-23.
+- **A handle floating above the transport did not read as belonging to the
+  pad.** The landed handle lives *inside* the transport card.
+- **Nesting the drag responder directly with its `Pressable` lost drags on
+  iOS.** The wrapper captures only after vertical movement, so a tap stays a real
+  `Pressable` action. This is the kind of failure that only a phone produces.
 
-- This handoff and `docs/cube-flow-plan.md`, especially §§3.9, 5 and 6.
-- `games/cube/CubeSolve.js`, `swipeMode.js`, `CubeMovePad.js`,
-  `useCubeTouch.js`, and `useCubeStage.js` for Step 9.
-- `.github/dev-process.md` and the landed notes for Steps 1–8 before the final
-  regression.
+A full-pad-edge tracking experiment made the drawer feel constrained and was
+reverted in full. **Device pass: passed over several rounds, 2026-08-23**
+(operator, PR #125 preview).
 
-### Easy to get wrong
+---
 
-1. Browser gestures are orbit-only. A browser cannot prove either commit or
-   cancellation behaviour; only Expo Go can pass Step 9.
-2. The 44-point handle row is built into the transport card. Tap toggles; a
-   downward drag hides and an upward drag shows. It has no directional arrow to
-   compete with the grabber.
-3. Pad visibility is not authored work. Never put it on a solve record.
-4. The handle costs **44 points** in both states; the shown pad costs another
-   152 points before any tall-phone legend. Verify measured
-   device sizes rather than treating that arithmetic as a result.
-5. Regression means Sudoku and Fungiku too. This epic's few sanctioned shared
-   edits must not change either game's navigation, resume or layout behaviour.
+## What Cube Flow is
 
-### What must be visible in Expo Go
+Nine delivery steps shipped; two were dropped after device testing rather than
+deferred, which is the epic's own evidence that the loop works.
 
-With the pad initially shown, orbit, cancel and commit finger turns without
-hiding it. Tap or pull the handle in the
-transport card up to show the pad and down to hide it; type an algorithm and use
-Backspace in both states.
-Verify route round trips, background/resume and
-a cold start, then run the full cube flow from scramble cards through methods,
-rail editing, Compare and persistence. Smoke-test Sudoku and Fungiku.
+| # | Step | Outcome |
+|---|---|---|
+| 1 | A real stack | react-navigation, behaviour-neutral — PR #108 |
+| 2 | Split `CubeScreen` | 1525 lines → 78, over `CubeContext` — PR #109 |
+| 3 | Solves on the scramble screen | the card list; New and Save to the header — PR #111 |
+| 3a | The resume remount had to go | found on a device; `keepsStateOnResume` |
+| 3b | The card got a `⋯` | the long-press nobody knew existed |
+| 3.5 | Turn the cube by dragging it | unplanned, and it changed the epic — PR #114 |
+| 4 | Method as data | `methods.js`, the new-solve sheet — PR #115 |
+| 5 | The phase rail | the flag key retires — PR #118 |
+| 6 | Undo and redo | **dropped** after device testing; PR #119 closed unmerged |
+| 7 | Variations per phase | **dropped** after device testing; PR #121 closed unmerged |
+| 8 | Markers follow the scrubber | every stage is an edit control — PR #124 |
+| 9 | The move pad is a drawer | manual only — PR #125 |
 
-### How to verify
+The shape it leaves behind: **the scramble is home and owns the cube; a solve is
+a navigation push**; a solve knows which method it is; the method's stages are a
+rail whose boundaries are placed at the scrubber; a finger on the cube writes
+moves; and the move pad is a drawer the operator opens and closes.
 
-- `npm test` from `SudokuApp/`.
-- Browser screenshots and measurements for shown and hidden states at 320×568,
-  375×667 and 393×852, including horizontal and page-overflow checks.
-- An Expo Go device pass for manual drawer feel, discoverability, Backspace,
-  transition feel, persistence and the small-phone layout.
-- A final device regression of the accumulated epic before opening its PR to
-  `main`. Record which findings came from a device.
+## There is no "next step" here — so what would a session do?
 
-### Then rewrite this file
+Read `docs/cube-methods-handoff.md` and do the next step of **Cube Methods &
+Algorithms**, which is where cube work continues. What is left over from *this*
+epic, in rough order of how ready it is:
 
-Once the device pass and final regression are complete, replace this handoff
-with a closed-epic record: merged PRs, final test evidence, resolved/carried open
-questions, release/build notes, and the exact operational steps needed to merge
-`epic/cube-flow` to `main` and rebuild channels if still outstanding.
+1. **The open questions below.** Two are still genuinely open — question 5 (does
+   the phase-split tick track come back now the rail exists) and question 13
+   (where the app's preferences live). Both want a drilling session or a
+   decision, not an implementation plan.
+2. **The `preview` / `production` rebuild**, which is operational rather than
+   code and is described at the top of this file.
+3. **V1's own leftovers**, unchanged by this epic: the tabled solve editor
+   (`docs/cube-plan.md` §8.7), the outsourced solver (§8.9), manual cube entry
+   (§8.12, dropped) and V1's analysis step. Analysis now has better ground to
+   stand on, because a phase knows which method's stage it is.
+
+**Do not start any of these because they are written down here.** Everything in
+these two epics that turned out to be worth building came from the operator
+using the tool and finding it wanting — twice, that meant deleting a step that
+had already been built.
 
 ## Open questions being carried forward
 
-From `docs/cube-flow-plan.md` §6 — none of these block Step 9, and all of them
-want a drilling session rather than an opinion:
+From `docs/cube-flow-plan.md` §6, as they stood at the merge. Most are answered
+and kept for their reasoning; **5 and 13 are the two still open.** Question 13 is
+carried into Cube Methods explicitly, which is under instruction not to answer it
+by accident (`docs/cube-methods-plan.md` §4).
 
 1. ~~Does the rail want a "no method" option for a scratch attempt?~~
    **Answered: yes** (operator, 2026-08-18). The sheet offers **Freeform**, which

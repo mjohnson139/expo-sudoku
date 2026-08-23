@@ -1,5 +1,15 @@
 # Cube Flow — Feature Plan
 
+> **The epic is closed.** Merged to `main` on 2026-08-23 at release **3.2.0**,
+> after nine delivery steps, two steps dropped on device evidence, and an
+> operator regression of the accumulated epic on a phone. `npm test` was 1160
+> tests in 31 suites at the merge. `docs/cube-flow-handoff.md` is a record now
+> rather than a brief, and cube work continues in **Cube Methods & Algorithms**
+> (`docs/cube-methods-plan.md`, issue #126). **One thing is still owed:** the
+> standalone `preview` and `production` binaries need one rebuild, because
+> Step 1 added `react-native-screens`, an EAS Update cannot ship native code,
+> and an old binary keeps serving the old bundle silently rather than failing.
+
 The cube's second epic. V1 built a notebook you can write solves in
 (`docs/cube-plan.md`); this one gives that notebook the **structure a drilling
 session actually has** — one scramble, several attempts, each attempt a known
