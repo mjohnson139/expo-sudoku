@@ -1,9 +1,10 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useRef } from 'react';
+import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { ALG_FONT } from './algText';
 import CubeGlyph from './CubeGlyph';
 import { padPalette } from './padPalette';
 import { announcePosition, describePosition, describeSpeed } from './player';
+import { drawerEvent, drawerHandleOffset, PAD_EVENTS } from './swipeMode';
 
 /**
  * The transport under the cube (plan §8.8, Step 8).
@@ -47,6 +48,11 @@ const CubeScrubber = ({
   onStepForward,
   onSeek,
   onCycleSpeed,
+  padShown,
+  onShowPad,
+  onHidePad,
+  canDelete = false,
+  onDelete,
 }) => {
   const palette = padPalette(theme, accent);
   const surface = theme.colors.numberPad.background;
@@ -54,6 +60,46 @@ const CubeScrubber = ({
 
   const atStart = index <= 0;
   const atEnd = index >= count;
+  const handleOffset = useRef(new Animated.Value(0)).current;
+
+  const setPadFromEvent = (event) => {
+    if (event === PAD_EVENTS.SHOW) onShowPad?.();
+    if (event === PAD_EVENTS.HIDE) onHidePad?.();
+  };
+
+  const drawerPan = useMemo(
+    () =>
+      PanResponder.create({
+        // Leave touch-down to the Pressable so a tap stays a real tap. Capture
+        // only once it moves: putting both systems on the same node meant the
+        // Pressable won on iOS and the drag callbacks never ran.
+        onStartShouldSetPanResponder: () => false,
+        onMoveShouldSetPanResponderCapture: (_, gesture) => Math.abs(gesture.dy) > 4,
+        onPanResponderMove: (_, gesture) => {
+          // Move the visible handle with the thumb. The pad itself snaps only
+          // after release, so the measured cube is never resized every frame.
+          handleOffset.setValue(drawerHandleOffset(gesture.dy));
+        },
+        onPanResponderRelease: (_, gesture) => {
+          Animated.spring(handleOffset, {
+            toValue: 0,
+            speed: 28,
+            bounciness: 4,
+            useNativeDriver: true,
+          }).start();
+          setPadFromEvent(drawerEvent(gesture.dy));
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(handleOffset, {
+            toValue: 0,
+            speed: 28,
+            bounciness: 4,
+            useNativeDriver: true,
+          }).start();
+        },
+      }),
+    [handleOffset, onShowPad, onHidePad]
+  );
 
   const button = (name, label, onPress, disabled, primary) => (
     <Pressable
@@ -85,52 +131,92 @@ const CubeScrubber = ({
   );
 
   return (
-    <View style={[styles.card, { backgroundColor: surface, borderColor: border }]}>
-      <View style={styles.row}>
-        <Text
-          style={[styles.counter, { color: palette.ink }]}
-          accessibilityLabel={announcePosition(index, count, noun)}
-          numberOfLines={1}
-        >
-          {describePosition(index, count)}
-        </Text>
+    <View style={styles.drawer}>
+      <View style={[styles.card, { backgroundColor: surface, borderColor: border }]}>
+        {/* The grabber is part of the transport card, not a loose glyph in the
+            cube's room. One responder owns both tap and drag so iOS cannot hand
+            the gesture to a Pressable before PanResponder sees it. */}
+        {typeof padShown === 'boolean' && (
+          <View style={styles.drawerTop}>
+            <View style={styles.drawerHandleTarget} {...drawerPan.panHandlers}>
+              <Pressable
+                style={styles.drawerHandlePress}
+                onPress={padShown ? onHidePad : onShowPad}
+                accessibilityRole="button"
+                accessibilityLabel={padShown ? 'Hide move pad' : 'Show move pad'}
+                accessibilityHint={padShown ? 'Tap or drag down to hide the move pad' : 'Tap or drag up to show the move pad'}
+                accessibilityState={{ expanded: padShown }}
+              >
+                <Animated.View style={{ transform: [{ translateY: handleOffset }] }}>
+                  <View style={[styles.drawerHandle, { backgroundColor: palette.faint }]} />
+                </Animated.View>
+              </Pressable>
+            </View>
 
-        <View style={styles.buttons}>
-          {button('jumpStart', startLabel, () => onSeek(0), atStart)}
-          {button('stepPrev', 'Previous move', onStepBack, atStart)}
-          {button(
-            playing ? 'pause' : 'play',
-            playing ? 'Pause' : `Play the ${noun}`,
-            onPlayPause,
-            count === 0,
-            true
-          )}
-          {button('stepNext', 'Next move', onStepForward, atEnd)}
-          {button('jumpEnd', `Jump to the end of the ${noun}`, () => onSeek(count), atEnd)}
-        </View>
-
-        {/* Tap to cycle rather than a slider or a menu: three speeds is a short
-            enough cycle to be worth the one tap. */}
-        <Pressable
-          style={styles.speed}
-          onPress={onCycleSpeed}
-          accessibilityRole="button"
-          accessibilityLabel={`Turn speed, ${describeSpeed(rate)}`}
-          accessibilityHint="Cycles through half, normal and double speed"
-        >
+            {!padShown && (
+              <Pressable
+                style={[styles.drawerDelete, { borderColor: border }]}
+                onPress={onDelete}
+                disabled={!canDelete}
+                accessibilityRole="button"
+                accessibilityLabel="Delete last move"
+                accessibilityHint="Turns the last move backward, then removes it"
+                accessibilityState={{ disabled: !canDelete }}
+              >
+                <CubeGlyph name="backspace" size={20} color={palette.ink} />
+              </Pressable>
+            )}
+          </View>
+        )}
+        <View style={styles.row}>
           <Text
-            style={[styles.speedText, { color: rate === 1 ? palette.faint : accent }]}
+            style={[styles.counter, { color: palette.ink }]}
+            accessibilityLabel={announcePosition(index, count, noun)}
             numberOfLines={1}
           >
-            {describeSpeed(rate)}
+            {describePosition(index, count)}
           </Text>
-        </Pressable>
+
+          <View style={styles.buttons}>
+            {button('jumpStart', startLabel, () => onSeek(0), atStart)}
+            {button('stepPrev', 'Previous move', onStepBack, atStart)}
+            {button(
+              playing ? 'pause' : 'play',
+              playing ? 'Pause' : `Play the ${noun}`,
+              onPlayPause,
+              count === 0,
+              true
+            )}
+            {button('stepNext', 'Next move', onStepForward, atEnd)}
+            {button('jumpEnd', `Jump to the end of the ${noun}`, () => onSeek(count), atEnd)}
+          </View>
+
+          {/* Tap to cycle rather than a slider or a menu: three speeds is a short
+              enough cycle to be worth the one tap. */}
+          <Pressable
+            style={styles.speed}
+            onPress={onCycleSpeed}
+            accessibilityRole="button"
+            accessibilityLabel={`Turn speed, ${describeSpeed(rate)}`}
+            accessibilityHint="Cycles through half, normal and double speed"
+          >
+            <Text
+              style={[styles.speedText, { color: rate === 1 ? palette.faint : accent }]}
+              numberOfLines={1}
+            >
+              {describeSpeed(rate)}
+            </Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  drawer: {
+    alignSelf: 'stretch',
+  },
   // The design gives this card "10pt side margins" — **measured from the screen
   // edge**, which the page's own padding already provides. Setting them here as
   // well double-counted them and pushed the transport 1pt off the right edge of
@@ -138,8 +224,7 @@ const styles = StyleSheet.create({
   // 7's.
   card: {
     alignSelf: 'stretch',
-    marginTop: 6,
-    paddingTop: 9,
+    paddingTop: 0,
     // 8 rather than the design's 10, for the same 320-point reason as the gap.
     paddingHorizontal: 8,
     paddingBottom: 10,
@@ -208,6 +293,37 @@ const styles = StyleSheet.create({
     fontFamily: ALG_FONT,
     fontSize: 12,
     fontWeight: '600',
+  },
+  drawerTop: {
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: -2,
+  },
+  drawerHandleTarget: {
+    height: 44,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  drawerHandlePress: {
+    alignSelf: 'stretch',
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  drawerHandle: {
+    width: 38,
+    height: 5,
+    borderRadius: 3,
+  },
+  drawerDelete: {
+    width: 40,
+    height: 36,
+    borderWidth: 1,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 
