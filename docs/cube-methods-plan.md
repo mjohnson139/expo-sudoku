@@ -1,0 +1,573 @@
+# Cube Methods & Algorithms — Feature Plan
+
+The cube's third epic. V1 built a notebook you can write solves in
+(`docs/cube-plan.md`). Cube Flow gave that notebook the structure a drilling
+session has — a method chosen up front, a rail of stages, a boundary you place
+at the scrubber (`docs/cube-flow-plan.md`). This one builds **the thing those
+stages are made of**: one shared library of algorithms that grows out of real
+solving, methods the operator can *build* rather than pick from a list of two,
+and a journey that orders those methods beginner → advanced and unlocks the next
+stage when the current one is demonstrated in real solves.
+
+## For the implementer (start here)
+
+- **Repo:** `mjohnson139/expo-sudoku`. The app code is in the `SudokuApp/`
+  subdirectory (Expo · React Native · JavaScript).
+- **This document is the source of truth** for scope and approach.
+- **Start here if you are a new session:** **`docs/cube-methods-handoff.md`**
+  always describes *the next step only*, so a session can start from a one-line
+  prompt. **Rewriting it for the following step is part of every step's
+  definition of done** — the discipline Fungiku, the V1 cube epic and Cube Flow
+  all ran on.
+- **Read `docs/cube-flow-plan.md` before changing anything.** It is a closed
+  epic's plan and it is the reasoning behind almost every line this epic edits.
+  §3.4 (method as data), §3.5 and §3.8 (the rail, and boundaries at the
+  scrubber), §5 (things that are easy to get wrong) are load-bearing here and are
+  **not** overturned. `docs/cube-plan.md` §7.1 (what survives a background),
+  §8.5 (markers, not ranges) and §8.6 (the cube is sized first, every other row
+  is on a budget) are still in force underneath both.
+- **Tracker:** GitHub issue **#126**. Tick your step's checkboxes as you go.
+- **Process:** follow `.github/dev-process.md` — one delivery step per branch,
+  commit after each step, **open the PR as soon as the step is pushed** so the
+  workflow publishes its `pr-<N>` preview build, and **prompt the operator to
+  test after each step**, against that build. Close the step out with the
+  `closeout` skill (`.claude/skills/closeout/`).
+- **The design:** `Cube Methods & Algorithms.dc.html` in the Claude Design
+  project `2acc14f2-7f7e-434f-a29d-e0fe29fa876a` ("Expo Sudoku design system"),
+  settled 2026-08-16. That project's `design-decisions.md` carries the settled
+  summary in prose, under *Algorithms & methods*.
+
+### Branching
+
+```
+main ─── epic/cube-methods ─── feature/cube-methods-<step>
+                               (PRs target epic/cube-methods)
+```
+
+`epic/cube-methods` is cut from **`main` at `22b117b`**, the commit that closed
+Cube Flow. Pushing to it publishes an EAS Update branch of the same name
+(`.github/workflows/eas-publish.yml`), so the epic stays openable in Expo Go
+between step PRs; a step PR also gets its own throwaway `pr-<N>` preview.
+
+**Cube Flow merged to `main` on 2026-08-23** at release 3.2.0, after an operator
+device regression of the accumulated epic. `epic/cube-flow` is deleted and
+nothing should be branched from it; `docs/cube-flow-handoff.md` is a record now
+rather than a brief, and is still the fastest way to understand the code this
+epic edits.
+
+**One piece of Cube Flow's operational debt is still open and it is not this
+epic's to clear.** Step 1 of that epic added `react-native-screens`, an EAS
+Update cannot ship native code, and `runtimeVersion.policy` is `sdkVersion` — so
+the standalone `preview` and `production` binaries need one rebuild, and until
+they get it an old binary keeps serving the old bundle *silently*. Expo Go and
+the EAS Update channels are unaffected, which is where every step of this epic
+is tested — but **a step here that behaves oddly in a standalone build should
+suspect this first.**
+
+Build notes are per release, not per step (V1 plan §12). This epic is **3.3.0** —
+add that one entry with Step 1 and extend it as steps land, keeping `app.json`'s
+`expo.version` matching.
+
+## 1. What this epic changes, and why
+
+Cube Flow ended with a solve that knows what method it is and a rail that spells
+that method out in stages. Three things about that are still hollow, and all
+three are the same hollowness: **the app knows the names of the stages and
+nothing about their content.**
+
+**A method is two frozen constants.** `METHODS` in `games/cube/methods.js` is
+Roux and CFOP, four stage strings each, `Object.freeze`d with a comment saying
+user-definable methods belong to this design round. An operator drilling
+two-look CMLL has no way to say so, and the rail they get is the rail for the
+method they are not doing.
+
+**An algorithm exists only as moves the operator typed.** `R U R' U R U2 R'` is
+seven tokens in a solve's `alg` and nothing else — not a thing with a name, not
+a thing that can be looked up, not a thing that can be found again next week.
+The library the operator actually keeps is on paper or in their head, and the
+one place they *do* write those moves down — the app — throws the structure away
+the moment the solve scrolls past.
+
+**Nothing knows whether a stage was done or merely marked.** A locked phase on
+the rail says "the operator put a boundary here". It does not say the first
+block was actually built, and `cubeState.js` has known the answer all along:
+`facelets(cube)` is right there, and a phase boundary is an index into an
+algorithm that can be replayed exactly.
+
+### The shape that replaces it
+
+**One shared library.** An algorithm is *name + moves + the case it solves +
+where it is used + private notes*, owned by a library that both the scramble
+screen and any solve can reach, and referenced by any method's stage. Zero or
+more assignments, so one entry serves Roux CMLL and CFOP OLL at once and an
+unassigned entry stays findable.
+
+**Methods become data the operator owns.** A method is an ordered stage list.
+The shipped Roux, CFOP and LBL stay read-only presets, and a variant is made by
+**duplicating** one and editing its stages — a 2-look CMLL is not a setting on
+Roux, it is a different stage list, and every attempt to express that as a flag
+ends in a rail that has to explain itself.
+
+**The library grows out of solving, not out of data entry.** Select a run inside
+a locked phase, name it, and it lands in the library with its case captured from
+the cube state at the run's start. That is the feature Cube Flow §4 deferred to
+this round, and it is the reason the library will have anything in it.
+
+**A journey, not a curriculum.** Methods ordered beginner → advanced on a
+vertical track, each stage a pill that is done, open or locked, unlocked by
+**demonstrating it** — locking that phase in a real solve with the cube actually
+in the stage's exit state, three times. No quiz mode, no separate practice
+screen: the solve screen already knows both facts.
+
+**What this retires:** `METHODS` as the only source of methods; `PHASE_METHODS`'
+last descendants; and the assumption baked into every signature in
+`methods.js` that the catalogue is a module-level constant.
+
+## 2. Decisions taken before the first line
+
+| Question | Decision | Why |
+|---|---|---|
+| Scope | The full design **minus packs** | The design marks packs *future* and says v1 is free-only. A pack is a read-only algorithm group plus an optional preset method, and it renders as one card in the library's filtered view — **no new screen and no layout change**, which is exactly why it can wait. |
+| Where the library and the user methods are stored | **The existing cube blob**, `@CubeScramble`, as two new top-level keys, `_v: 3` | Tagging a run writes a solve *and* a library entry in one action, and `CubeContext` is already the single debounced writer for everything the operator authored. A second key buys two writers and two ways for them to disagree. `readCubeSave` reads every version by shape, so this costs no migration in either direction (`favorites.js:128`). |
+| Preset methods | **Stay frozen constants in `methods.js`**, joined by a *catalogue* | `methods.js` already says it: *"When user methods do arrive they arrive as a second source that `findMethod` consults, not as a mutation of this array."* Presets are read-only so they stay clean starting points; a user's variant is theirs entirely. |
+| How a variant is made | **Duplicate, then edit** | The design's own panel. It is also the cheap answer: a duplicate is a new id, so no existing solve references it and no marker in anybody's file is disturbed. |
+| Stage identity | **A stage is still a plain string, and it is still the marker's label** | `phases[].label` is the file format and `railStates` matches spans to stages by that string (`phaseRail.js`). Giving user stages ids would mean a second matching rule and a migration. The cost is §5's rename trap, which is paid once, in one tested function. |
+| Deleting a method that solves use | **Refused.** A method any solve references cannot be deleted; the *"Use for new solves"* toggle is how it leaves the picker | The alternative is a solve pointing at a method that no longer exists, which `sanitizeMethodId` would quietly turn into Freeform — silently discarding a rail the operator built. |
+| The case | **Nine characters of the U face**, `y` for "matches the U centre" and `.` for "does not" | It is what the design draws and what the design's editor edits (tap a sticker to toggle). Richer cases — side stickers, PLL headlights — are a later refinement of one pure function and one 40-point tile. |
+| Journey progress | **Derived from the solves, stored nowhere** | The same discipline as `solveCards.js`' "in progress" and `defaultMethod`. A demonstration *is* a locked phase whose exit state checks out, and those are already in the file. Storing a counter alongside would be a second thing to keep honest on every edit, and it would survive the deletion of the solve that earned it. |
+| Exit-state checks for user stages | **Only the shipped presets' stages carry predicates** | Nobody can know what a stage called "my thing" ends in. A user stage with no predicate counts a lock as a lock — the journey says so on the card rather than pretending to check. |
+| Entry points | **One door from the scramble screen**, into the library; the library and the journey are one control apart from each other | Measured, not assumed — see below. |
+
+### What the entry point costs, measured before committing to it
+
+The scramble screen's header is **full at four controls** and Cube Flow Step 3
+did the arithmetic in the source (`CubeHome.js`, the comment above
+`headerActions`): at 320 points the header has 300, the home button takes 38,
+the right-hand end takes 4 of padding, and each control is 34 points of button
+with 5 of margin in front of it. Four leave 94 points for the title, which is
+`Scramble` at 17pt bold with air to spare. **Five leave 55, and the title starts
+ellipsizing** — `ScreenHeader`'s dense right-hand column has `flexShrink: 0`, so
+what gives is always the word on the left. That is why Compare is not up there.
+
+So the library's door is **an icon button in the solve list's action row**
+(`CubeSolveList.js`, `styles.actions`), beside `New solve` and `Compare`. That
+row already exists, its `newAction` card flexes and its `compareAction` does
+not, so a 34-point icon button plus the row's 6-point gap costs the New solve
+card 40 points of width and **costs the cube nothing** — no new row, and §8.6's
+budget is untouched. Verify the three-control row at 320 in a browser before
+believing this paragraph; it is arithmetic, not a measurement.
+
+**The journey does not get a second door.** The library's header carries `＋`
+and a journey control; the journey's header carries the home chevron and a
+library control. Two screens, one control apart, and the scramble screen pays
+for one of them. This is also why the journey is Step 8 rather than Step 2: it
+arrives through a door that already exists.
+
+## 3. Delivery steps
+
+Eight steps and a closeout. The order is chosen so that **the two riskiest
+things are quarantined**: Step 4 is a signature refactor with no visible change,
+exactly as Cube Flow Step 1 was, and Step 7 is the only step whose correctness
+is a cube-theory question rather than a UI question. Everything before Step 4 is
+a new, isolated domain that touches existing code in one place; everything after
+it depends on the catalogue being a parameter.
+
+| # | Step | Delivers |
+|---|---|---|
+| 1 | The library, stored and shown | `algorithms.js`, the save slot, the list screen, entries you can write by hand |
+| 2 | The case grid | the 3×3 tile, captured from a cube and editable by tapping |
+| 3 | Tag a run from a solve | the library grows out of solving |
+| 4 | Methods as a catalogue | behaviour-neutral; the catalogue becomes a parameter; LBL joins the presets |
+| 5 | The method builder | user methods, duplicate-to-edit, stages, "use for new solves" |
+| 6 | Stage → algorithms | the assignment, from both ends; the meta line becomes true |
+| 7 | Exit-state checks | `stageChecks.js`; a lock that was *demonstrated* |
+| 8 | The journey | the track, the pills, the gates |
+| 9 | Epic closeout | regression, 3.3.0, merge to `main` |
+
+### 3.1 Step 1 — the library, stored and shown
+
+The whole domain, end to end, with nothing clever in it. An entry is written by
+hand on this step; Steps 2 and 3 are what make writing one by hand the unusual
+case.
+
+- **`games/cube/algorithms.js` is new and pure.** The shape is the design's
+  *Algorithm entry* panel:
+
+  ```js
+  { id, name, moves, case: null, assignments: [], notes: '', savedAt, editedAt }
+  ```
+
+  with `assignments` an array of `{ method, stage }` — a method id from the
+  catalogue and one of its stage strings. `case` stays `null` until Step 2.
+  Exports, following `solveList.js`' conventions exactly: `MAX_ALGORITHMS`
+  (100, matching `MAX_SOLVES`), `MAX_ALG_NAME` (40, matching `MAX_SOLVE_NAME`),
+  `nextAlgorithmId`, `createAlgorithm`, `editAlgorithm` (the *one* edit funnel —
+  see §5), `removeAlgorithm`, `sanitizeAlgorithms`, `findAlgorithm`,
+  `searchAlgorithms(list, query)` and `filterAlgorithms(list, methodId)`.
+  Injected clocks, as `solveList.js` does.
+- **The moves are validated the way a solve's are.** `algError` /
+  `isValidAlg` from `moves.js` already exist and already produce the message the
+  alg input modal shows; an entry whose moves do not parse is not saved.
+  `normalizeAlg` decides what is stored.
+- **The save slot.** `algorithms` joins `{ _v, scramble, favorites, solves,
+  workspace }`, sanitized by shape in `favorites.js`' `readCubeSave` and written
+  by `storage.js`. `CUBE_STORAGE_VERSION` becomes **3** — the number exists so a
+  file can say what wrote it, and nothing branches on it. A pre-Step-1 file has
+  no `algorithms` key and `sanitizeAlgorithms(undefined)` is the empty list,
+  which is the truth.
+- **`CubeAlgorithms` is a route on the cube's own stack** (`CubeScreen.js`,
+  beside `scramble` and `solve`), reached from the action-row button described
+  in §2. Header: the back chevron, `Algorithms`, and `＋`. Body: the search
+  field, the filter chips (`All · N`, one per method with assignments,
+  `Unassigned`), and the cards.
+- **`CubeAlgorithmEntry` is the second route** — name, moves, assignments,
+  notes — pushed by `＋` and by a card. Reuse `CubeAlgInputModal`'s validated
+  moves input rather than writing a second one.
+- **Notes are never shown on the solve screen.** The design says so and it is
+  worth obeying from the first line: notes are finger tricks and personal cues,
+  and a solve screen is not where you read them.
+
+**Tests:** `algorithms.test.js` — creation, the name uniqueness rule, the
+bounds, sanitizing a corrupt and a future-shaped file, search over both name and
+moves, filtering by method and by unassigned.
+
+**Operator tests:** add three entries by hand, one with two assignments and one
+with none; search by name and by a move; every filter chip; edit and delete;
+background and resume; kill and cold start; confirm the scramble screen's action
+row still reads well at the phone's width.
+
+### 3.2 Step 2 — the case grid
+
+- **`games/cube/algCase.js` is new and pure.** `captureCase(cube)` reads
+  `facelets(cube).U` (`cubeState.js:160`) and returns nine characters, `y` where
+  the sticker matches the U **centre** and `.` where it does not — the centre
+  rather than a fixed colour, so the capture is honest for a cube being held any
+  way up. `toggleCaseCell(pattern, index)` and `sanitizeCase(raw)` complete it;
+  `EMPTY_CASE` is nine dots.
+- **The tile** is the design's: 40 × 40, a 3 × 3 grid of 2-point-gapped cells on
+  a near-black rounded square, yellow for `y` and grey for `.`. It renders on the
+  library card and, larger, on the entry screen where its cells are tap targets.
+- **Never colour alone.** A case is a pattern, and a pattern of two greys would
+  be a pattern; the accessibility label says the pattern in words
+  (`"top row: corner, edge, corner"` is not enough — say which cells are
+  oriented), because a 40-point tile is not readable to a screen reader by
+  construction.
+
+**Tests:** `algCase.test.js` — a solved cube captures nine `y`; a Sune-case cube
+captures the design's `.y..yy.y.`; a cube rotated whole captures the same
+pattern as the cube at rest; toggling is its own inverse; a corrupt pattern
+sanitizes to `EMPTY_CASE`.
+
+**Operator tests:** the tile reads at arm's length on both themes; tapping
+stickers edits a case and it survives a background; an entry with no case shows
+an empty tile rather than a gap.
+
+### 3.3 Step 3 — tag a run from a solve
+
+The step that makes the library worth having, and the one with the most ways to
+be wrong on a phone.
+
+- **Selection is a visible control, not a gesture.** Cube Flow's open question 3
+  is settled law here (§5): *the test is not "will they find it if they look", it
+  is "is anything giving them a reason to look"*. The affordance is a **button on
+  the transport card** — the row that survives with the move pad hidden and
+  already carries Backspace (`CubeSolve.js`, Cube Flow Step 9) — which arms
+  selection; the move track then takes a first and a last token; a confirm row
+  names the run. Read `CubeMoveTrack.js` before designing the selection
+  rendering, and state the row's cost in points in the PR.
+- **A run is tagged inside one locked phase.** The phase is what supplies the
+  default assignment (`{ method, stage }`), and a run that straddles a boundary
+  has no honest answer to "which stage is this". Refuse it in the UI rather than
+  guessing.
+- **The case is captured from the cube at the run's *start*** — the scramble,
+  then the solve's `orientation` prefix, then the solve's moves up to the first
+  selected token, through `cubeFromAlg` / `applyMoves`. That is the state the
+  algorithm *recognises*, which is the whole point of a case.
+- **Tagging does not touch the stored `alg`.** The moves stay exactly as
+  written; the tag is a library entry plus, at most, presentation in the track.
+  Anything else would make the tag an edit, and edits to a written solve are
+  Cube Flow's `withMoves` contract, not this feature's.
+- The run collapses to a chip in the move track, as the design describes.
+
+**Tests:** the pure part — which is *which run, from where, to where, in which
+phase, with what case* — lives in a module (`tagRun.js` or an addition to
+`algorithms.js`) with its own suite. Nothing that could be wrong belongs inside
+the component (§5).
+
+**Operator tests, on a device:** tag a run mid-solve and find it in the library
+with the right case and assignment; try to tag across a boundary and be refused;
+tag with the pad hidden and with it shown; background mid-selection.
+
+### 3.4 Step 4 — methods as a catalogue (behaviour-neutral)
+
+The signature change, alone, so that a regression here has one suspect. Nothing
+on screen changes except that a third preset appears in the new-solve sheet.
+
+- **`methods.js` takes a catalogue.** `findMethod(id, catalogue)`,
+  `stagesOf(id, catalogue)`, `methodName(id, catalogue)`,
+  `sanitizeMethodId(raw, catalogue)`, `defaultMethod(mySolves, catalogue)`, each
+  defaulting to the shipped presets so a caller that has no catalogue yet is
+  unchanged. **The catalogue is a parameter, never module state** — the test
+  runner is `testEnvironment: "node"` and a module-level mutable list is the one
+  shape those tests cannot pin.
+- **Threaded from `CubeContext`,** which gains `useMethods()` returning
+  `PRESETS.concat(userMethods)` — an empty user list this step. Call sites:
+  `phaseRail.js`' `railStates`, `solveList.js`' `createSolve`,
+  `CubeSolve.js:527` (`placeMethodBoundary`'s `stagesOf`), `CubeSolveList.js`'
+  method segment, `CubeNewSolveSheet.js`, and `favorites.js`' `sanitizeSolves`.
+- **Storage sanitizes methods before solves.** `readCubeSave` builds the
+  catalogue from the file's own `methods` key first, then sanitizes `solves`
+  against it — otherwise every solve using a user method degrades to Freeform on
+  the first load after the feature ships, which is a data loss that no error
+  message accompanies.
+- **Beginner LBL joins the presets**, because the journey's first card is LBL and
+  because it is the honest starting point of the track: `Cross`, `F2L basic`,
+  `OLL 2-look`, `PLL 2-look`, as the design names them.
+
+**Tests:** extend `methods.test.js` — every function with an explicit catalogue,
+every function with none, an id that exists only in the catalogue, an id that
+exists in neither (still `null`), and the sanitizing order over a whole save.
+
+**Operator tests:** every Cube Flow behaviour, unchanged — start a solve in each
+method, place and move boundaries on the rail, Compare two attempts, open a
+pre-existing solve, cold start. The step passes when nothing is different.
+
+### 3.5 Step 5 — the method builder
+
+- **User methods join the save** as a top-level `methods` array of
+  `{ id, name, stages, forNewSolves, from, savedAt, editedAt }` — `from` being
+  the id this was duplicated from, which is what places it on the journey's
+  track in Step 8 and what the design's `duplicated from Roux` subtitle says.
+  Ids are minted like `nextSolveId` does, in a namespace that cannot collide
+  with a preset id.
+- **The builder is the design's screen**: the name field, `Stages · in solve
+  order` with drag handles and a `Reorder` affordance, `＋ Add stage`, and the
+  `Use for new solves` toggle with its `Appears in the method sheet` subtitle.
+- **Presets are read-only and say so.** Opening a preset shows the same screen
+  with everything disabled and one action: **Duplicate to edit**. The `⋯` on a
+  user method offers duplicate, rename and delete — with delete refused, with a
+  reason, while any solve references it (§2).
+- **A stage name is unique within its method**, enforced in the builder, because
+  `railStates` builds a `Map` keyed by label and a duplicate stage would make one
+  of the two unreachable.
+- **Renaming a stage relabels every marker that uses it.** See §5 — this is the
+  trap of the epic, and it is paid here, once, in a tested pure function called
+  through `CubeContext`'s single writer.
+- The new-solve sheet lists every method with `forNewSolves`, plus Freeform,
+  with stages previewed as it already does.
+
+**Tests:** `userMethods.test.js` — duplication (name, `from`, stage copy,
+independence from the preset), the uniqueness rules, the delete refusal, the
+rename relabelling across a solve list, sanitizing a corrupt method out of a
+save without taking the good ones with it.
+
+**Operator tests:** duplicate Roux, split CMLL in two, use it for a real solve
+and watch the rail; rename a stage the solve already marked and confirm the
+marker followed; try to delete a method in use; toggle one off and confirm the
+sheet drops it while existing solves keep it.
+
+### 3.6 Step 6 — stage → algorithms
+
+- A stage row's chevron opens **the algorithms assigned to that stage** — the
+  design's `7 algorithms linked`, made true. From that list an entry can be
+  assigned or unassigned, and a new one created already assigned.
+- The same assignment is editable from the library side, which Step 1 built.
+  **One writer**: both screens call `editAlgorithm`.
+- `no algorithms · intuitive` is what a stage with none says — the design's own
+  words, and the right thing for a Roux first block.
+- The library's filter chips now cover user methods; `All · N` counts the
+  library, `Unassigned` is the entries with no assignments, which is where a
+  tagged run lands if its phase had no method.
+
+**Tests:** the counts and the filtering are pure and belong in
+`algorithms.test.js`; assignment add/remove is idempotent and cannot duplicate a
+`{ method, stage }` pair.
+
+**Operator tests:** assign from both ends; delete an algorithm that a stage
+lists; rename a stage and confirm its assignments follow (the same relabelling
+as Step 5, now with a second reader).
+
+### 3.7 Step 7 — exit-state checks
+
+The only step whose correctness is a cube question. It ships **no new screen**.
+
+- **`games/cube/stageChecks.js` is new and pure.** A predicate per stage of each
+  shipped preset, over the facelets of the cube at that moment:
+  Roux `First block` (the D-L 1×2×3 block, relative to its own centres),
+  `Second block` (D-R as well), `CMLL` (both blocks plus the U corners oriented
+  *and* permuted), `LSE` (solved); CFOP `Cross`, `F2L`, `OLL` (every U sticker
+  is the U colour), `PLL` (solved); LBL's four the same way. `isSolved`
+  (`cubeState.js:194`) is the model for the shape of these: check the facelets,
+  not the pieces, so a whole-cube rotation cannot change the answer.
+- **Evaluated through the solve's hold.** The cube at a phase's end is the
+  scramble, then the solve's `orientation` prefix, then the solve's moves up to
+  `phase.at`. A Roux first block is *the operator's* down-left block, which is
+  what the hold decides.
+- **A user stage with no predicate returns `null`, not `false`** — "no opinion",
+  which the journey renders as "counts a lock" rather than as a failure. Three
+  states, and nothing may collapse them to two (the same discipline
+  `orientation` gets, §5).
+- **On the rail**, a lock whose exit state checks out is distinguishable from
+  one that does not. Keep it quiet: the rail is a working surface and this is
+  not a grade. A filled check versus an outlined one, and the accessibility
+  label saying which.
+
+**Tests:** `stageChecks.test.js`, and it is the biggest suite of the epic —
+known-good algorithms per stage from a real scramble, near-misses (a first block
+with one edge flipped), each check under a whole-cube rotation, and each check
+against the hold that Roux is actually drilled in.
+
+**Operator tests:** write a real Roux solve and confirm each lock is recognised;
+deliberately mark a boundary in the wrong place and confirm it is not.
+
+### 3.8 Step 8 — the journey
+
+- **`games/cube/journey.js` is new and pure.** It takes the catalogue, the
+  solves and the checks, and returns the design's cards: the method order
+  (presets by their shipped level; a user method immediately after the method it
+  was duplicated `from`), each stage's state — `done`, `open`, `locked` — the
+  method's own state, and the **gate line**: `"🔒 LSE unlocks after 2 more CMLL
+  locks — 1 of 3 done"`.
+- **The rule is the design's.** A stage is demonstrated by locking it in a real
+  solve with the cube in the stage's exit state, `DEMOS_REQUIRED = 3`. Stages
+  unlock in order within a method; a method unlocks when the one before it is
+  complete.
+- **Derived, stored nowhere.** The count is a scan of the solves. Two
+  consequences to write down rather than discover: **deleting a solve rolls its
+  demonstrations back**, and `MAX_SOLVES = 100` means the count is really *"in
+  your last 100 solves"*. Both are honest; both belong on the screen in a
+  sentence if the operator is surprised by them.
+- **Memoize it once, at the screen.** A scan replays every solve's moves; that
+  is nothing once per visit and unacceptable once per card per render.
+- The screen is the design's: the spine, the nodes, the cards, the stage pills,
+  the state badges, `Yours` for a user variant.
+
+**Tests:** `journey.test.js` — ordering including a duplicate's placement, the
+three stage states, the gate text at 0/1/2/3 demonstrations, a user stage with
+no predicate, and the roll-back when a solve is removed.
+
+**Operator tests, over a real drilling session:** does the count go up when it
+should, does the gate line say something true, and does a locked method feel
+like an invitation or a nag.
+
+### 3.9 Step 9 — epic closeout
+
+Regression of the accumulated epic on a device, `3.3.0` build notes and
+`app.json` agreeing, `epic/cube-methods` → `main` (after or with Cube Flow's own
+merge — see the branching note), and the handoff rewritten as a record rather
+than a brief. The `closeout` skill covers the sequence.
+
+## 4. What this epic does not do
+
+- **Packs and the paywall.** A pack is a read-only algorithm group plus an
+  optional preset method, rendering as one card at the top of the library's
+  filtered view with a price where the chevron is. The design says v1 is free
+  and the library is entirely user-built, and the reason to believe that is
+  cheap is that a pack needs **no new screen and no layout change**. Do not
+  build a "source" abstraction for one hypothetical second source.
+- **Recognising the case automatically while solving.** Cube Flow's open
+  question 4 declined automatic state recognition and it is still declined: a
+  check that *reads* the cube at a boundary the operator placed (Step 7) is not
+  the same as a rail that moves boundaries by itself.
+- **A solver, or move-count optimisation.** Outsourced in V1 (`docs/cube-plan.md`
+  §8.9) and untouched here.
+- **A settings store.** Cube Flow's open question 13 is still open and this epic
+  must not answer it by accident. `DEMOS_REQUIRED` is a constant in
+  `journey.js`, not a preference, until there is a settings screen to put it in.
+- **Sudoku and Fungiku.** Outside `games/cube/`, this epic edits only what a step
+  sanctions in its own PR, and the expectation is **none at all**: every screen
+  it adds is a route on the cube's own nested stack. `utils/buildNotes.js` does
+  not count — the release entry is mandated by the plan.
+
+## 5. Things that are easy to get wrong
+
+- **Renaming a stage orphans every marker that used its old name.** A marker
+  stores a *label* (`phases[].label`) and `railStates` matches spans to stages by
+  string equality (`phaseRail.js`). Rename `CMLL` to `CMLL — orient` in a user
+  method and every solve written with it silently loses that pill: the marker is
+  still in the file, the rail no longer claims it, and nothing says so. **The
+  rename must relabel**, across every solve using that method, in one pure
+  function with its own tests, called through `CubeContext`'s single writer.
+  This is the trap of the epic and it is worth reading twice.
+- **`sanitizeMethodId` turns anything it does not recognise into `null`**, and
+  `null` means Freeform. Until Step 4 threads the catalogue through storage,
+  loading a save that contains user methods would quietly convert every solve
+  using one into a Freeform solve — a rail deleted with no error. **Sanitize the
+  methods before the solves**, and test the order over a whole save.
+- **`Object.freeze` is shallow, and the presets rely on it being enough.**
+  `METHODS` and each method and each `stages` array are frozen individually in
+  `methods.js`. A duplicate must be a genuine copy — `stages: [...method.stages]`
+  — or the user's variant shares the preset's frozen array and the first edit
+  throws in strict mode and silently no-ops outside it.
+- **Two edit funnels is how the file and the screen learn to disagree.**
+  `editOpen` is the only funnel for the open solve and `withMoves` the only
+  sanctioned moves patch (Cube Flow §5). This epic adds two more collections and
+  must add exactly one funnel each: `editAlgorithm` and `editMethod`. Step 5's
+  cross-collection relabel is the one deliberate exception, and it goes through
+  the context writer that already exists.
+- **Never propose an invisible gesture again without citing question 3.** Cube
+  Flow put solve management on a long-press and the operator's device verdict
+  was *"the long press honestly I'm not even sure what you're talking about"*.
+  The lesson generalises: discoverability is not "will they find it if they
+  look", it is "is anything giving them a reason to look". Step 3's selection
+  affordance is the place this epic is most tempted.
+- **The browser has two holes in it.** `react-native-screens` no-ops under
+  `react-native-web`, so no browser pass can see a navigation-animation bug; and
+  finger turns degrade to orbit-only on web, so the *primary* way a move gets
+  written is not covered at all. A step that says "verified in a browser" has to
+  say **which** of its behaviours that covers. Steps 3 and 8 need a device.
+- **A screen under a push stays mounted**, so "read it on mount" is not enough.
+  The library and the journey are pushed over the scramble; anything they compute
+  once at mount is stale the moment an entry is added two routes away. State that
+  two screens share lives in `CubeContext` (Cube Flow §5, and `HubRoute` in
+  `App.js` for the other answer).
+- **The cube opts out of the resume remount** (`keepsStateOnResume` in
+  `games/registry.js`) and it must stay opted out. A remount resets the cube's
+  own navigator, which is how Cube Flow Step 3a shipped a solve screen sliding in
+  over itself on every resume — and adding routes to that navigator makes the
+  failure bigger, not smaller.
+- **A style *variant* must be a whole style.** `[base, variant]` flattens to
+  something Yoga and `react-native-web` disagree about, and V1 shipped a
+  phone-only bug because of it (`ScreenHeader.js:112-126`,
+  `CubeMovePad.js:387-395`).
+- **`orientation` has three states** — `null`, `''`, notation — and the
+  `null → ''` fallback is load-bearing for `inspecting`. Step 7's predicates read
+  it; nothing may collapse them to two. `stageChecks` gains a third state of its
+  own for the same reason: `null` is "no opinion", not "failed".
+- **Say what a new row costs the cube, in points, in the PR** (§8.6). Steps 1 and
+  3 both touch a screen that has a cube on it.
+- **There is no lint and no typecheck.** `npm test` and the operator are the
+  whole net, which is why every derivation that could be wrong belongs in a pure
+  module with its own suite rather than inside a component the node runner
+  cannot render.
+- **The device is the only evidence that counts for feel**, and **write down
+  when a finding came from a device.**
+
+## 6. Open questions for the operator
+
+1. **Is the library's door in the right place?** §2 puts it in the scramble
+   screen's action row because the header is full at four controls. The
+   alternative — dropping a header control to make room — was rejected without
+   asking, and Cube Flow's question 7 says the operator is willing to lose one.
+2. **Does a tagged run want to *replace* its moves in the track, or only be
+   marked?** Step 3 says marked: the stored `alg` is untouched and the chip is
+   presentation. A run that collapsed for real would be an edit, and edits to a
+   written solve are a contract this epic does not hold.
+3. **Three demonstrations — is three right?** `DEMOS_REQUIRED = 3` is the
+   design's default and nothing but a drilling session can confirm it. It is one
+   constant.
+4. **Should deleting a solve roll the journey back?** It does, by construction —
+   the count is derived. The alternative is a stored counter, which survives the
+   deletion of its own evidence. Worth stating on the screen if it surprises.
+5. **Does the journey want to be reachable from the solve screen too?** The
+   design does not draw it and the solve header is nearly as full as the
+   scramble's. Left out until asked for.
+6. **Should a preset be hideable?** An operator who will never drill CFOP still
+   sees it on the journey and in the sheet. `forNewSolves` covers user methods;
+   presets have no equivalent, deliberately, because hiding the track's
+   destination is a strange thing to offer on a screen whose whole point is the
+   track.
+7. **Carried from Cube Flow, unanswered:** does the phase-split tick track come
+   back now the rail exists (its q5), and where do the preferences live (its
+   q13)? Neither is this epic's to answer, and §4 says this epic must not answer
+   the second one by accident.
