@@ -176,113 +176,160 @@ to change casually. Most of it is Cube Flow's; the last block is Step 1's.
 
 ---
 
-## Next step — Step 2: the case grid
+## Next step — Step 2: the case, and where it comes from
 
-Plan **§3.2**. Give an algorithm the thing that makes it findable by *sight*: the
-nine stickers of the U face it recognises. One pure module, one 40-point tile,
-and the tap-to-toggle editor on the entry screen. Step 1 left the slot for it in
-the file and a dashed placeholder for it on the card, so nothing about the
-library's layout moves when this lands.
+Plan **§3.2**, which was rewritten after Step 1's device pass (plan §3.1's
+Step 1a) and is **not** the "case grid" step the earlier handoff described.
+It is now two things, and the second is the one that matters:
+
+1. the 40-point tile the design draws, and
+2. **the arithmetic that means nobody ever has to draw a case by hand** — which
+   is what Step 2.5, the algorithm workbench, is built on.
+
+The insight the whole thing rests on is one line: **if `A` takes case `C` to
+solved, then `A⁻¹` takes solved to `C`.** So an algorithm carries its own case,
+and for a last-layer algorithm — one that preserves F2L, so its inverse does too
+— `A⁻¹(solved)` is exactly a solved cube with a scrambled top layer. No setup
+UI, no stored starting state, nothing to ask the operator for.
 
 ### Scope
 
-- **`games/cube/algCase.js`**, new and pure, in `algorithms.js`' style.
-  - `EMPTY_CASE` — nine dots.
-  - `captureCase(cube)` reads `facelets(cube).U` (`cubeState.js:160`) and returns
-    nine characters, `y` where the sticker matches the U **centre** and `.` where
-    it does not. **The centre, never a fixed colour** — that is what makes the
-    capture honest for a cube being held any way up, and it is the whole reason
-    this is a function rather than a string comparison. Note that `facelets`
-    hands back an **array of nine letters**, not a string; the ninth-and-centre
-    is index 4.
-  - `toggleCaseCell(pattern, index)` — its own inverse.
-  - `sanitizeCase(raw)` — `EMPTY_CASE` for anything that is not nine `y`/`.`
-    characters.
-  - `describeCase(pattern)` — the pattern **in words**, for the label (see
-    "Never colour alone" below).
-- **`algorithms.js` has the seam already.** `sanitizeCaseShape` is a private
-  nine-character regex with a comment saying it is Step 2's to replace; swap it
-  for `sanitizeCase` and delete it. `editAlgorithm` already routes a `case` in a
-  patch through it, and `createAlgorithm` already writes `null` — decide there
-  whether a new entry's empty case is `null` or `EMPTY_CASE`, and say which in
-  the PR, because `algorithms.test.js` pins the current answer.
+- **`games/cube/algCase.js` is new and pure.** `captureCase(cube)` reads
+  `facelets(cube).U` (`cubeState.js:160`) and returns nine characters, `y` where
+  the sticker matches the U **centre** and `.` where it does not — the centre
+  rather than a fixed colour, so the capture is honest for a cube held any way
+  up. `EMPTY_CASE` is nine dots; `sanitizeCase(raw)` and `toggleCaseCell(pattern,
+  index)` complete it. **`sanitizeCaseShape` already exists in `algorithms.js`**
+  and already keeps a nine-character case by shape — Step 1 put it there for
+  exactly this. Do not add a second sanitizer; make this one the real one.
+- **`invertAlg(text)` goes in `moves.js`**, beside `tokenize` and
+  `normalizeAlg`, not in `algCase.js`: reverse the token order and flip each
+  token's modifier — `R` ↔ `R'`, `R2` ↔ `R2`. **Work on tokens, never on parsed
+  moves** (see "easy to get wrong").
+- **`caseOfAlgorithm(moves)`** is `captureCase(cubeFromAlg(invertAlg(moves)))`.
+  One line, and it is the step's whole point.
+- **Every entry with moves gets a case, derived on read.** A stored `case` wins;
+  a `null` one is computed from the moves. That upgrades every entry Step 1
+  already wrote without touching the file, and it means arithmetic can never
+  overwrite a case the operator has corrected. **Do not migrate the save.**
 - **The tile** is the design's: 40 × 40, a 3 × 3 grid of 2-point-gapped cells on
-  a near-black rounded square, yellow for `y` and grey for `.`. It replaces
-  `CubeAlgorithms.js`' dashed `CASE_TILE` placeholder — **which is already 40
-  points wide**, so the card's layout does not move.
-- **The editor** is the same tile, larger, on `CubeAlgorithmEntry`, with each
-  cell a tap target. Every tap goes through `editAlgorithmById` — Step 1's one
-  funnel — with `toggleCaseCell` computing the next pattern.
-- **Where a case comes from this step is a finger.** Capturing one *from a cube*
-  is what `captureCase` is for and **Step 3** is what calls it (tagging a run).
-  Writing and testing it here is the plan's own split; do not go looking for a
-  caller.
+  a near-black rounded square, yellow for `y` and grey for `.`. **The library
+  card already reserves the space** — `CASE_TILE` and `styles.caseTile` in
+  `CubeAlgorithms.js`, an empty bordered square drawn deliberately so the name
+  and the moves do not move on every existing entry the day cases arrive. Fill
+  that square; do not resize it. The entry screen gets a larger one, which it
+  does not have yet.
+- **The tap-a-sticker editor is the correction path and it can wait.** The design
+  draws it, and derivation removed its main use. Build it if the tile turns out
+  to be wrong for something real; do not build it on spec. `toggleCaseCell` is
+  cheap to write and test now either way.
+- **Never colour alone.** A 40-point tile of two colours is unreadable to a
+  screen reader by construction, so the accessibility label says the pattern in
+  words — which cells are oriented, not just "a case".
 
 ### Files to read first
 
-- `games/cube/cubeState.js:150-199` — `facelets`, its face order and its reading
-  order, which is what decides which of the nine is the middle one.
-- `games/cube/algorithms.js` — `sanitizeCaseShape` and the comment above it; the
-  entry shape; `editAlgorithm`'s field-by-field sanitizing.
-- `games/cube/CubeAlgorithms.js` — `CASE_TILE` and `styles.caseTile`, the
-  placeholder this replaces.
-- `games/cube/CubeAlgorithmEntry.js` — where the editor goes, and how every other
-  field on that screen writes.
-- `games/cube/CubeGlyph.js` — the precedent for drawing rather than borrowing,
-  and `react-native-svg` is already a dependency if the tile wants to be one.
-- `games/cube/padPalette.js` — the colours the cube already uses, so the tile's
-  yellow is *the* yellow.
+- `games/cube/cubeState.js:150-199` — `facelets`, `faceletString`, `isSolved`.
+  `isSolved` is the model for the shape of a facelet predicate and is worth
+  reading before writing `captureCase`.
+- `games/cube/moves.js` — `parseMove`, `scanAlg`, `tokenize`, `normalizeAlg`,
+  and **the `scanAlg` doc comment**, which is the argument for why `invertAlg`
+  works on tokens.
+- `games/cube/algorithms.js:130-150` and `:560-580` — `sanitizeCaseShape` and
+  where it is called, plus the header comment that says the case is Step 2's.
+- `games/cube/CubeAlgorithms.js:18-24, 218-230, 345-360` — the reserved tile.
+- `games/cube/CubeAlgorithmEntry.js` — where the larger tile goes.
+- Plan §3.2 and §3.2.5. **Read 3.2.5 even though it is not your step**: it is
+  what consumes everything you are about to write, and building `caseOfAlgorithm`
+  without knowing that a screen recomputes it on every move is how it ends up
+  somewhere a component cannot reach.
 
 ### Easy to get wrong
 
-1. **Never colour alone.** A case is a pattern, and a pattern of two greys would
-   still be a pattern — but a 40-point tile is unreadable to a screen reader by
-   construction. `describeCase` has to say **which cells are oriented**;
-   `"top row: corner, edge, corner"` is not enough.
-2. **The centre, not a colour.** A cube rotated whole must capture the same
-   pattern as the cube at rest. That is a test (`algCase.test.js`), and it is the
-   one that catches a `=== 'U'` written in a hurry.
-3. **A style *variant* must be a whole style.** Twenty-seven cells with a colour
-   swapped in is where `[base, variant]` is most tempting, and V1 shipped a
-   phone-only bug on exactly that (`ScreenHeader.js:112-126`). Colour alone is
-   safe to layer; anything with layout in it is not.
-4. **The card's height must not change.** `CubeAlgorithms`' card is built around
-   a 40-point tile today. A tile that came out 44 would move every card in the
-   list and would not fail a test.
-5. Everything Step 1 learned, below, still applies.
+1. **`invertAlg` on tokens, not on parsed moves.** `parseMove` normalizes `r` to
+   `Rw`, so inverting through the parser silently rewrites a Roux user's notation
+   into notation their method does not use — which `moves.js` calls out as the
+   reason `scanAlg` returns both halves. `invertAlg("r U r'")` is `"r U' r'"`,
+   **not** `"Rw U' Rw'"`.
+2. **A stored case wins over a derived one, always.** Deriving on read is an
+   upgrade path, not a source of truth. The moment arithmetic overwrites a
+   correction, the operator has no way to keep an answer the app disagrees with.
+3. **`captureCase` compares against the U centre, not against yellow.** A cube
+   held with green up is still a cube, and `facelets` returns face letters.
+4. **A T-perm captures as nine `y`, and that is correct.** Permutation leaves
+   every sticker oriented. It is also useless for telling one PLL from another —
+   that is open question 8, not a bug, and the fix is a richer case later. **Pin
+   it in a test** so the next person does not "fix" it.
+5. **Do not resize the card's tile.** The empty square exists so the layout does
+   not move when you fill it. Filling it must be the only visible change to the
+   card.
+6. **The step adds no row to any screen with a cube on it**, so its cost in
+   points is zero — but say so in the PR anyway (§8.6's rule).
 
 ### What must be visible in Expo Go
 
-Open an entry from the library and tap stickers: the tile fills and empties, and
-the card behind it shows the same pattern when you back out. Background and
-resume, then kill and cold start — the pattern is still there. An entry with no
-case shows an empty tile rather than a gap. Read the tile at arm's length on both
-themes. Turn VoiceOver or TalkBack on and check the tile says something true.
+Every entry written in Step 1 now shows a case on its card, without anything
+having been re-saved. Write a Sune by hand (`R U R' U R U2 R'`) and the tile
+shows the design's Sune pattern. Write a T-perm and it shows nine oriented
+stickers. Edit an entry's moves and watch the tile follow. Background, resume,
+kill and cold start: cases are still right, and an entry whose case you corrected
+(if you built the editor) still has your version.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/`, with `algCase.test.js` green — a solved cube
-  captures nine `y`; a Sune-case cube captures the design's `.y..yy.y.`; a cube
-  rotated whole captures the same pattern as the cube at rest; toggling is its
-  own inverse; a corrupt pattern sanitizes to `EMPTY_CASE` — and the count in the
-  PR.
+- `npm test` from `SudokuApp/`, with `algCase.test.js` green. The two tests that
+  earn their keep: **`invertAlg` is its own inverse** over a corpus of real
+  algorithms *and* preserves the notation it was given, and
+  **`caseOfAlgorithm("R U R' U R U2 R'")` is `.y..yy.y.`** — the literal from the
+  design, which is the only way to know the arithmetic agrees with what a cuber
+  would draw. Pin the T-perm too (trap 4).
 - Browser screenshots at 320 × 568, 375 × 667 and 393 × 852: the library list
-  with cases on the cards, and the entry screen's editor. Check for horizontal
-  overflow at 320.
-- **A device pass** for the two things a browser cannot answer: whether a
-  40-point tile is legible at arm's length, and whether a 12-point cell is a
-  target a thumb can hit. Say in the PR which behaviours the browser covered.
+  with tiles, and the entry screen. This step is arithmetic and static
+  rendering, so **the browser covers most of it honestly** — say which parts in
+  the PR.
+- A device pass for the tile's legibility at arm's length on both themes. That is
+  the part a screenshot at 2× on a desktop cannot settle.
 
 ### Then rewrite this file
 
-Brief **Step 3 — tag a run from a solve** (plan §3.3) at this level of detail —
-it is the step with the most ways to be wrong on a phone, and the one plan §5
-says this epic is most tempted to put on an invisible gesture. Add whatever Step
-2 discovered to "Easy to get wrong".
+Brief **Step 2.5 — the algorithm workbench** (plan §3.2.5) at this level of
+detail. It is the biggest step of the epic so far and the one the operator is
+waiting for, so give it the room: name the extraction decision (plan §3.2.5's
+last block) explicitly, and carry forward whatever Step 2 learned about where
+`caseOfAlgorithm` needs to be callable from.
 
 ## What Step 1 discovered (keep reading this)
 
-Written down because they are the things the next few steps will trip on.
+### The device pass, and the finding it produced
+
+**Tested on the `pr-130` build, 2026-08-24. The operator did not like it**, and
+the reason was one line of the flow: **`＋` opens a modal asking you to type
+notation.** In an app where Cube Flow spent an unplanned step making a finger on
+a sticker write a move — and then rearranged the whole solve screen around the
+consequence — a library whose only way in is the phone keyboard reads as a
+different product.
+
+**Step 1 merged anyway, deliberately, with the finding outstanding.** That is
+not this repo's habit and it is worth knowing why it was right here: the finding
+is not a defect in what Step 1 built. The module, the storage slot, the list, the
+search and the filters are all correct and all needed, and typed entry stays as a
+real secondary path. What is wrong is *which of two doors is the default*, and
+`＋` cannot stop opening the keyboard until there is somewhere better for it to
+go. So the finding was spent on a new step rather than a patch: **plan §3.2.5,
+the algorithm workbench**, which is Step 2.5 and comes straight after the step
+this handoff briefs.
+
+Two consequences for whoever is reading this:
+
+- **The 3.3.0 build note that says "tap the ＋, type the moves" is true today and
+  will not be true after Step 2.5.** Rewrite it there rather than leaving the
+  release describing a door that has moved.
+- **Nothing else about Step 1 was tested on a device**, because the operator
+  stopped at the front door. The typing round-trip, the filter chips and the
+  action row have browser evidence only — see the last three bullets below, and
+  re-exercise them at the next device pass.
+
+### Everything else, written down because the next few steps will trip on it
 
 - **The entry screen has one mode, and the moves-first flow is what buys it.**
   `＋` pushes `ENTRY_ROUTE` with `{ id: null }`; the screen sees no id, opens
@@ -339,7 +386,8 @@ Written down because they are the things the next few steps will trip on.
 
 ## Open questions being carried forward
 
-From `docs/cube-methods-plan.md` §6 — none of them block Step 1:
+From `docs/cube-methods-plan.md` §6 — none of them block Step 2. **Questions 7,
+8 and 9 are new**, and 8 is the one this step will put evidence under:
 
 1. **Is the library's door in the right place?** The scramble header is full at
    four controls, so it is in the action row. Dropping a header control instead
@@ -353,6 +401,18 @@ From `docs/cube-methods-plan.md` §6 — none of them block Step 1:
    built.
 6. **Should a preset be hideable?** `forNewSolves` covers user methods; presets
    deliberately have no equivalent.
+7. **Does the workbench ever need an authored starting state?** §4 says no for
+   this epic, and the inverse derivation is why. The mechanism if it is ever
+   wanted is a `setup` string on the entry, defaulting to empty. **Do not build
+   it before a real algorithm fails without it** — and when one does, write down
+   which algorithm it was.
+8. **Is nine characters of the U face enough of a case?** A T-perm captures as
+   nine `y`; so does every other PLL. The design draws the U face and this epic
+   ships it, and the evidence for going further is the first time two entries
+   show the same tile. **Step 2 is where that starts being visible.**
+9. **Should `＋` still offer typing at all?** After Step 2.5 it becomes **Paste
+   an algorithm** on the entry screen. If a fortnight goes by without it being
+   reached for, it can go — the library will have been seeded by then.
 
 Carried from `docs/cube-flow-plan.md` §6 and still open there: whether the
 phase-split tick track comes back now the rail exists (q5), and where the app's
