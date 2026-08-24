@@ -330,7 +330,12 @@ never has to draw a case by hand.
   the sticker matches the U **centre** and `.` where it does not — the centre
   rather than a fixed colour, so the capture is honest for a cube being held any
   way up. `toggleCaseCell(pattern, index)` and `sanitizeCase(raw)` complete it;
-  `EMPTY_CASE` is nine dots.
+  `EMPTY_CASE` is nine dots. **Step 2 corrected one line of this too**: a corrupt
+  pattern sanitizes to `null`, not to `EMPTY_CASE`. `null` is what
+  `algorithmCase` reads as *"nothing stored, derive it from the moves"*, while
+  `EMPTY_CASE` is a real answer meaning *"nothing is oriented"* — sanitizing
+  corruption to it would pin a blank tile onto an entry whose moves knew the
+  answer.
 - **`invertAlg(text)` belongs in `moves.js`, not here**, beside `tokenize` and
   `normalizeAlg`: reverse the token order and flip each token's modifier — `R` ↔
   `R'`, `R2` ↔ `R2`. **Work on the tokens, not on parsed moves.** `moves.js`
@@ -366,9 +371,14 @@ never has to draw a case by hand.
 whole captures the same pattern as the cube at rest; a corrupt pattern sanitizes
 to `EMPTY_CASE`. And the two that earn their keep: **`invertAlg` is its own
 inverse** over a corpus of real algorithms and preserves the notation it was
-given, and **`caseOfAlgorithm("R U R' U R U2 R'")` is the design's Sune pattern
-`.y..yy.y.`** — a literal from the design, which is the only way to know the
-arithmetic agrees with what a cuber would draw. Pin one PLL too (`T-perm` is all
+given, and **`caseOfAlgorithm("R U R' U R U2 R'")` is the Sune pattern
+`.y.yyyyy.`** — which is the only way to know the arithmetic agrees with what a
+cuber would draw. **Step 2 corrected this literal.** It was written here as
+`.y..yy.y.`, read off the design, and the design's tile is a drawing: that
+pattern has three of the four edges oriented and no corners, and last-layer edge
+orientation is always even, so no cube with its first two layers solved can show
+it. Sune's real case is the one every OLL sheet draws — all four edges plus one
+corner, six oriented stickers — and that is `.y.yyyyy.`. Pin one PLL too (`T-perm` is all
 nine `y`, because permutation leaves every sticker oriented) — it is the case
 that proves the U-face-only pattern is *not* enough on its own, and it is the
 evidence §6's richer-case question wants.
@@ -376,6 +386,71 @@ evidence §6's richer-case question wants.
 **Operator tests:** the tile reads at arm's length on both themes; every entry
 written in Step 1 now shows a case, and it is the right one for a Sune and a
 T-perm held in the hand next to the phone.
+
+**Landed 2026-08-24** (PR #132, merged to `epic/cube-methods`; **device pass
+passed clean on the `pr-132` build** — the tile reads at arm's length on both
+themes, which was the one thing a desktop screenshot at 2× could not settle, and
+every entry written in Step 1 showed its case without having been re-saved). Two
+new files, `algCase.js` and `CubeCaseTile.js`; `invertAlg` and `tryInvertAlg` in
+`moves.js`; `algorithmCase` in `algorithms.js`, and `sanitizeCaseShape` grown up
+into `algCase.js`'s `sanitizeCase`.
+
+**The shape it became.** The step's whole weight is on one function —
+`caseOfAlgorithm(moves)` = `captureCase(cubeFromAlg(invertAlg(moves)))` — and on
+the decision to **derive on read rather than migrate the file**. A stored case
+wins and a `null` one is computed, which is what gave every entry Step 1 wrote a
+case the moment this build was installed, with nothing re-saved and no migration
+in either direction. `createAlgorithm` still writes `case: null`, and **nothing
+in the app writes a case at all**: the field exists only for a hand correction
+that overrules the arithmetic, and there is no screen for one yet.
+
+**Five things found in the build, not in the brief:**
+
+- **The design's Sune literal was wrong, and this section said to pin it.**
+  `.y..yy.y.` has three of the four edges oriented and no corners, and last-layer
+  edge orientation is always even — so no cube with its first two layers solved
+  can show it. (It is a reachable *capture*: a scrambled cube whose top layer
+  holds pieces from elsewhere produces it, which was confirmed by brute force. It
+  is not a reachable OLL.) Sune's real case is `.y.yyyyy.`, four edges plus one
+  corner, and the test pins that with the reasoning in its body. **The mechanism
+  worth remembering: the design is a drawing and the arithmetic is holding a
+  cube — but check which algorithm the drawing is of before concluding either is
+  wrong.** Anti-Sune came out `.yyyyy.y.`, the dot OLL `....y....`, both correct.
+- **`sanitizeCase` must answer `null` for corruption, not `EMPTY_CASE`**, which
+  is the opposite of what this section's test list said. `null` is what
+  `algorithmCase` reads as *derive it*; `EMPTY_CASE` is a real answer meaning
+  *nothing is oriented*. Sanitizing corruption to `EMPTY_CASE` would pin a
+  permanent blank tile onto an entry whose moves knew the answer. Both lines in
+  §3.2 are corrected above.
+- **The memo is load-bearing, not an optimisation.** A capture is ~0.07 ms in
+  node — call it half a millisecond in Hermes — and the whole library re-renders
+  on every keystroke in the search field, so a hundred entries is 50 ms a render
+  without it. `caseOfAlgorithm` therefore memoizes **inside `algCase.js`** rather
+  than leaving each screen to arrange a `useMemo`, which is also what lets Step
+  2.5's workbench call it straight from a render on every move.
+- **The tile dissolved into the card on the dark theme**, found in a browser at
+  393 × 852: the card is near-black and so is the tile's body, so what was left
+  read as stickers floating on the card rather than as a cube face. Fixed with a
+  fixed `#3a3a3a` hairline rim — **fixed rather than the theme's border colour**,
+  because a pale rim would halo the black square on the light themes, which is
+  the same bug pointing the other way.
+- **`toggleCaseCell` refuses the centre.** It is the sticker the other eight are
+  measured against, so a grid that let you turn it off would let you draw a case
+  no capture could produce. **The tap-a-sticker editor itself was not built** —
+  this section says build it when the tile turns out to be wrong for something
+  real, and nothing was. `toggleCaseCell` is written and tested for that day, and
+  the question is carried as §6 q10.
+
+**Layout, in points (§8.6).** **Zero.** The step adds no row to any screen with a
+cube on it: the library card's 40-point square was reserved by Step 1 precisely
+so that filling it would move nothing, and it did not. The entry screen's tile is
+76 points on a screen with no cube.
+
+**§6 question 8 now has evidence rather than a prediction.** A library holding a
+T-perm and a J-perm shows two identical all-yellow tiles side by side, visible in
+the step's screenshots. The U-face-only case is still what the design draws and
+what this epic ships; what is now missing is a *decision* about what a richer one
+would be, which is a design question rather than an arithmetic one.
 
 ### 3.2.5 Step 2.5 — the algorithm workbench
 

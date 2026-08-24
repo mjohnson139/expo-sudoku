@@ -3,9 +3,12 @@ import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
+import CubeCaseTile from './CubeCaseTile';
+import { describeCase } from './algCase';
 import { ALG_FONT } from './algText';
 import {
   MAX_ALGORITHMS,
+  algorithmCase,
   algorithmFilters,
   describeAssignment,
   filterAlgorithms,
@@ -16,10 +19,9 @@ import { CUBE_ACCENT, headerAction, styles as chrome } from './cubeChrome';
 import { ENTRY_ROUTE, useCube } from './CubeContext';
 
 /** The case tile the design draws on every card — 40 points square
- *  (docs/cube-methods-plan.md §3.2). **Step 2 fills it in.** It is drawn empty
- *  here rather than left out, because a tile that appeared on the card the day
- *  cases arrived would move the name and the moves on every existing entry, and
- *  a card whose layout changes under a feature is a card nobody trusts. */
+ *  (docs/cube-methods-plan.md §3.2). Step 1 reserved the square and Step 2 fills
+ *  it, which is why filling it moved nothing: the name and the moves have been
+ *  sitting 40 points in since the day the cards were written. */
 const CASE_TILE = 40;
 
 /**
@@ -201,9 +203,14 @@ const CubeAlgorithms = ({ navigation }) => {
         >
           {shown.map((entry) => {
             const tags = entry.assignments.map(describeAssignment).filter(Boolean);
+            // The tile itself is silent (`CubeCaseTile`) and the case is said
+            // here instead, in the row's own label — one stop on the screen
+            // reader rather than two, and never a colour on its own.
+            const pattern = algorithmCase(entry);
             const said = [
               entry.name,
               entry.moves,
+              describeCase(pattern),
               tags.join(', '),
               entry.notes ? 'has notes' : '',
             ]
@@ -219,9 +226,10 @@ const CubeAlgorithms = ({ navigation }) => {
                 accessibilityLabel={said}
                 accessibilityHint="Opens this algorithm"
               >
-                {/* Empty until Step 2, and 40 points wide from today so the row
-                    does not move when the cases arrive. */}
-                <View style={[styles.caseTile, { borderColor: border }]} />
+                {/* Derived from the moves unless a hand has corrected it —
+                    `algorithmCase` — so every entry written before this build
+                    shows one without having been re-saved. */}
+                <CubeCaseTile pattern={pattern} size={CASE_TILE} />
 
                 <View style={styles.cardText}>
                   <View style={styles.cardTitle}>
@@ -345,19 +353,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     marginBottom: 6,
-  },
-  // Dashed while it is empty, so it reads as a slot waiting for something rather
-  // than as a square that failed to load.
-  caseTile: {
-    flexGrow: 0,
-    flexShrink: 0,
-    flexBasis: 'auto',
-    width: CASE_TILE,
-    height: CASE_TILE,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderRadius: 6,
-    opacity: 0.4,
   },
   cardText: {
     flexGrow: 1,
