@@ -37,14 +37,45 @@ const ICON_SIZE = 22;
  * What gets typed is added to the end of the solve, not put in place of it. The
  * field is for dropping a known sequence into a solve being written, and undo is
  * one tap away on the pad if it was the wrong one.
+ *
+ * ### The library reuses it rather than growing a second one
+ *
+ * Cube Methods Step 1 needs a validated moves field for an algorithm entry, and
+ * a second one would be a second parser's worth of copy to keep in step — the
+ * error message in particular, which is the whole reason `algError` names the
+ * offending token. So the words are parameters and the machinery is not:
+ * `title`, `placeholder`, `initialText`, `submitLabel`, `submitIcon` and
+ * `submitHint`. **Every default is exactly what the solve screen already had**,
+ * so the caller that passes none of them keeps the modal it has, down to the
+ * plus glyph on the button.
+ *
+ * `initialText` is what makes it an *editor* as well as an adder: the library's
+ * entry screen seeds it with the moves already stored, and what comes back
+ * replaces them. The field is still reset on every open, which is what stops the
+ * alg you typed last time from sitting there waiting to be added twice.
  */
-const CubeAlgInputModal = ({ visible, theme, accent, onAdd, onClose }) => {
-  const [text, setText] = useState('');
+const CubeAlgInputModal = ({
+  visible,
+  theme,
+  accent,
+  onAdd,
+  onClose,
+  title = 'Type an algorithm',
+  placeholder = "R U R' U'",
+  initialText = '',
+  submitLabel = 'Add',
+  submitIcon = 'plus',
+  submitHint = 'Add these moves to the solve',
+}) => {
+  const [text, setText] = useState(initialText);
 
-  // Opening is a fresh field. Otherwise the alg you added last time is sitting
-  // there waiting to be added twice.
+  // Opening is a fresh field, seeded with whatever the caller is editing —
+  // nothing, for the solve screen, which is the empty string it always had.
   useEffect(() => {
-    if (visible) setText('');
+    if (visible) setText(initialText);
+    // `initialText` deliberately out of the deps: it is the value as the modal
+    // *opened*, and an entry re-rendering underneath must not rewrite the field
+    // under the thumb that is typing in it.
   }, [visible]);
 
   const titleColor = theme.colors.title;
@@ -78,13 +109,13 @@ const CubeAlgInputModal = ({ visible, theme, accent, onAdd, onClose }) => {
             <MaterialCommunityIcons name="close" size={ICON_SIZE} color={titleColor} />
           </TouchableOpacity>
 
-          <Text style={[styles.title, { color: titleColor }]}>Type an algorithm</Text>
+          <Text style={[styles.title, { color: titleColor }]}>{title}</Text>
 
           <TextInput
             value={text}
             onChangeText={setText}
             onSubmitEditing={submit}
-            placeholder="R U R' U'"
+            placeholder={placeholder}
             placeholderTextColor={theme.colors.numberPad.border}
             autoCapitalize="none"
             autoCorrect={false}
@@ -127,11 +158,11 @@ const CubeAlgInputModal = ({ visible, theme, accent, onAdd, onClose }) => {
               onPress={submit}
               disabled={!ready}
               accessibilityRole="button"
-              accessibilityLabel="Add these moves to the solve"
+              accessibilityLabel={submitHint}
               accessibilityState={{ disabled: !ready }}
             >
-              <MaterialCommunityIcons name="plus" size={16} color="#ffffff" />
-              <Text style={[styles.buttonText, styles.primaryText]}>Add</Text>
+              <MaterialCommunityIcons name={submitIcon} size={16} color="#ffffff" />
+              <Text style={[styles.buttonText, styles.primaryText]}>{submitLabel}</Text>
             </TouchableOpacity>
           </View>
         </View>
