@@ -271,7 +271,9 @@ regression there is not worth a saved session.
   `label` and it is hidden from the screen reader — right when the row around it
   already says the case; pass `describeCase(pattern)` where it stands alone,
   which is what the workbench wants. The outer box is exactly `size`. 40 and 76
-  are the two sizes in use; both divide evenly into three cells.
+  are the two sizes in use; both divide evenly into three cells. **40 is
+  device-verified as legible at arm's length on both themes** (Step 2's pass), so
+  the tile beside the track can be that small if the budget in points is tight.
 - **`algorithmCase(entry)` in `algorithms.js`** is the *entry*-shaped read —
   stored case wins, else derived. The workbench has no entry until Save, so it
   wants `caseOfAlgorithm` on its own accumulated text, not this.
@@ -341,6 +343,20 @@ It and the workbench are now the same feature reached from opposite ends, and
 Step 3 is the smaller half; say what the workbench's Save sheet left it.
 
 ## What Step 2 discovered
+
+### The device pass
+
+**Tested on the `pr-132` build, 2026-08-24, and it passed clean.** The one thing
+the browser could not settle was the tile's legibility at arm's length, and it
+reads on both themes at 40 points — which retires the question the PR flagged
+rather than leaving it open. Every entry written in Step 1 showed its case
+without having been re-saved, which is the derive-on-read path working against a
+real save file rather than a seeded one.
+
+**Step 1's own outstanding items are still outstanding.** Its typing round-trip,
+filter chips and action row have browser evidence only, and this pass did not
+change that — see "What Step 1 discovered". Re-exercise them at Step 2.5's pass,
+which touches the same screens.
 
 ### The design's Sune tile is wrong, and the arithmetic is right
 
