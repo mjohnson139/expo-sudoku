@@ -28,7 +28,22 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: 20       # Expo SDK 54 requires Node 20+
+  # Node 24, not 20. Two reasons, both from the Node 20 deprecation:
+  #
+  # 1. It is what actually broke. `eas-cli` declares `engines.node >= 20`, but
+  #    it pulls in `@oclif/plugin-autocomplete@3.3.0`, which declares `>= 22`.
+  #    yarn enforces engine ranges strictly, so the `expo/expo-github-action`
+  #    install step -- which uses yarn -- hard-failed with "The engine 'node'
+  #    is incompatible with this module. Expected version '>=22.0.0'. Got
+  #    '20.20.2'". npm only warns about engine mismatches, which is why the
+  #    `npm install -g eas-cli` jobs kept passing while the PR preview and
+  #    cleanup jobs died.
+  # 2. GitHub runners now default to Node 24 for the action runtime itself, so
+  #    matching it here keeps one Node across the whole job.
+  #
+  # 24 is safe for this toolchain: react-native 0.81 wants >= 20.19.4 and metro
+  # 0.84 lists ^24.3.0 among its supported ranges.
+  NODE_VERSION: 24
   APP_DIR: ./SudokuApp
 
 jobs:
@@ -43,12 +58,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
+          # v5 turns dependency caching on by default when no `cache` input is
+          # given. This step runs at the repo root and the lockfile lives in
+          # SudokuApp/, so auto-detection has nothing to key on -- off keeps v4
+          # behaviour. Set `cache: npm` + `cache-dependency-path` here if the
+          # npm install steps ever need speeding up.
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm install
@@ -78,12 +99,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
+          # v5 turns dependency caching on by default when no `cache` input is
+          # given. This step runs at the repo root and the lockfile lives in
+          # SudokuApp/, so auto-detection has nothing to key on -- off keeps v4
+          # behaviour. Set `cache: npm` + `cache-dependency-path` here if the
+          # npm install steps ever need speeding up.
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm install
@@ -138,25 +165,36 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
+          # v5 turns dependency caching on by default when no `cache` input is
+          # given. This step runs at the repo root and the lockfile lives in
+          # SudokuApp/, so auto-detection has nothing to key on -- off keeps v4
+          # behaviour. Set `cache: npm` + `cache-dependency-path` here if the
+          # npm install steps ever need speeding up.
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm install
         working-directory: ${{ env.APP_DIR }}
 
+      # v9, not v8. v8 runs on the deprecated node20 action runtime, and it
+      # bundles @actions/cache v3, which talks to the retired v1 cache service
+      # -- that is the "Failed to restore: Cache service responded with 400"
+      # warning in the logs. v9 is node24 and @actions/cache v4; the inputs
+      # used here are unchanged between the two.
       - name: Set up EAS CLI (with token auth)
-        uses: expo/expo-github-action@v8
+        uses: expo/expo-github-action@v9
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Publish preview and comment on the PR
-        uses: expo/expo-github-action/preview@v8
+        uses: expo/expo-github-action/preview@v9
         with:
           working-directory: ${{ env.APP_DIR }}
           command: >-
@@ -189,12 +227,18 @@ jobs:
       contents: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
+          # v5 turns dependency caching on by default when no `cache` input is
+          # given. This step runs at the repo root and the lockfile lives in
+          # SudokuApp/, so auto-detection has nothing to key on -- off keeps v4
+          # behaviour. Set `cache: npm` + `cache-dependency-path` here if the
+          # npm install steps ever need speeding up.
+          package-manager-cache: false
 
       # Required, and the reason this job silently did nothing for five PRs:
       # `eas branch:delete` reads the app config, and resolving app.json's
@@ -206,7 +250,7 @@ jobs:
         working-directory: ${{ env.APP_DIR }}
 
       - name: Set up EAS CLI (with token auth)
-        uses: expo/expo-github-action@v8
+        uses: expo/expo-github-action@v9
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
