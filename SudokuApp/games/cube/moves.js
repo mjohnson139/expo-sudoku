@@ -175,6 +175,56 @@ export const parseAlg = (text) => scanAlg(text).moves;
  */
 export const tokenize = (text) => scanAlg(text).tokens;
 
+/** One well-formed token, undone. Textual by design — see `invertAlg`. */
+const invertToken = (token) => {
+  if (token.includes('2')) return token;
+  if (/['\u2019]/.test(token)) return token.replace(/['\u2019]/g, '');
+  return `${token}'`;
+};
+
+/**
+ * An algorithm undone: the tokens in reverse, each one flipped.
+ *
+ * The one line this is worth having for is Step 2's (plan §3.2): **if `A` takes
+ * case `C` to solved, then `A⁻¹` takes solved to `C`** — so an algorithm carries
+ * its own case and nobody has to author a starting state for it.
+ *
+ * ### It works on the tokens, never on the parsed moves
+ *
+ * This is the whole reason `scanAlg` hands back both halves (see its comment
+ * above). `parseMove` normalizes: `r`, `rw` and `Rw` all come back as `Rw`. So
+ * inverting through the parser would answer a Roux user's `r U r'` with
+ * `Rw U' Rw'` — the right cube, spelled in notation their own method does not
+ * use. Inverting the token text instead gives `r U' r'`, which is what they
+ * wrote, backwards.
+ *
+ * Three rules, and they are all textual:
+ *
+ * - A half turn is its own inverse, so **the token comes back untouched** —
+ *   `R2` stays `R2` and a typed `R2'` stays `R2'`, which is what makes this
+ *   function its own inverse over the text rather than merely over the cube.
+ * - A token with an apostrophe loses it (`R''` is `R'`, so *all* of them go).
+ * - Anything else gains one.
+ *
+ * The curly apostrophe a phone keyboard produces is accepted on the way in and
+ * comes back straight, because there is nothing to copy it from when the
+ * apostrophe is being *added*. That is the one input this is not character-for-
+ * character its own inverse over; it is still its own inverse over the cube.
+ *
+ * Empty text inverts to empty text: the solved cube undone is the solved cube.
+ *
+ * @param {string} text
+ * @returns {string} the inverse, single-spaced
+ * @throws {Error} on anything that isn't a well-formed algorithm
+ */
+export const invertAlg = (text) => tokenize(text).map(invertToken).reverse().join(' ');
+
+/** `invertAlg` that answers null instead of throwing. */
+export const tryInvertAlg = (text) => {
+  const tokens = tryTokenize(text);
+  return tokens ? tokens.map(invertToken).reverse().join(' ') : null;
+};
+
 /** `scanAlg` that answers null instead of throwing. */
 export const tryScanAlg = (text) => {
   try {
@@ -244,6 +294,8 @@ export default {
   tokenize,
   tryParseAlg,
   tryTokenize,
+  invertAlg,
+  tryInvertAlg,
   isValidAlg,
   algError,
   formatAlg,

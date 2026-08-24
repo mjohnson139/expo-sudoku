@@ -13,10 +13,13 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
 import CubeAlgInputModal from './CubeAlgInputModal';
+import CubeCaseTile from './CubeCaseTile';
+import { describeCase, sanitizeCase } from './algCase';
 import { ALG_FONT } from './algText';
 import {
   MAX_ALG_NAME,
   MAX_ALG_NOTES,
+  algorithmCase,
   describeAlgorithmSize,
   hasAssignment,
   toggleAssignment,
@@ -24,6 +27,11 @@ import {
 import { METHODS } from './methods';
 import { CUBE_ACCENT, styles as chrome } from './cubeChrome';
 import { useCube } from './CubeContext';
+
+/** The tile here is bigger than the library card's 40 — this is the screen you
+ *  are on when you want to *check* the case rather than recognise it, and 76
+ *  divides into three 22-point stickers with nothing left over. */
+const ENTRY_TILE = 76;
 
 /**
  * One algorithm (docs/cube-methods-plan.md §3.1, Step 1).
@@ -186,6 +194,13 @@ const CubeAlgorithmEntry = ({ navigation, route }) => {
     );
   }
 
+  // Derived on every render rather than held: the moves can change under this
+  // screen (the modal writes them) and a case worked out at mount would be the
+  // previous algorithm's. `algorithmCase` memoizes the arithmetic, so this is a
+  // map lookup after the first one.
+  const caseTile = algorithmCase(entry);
+  const stored = sanitizeCase(entry.case) !== null;
+
   return (
     <View style={[chrome.container, { backgroundColor: theme.colors.background }]}>
       {header}
@@ -234,6 +249,21 @@ const CubeAlgorithmEntry = ({ navigation, route }) => {
             <MaterialCommunityIcons name="pencil" size={16} color={titleColor} style={styles.pencil} />
           </TouchableOpacity>
           <Text style={[styles.hint, { color: titleColor }]}>{describeAlgorithmSize(entry)}</Text>
+
+          <Text style={[styles.label, { color: titleColor }]}>Case</Text>
+          {/* Nobody typed this and there is no field to type it into: it is the
+              moves, inverted and applied to a solved cube (`algCase.js`). Which
+              is why it sits under the moves — change them and it follows on the
+              next render, and watching it follow is how you know the entry says
+              what you meant. */}
+          <View style={styles.caseRow}>
+            <CubeCaseTile pattern={caseTile} size={ENTRY_TILE} label={describeCase(caseTile)} />
+            <Text style={[styles.caseHint, { color: titleColor }]}>
+              {stored
+                ? 'Corrected by hand; the moves no longer change it.'
+                : 'Worked out from the moves — the case these moves solve.'}
+            </Text>
+          </View>
 
           <Text style={[styles.label, { color: titleColor }]}>Used for</Text>
           {/* Zero or more, and **zero is a real answer**: an unassigned entry is
@@ -373,6 +403,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
     opacity: 0.6,
     marginTop: 4,
+  },
+  caseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  caseHint: {
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    fontSize: 11,
+    lineHeight: 15,
+    opacity: 0.6,
+    marginLeft: 12,
   },
   methodBlock: {
     marginBottom: 8,

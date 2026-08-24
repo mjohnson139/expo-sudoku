@@ -1,5 +1,6 @@
 import {
   ALL_LABEL,
+  algorithmCase,
   MAX_ALGORITHMS,
   MAX_ALG_NAME,
   MAX_ALG_NOTES,
@@ -24,6 +25,7 @@ import {
   searchAlgorithms,
   toggleAssignment,
 } from '../algorithms';
+import { EMPTY_CASE, caseOfAlgorithm } from '../algCase';
 import { METHODS } from '../methods';
 
 const SUNE = "R U R' U R U2 R'";
@@ -576,5 +578,44 @@ describe('sanitizeAlgorithms', () => {
       many.push({ id: `a${i + 1}`, moves: 'U', savedAt: 1 });
     }
     expect(sanitizeAlgorithms(many)).toHaveLength(MAX_ALGORITHMS);
+  });
+});
+
+describe('algorithmCase', () => {
+  it('derives a case from the moves when none is stored', () => {
+    // Every entry Step 1 wrote has `case: null`, and this is what upgrades all
+    // of them without a migration and without anything being re-saved.
+    const { algorithm } = make();
+    expect(algorithm.case).toBeNull();
+    expect(algorithmCase(algorithm)).toBe(caseOfAlgorithm(SUNE));
+  });
+
+  it('prefers a stored case over the arithmetic, always', () => {
+    // The rule that makes a correction a correction: once a hand has said what
+    // the case is, deriving it again would overwrite the operator's answer with
+    // the app's, and there would be no way to keep one the app disagrees with.
+    const { algorithms } = make();
+    const corrected = editAlgorithm(algorithms, 'a1', { case: '....y....' }, { editedAt: 2 });
+    expect(algorithmCase(corrected[0])).toBe('....y....');
+    expect(algorithmCase(corrected[0])).not.toBe(caseOfAlgorithm(SUNE));
+  });
+
+  it('follows the moves when they change', () => {
+    const { algorithms } = make();
+    const changed = editAlgorithm(algorithms, 'a1', { moves: TPERM }, { editedAt: 2 });
+    expect(algorithmCase(changed[0])).toBe(caseOfAlgorithm(TPERM));
+  });
+
+  it('drops a stored case that is not one, and derives instead', () => {
+    // `editAlgorithm` cannot write a corrupt case, but a save file can carry one
+    // and `sanitizeAlgorithms` nulls it — after which the moves answer.
+    const clean = sanitizeAlgorithms([{ id: 'a1', moves: SUNE, savedAt: 1, case: 'yyyy' }]);
+    expect(clean[0].case).toBeNull();
+    expect(algorithmCase(clean[0])).toBe(caseOfAlgorithm(SUNE));
+  });
+
+  it('is an empty case for nothing at all', () => {
+    expect(algorithmCase(null)).toBe(EMPTY_CASE);
+    expect(algorithmCase(undefined)).toBe(EMPTY_CASE);
   });
 });

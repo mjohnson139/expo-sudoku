@@ -36,9 +36,9 @@
  * - **`name`** is unique across the whole library, not scoped the way a solve's
  *   name is scoped to its scramble: there is one library, and two rows in it
  *   that read the same is a row you cannot ask for.
- * - **`case`** is nine characters of the U face and it is **Step 2's**. It is
- *   `null` here, and the only thing this step does with it is *not lose it* —
- *   see `sanitizeCaseShape`.
+ * - **`case`** is nine characters of the U face (`algCase.js`), and it is stored
+ *   only when a hand has overruled the arithmetic: `null` means *derive it from
+ *   the moves*, which is what `algorithmCase` does on every read.
  * - **`assignments`** is `[{ method, stage }]` — zero or more, so one entry can
  *   serve Roux CMLL and CFOP OLL at once and an unassigned entry stays findable.
  *   Both halves are checked against the catalogue in `methods.js` on the way in
@@ -69,6 +69,7 @@
  * is the truth: that build could not keep an algorithm.
  */
 
+import { EMPTY_CASE, caseOfAlgorithm, sanitizeCase } from './algCase';
 import { METHODS, findMethod, stagesOf } from './methods';
 import { isValidAlg, moveCount, normalizeAlg } from './moves';
 
@@ -135,20 +136,28 @@ const normalizeNotes = (notes) =>
   typeof notes === 'string' ? notes.slice(0, MAX_ALG_NOTES) : '';
 
 /**
- * The `case`, kept by **shape** without this step knowing what it means.
+ * The case an entry shows, and **a stored one always wins**.
  *
- * Step 2 owns the case — nine characters of the U face, `y` where the sticker
- * matches the U centre — and will replace this with `sanitizeCase` from
- * `algCase.js`. What it does here is the one thing this step owes it: a file
- * written by a build that *has* a case, read by this build and written back, has
- * to come out with its cases intact. `readCubeSave` earns its "both directions
- * of version skew work" claim one field at a time, and dropping a field this
- * build simply cannot draw would be the first exception to it.
+ * `case` is nine characters of the U face and it is `null` on every entry Step 1
+ * wrote, because that build could not work one out. Step 2 can — an algorithm
+ * carries its own case, `caseOfAlgorithm` (`algCase.js`) — so the null ones are
+ * filled in **on read**, here, rather than by rewriting the save file.
  *
- * Nothing in Step 1 ever produces one — `createAlgorithm` writes `null`.
+ * That is what makes every entry already in the library show a case the day this
+ * build is installed, with nothing re-saved and no migration in either
+ * direction. And the order is the point (plan §3.2): derivation is an *upgrade
+ * path*, not a source of truth. The moment arithmetic overwrote a stored case,
+ * an operator who had corrected one would have no way to keep an answer the app
+ * disagrees with.
+ *
+ * `EMPTY_CASE` is the floor and is unreachable in practice: an entry whose moves
+ * do not parse is not an entry (`sanitizeAlgorithms`), so the derivation only
+ * fails for something that is not in the library.
  */
-const sanitizeCaseShape = (raw) =>
-  typeof raw === 'string' && /^[y.]{9}$/.test(raw) ? raw : null;
+export const algorithmCase = (algorithm) => {
+  if (!algorithm) return EMPTY_CASE;
+  return sanitizeCase(algorithm.case) || caseOfAlgorithm(algorithm.moves) || EMPTY_CASE;
+};
 
 /** An entry by id, or null. */
 export const findAlgorithm = (algorithms, id) =>
@@ -321,7 +330,9 @@ export const createAlgorithm = (
     id: nextAlgorithmId(list),
     name: wanted.length > 0 ? uniqueName(wanted, taken) : defaultAlgorithmName(list),
     moves: alg,
-    // Step 2's, and null until then — see `sanitizeCaseShape`.
+    // Null, and **that is not a missing value**: it means nobody has corrected
+    // this entry's case, so `algorithmCase` derives it from the moves on every
+    // read. A case is only ever stored when a hand has overruled the arithmetic.
     case: null,
     assignments: sanitizeAssignments(assignments),
     notes: normalizeNotes(notes),
@@ -401,7 +412,7 @@ export const editAlgorithm = (algorithms, id, patch, { editedAt = Date.now() } =
 
   if ('assignments' in fields) next.assignments = sanitizeAssignments(fields.assignments);
   if ('notes' in fields) next.notes = normalizeNotes(fields.notes);
-  if ('case' in fields) next.case = sanitizeCaseShape(fields.case);
+  if ('case' in fields) next.case = sanitizeCase(fields.case);
 
   if (!changesAnything(entry, next)) return list;
 
@@ -568,7 +579,7 @@ export const sanitizeAlgorithms = (raw) => {
       id,
       name,
       moves,
-      case: sanitizeCaseShape(entry.case),
+      case: sanitizeCase(entry.case),
       assignments: sanitizeAssignments(entry.assignments),
       notes: normalizeNotes(entry.notes),
       savedAt,
@@ -586,6 +597,7 @@ export default {
   MAX_ASSIGNMENTS,
   UNASSIGNED,
   normalizeAlgName,
+  algorithmCase,
   findAlgorithm,
   nextAlgorithmId,
   defaultAlgorithmName,

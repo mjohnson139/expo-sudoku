@@ -15,6 +15,11 @@ const BUILD_NOTES = {
       'One algorithm can serve more than one stage at once — Roux CMLL and CFOP PLL are two taps, not two entries',
       'An algorithm with nothing assigned to it is still findable, under Unassigned',
       'Notes are for finger tricks and cues, and are never shown while you are solving',
+      'Every algorithm now shows the case it solves — the picture of the top layer you would be looking at when it is the right thing to do',
+      'Nobody types a case in: it is worked out from the moves, because an algorithm run backwards from a solved cube *is* its own case',
+      'That means every algorithm you had already written has a case today, without you touching it',
+      'Change an algorithm\'s moves and its case follows on the way back to the library',
+      'The case reads out in words for a screen reader — which stickers are facing up, never a colour on its own',
       'The library is kept with everything else the cube remembers: background the app, or close it, and it is all still there',
       'Nothing about the scramble screen moved to make room — the library shares the row Compare already sits in',
     ]

@@ -330,7 +330,12 @@ never has to draw a case by hand.
   the sticker matches the U **centre** and `.` where it does not — the centre
   rather than a fixed colour, so the capture is honest for a cube being held any
   way up. `toggleCaseCell(pattern, index)` and `sanitizeCase(raw)` complete it;
-  `EMPTY_CASE` is nine dots.
+  `EMPTY_CASE` is nine dots. **Step 2 corrected one line of this too**: a corrupt
+  pattern sanitizes to `null`, not to `EMPTY_CASE`. `null` is what
+  `algorithmCase` reads as *"nothing stored, derive it from the moves"*, while
+  `EMPTY_CASE` is a real answer meaning *"nothing is oriented"* — sanitizing
+  corruption to it would pin a blank tile onto an entry whose moves knew the
+  answer.
 - **`invertAlg(text)` belongs in `moves.js`, not here**, beside `tokenize` and
   `normalizeAlg`: reverse the token order and flip each token's modifier — `R` ↔
   `R'`, `R2` ↔ `R2`. **Work on the tokens, not on parsed moves.** `moves.js`
@@ -366,9 +371,14 @@ never has to draw a case by hand.
 whole captures the same pattern as the cube at rest; a corrupt pattern sanitizes
 to `EMPTY_CASE`. And the two that earn their keep: **`invertAlg` is its own
 inverse** over a corpus of real algorithms and preserves the notation it was
-given, and **`caseOfAlgorithm("R U R' U R U2 R'")` is the design's Sune pattern
-`.y..yy.y.`** — a literal from the design, which is the only way to know the
-arithmetic agrees with what a cuber would draw. Pin one PLL too (`T-perm` is all
+given, and **`caseOfAlgorithm("R U R' U R U2 R'")` is the Sune pattern
+`.y.yyyyy.`** — which is the only way to know the arithmetic agrees with what a
+cuber would draw. **Step 2 corrected this literal.** It was written here as
+`.y..yy.y.`, read off the design, and the design's tile is a drawing: that
+pattern has three of the four edges oriented and no corners, and last-layer edge
+orientation is always even, so no cube with its first two layers solved can show
+it. Sune's real case is the one every OLL sheet draws — all four edges plus one
+corner, six oriented stickers — and that is `.y.yyyyy.`. Pin one PLL too (`T-perm` is all
 nine `y`, because permutation leaves every sticker oriented) — it is the case
 that proves the U-face-only pattern is *not* enough on its own, and it is the
 evidence §6's richer-case question wants.
