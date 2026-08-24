@@ -1,5 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { AppState } from 'react-native';
+import {
+  createAlgorithm,
+  editAlgorithm,
+  findAlgorithm,
+  removeAlgorithm,
+} from './algorithms';
 import { cubeFromAlg, solvedCube } from './cubeState';
 import { DEFAULT_PITCH, DEFAULT_YAW, wrapAngle } from './geometry';
 import { normalizeAlg } from './moves';
@@ -65,6 +71,22 @@ const CubeContext = createContext(undefined);
 export const HOME_ROUTE = 'scramble';
 export const SOLVE_ROUTE = 'solve';
 
+/**
+ * The library's two routes (docs/cube-methods-plan.md §3.1).
+ *
+ * Routes on the cube's own stack rather than modals, and that is the epic's
+ * golden rule made concrete: every screen it adds is a route here, so nothing
+ * outside `games/cube/` is edited and Android's back and the iOS edge swipe come
+ * for free at both levels.
+ *
+ * `LIBRARY_ROUTE` is pushed over the scramble and `ENTRY_ROUTE` over that, so
+ * backing out of an entry lands on the library and backing out of the library
+ * lands on the scramble. **Both stay mounted under a push** (plan §5), which is
+ * exactly why the collection they draw lives here rather than in either of them.
+ */
+export const LIBRARY_ROUTE = 'algorithms';
+export const ENTRY_ROUTE = 'algorithm';
+
 export const CubeProvider = ({ children, fallback = null }) => {
   // Hydration gate. Until the saved scramble is read there is nothing honest to
   // draw: generating one immediately would flash a scramble the player never
@@ -81,6 +103,21 @@ export const CubeProvider = ({ children, fallback = null }) => {
   const [solves, setSolves] = useState([]);
   // Which solve is on the cube, by id.
   const [openId, setOpenId] = useState(null);
+
+  /**
+   * The algorithm library (docs/cube-methods-plan.md §3.1) — persisted, and
+   * shared by two routes that are both pushed over the scramble.
+   *
+   * It lives up here for the same reason `solves` does, and the reason is
+   * sharper for this one: **a screen under a push stays mounted** (plan §5), so
+   * the library list would be stale the moment an entry two routes away was
+   * edited if either screen held its own copy. Both read this one.
+   *
+   * It is deliberately *not* scoped to anything. There is one library, it has
+   * nothing to do with which scramble is on the cube, and Step 3 will write into
+   * it from the solve screen.
+   */
+  const [algorithms, setAlgorithms] = useState([]);
 
   /**
    * Is the solve route mounted?
@@ -147,6 +184,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
       if (cancelled) return;
       setFavorites(saved.favorites);
       setSolves(saved.solves);
+      setAlgorithms(saved.algorithms);
       // First ever visit: there should be a cube to look at, not an empty screen
       // with a button on it.
       const alg = saved.scramble || randomScramble();
@@ -189,9 +227,10 @@ export const CubeProvider = ({ children, fallback = null }) => {
       scramble,
       favorites,
       solves,
+      algorithms,
       workspace: { solveId: solveOpen ? openId : null, view: { yaw, pitch } },
     });
-  }, [hydrated, scramble, favorites, solves, solveOpen, openId, yaw, pitch]);
+  }, [hydrated, scramble, favorites, solves, algorithms, solveOpen, openId, yaw, pitch]);
 
   // Leaving for the hub unmounts this provider, and a debounced write that has
   // not fired yet is a write that never happens. **It belongs to the provider's
@@ -410,6 +449,60 @@ export const CubeProvider = ({ children, fallback = null }) => {
     setSolves((current) => editSolve(current, id, { alg: '', phases: [] }));
   }, []);
 
+  // ——— The algorithm library (docs/cube-methods-plan.md §3.1) ———————————
+
+  /**
+   * Write a new entry, and hand it back.
+   *
+   * Returns the entry rather than just growing the list, for the reason
+   * `startNewSolve` does: the caller has to open what it just made, and looking
+   * it back up by name would be the one lookup that can be wrong. **Null when
+   * the moves do not parse or the library is full** — `createAlgorithm` refuses
+   * rather than evicting, and the screen has to be able to say so.
+   *
+   * The functional `setAlgorithms` is not decoration: the entry screen creates
+   * from inside a modal callback, and reading `algorithms` out of a closure that
+   * was built a render ago is how a library loses an entry.
+   */
+  const addAlgorithm = useCallback((fields) => {
+    let made = null;
+    setAlgorithms((current) => {
+      const { algorithms: grown, algorithm } = createAlgorithm(current, fields);
+      made = algorithm;
+      return grown;
+    });
+    return made;
+  }, []);
+
+  /**
+   * **The library's one edit funnel** (plan §5), and the mirror of `editOpen`.
+   *
+   * Every change to an entry goes through here — the name as it is typed, the
+   * moves, a tapped assignment chip, the notes — so `editedAt` is stamped in one
+   * place instead of at every call site that happens to remember, and so the
+   * screen cannot write a field that has not been through the sanitizers in
+   * `algorithms.js`.
+   *
+   * The clock is read here rather than passed in, for the reason `editOpen`
+   * reads it here: this is the layer that knows what "now" means, and
+   * `algorithms.js` stays a pure module with an injectable one.
+   */
+  const editAlgorithmById = useCallback((id, patch) => {
+    setAlgorithms((current) => editAlgorithm(current, id, patch));
+  }, []);
+
+  /** Forget an entry. Unlike a solve there is nothing to move on to: the library
+   *  is one list with no notion of which entry is open, so the screen that
+   *  deleted it simply leaves. */
+  const deleteAlgorithm = useCallback((id) => {
+    setAlgorithms((current) => removeAlgorithm(current, id));
+  }, []);
+
+  /** An entry by id, or null — read through the context rather than from a copy,
+   *  because the entry screen stays mounted under nothing and the library stays
+   *  mounted under it. */
+  const algorithmById = useCallback((id) => findAlgorithm(algorithms, id), [algorithms]);
+
   // ——— The view (docs/cube-plan.md §7.1) ————————————————————————————————
 
   const turnTo = useCallback((nextYaw, nextPitch) => {
@@ -461,6 +554,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
       favorites,
       solves,
       mySolves,
+      algorithms,
       openId,
       openSolve,
       restoredOpen,
@@ -478,6 +572,10 @@ export const CubeProvider = ({ children, fallback = null }) => {
       deleteSolve,
       renameSolveById,
       clearSolveById,
+      addAlgorithm,
+      editAlgorithmById,
+      deleteAlgorithm,
+      algorithmById,
       setSolveOpen,
       turnTo,
       resetView,
@@ -493,6 +591,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
       favorites,
       solves,
       mySolves,
+      algorithms,
       openId,
       openSolve,
       restoredOpen,
@@ -510,6 +609,10 @@ export const CubeProvider = ({ children, fallback = null }) => {
       deleteSolve,
       renameSolveById,
       clearSolveById,
+      addAlgorithm,
+      editAlgorithmById,
+      deleteAlgorithm,
+      algorithmById,
       turnTo,
       resetView,
       showOtherSide,

@@ -255,13 +255,42 @@ with none; search by name and by a move; every filter chip; edit and delete;
 background and resume; kill and cold start; confirm the scramble screen's action
 row still reads well at the phone's width.
 
-**Built as briefed** (PR #130). `algorithms.js` (605 lines, 580 of tests),
+**Landed 2026-08-24** (PR #130, merged to `epic/cube-methods`; **merged with a
+device finding outstanding** — see Step 1a, which is the step that finding
+created). `algorithms.js` (605 lines, 580 of tests),
 the `_v: 3` save slot, `CubeAlgorithms` and `CubeAlgorithmEntry` as routes on
 the cube's stack, and the library button in the solve list's action row. Two
 shapes it settled that were not in the brief and are worth keeping: the entry
 screen has **no Save** — every field commits as it settles, the way the rest of
 this app works — and `＋` creates the record from the moves rather than holding a
 draft, because a name without moves is not an entry.
+
+**Four things found in the build, not in the brief**, each naming a mechanism
+rather than a symptom:
+
+- **`editAlgorithm` returns the list itself when nothing changed**, and that is
+  load-bearing rather than an optimisation: the entry screen writes on every
+  keystroke, so a no-op that still stamped `editedAt` would turn *"when did I
+  last change this"* into *"when did I last look at it"*.
+- **A filter chip can stop existing under the screen.** Unassign the last Roux
+  algorithm while the Roux chip is selected and the chip is gone, leaving a
+  library that looks empty with no control to get out of it. `liveFilter` is the
+  fix, and **Step 6 has more ways to reach this, not fewer.**
+- **`createAlgorithm` refuses at the cap rather than evicting**, unlike
+  `createSolve`, which prepends and slices. A solve list is a rolling record; a
+  library is months of work, and dropping its oldest entry to make room is the
+  worst thing that file could do.
+- **`UNASSIGNED` is the string `'unassigned'`**, which is the one place the chip
+  vocabulary and the method-id vocabulary can collide. **Step 5 mints user method
+  ids and must not mint that one.**
+
+**Layout, in points (§8.6).** The library button is 34 points at the right-hand
+end of an action row that already existed, measured at 320 × 568 with all three
+controls up: the row is 300 wide, Compare is 105, and `New solve` keeps 149
+against the 87 its icon and label need. **The cube pays nothing** — no new row.
+It is the right-hand control on purpose: Compare comes and goes with the number
+of attempts, so a button between the two would jump 111 points sideways the first
+time a second solve was written.
 
 #### Step 1a — the front door was a keyboard (found on a device)
 

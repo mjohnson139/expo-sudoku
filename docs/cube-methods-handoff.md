@@ -108,10 +108,10 @@ extend it as steps land, keeping `app.json`'s `expo.version` matching.
 
 ---
 
-## What you inherit from Cube Flow (read before Step 1)
+## What you inherit (read before your step)
 
 Everything below is current on `epic/cube-methods` and none of it is this epic's
-to change casually.
+to change casually. Most of it is Cube Flow's; the last block is Step 1's.
 
 - **The cube is a nested stack inside the app's stack.** `CubeScreen.js` is a
   58-line shell: `CubeProvider` over a `native-stack` with `scramble`
@@ -125,11 +125,12 @@ to change casually.
   navigator, which is how a solve screen came to slide in over itself on every
   resume (Cube Flow Step 3a, found on a device).
 - **The save file** is one AsyncStorage key, `@CubeScramble`:
-  `{ _v: 2, scramble, favorites, solves, workspace }`. `readCubeSave`
-  (`favorites.js:128`) reads **every version by shape** — a missing key and a
-  corrupt one get the same answer — which is why adding a collection costs no
-  migration in either direction. Only authored text is stored; the cube itself is
-  a pure function of the algorithm.
+  `{ _v: 3, scramble, favorites, solves, algorithms, workspace }`. `readCubeSave`
+  (`favorites.js`) reads **every version by shape** — a missing key and a corrupt
+  one get the same answer — which is why adding a collection costs no migration
+  in either direction. `_v` is a label; **nothing branches on it and nothing
+  should have to.** Only authored text is stored; the cube itself is a pure
+  function of the algorithm.
 - **A solve** is `{ id, scramble, name, method, orientation, alg, phases,
   savedAt, editedAt }`. `phases` are **markers** — `{ at, label }` — and the
   spans and counts are derived every render by `phaseSpans`, never stored.
@@ -153,117 +154,240 @@ to change casually.
 - **Finger turns write moves** (Cube Flow Step 3.5) and are **orbit-only on
   web**, so the primary input path is not testable in a browser.
 
+### And from Step 1 of this epic
+
+- **The cube's stack has four routes.** `scramble`, `solve`, `algorithms`
+  (`CubeAlgorithms`) and `algorithm` (`CubeAlgorithmEntry`), all on the one
+  navigator in `CubeScreen.js`, with the route name constants beside the state in
+  `CubeContext.js`. The library is pushed over the scramble and an entry over the
+  library.
+- **`games/cube/algorithms.js` is the library, pure**, modelled on
+  `solveList.js`. An entry is `{ id, name, moves, case, assignments, notes,
+  savedAt, editedAt }`; `moves` is the one required field and an entry whose moves
+  do not parse is refused on the way in and dropped on the way back.
+  `editAlgorithm` is **the one edit funnel** and every field rule lives inside it.
+- **`CubeContext` holds the library** beside the solves, through the same single
+  debounced writer, and exposes `algorithms`, `addAlgorithm`, `editAlgorithmById`,
+  `deleteAlgorithm` and `algorithmById`. Both library screens read it; neither
+  keeps a copy.
+- **The library's door is an icon button at the right-hand end of
+  `CubeSolveList`'s action row**, beside `New solve` and Compare. It costs the
+  cube nothing — see the measurements below.
+
 ---
 
-## Next step — Step 1: the library, stored and shown
+## Next step — Step 2: the case, and where it comes from
 
-Plan **§3.1**. Build the algorithm library end to end, with nothing clever in
-it: a pure module, a slot in the save file, a list screen and an entry screen.
-Entries are written by hand this step — Steps 2 and 3 are what make writing one
-by hand the unusual case.
+Plan **§3.2**, which was rewritten after Step 1's device pass (plan §3.1's
+Step 1a) and is **not** the "case grid" step the earlier handoff described.
+It is now two things, and the second is the one that matters:
+
+1. the 40-point tile the design draws, and
+2. **the arithmetic that means nobody ever has to draw a case by hand** — which
+   is what Step 2.5, the algorithm workbench, is built on.
+
+The insight the whole thing rests on is one line: **if `A` takes case `C` to
+solved, then `A⁻¹` takes solved to `C`.** So an algorithm carries its own case,
+and for a last-layer algorithm — one that preserves F2L, so its inverse does too
+— `A⁻¹(solved)` is exactly a solved cube with a scrambled top layer. No setup
+UI, no stored starting state, nothing to ask the operator for.
 
 ### Scope
 
-- **`games/cube/algorithms.js`**, new and pure, in `solveList.js`' style. The
-  entry shape is the design's *Algorithm entry* panel:
-
-  ```js
-  { id, name, moves, case: null, assignments: [], notes: '', savedAt, editedAt }
-  ```
-
-  `assignments` is an array of `{ method, stage }`; `case` stays `null` until
-  Step 2. Export `MAX_ALGORITHMS` (100), `MAX_ALG_NAME` (40),
-  `nextAlgorithmId`, `createAlgorithm`, `editAlgorithm` (**the one edit
-  funnel**), `removeAlgorithm`, `findAlgorithm`, `sanitizeAlgorithms`,
-  `searchAlgorithms(list, query)`, `filterAlgorithms(list, methodId)`. Inject
-  clocks the way `solveList.js` does.
-- **Validate moves with what exists.** `algError` / `isValidAlg` / `normalizeAlg`
-  from `moves.js` already produce the message `CubeAlgInputModal` shows. An entry
-  whose moves do not parse is not saved.
-- **The save slot.** `algorithms` joins the blob; sanitize it by shape in
-  `readCubeSave` (`favorites.js`), write it in `storage.js`, bump
-  `CUBE_STORAGE_VERSION` to **3**. Nothing branches on `_v` and nothing should
-  have to. A pre-Step-1 file has no key and sanitizes to `[]`, which is the
-  truth. Hold the collection in `CubeContext` beside `solves`, through the same
-  single debounced writer.
-- **`CubeAlgorithms`** — a new route on the cube's stack. Header: back chevron,
-  `Algorithms`, `＋`. Body: the search field (`Search moves or name`), the filter
-  chips (`All · N`, one per method that has assignments, `Unassigned`), and the
-  cards: an empty 40-point case tile placeholder, the name, a `✎` when there are
-  notes, the moves in `ALG_FONT` mono, the assignment tags, a chevron.
-- **`CubeAlgorithmEntry`** — the second route, pushed by `＋` and by a card:
-  name, moves, assignments, notes, and delete. Reuse `CubeAlgInputModal`'s
-  validated input rather than writing a second one.
-- **The door**, per plan §2: an icon button in `CubeSolveList`'s action row
-  beside `New solve` and `Compare`. **Measure the three-control row at 320
-  before believing the arithmetic** — it should cost the cube zero points
-  because it adds no row, and the PR has to say so with a number.
+- **`games/cube/algCase.js` is new and pure.** `captureCase(cube)` reads
+  `facelets(cube).U` (`cubeState.js:160`) and returns nine characters, `y` where
+  the sticker matches the U **centre** and `.` where it does not — the centre
+  rather than a fixed colour, so the capture is honest for a cube held any way
+  up. `EMPTY_CASE` is nine dots; `sanitizeCase(raw)` and `toggleCaseCell(pattern,
+  index)` complete it. **`sanitizeCaseShape` already exists in `algorithms.js`**
+  and already keeps a nine-character case by shape — Step 1 put it there for
+  exactly this. Do not add a second sanitizer; make this one the real one.
+- **`invertAlg(text)` goes in `moves.js`**, beside `tokenize` and
+  `normalizeAlg`, not in `algCase.js`: reverse the token order and flip each
+  token's modifier — `R` ↔ `R'`, `R2` ↔ `R2`. **Work on tokens, never on parsed
+  moves** (see "easy to get wrong").
+- **`caseOfAlgorithm(moves)`** is `captureCase(cubeFromAlg(invertAlg(moves)))`.
+  One line, and it is the step's whole point.
+- **Every entry with moves gets a case, derived on read.** A stored `case` wins;
+  a `null` one is computed from the moves. That upgrades every entry Step 1
+  already wrote without touching the file, and it means arithmetic can never
+  overwrite a case the operator has corrected. **Do not migrate the save.**
+- **The tile** is the design's: 40 × 40, a 3 × 3 grid of 2-point-gapped cells on
+  a near-black rounded square, yellow for `y` and grey for `.`. **The library
+  card already reserves the space** — `CASE_TILE` and `styles.caseTile` in
+  `CubeAlgorithms.js`, an empty bordered square drawn deliberately so the name
+  and the moves do not move on every existing entry the day cases arrive. Fill
+  that square; do not resize it. The entry screen gets a larger one, which it
+  does not have yet.
+- **The tap-a-sticker editor is the correction path and it can wait.** The design
+  draws it, and derivation removed its main use. Build it if the tile turns out
+  to be wrong for something real; do not build it on spec. `toggleCaseCell` is
+  cheap to write and test now either way.
+- **Never colour alone.** A 40-point tile of two colours is unreadable to a
+  screen reader by construction, so the accessibility label says the pattern in
+  words — which cells are oriented, not just "a case".
 
 ### Files to read first
 
-- `games/cube/solveList.js` — the module this one is modelled on: the bounds,
-  the sanitizers, the name-uniqueness helper, the injected clocks.
-- `games/cube/favorites.js:100-145` — `readCubeSave` and the shape rules, which
-  is where the new collection is read.
-- `games/cube/storage.js` — the writer, the version constant, and the comment
-  explaining why there is only one key.
-- `games/cube/CubeContext.js` — where the collection lives and how it is written.
-- `games/cube/CubeScreen.js` — the nested stack the new routes join.
-- `games/cube/CubeSolveList.js` — the action row and its styles, and
-  `solveCards.js` for the numbers the list is built from.
-- `games/cube/CubeAlgInputModal.js` and `games/cube/CubeNameModal.js` — the
-  existing input surfaces.
-- `games/cube/methods.js` — `METHODS` and `stagesOf`, which is what an
-  assignment references this step.
+- `games/cube/cubeState.js:150-199` — `facelets`, `faceletString`, `isSolved`.
+  `isSolved` is the model for the shape of a facelet predicate and is worth
+  reading before writing `captureCase`.
+- `games/cube/moves.js` — `parseMove`, `scanAlg`, `tokenize`, `normalizeAlg`,
+  and **the `scanAlg` doc comment**, which is the argument for why `invertAlg`
+  works on tokens.
+- `games/cube/algorithms.js:130-150` and `:560-580` — `sanitizeCaseShape` and
+  where it is called, plus the header comment that says the case is Step 2's.
+- `games/cube/CubeAlgorithms.js:18-24, 218-230, 345-360` — the reserved tile.
+- `games/cube/CubeAlgorithmEntry.js` — where the larger tile goes.
+- Plan §3.2 and §3.2.5. **Read 3.2.5 even though it is not your step**: it is
+  what consumes everything you are about to write, and building `caseOfAlgorithm`
+  without knowing that a screen recomputes it on every move is how it ends up
+  somewhere a component cannot reach.
 
 ### Easy to get wrong
 
-1. **`assignments` must be sanitized against the catalogue, not trusted.** This
-   step only has the two frozen presets, so an assignment naming an unknown
-   method or an unknown stage is dropped on read. Do not invent the catalogue
-   parameter here — that is Step 4, deliberately alone.
-2. **One edit funnel.** Every mutation of an entry goes through `editAlgorithm`,
-   including the ones the entry screen makes field by field. The moment there are
-   two, the file and the screen start to disagree.
-3. **A screen under a push stays mounted.** The library is pushed over the
-   scramble; anything it computes once at mount is stale when an entry is added
-   two routes away. The list comes from `CubeContext`, not from a local copy.
-4. **The action row is measured, not guessed.** At 320 the row is three
-   controls wide; `newAction` flexes and `compareAction` does not. Check that
-   `New solve` still reads whole with Compare present, and say what it cost.
-5. **Notes are never shown on the solve screen.** The design is explicit and it
-   is worth obeying from the first line.
-6. **`_v: 3` is a label, not a branch.** Do not add a migration path; shape-first
-   reading is what makes both directions of version skew free.
+1. **`invertAlg` on tokens, not on parsed moves.** `parseMove` normalizes `r` to
+   `Rw`, so inverting through the parser silently rewrites a Roux user's notation
+   into notation their method does not use — which `moves.js` calls out as the
+   reason `scanAlg` returns both halves. `invertAlg("r U r'")` is `"r U' r'"`,
+   **not** `"Rw U' Rw'"`.
+2. **A stored case wins over a derived one, always.** Deriving on read is an
+   upgrade path, not a source of truth. The moment arithmetic overwrites a
+   correction, the operator has no way to keep an answer the app disagrees with.
+3. **`captureCase` compares against the U centre, not against yellow.** A cube
+   held with green up is still a cube, and `facelets` returns face letters.
+4. **A T-perm captures as nine `y`, and that is correct.** Permutation leaves
+   every sticker oriented. It is also useless for telling one PLL from another —
+   that is open question 8, not a bug, and the fix is a richer case later. **Pin
+   it in a test** so the next person does not "fix" it.
+5. **Do not resize the card's tile.** The empty square exists so the layout does
+   not move when you fill it. Filling it must be the only visible change to the
+   card.
+6. **The step adds no row to any screen with a cube on it**, so its cost in
+   points is zero — but say so in the PR anyway (§8.6's rule).
 
 ### What must be visible in Expo Go
 
-Open the library from the scramble screen. Add an entry by hand with a name and
-moves; add a second with two assignments and a third with none. Search by a name
-and by a move token. Every filter chip. Edit an entry, delete one. Background and
-resume, then kill the app and cold start — everything is still there. Back out of
-the library to the scramble and confirm nothing about the scramble screen moved.
+Every entry written in Step 1 now shows a case on its card, without anything
+having been re-saved. Write a Sune by hand (`R U R' U R U2 R'`) and the tile
+shows the design's Sune pattern. Write a T-perm and it shows nine oriented
+stickers. Edit an entry's moves and watch the tile follow. Background, resume,
+kill and cold start: cases are still right, and an entry whose case you corrected
+(if you built the editor) still has your version.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/`, with the new `algorithms.test.js` green and the
-  count in the PR.
-- Browser screenshots at 320×568, 375×667 and 393×852: the library list, the
-  entry screen, and the scramble screen's action row with its third control.
-  Check for horizontal overflow at 320.
-- **A device pass** — this step is mostly lists and text, so the browser covers
-  a lot of it, but the action row's feel and the new routes' back gestures are
-  not among them. Say in the PR which behaviours the browser did and did not
-  cover.
+- `npm test` from `SudokuApp/`, with `algCase.test.js` green. The two tests that
+  earn their keep: **`invertAlg` is its own inverse** over a corpus of real
+  algorithms *and* preserves the notation it was given, and
+  **`caseOfAlgorithm("R U R' U R U2 R'")` is `.y..yy.y.`** — the literal from the
+  design, which is the only way to know the arithmetic agrees with what a cuber
+  would draw. Pin the T-perm too (trap 4).
+- Browser screenshots at 320 × 568, 375 × 667 and 393 × 852: the library list
+  with tiles, and the entry screen. This step is arithmetic and static
+  rendering, so **the browser covers most of it honestly** — say which parts in
+  the PR.
+- A device pass for the tile's legibility at arm's length on both themes. That is
+  the part a screenshot at 2× on a desktop cannot settle.
 
 ### Then rewrite this file
 
-Brief **Step 2 — the case grid** (plan §3.2) at this level of detail, and add
-whatever Step 1 discovered to "Easy to get wrong".
+Brief **Step 2.5 — the algorithm workbench** (plan §3.2.5) at this level of
+detail. It is the biggest step of the epic so far and the one the operator is
+waiting for, so give it the room: name the extraction decision (plan §3.2.5's
+last block) explicitly, and carry forward whatever Step 2 learned about where
+`caseOfAlgorithm` needs to be callable from.
+
+## What Step 1 discovered (keep reading this)
+
+### The device pass, and the finding it produced
+
+**Tested on the `pr-130` build, 2026-08-24. The operator did not like it**, and
+the reason was one line of the flow: **`＋` opens a modal asking you to type
+notation.** In an app where Cube Flow spent an unplanned step making a finger on
+a sticker write a move — and then rearranged the whole solve screen around the
+consequence — a library whose only way in is the phone keyboard reads as a
+different product.
+
+**Step 1 merged anyway, deliberately, with the finding outstanding.** That is
+not this repo's habit and it is worth knowing why it was right here: the finding
+is not a defect in what Step 1 built. The module, the storage slot, the list, the
+search and the filters are all correct and all needed, and typed entry stays as a
+real secondary path. What is wrong is *which of two doors is the default*, and
+`＋` cannot stop opening the keyboard until there is somewhere better for it to
+go. So the finding was spent on a new step rather than a patch: **plan §3.2.5,
+the algorithm workbench**, which is Step 2.5 and comes straight after the step
+this handoff briefs.
+
+Two consequences for whoever is reading this:
+
+- **The 3.3.0 build note that says "tap the ＋, type the moves" is true today and
+  will not be true after Step 2.5.** Rewrite it there rather than leaving the
+  release describing a door that has moved.
+- **Nothing else about Step 1 was tested on a device**, because the operator
+  stopped at the front door. The typing round-trip, the filter chips and the
+  action row have browser evidence only — see the last three bullets below, and
+  re-exercise them at the next device pass.
+
+### Everything else, written down because the next few steps will trip on it
+
+- **The entry screen has one mode, and the moves-first flow is what buys it.**
+  `＋` pushes `ENTRY_ROUTE` with `{ id: null }`; the screen sees no id, opens
+  `CubeAlgInputModal` immediately, and creates the entry from the answer, writing
+  the new id back with `navigation.setParams`. Cancel on that first modal pops
+  the route. The alternative — a draft held in local state until a Save button —
+  is two screens wearing one name: one that edits a record and one that composes
+  something that does not exist yet.
+- **`editAlgorithm` returns the list *itself* when nothing actually changed**,
+  and that is load-bearing rather than an optimisation. The entry screen writes
+  on every keystroke, so a no-op that still stamped `editedAt` would turn "when
+  did I last change this" into "when did I last look at it".
+- **The name field needs a local mirror; nothing else does.** It is the one field
+  the funnel can answer differently — type a name another entry has and what is
+  kept is `Sune 2`. The mirror is what is being typed, and the blur reseeds it
+  from what was kept, so the operator *sees* the answer rather than finding it on
+  a card later.
+- **`CubeAlgInputModal` is parameterised, not duplicated.** `title`,
+  `placeholder`, `initialText`, `submitLabel`, `submitIcon` and `submitHint`, with
+  every default exactly what the solve screen already had — so its call site is
+  unchanged. `initialText` is deliberately out of the reset effect's deps: it is
+  the value as the modal *opened*, and an entry re-rendering underneath must not
+  rewrite the field under the thumb.
+- **A filter chip can stop existing under the screen.** Unassign the last Roux
+  algorithm while the Roux chip is selected and the chip is gone, leaving the
+  library looking empty with no control to get out of it. `liveFilter(chips, id)`
+  is the one line that fixes it, and Step 6 — which adds user-method chips — has
+  more ways to reach it, not fewer.
+- **`UNASSIGNED` is the string `'unassigned'`.** Step 5 mints ids for user
+  methods and **must not mint that one**; it is the only place the two
+  vocabularies can collide.
+- **Version skew was kept lossless one field at a time.** `sanitizeAlgorithms`
+  preserves a nine-character `case` by shape even though this build cannot draw
+  one, so a Step 2 file read by a Step 1 build and written back keeps its cases.
+  That is what `readCubeSave`'s "both directions work" claim costs in practice.
+- **`createAlgorithm` refuses at the cap rather than evicting**, unlike
+  `createSolve`, which prepends and slices. A solve list is a rolling record; a
+  library is months of the operator's work, and dropping its oldest entry to make
+  room is the worst thing that file could do. The library's `＋` dims and says so.
+- **The action row's arithmetic, measured in a browser** at 320 × 568 with all
+  three controls up: the row is 300 wide, the library button is **34**, Compare
+  is **105**, and `New solve` gets the remaining **149** against the 87 its icon
+  and label need. 222 at 393. **The cube pays nothing** — no new row. The library
+  button is the **right-hand** control on purpose: Compare comes and goes with the
+  number of attempts, so a button between the two would jump 111 points sideways
+  the first time a second solve was written.
+- **The chip row is a horizontal scroll and at 320 the fourth chip clips.** The
+  clipped word is the affordance, the same argument `CARD_PEEK` makes in
+  `solveCards.js` — but it is luck rather than arithmetic, and Step 6 adds chips.
+  Worth making deliberate when something is being done to that row anyway.
+- **Typing round-trips through the context writer and nothing was dropped** at
+  12 ms per character in a browser, in both the name and the notes fields. That
+  is *not* a device result, and a phone's keyboard is the place it would show.
 
 ## Open questions being carried forward
 
-From `docs/cube-methods-plan.md` §6 — none of them block Step 1:
+From `docs/cube-methods-plan.md` §6 — none of them block Step 2. **Questions 7,
+8 and 9 are new**, and 8 is the one this step will put evidence under:
 
 1. **Is the library's door in the right place?** The scramble header is full at
    four controls, so it is in the action row. Dropping a header control instead
@@ -277,6 +401,18 @@ From `docs/cube-methods-plan.md` §6 — none of them block Step 1:
    built.
 6. **Should a preset be hideable?** `forNewSolves` covers user methods; presets
    deliberately have no equivalent.
+7. **Does the workbench ever need an authored starting state?** §4 says no for
+   this epic, and the inverse derivation is why. The mechanism if it is ever
+   wanted is a `setup` string on the entry, defaulting to empty. **Do not build
+   it before a real algorithm fails without it** — and when one does, write down
+   which algorithm it was.
+8. **Is nine characters of the U face enough of a case?** A T-perm captures as
+   nine `y`; so does every other PLL. The design draws the U face and this epic
+   ships it, and the evidence for going further is the first time two entries
+   show the same tile. **Step 2 is where that starts being visible.**
+9. **Should `＋` still offer typing at all?** After Step 2.5 it becomes **Paste
+   an algorithm** on the entry screen. If a fortnight goes by without it being
+   reached for, it can go — the library will have been seeded by then.
 
 Carried from `docs/cube-flow-plan.md` §6 and still open there: whether the
 phase-split tick track comes back now the rail exists (q5), and where the app's

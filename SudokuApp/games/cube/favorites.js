@@ -12,6 +12,7 @@
  * through timestamps. It also makes every test deterministic.
  */
 
+import { sanitizeAlgorithms } from './algorithms';
 import { isValidAlg, normalizeAlg } from './moves';
 import { sanitizeSolves, sanitizeWorkspace } from './solveList';
 
@@ -91,12 +92,13 @@ export const sanitizeFavorites = (raw) => {
   return clean.slice(0, MAX_FAVORITES);
 };
 
-/** What the screen gets when there is nothing saved, or nothing readable. Four
- *  fields rather than two since Step 4 — see `readCubeSave`. */
+/** What the screen gets when there is nothing saved, or nothing readable. Five
+ *  fields now — `algorithms` joined in Cube Methods Step 1. See `readCubeSave`. */
 const EMPTY_SAVE = () => ({
   scramble: '',
   favorites: [],
   solves: [],
+  algorithms: [],
   workspace: { solveId: null, view: null },
 });
 
@@ -112,18 +114,27 @@ const EMPTY_SAVE = () => ({
  * ### The shape, decided once (plan §7.1)
  *
  * ```js
- * { _v, scramble, favorites, solves, workspace }
+ * { _v, scramble, favorites, solves, algorithms, workspace }
  * ```
  *
  * `solves` and `workspace` are Step 4's addition, and `solves[].phases` is
  * Step 6's slot sitting empty in the file already — the alternative is
  * reshaping the file twice and writing two migrations (plan §8.5).
  *
+ * **`algorithms` is the Cube Methods epic's addition** (its §2 and §3.1): the
+ * library goes in the blob that is already here rather than into a key of its
+ * own, because tagging a run will write a solve *and* a library entry in one
+ * action and `CubeContext` is already the single debounced writer for
+ * everything the operator authored. A second key would buy two writers and two
+ * ways for them to disagree. `CUBE_STORAGE_VERSION` becomes 3 with it — a label
+ * on the file, not a branch anything reads.
+ *
  * **Both directions of version skew work and neither needs a migration step.**
  * A Step 5 file has no `solves` key, and `sanitizeSolves(undefined)` is the
  * empty list — which is the truth, because that build could not keep a solve.
  * A Step 4 file opened by a Step 5 build reads its `scramble` and `favorites`
- * and ignores the rest.
+ * and ignores the rest. A pre-library file has no `algorithms` key and
+ * `sanitizeAlgorithms(undefined)` answers the same way, for the same reason.
  */
 export const readCubeSave = (raw) => {
   if (!raw || typeof raw !== 'object') return EMPTY_SAVE();
@@ -137,6 +148,7 @@ export const readCubeSave = (raw) => {
     scramble,
     favorites: sanitizeFavorites(raw.favorites),
     solves,
+    algorithms: sanitizeAlgorithms(raw.algorithms),
     workspace: sanitizeWorkspace(raw.workspace, { solves, scramble }),
   };
 };

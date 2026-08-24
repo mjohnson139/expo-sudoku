@@ -18,7 +18,13 @@ import { findSolve } from './solveList';
 import useScramblePlayer from './useScramblePlayer';
 import useCubeStage from './useCubeStage';
 import { CUBE_ACCENT, CubeLoading, headerAction, styles } from './cubeChrome';
-import { HOME_ROUTE, SOLVE_ROUTE, useCube, useReportsSolveRoute } from './CubeContext';
+import {
+  HOME_ROUTE,
+  LIBRARY_ROUTE,
+  SOLVE_ROUTE,
+  useCube,
+  useReportsSolveRoute,
+} from './CubeContext';
 import { mix } from '../../utils/color';
 
 /**
@@ -314,6 +320,20 @@ const CubeHome = ({ navigation, onExitToHub }) => {
     newScramble();
   }, [pause, newScramble]);
 
+  /**
+   * The algorithm library, from the action row under the list
+   * (docs/cube-methods-plan.md §2 and §3.1).
+   *
+   * The pause is the same rule the new-solve sheet follows: the scramble should
+   * stop playing the moment the operator's attention leaves it. This one is a
+   * push rather than a sheet, so the screen is gone entirely — a cube turning
+   * behind a route nobody is looking at is a frame loop for nothing.
+   */
+  const openLibrary = useCallback(() => {
+    pause();
+    navigation.navigate(LIBRARY_ROUTE);
+  }, [pause, navigation]);
+
   const titleColor = theme.colors.title;
   const border = theme.colors.numberPad.border;
 
@@ -475,6 +495,7 @@ const CubeHome = ({ navigation, onExitToHub }) => {
         onNew={openNewSolve}
         onManage={setManagingId}
         onCompare={() => setShowCompare(true)}
+        onLibrary={openLibrary}
       />
 
       {/* The fifth modal on this screen, and the fifth opened one at a time on

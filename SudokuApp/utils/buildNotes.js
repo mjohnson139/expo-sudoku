@@ -2,6 +2,23 @@
 // Each version's notes are stored in this file
 
 const BUILD_NOTES = {
+  '3.3.0': {
+    title: 'Cube Methods & Algorithms — one library',
+    date: '2026-08-24',
+    notes: [
+      'New on the scramble screen: a button beside New solve and Compare opens your algorithm library',
+      'An algorithm is a thing you keep now — a name, its moves, the stages it is for, and notes only you see',
+      'Write one by hand: tap the ＋, type the moves, then name it and say what it is for',
+      'The moves are checked as you type, and anything that is not notation is refused with the token that caused it',
+      'Search the library by name or by moves — and RUR\' finds R U R\' U\', spaces or no spaces',
+      'Filter by method with the chips: a chip only appears once there is something behind it, and it says how many',
+      'One algorithm can serve more than one stage at once — Roux CMLL and CFOP PLL are two taps, not two entries',
+      'An algorithm with nothing assigned to it is still findable, under Unassigned',
+      'Notes are for finger tricks and cues, and are never shown while you are solving',
+      'The library is kept with everything else the cube remembers: background the app, or close it, and it is all still there',
+      'Nothing about the scramble screen moved to make room — the library shares the row Compare already sits in',
+    ]
+  },
   '3.2.0': {
     title: 'Cube Flow — the scramble is home',
     date: '2026-08-23',
