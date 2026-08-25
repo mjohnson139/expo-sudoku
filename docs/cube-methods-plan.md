@@ -672,6 +672,32 @@ run and a full library. Background during selection and during apply playback.
 animation handoff, pad/transport reachability, native sheet navigation or resume
 behavior.
 
+**Landed 2026-08-25** (PR #138, merged to `epic/cube-methods`; **device pass
+clean**). The solve transport now opens one Algorithms sheet for both directions:
+saved entries append only their performed moves at the live end and play through
+the existing transport, while a visible token selection can be saved with its
+real starting setup and containing stage assignment. Saved and applied runs keep
+the solve notation intact and add a named, end-exclusive annotation whose accent
+boundary continues across the complete run, including wrapped track rows.
+
+What the final device-tested shape added beyond the original brief:
+
+- **A run name is an annotation over moves, not a replacement for them.** The
+  compact name toggles to the underlying notation and back; a newly applied run
+  begins expanded so its transport animation remains visible.
+- **The label boundary has to encompass the moves it names.** Device feedback on
+  the first preview made a standalone badge read as detached metadata. The final
+  preview extends the same accent outline across every move recovered from the
+  entry's exact setup and move sequence, including across wraps.
+- **Recovery matches setup as well as notation.** Identical move sequences can
+  occur more than once in a solve, so matching only the moves would annotate the
+  wrong occurrence. The pure derivation verifies the run's real starting setup
+  before painting it.
+
+**Layout, in points (§8.6).** The labelled control shares the transport card's
+existing 44-point handle row and the picker is modal, so Step 3 costs the cube
+**zero points** with the pad either shown or hidden.
+
 ### 3.4 Step 4 — methods as a catalogue (behaviour-neutral)
 
 The signature change, alone, so that a regression here has one suspect. Nothing

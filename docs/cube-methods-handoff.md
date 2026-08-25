@@ -261,6 +261,15 @@ stage rename propagation, ordering and “use for new solves”.
 
 ## What Step 3 discovered
 
+### The device pass
+
+**Tested on the final `pr-138` Expo Go build, 2026-08-25, and passed cleanly.**
+The operator accepted the reciprocal solve workflow and the follow-up boundary
+shape on a device. This retires the device-only questions around reaching
+Algorithms with the pad open or closed, applying through the native sheet and
+existing playback handoff, selecting and saving a performed run, and reading a
+named run after the move track wraps.
+
 - The solve-side Algorithms control shares the transport card's existing
   44-point handle row and the picker is modal, so it costs the cube **zero
   points** with the pad shown or hidden.
