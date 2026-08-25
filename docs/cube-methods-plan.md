@@ -636,6 +636,12 @@ algorithm shape, no component-owned library, and no shortcut around `editOpen`,
   as performed. After save, the range may read as an algorithm chip in the
   track, and that chip can open the entry/workbench, but presentation is not a
   move-list edit.
+- **A used algorithm is named in the track without replacing its notation.** A
+  persisted, end-exclusive `algorithmRuns` annotation identifies the range and
+  keeps a name fallback if its library entry is later deleted. The name toggles
+  between a compact chip and the complete underlying moves. A newly applied run
+  starts expanded so its existing transport animation stays visible; folding it
+  later is presentation only and never rewrites `alg`.
 
 #### Pure logic and tests
 

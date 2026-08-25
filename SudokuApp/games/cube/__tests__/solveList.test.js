@@ -26,12 +26,10 @@ import {
   removeSolve,
   renameSolve,
   sanitizeSolves,
-  sanitizeAlgorithmRuns,
   sanitizeWorkspace,
   solvesFor,
   updateSolve,
   withMoves,
-  withAlgorithmRun,
 } from '../solveList';
 
 const SCRAMBLE = "R U2 F' D L B2 R' U";
@@ -770,30 +768,11 @@ describe('withMoves', () => {
     expect(withMoves({ alg: '', phases: [] }, 'R')).toEqual({ alg: 'R', phases: [], algorithmRuns: [] });
     expect(withMoves(null, 'R')).toEqual({ alg: 'R', phases: [], algorithmRuns: [] });
   });
-});
 
-describe('algorithm runs', () => {
-  const entry = { id: 'a7', name: 'Sune' };
-
-  it('adds a named range without changing the moves', () => {
-    const solve = { alg: "R U R'", algorithmRuns: [] };
-    expect(withAlgorithmRun(solve, entry, 1, 2)).toEqual({
-      algorithmRuns: [{ algorithmId: 'a7', name: 'Sune', start: 1, end: 2 }],
-    });
-    expect(solve.alg).toBe("R U R'");
-  });
-
-  it('drops a whole capsule rather than naming half an algorithm after undo', () => {
-    const runs = [{ algorithmId: 'a7', name: 'Sune', start: 1, end: 3 }];
-    expect(sanitizeAlgorithmRuns(runs, 3)).toEqual([]);
-    expect(sanitizeAlgorithmRuns(runs, 4)).toEqual(runs);
-  });
-
-  it('refuses overlapping capsules', () => {
-    expect(sanitizeAlgorithmRuns([
-      { algorithmId: 'a1', name: 'First', start: 0, end: 2 },
-      { algorithmId: 'a2', name: 'Second', start: 2, end: 3 },
-    ], 4)).toEqual([{ algorithmId: 'a1', name: 'First', start: 0, end: 2 }]);
+  it('keeps a complete named algorithm span and drops it when undo enters it', () => {
+    const solve = { alg: 'R U F', phases: [], algorithmRuns: [{ at: 1, end: 3, algorithmId: 'a1', name: 'Sune' }] };
+    expect(withMoves(solve, 'R U F D').algorithmRuns).toEqual(solve.algorithmRuns);
+    expect(withMoves(solve, 'R U').algorithmRuns).toEqual([]);
   });
 });
 

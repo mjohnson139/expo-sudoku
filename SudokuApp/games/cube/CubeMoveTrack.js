@@ -80,6 +80,8 @@ const CubeMoveTrack = ({
   selection,
   onSelect,
   algorithmRuns = [],
+  expandedRuns = new Set(),
+  onToggleRun,
 }) => {
   const titleColor = theme.colors.title;
   const surface = theme.colors.numberPad.background;
@@ -131,22 +133,6 @@ const CubeMoveTrack = ({
   // that resized the cube every time it was opened would be the bug this whole
   // step exists to kill, arriving by another door.
   const [open, setOpen] = useState(false);
-  // A named run is collapsed by default. Tapping its capsule swaps the name
-  // for the exact notation in place; tapping again puts the name back. This is
-  // presentation only — the solve's token list never changes.
-  const [expandedRuns, setExpandedRuns] = useState(() => new Set());
-  const toggleRun = useCallback((key) => {
-    setExpandedRuns((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  }, []);
-  const runsByStart = new Map((algorithmRuns || []).map((run) => [run.start, run]));
-  const coveredByRun = new Set();
-  (algorithmRuns || []).forEach((run) => {
-    for (let at = run.start + 1; at <= run.end; at += 1) coveredByRun.add(at);
-  });
   const openRef = useRef(false);
   openRef.current = open;
 
@@ -223,27 +209,10 @@ const CubeMoveTrack = ({
           <Text style={[styles.placeholder, { color: pendingColor }]}>{placeholder}</Text>
         ) : (
           tokens.map((token, i) => {
-            if (coveredByRun.has(i)) return null;
-            const run = runsByStart.get(i);
-            if (run) {
-              const key = `${run.algorithmId}:${run.start}:${run.end}`;
-              const expanded = expandedRuns.has(key);
-              const current = index > run.start && index <= run.end + 1;
-              const text = expanded ? tokens.slice(run.start, run.end + 1).join(' ') : run.name;
-              return <React.Fragment key={key}>
-                {i > 0 && marks.has(i) && <Text style={[styles.mark, { color: accent }]}>|</Text>}
-                <TouchableOpacity
-                  style={[styles.algorithmRun, { borderColor: accent }, current && { backgroundColor: accent }]}
-                  onPress={() => toggleRun(key)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`${run.name}, moves ${run.start + 1} to ${run.end + 1}`}
-                  accessibilityHint={expanded ? 'Shows the algorithm name' : 'Shows the moves in this algorithm'}
-                  accessibilityState={{ expanded }}
-                >
-                  <Text numberOfLines={1} style={[styles.algorithmRunText, { color: current ? '#fff' : accent }]}>{text}</Text>
-                </TouchableOpacity>
-              </React.Fragment>;
-            }
+            const run = algorithmRuns.find((candidate) => i >= candidate.at && i < candidate.end);
+            const runKey = run ? `${run.at}:${run.end}` : null;
+            const expanded = Boolean(selection || (runKey && expandedRuns.has(runKey)));
+            if (run && !expanded && i > run.at) return null;
             return (
             <React.Fragment key={`${token}-${i}`}>
               {/* The gap between two tokens is where a phase boundary shows, and
@@ -253,6 +222,19 @@ const CubeMoveTrack = ({
               {i > 0 && marks.has(i) && (
                 <Text style={[styles.mark, { color: accent }]}>|</Text>
               )}
+              {run && i === run.at && (
+                <TouchableOpacity
+                  onPress={() => onToggleRun?.(runKey)}
+                  style={[styles.runChip, { borderColor: accent }, !expanded && { backgroundColor: accent }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${run.name}, moves ${run.at + 1} to ${run.end}`}
+                  accessibilityHint={expanded ? 'Collapses these moves to the algorithm name' : 'Shows every move in this algorithm'}
+                  accessibilityState={{ expanded }}
+                >
+                  <Text style={[styles.runName, { color: expanded ? accent : '#fff' }]}>{run.name}</Text>
+                </TouchableOpacity>
+              )}
+              {(!run || expanded) && (
               <TouchableOpacity
                 onPress={() => onSelect ? onSelect(i) : onSeek(i + 1)}
                 onLayout={({ nativeEvent }) => noteTop(i, nativeEvent.layout.y)}
@@ -284,8 +266,10 @@ const CubeMoveTrack = ({
                   {token}
                 </Text>
               </TouchableOpacity>
+              )}
             </React.Fragment>
-          );})
+            );
+          })
         )}
       </ScrollView>
 
@@ -369,15 +353,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   selectedToken: { backgroundColor: 'rgba(214, 71, 82, 0.16)' },
-  algorithmRun: {
-    height: LINE,
-    maxWidth: '90%',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderRadius: 10,
-  },
-  algorithmRunText: { fontFamily: ALG_FONT, fontSize: 11, fontWeight: '800' },
+  runChip: { height: LINE, borderWidth: 1, borderRadius: 5, paddingHorizontal: 7, justifyContent: 'center' },
+  runName: { fontSize: 11, lineHeight: LINE, fontWeight: '800' },
   tokenText: {
     fontFamily: ALG_FONT,
     // 12, from the design (plan §8.8), where Step 7 had 14. `lineHeight` stays

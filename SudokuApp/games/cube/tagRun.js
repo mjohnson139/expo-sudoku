@@ -1,6 +1,6 @@
 import { MAX_ALGORITHMS } from './algorithms';
-import { normalizeAlg, parseAlg } from './moves';
-import { phaseSpans } from './solveList';
+import { moveCount, normalizeAlg, parseAlg } from './moves';
+import { clampAlgorithmRuns, phaseSpans } from './solveList';
 
 /** Normalize two tapped, zero-based token indexes into an inclusive range. */
 export const normalizeRunRange = (first, last, count) => {
@@ -49,3 +49,10 @@ export const libraryState = (algorithms) => ({
   canSave: !algorithms || algorithms.length < MAX_ALGORITHMS,
 });
 
+/** Add a named, persisted annotation without changing one move of the solve. */
+export const addAlgorithmRun = (solve, entry, at, end) => ({
+  algorithmRuns: clampAlgorithmRuns([
+    ...((solve && solve.algorithmRuns) || []),
+    { at, end, algorithmId: entry.id || null, name: entry.name },
+  ], moveCount((solve && solve.alg) || '')),
+});

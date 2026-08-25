@@ -1,4 +1,4 @@
-import { applyAlgorithm, libraryState, normalizeRunRange, orderAlgorithmPicker, tagRun } from '../tagRun';
+import { addAlgorithmRun, applyAlgorithm, libraryState, normalizeRunRange, orderAlgorithmPicker, tagRun } from '../tagRun';
 
 describe('solve and algorithm reciprocity', () => {
   test('normalizes a backwards token selection', () => {
@@ -34,5 +34,13 @@ describe('solve and algorithm reciprocity', () => {
     const full = Array.from({ length: 100 }, (_, i) => ({ id: `a${i}` }));
     expect(libraryState([])).toMatchObject({ empty: true, canSave: true, canApply: false });
     expect(libraryState(full)).toMatchObject({ full: true, canSave: false, canApply: true });
+  });
+
+  test('names a used algorithm without replacing its solve moves', () => {
+    const solve = { alg: 'R U F', algorithmRuns: [] };
+    expect(addAlgorithmRun(solve, { id: 'a2', name: 'Sune' }, 1, 3)).toEqual({
+      algorithmRuns: [{ at: 1, end: 3, algorithmId: 'a2', name: 'Sune' }],
+    });
+    expect(solve.alg).toBe('R U F');
   });
 });

@@ -95,7 +95,7 @@ export const MAX_SOLVE_NAME = 40;
  *  hand the screen an unbounded list. A solve with forty groups in it is not a
  *  solve anyone is annotating. */
 export const MAX_PHASES = 40;
-export const MAX_ALGORITHM_RUNS = 100;
+export const MAX_ALGORITHM_RUNS = 40;
 
 /** A name, as it is kept: single-spaced, trimmed, and bounded. */
 export const normalizeName = (name) =>
@@ -239,6 +239,7 @@ export const duplicateSolve = (solves, id, { savedAt = Date.now() } = {}) => {
     id: nextSolveId(list),
     name: uniqueName(normalizeName(`${source.name} copy`), taken),
     phases: [...source.phases],
+    algorithmRuns: [...(source.algorithmRuns || [])],
     savedAt,
     editedAt: savedAt,
   };
@@ -773,41 +774,31 @@ export const announceCompareCell = (name, label, cell) => {
 export const withMoves = (solve, alg) => ({
   alg,
   phases: clampPhases(solve && solve.phases, moveCount(alg)),
-  algorithmRuns: sanitizeAlgorithmRuns(solve && solve.algorithmRuns, moveCount(alg)),
+  algorithmRuns: clampAlgorithmRuns(solve && solve.algorithmRuns, moveCount(alg)),
 });
 
-/**
- * Named algorithm ranges are presentation over the move list, never a second
- * copy of its notation. A range survives only while all of its moves do; undo
- * must not leave half an algorithm wearing the full algorithm's name.
- */
-export const sanitizeAlgorithmRuns = (raw, count) => {
+/** Named algorithm spans use zero-based, end-exclusive token indexes. They are
+ * annotations, not replacement notation: undo merely drops a span once its end
+ * no longer exists, while its underlying moves remain the solve's source of
+ * truth. */
+export const clampAlgorithmRuns = (runs, count) => {
   const limit = Number.isInteger(count) && count > 0 ? count : 0;
   const clean = [];
-  (Array.isArray(raw) ? raw : []).forEach((run) => {
-    if (!run || typeof run !== 'object') return;
-    if (!Number.isInteger(run.start) || !Number.isInteger(run.end)) return;
-    if (run.start < 0 || run.end < run.start || run.end >= limit) return;
+  (Array.isArray(runs) ? runs : []).forEach((run) => {
+    if (!run || !Number.isInteger(run.at) || !Number.isInteger(run.end)) return;
+    if (run.at < 0 || run.end <= run.at || run.end > limit) return;
     const name = normalizeName(run.name);
     if (!name) return;
-    if (clean.some((kept) => run.start <= kept.end && run.end >= kept.start)) return;
+    if (clean.some((kept) => run.at < kept.end && run.end > kept.at)) return;
     clean.push({
-      algorithmId: typeof run.algorithmId === 'string' ? run.algorithmId : '',
-      name,
-      start: run.start,
+      at: run.at,
       end: run.end,
+      algorithmId: typeof run.algorithmId === 'string' ? run.algorithmId : null,
+      name,
     });
   });
-  return clean.sort((a, b) => a.start - b.start).slice(0, MAX_ALGORITHM_RUNS);
+  return clean.sort((a, b) => a.at - b.at).slice(0, MAX_ALGORITHM_RUNS);
 };
-
-/** Add one named capsule without changing a single move. */
-export const withAlgorithmRun = (solve, entry, start, end) => ({
-  algorithmRuns: sanitizeAlgorithmRuns([
-    ...((solve && solve.algorithmRuns) || []),
-    { algorithmId: entry && entry.id, name: entry && entry.name, start, end },
-  ], moveCount(solve && solve.alg)),
-});
 
 /**
  * A stored phase list, brought into shape (plan §8.5).
@@ -906,7 +897,7 @@ export const sanitizeSolves = (raw) => {
       orientation: sanitizeOrientation(entry.orientation),
       alg,
       phases: sanitizePhases(entry.phases, moveCount(alg)),
-      algorithmRuns: sanitizeAlgorithmRuns(entry.algorithmRuns, moveCount(alg)),
+      algorithmRuns: clampAlgorithmRuns(entry.algorithmRuns, moveCount(alg)),
       savedAt,
       editedAt: Number.isFinite(entry.editedAt) ? entry.editedAt : savedAt,
     });
@@ -995,7 +986,6 @@ export const describeSolveSize = (solve) => {
 export default {
   MAX_SOLVES,
   MAX_PHASES,
-  MAX_ALGORITHM_RUNS,
   createSolve,
   duplicateSolve,
   removeSolve,
@@ -1021,6 +1011,4 @@ export default {
   comparePhases,
   announceCompareCell,
   withMoves,
-  withAlgorithmRun,
-  sanitizeAlgorithmRuns,
 };
