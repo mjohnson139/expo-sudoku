@@ -542,6 +542,18 @@ Finger turns are orbit-only under `react-native-web` (§5), so a browser pass
 covers the layout and the case arithmetic and **none of the input**. Say so in
 the PR.
 
+**Landed 2026-08-25** (PR #133, merged to `epic/cube-methods`; **device pass clean after five device-found follow-ups**). The library's `＋` now opens a fifth cube-stack route: a solved-cube workbench built by composing the existing renderer, player, track, scrubber, move pad and measured stage rather than extracting the solve-specific screen. An entry can be created or edited with finger turns or the pad; the live three-face `CubeCasePreview` is shared by the workbench, cards and entry screen; the shared save sheet collects the name and stage assignments; Paste remains secondary.
+
+What the preview builds found, and the brief did not:
+
+- **A derived case is not enough to author a starting position.** The first device pass exposed the missing start immediately. Entries now have optional normalized `setup` moves from solved. **Use this start** records the cube actually shown at the scrubber; **Derive later / Use inverse** deliberately leaves `setup` empty and uses `A⁻¹(solved)` as a continuously derived fallback for old and pasted entries.
+- **The derived case and the editor's animation base are different concerns.** Recomputing the large cube's starting state from the growing inverse made the track advance while the cube stayed solved (`A⁻¹ A`). `workbenchCube` now independently derives the settled display from explicit setup plus moves through the cursor, while an empty setup lets the editor animate forward from solved.
+- **A flat U-face tile loses PLL identity.** The three places that show a case now share `CubeCasePreview`, using `buildScene` and the real starting cube so top and side stickers remain visible. A later force-push briefly regressed this by dropping the component; sharing it is the guard against the surfaces drifting again.
+- **A modal owns its own keyboard avoidance.** The save sheet's name field was hidden by the iOS keyboard until the modal gained a bounded, scrollable `KeyboardAvoidingView`; the workbench outside it cannot move modal content.
+- **The small case preview is a control as well as a picture.** Tapping it pauses and seeks the large cube to the authored/derived start. The transport names that same destination. This restored a discoverable 3D starting-case view without another row.
+
+**Layout, in points (§8.6).** The shared case-preview/track row is 60 points and costs the workbench cube **60 points** on constrained screens. The Change start / Save actions share one existing row, and making the preview tappable adds no row. Library-card (56) and entry-screen (112) previews are on screens without the main cube.
+
 ### 3.3 Step 3 — tag a run from a solve
 
 **What Step 2.5 changed about this step:** the two are now the same feature
@@ -566,10 +578,11 @@ be wrong on a phone.
   default assignment (`{ method, stage }`), and a run that straddles a boundary
   has no honest answer to "which stage is this". Refuse it in the UI rather than
   guessing.
-- **The case is captured from the cube at the run's *start*** — the scramble,
+- **The starting cube is captured as `setup` moves from solved** — the scramble,
   then the solve's `orientation` prefix, then the solve's moves up to the first
-  selected token, through `cubeFromAlg` / `applyMoves`. That is the state the
-  algorithm *recognises*, which is the whole point of a case.
+  selected token. That is the state the algorithm recognises, and the shared
+  three-face preview derives from it. Do not store only the old nine-cell `case`;
+  `setup` is what lets the workbench reopen the real position.
 - **Two ways of getting a case, and both are right.** Here the cube really was
   in that state, so read it. On the workbench there is no such moment, so the
   algorithm's own inverse supplies it (§3.2). Where a tagged run happens to be a

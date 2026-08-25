@@ -211,7 +211,9 @@ the solve and sends them through the same `CubeAlgorithmSaveSheet`.
   and library creation, never a solve edit.
 - Offer **Save as algorithm** for a non-empty run. Open the shared
   `CubeAlgorithmSaveSheet` from Step 2.5, preassigning the solve's method and the
-  stage whose phase span contains the run when that answer is unambiguous.
+  stage whose phase span contains the run when that answer is unambiguous. Store
+  the run's actual starting position as `setup` notation (scramble + orientation
+  + solve prefix), so opening the saved entry in the workbench restores it.
 - Save through `createAlgorithm` / `CubeContext.addAlgorithm`, the one library
   funnel. Refusal at `MAX_ALGORITHMS` must leave the selection and solve intact
   and explain how to recover.
@@ -235,7 +237,8 @@ to workbench state.
    invisible long press is not a feature the operator can find.
 3. Phase boundaries are markers and spans are derived. Preassignment must use
    the derived span at the selected run, and ambiguous cross-stage runs stay
-   unassigned.
+   unassigned. The run's start belongs in `setup`, not only the legacy nine-cell
+   `case`; otherwise the three-face preview and workbench cannot reconstruct it.
 4. A full library refuses rather than evicts. Preserve both the solve and the
    active selection on refusal.
 5. A pushed screen stays mounted. A saved algorithm must appear in the library
@@ -269,6 +272,21 @@ Brief **Step 4 — catalogue threading, no visible change** (plan §3.4). It is 
 signature refactor and must stay isolated from Step 5's method builder.
 
 ## What Step 2.5 discovered
+
+### The device pass
+
+**Tested on the final `pr-133` Expo Go build, 2026-08-25, and passed.** The
+operator exercised the complete workbench after the authored-start, explicit
+inverse, large-cube synchronization, keyboard avoidance and restored shared 3D
+preview follow-ups. Finger and pad input, post-settle folds/cancels, start
+selection, live preview, save/edit, and the native pushed flow are accepted.
+Those are precisely the paths the browser could not settle.
+
+The pass closes five device findings rather than erasing them: authored `setup`
+was added because inverse-only could not define where an algorithm begins; the
+large cube was separated from continuous inverse derivation; the save modal now
+avoids the iOS keyboard; the 3D preview is shared across all three surfaces; and
+the preview is a visible control that seeks the large cube back to its start.
 
 - **Extraction decision: the cheap path.** The workbench composes the already
   independent cube renderer, touch hook, player, track, scrubber, move pad and
