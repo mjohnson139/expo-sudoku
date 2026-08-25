@@ -287,6 +287,11 @@ signature refactor and must stay isolated from Step 5's method builder.
   where an algorithm begins. The workbench now authors and persists `setup`
   moves before the algorithm; older entries derive the same start they did
   before.
+- **The first save-sheet device pass found the iOS keyboard covering the name
+  field.** A modal sits outside the workbench screen's keyboard avoidance, so
+  the shared save sheet owns its own `KeyboardAvoidingView` and a bounded
+  `ScrollView`. The whole sheet now rises above the keyboard; on a short phone,
+  the chips and actions scroll instead of pushing the field behind it.
 - Preview was deferred. The complete forward authoring path, edit path, live
   case and safe full-library refusal shipped first, as the handoff required.
 - Browser input remains orbit-only. Passing layout in a browser does not verify
