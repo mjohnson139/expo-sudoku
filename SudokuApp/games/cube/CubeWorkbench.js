@@ -39,7 +39,7 @@ const NO_MARKS = new Set();
  * Only the small move-writing coordinator is repeated for now; extracting the
  * whole apparatus would turn a behaviour change into a risky solve refactor.
  *
- * Its one extra row is the 48-point live-case row. At short heights those 48
+ * Its one extra row is the 60-point live-case row. At short heights those 60
  * points come directly from the cube; everything else replaces a row already
  * paid by `CubeSolve` rather than adding one.
  */

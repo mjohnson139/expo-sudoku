@@ -276,7 +276,7 @@ signature refactor and must stay isolated from Step 5's method builder.
   screen: phases, hold, rail, Compare and `editOpen` make that extraction more
   than mechanical, so combining it with a new screen would give a solve
   regression and workbench behaviour one suspect.
-- The live case and track share one 48-point row. That row costs the cube 48
+- The live 3D case preview and track share one 60-point row. That row costs the cube 60
   points at constrained heights; the remaining workbench rows replace solve
   apparatus rather than adding to it.
 - `CubeAlgorithmSaveSheet` is the shared Step 3 seam. It collects only a name
