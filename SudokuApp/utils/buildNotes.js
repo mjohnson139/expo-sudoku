@@ -11,6 +11,7 @@ const BUILD_NOTES = {
       'Write one on a solved cube: tap ＋, turn with a finger or the move pad, then name it and say what it is for',
       'The case tile fills in live while you turn, and Save keeps the moves, name and stages together',
       'Before writing the algorithm, turn the solved cube into its starting case and choose Use this start',
+      'Tap the case tile whenever you want to put that starting case back on the large 3D cube',
       'The save sheet moves above the keyboard while you name an algorithm, so the text you are typing stays visible',
       'Prefer notation? Paste an algorithm remains available from an entry',
       'Search the library by name or by moves — and RUR\' finds R U R\' U\', spaces or no spaces',

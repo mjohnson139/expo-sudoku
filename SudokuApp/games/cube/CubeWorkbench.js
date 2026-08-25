@@ -140,7 +140,25 @@ const CubeWorkbench = ({ navigation, route }) => {
       actions={headerAction({ name: 'rotate-3d-variant', label: 'Turn the cube around', hint: 'Shows the hidden faces', onPress: showOtherSide, color: ink, border })} />
 
     <View style={styles.caseTrack}>
-      <CubeCaseTile pattern={pattern} size={40} label={describeCase(pattern)} />
+      {selectingStart ? (
+        <CubeCaseTile pattern={pattern} size={40} label={describeCase(pattern)} />
+      ) : (
+        // The tile is also the missing door back to the case in 3D. The
+        // transport can technically seek to zero, but a generic jump glyph
+        // does not say "show me the case"; tapping the picture of the case does.
+        <TouchableOpacity
+          style={styles.caseButton}
+          onPress={() => { pause(); seek(0); }}
+          accessibilityRole="button"
+          accessibilityLabel={`${describeCase(pattern)}. Show starting case in 3D`}
+          accessibilityHint="Moves the large cube back to the position where this algorithm begins"
+        >
+          <CubeCaseTile pattern={pattern} size={40} />
+          <View style={[styles.caseBadge, { backgroundColor: CUBE_ACCENT }]}>
+            <MaterialCommunityIcons name="cube-outline" size={10} color="#ffffff" />
+          </View>
+        </TouchableOpacity>
+      )}
       <View style={styles.track}>
         <CubeMoveTrack tokens={player.tokens} index={player.index} marks={NO_MARKS} placeholder="Turn the cube to begin"
           accent={CUBE_ACCENT} theme={theme} pendingColor={pending} noun="algorithm"
@@ -154,7 +172,8 @@ const CubeWorkbench = ({ navigation, route }) => {
         accessibilityLabel={`Cube — ${announcePosition(player.index, player.count, selectingStart ? 'setup' : 'algorithm')}`} />
     </View>
     <CubeScrubber index={player.index} count={player.count} playing={player.playing} rate={player.rate}
-      accent={CUBE_ACCENT} theme={theme} noun={selectingStart ? 'setup' : 'algorithm'} startLabel="Back to the solved cube"
+      accent={CUBE_ACCENT} theme={theme} noun={selectingStart ? 'setup' : 'algorithm'}
+      startLabel={selectingStart ? 'Back to the solved cube' : 'Show the starting case in 3D'}
       onPlayPause={player.togglePlay} onStepBack={player.stepBack} onStepForward={player.stepForward}
       onSeek={seek} onCycleSpeed={player.cycleSpeed} padShown={padShown}
       onShowPad={() => changePad(PAD_EVENTS.SHOW)} onHidePad={() => changePad(PAD_EVENTS.HIDE)} canDelete={count > 0} onDelete={undo} />
@@ -189,6 +208,8 @@ const CubeWorkbench = ({ navigation, route }) => {
 
 const styles = StyleSheet.create({
   caseTrack: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 48 },
+  caseButton: { width: 40, height: 40 },
+  caseBadge: { position: 'absolute', right: -3, bottom: -3, width: 17, height: 17, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   track: { flex: 1, minWidth: 0 },
   actions: { alignSelf: 'stretch', flexDirection: 'row', gap: 8, marginTop: 7 },
   saveButton: { flex: 1, minHeight: 40, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },

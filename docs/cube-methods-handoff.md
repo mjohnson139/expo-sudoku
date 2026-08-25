@@ -287,6 +287,11 @@ signature refactor and must stay isolated from Step 5's method builder.
   where an algorithm begins. The workbench now authors and persists `setup`
   moves before the algorithm; older entries derive the same start they did
   before.
+- **The 2D case tile must remain a door to the 3D case.** After moves are
+  written the large cube naturally stands at the algorithm's end, which made
+  the authored starting position feel lost even though the scrubber could seek
+  to zero. The tile is now an explicit button that puts the large cube back on
+  the starting case; its cube badge makes that action visible.
 - **The first save-sheet device pass found the iOS keyboard covering the name
   field.** A modal sits outside the workbench screen's keyboard avoidance, so
   the shared save sheet owns its own `KeyboardAvoidingView` and a bounded
