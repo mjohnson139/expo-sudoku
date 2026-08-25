@@ -55,6 +55,11 @@ the words you would have wanted to read.
   `pr-<N>` and comments the QR code, and that build is what the operator tests.
   Holding the PR back leaves them nothing to open. Close the step out with the
   `closeout` skill.
+- **The code session owns the PR.** GitHub CLI is authenticated in these
+  sessions. Push the feature branch, run `gh pr view` to avoid duplicating an
+  existing PR, and, when none exists, create it with `gh pr create --base
+  epic/cube-methods`. Report the PR number and URL, then ask for the device pass.
+  Never hand PR creation to the operator; it is part of the delivery step.
 
 ### Branching
 
