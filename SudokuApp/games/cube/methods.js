@@ -67,6 +67,11 @@ export const METHODS = Object.freeze([
     name: 'CFOP',
     stages: Object.freeze(['Cross', 'F2L', 'OLL', 'PLL']),
   }),
+  Object.freeze({
+    id: 'beginner-lbl',
+    name: 'Beginner LBL',
+    stages: Object.freeze(['Cross', 'F2L basic', 'OLL 2-look', 'PLL 2-look']),
+  }),
 ]);
 
 /**
@@ -85,7 +90,8 @@ export const FREEFORM_BLURB = 'No stages — name the groups yourself as you go.
 
 /** A method by id, or null. `null` in gives `null` back, which is the Freeform
  *  and legacy case and is not an error. */
-export const findMethod = (id) => METHODS.find((method) => method.id === id) || null;
+export const findMethod = (id, catalogue = METHODS) =>
+  (catalogue || []).find((method) => method.id === id) || null;
 
 /** Shared rather than a fresh `[]` per call, so a memo reading `stagesOf` is not
  *  rebuilt on every render. Frozen for the same reason `METHODS` is. */
@@ -99,15 +105,15 @@ const EMPTY_STAGES = Object.freeze([]);
  * rail*, which is exactly right for a legacy solve, and it needs no branch to
  * say so.
  */
-export const stagesOf = (id) => {
-  const method = findMethod(id);
+export const stagesOf = (id, catalogue = METHODS) => {
+  const method = findMethod(id, catalogue);
   return method ? method.stages : EMPTY_STAGES;
 };
 
 /** What a method is called — `null` for a solve that has none, so a caller can
  *  leave the clause off rather than print a placeholder. */
-export const methodName = (id) => {
-  const method = findMethod(id);
+export const methodName = (id, catalogue = METHODS) => {
+  const method = findMethod(id, catalogue);
   return method ? method.name : null;
 };
 
@@ -121,7 +127,8 @@ export const methodName = (id) => {
  * which is the honest one — its markers are still the operator's work, and this
  * build has no stage list to draw a rail from.
  */
-export const sanitizeMethodId = (raw) => (findMethod(raw) ? raw : null);
+export const sanitizeMethodId = (raw, catalogue = METHODS) =>
+  (findMethod(raw, catalogue) ? raw : null);
 
 /**
  * Which method the new-solve sheet should open on.
@@ -145,10 +152,10 @@ export const sanitizeMethodId = (raw) => (findMethod(raw) ? raw : null);
  * @param {Array} mySolves the solves for one scramble, newest first
  * @returns {string|null} a method id, or null for Freeform
  */
-export const defaultMethod = (mySolves) => {
+export const defaultMethod = (mySolves, catalogue = METHODS) => {
   const list = mySolves || [];
-  if (list.length === 0) return METHODS[0].id;
-  return sanitizeMethodId(list[0] && list[0].method);
+  if (list.length === 0) return catalogue.length > 0 ? catalogue[0].id : null;
+  return sanitizeMethodId(list[0] && list[0].method, catalogue);
 };
 
 export default {

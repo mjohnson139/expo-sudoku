@@ -136,19 +136,20 @@ const EMPTY_SAVE = () => ({
  * and ignores the rest. A pre-library file has no `algorithms` key and
  * `sanitizeAlgorithms(undefined)` answers the same way, for the same reason.
  */
-export const readCubeSave = (raw) => {
+export const readCubeSave = (raw, catalogue) => {
   if (!raw || typeof raw !== 'object') return EMPTY_SAVE();
 
   const savedScramble = normalizeAlg(raw.scramble);
   const scramble =
     savedScramble.length > 0 && isValidAlg(savedScramble) ? savedScramble : '';
-  const solves = sanitizeSolves(raw.solves);
+  // User methods will be sanitized here before these dependent collections in Step 5.
+  const solves = sanitizeSolves(raw.solves, catalogue);
 
   return {
     scramble,
     favorites: sanitizeFavorites(raw.favorites),
     solves,
-    algorithms: sanitizeAlgorithms(raw.algorithms),
+    algorithms: sanitizeAlgorithms(raw.algorithms, catalogue),
     workspace: sanitizeWorkspace(raw.workspace, { solves, scramble }),
   };
 };

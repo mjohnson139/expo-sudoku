@@ -3,8 +3,8 @@ import { moveCount } from './moves';
 import { phaseSpans } from './solveList';
 
 /** Presentation and editability for the scrubber-positioned method rail. */
-export const railStates = (method, phases, alg, cursor = moveCount(alg)) => {
-  const stages = stagesOf(method);
+export const railStates = (method, phases, alg, cursor = moveCount(alg), catalogue) => {
+  const stages = stagesOf(method, catalogue);
   const total = moveCount(alg);
   const spans = phaseSpans(phases, total);
   const byLabel = new Map(spans.filter((span) => span.label).map((span) => [span.label, span]));

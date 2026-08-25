@@ -9,6 +9,7 @@ import {
 import { cubeFromAlg, solvedCube } from './cubeState';
 import { DEFAULT_PITCH, DEFAULT_YAW, wrapAngle } from './geometry';
 import { normalizeAlg } from './moves';
+import { METHODS } from './methods';
 import { randomScramble } from './scramble';
 import {
   createSolve,
@@ -89,6 +90,7 @@ export const ENTRY_ROUTE = 'algorithm';
 export const WORKBENCH_ROUTE = 'workbench';
 
 export const CubeProvider = ({ children, fallback = null }) => {
+  const methods = METHODS;
   // Hydration gate. Until the saved scramble is read there is nothing honest to
   // draw: generating one immediately would flash a scramble the player never
   // asked for and then replace it with theirs. It also gates the *writer* —
@@ -181,7 +183,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
   useEffect(() => {
     let cancelled = false;
 
-    loadCubeState().then((saved) => {
+    loadCubeState(methods).then((saved) => {
       if (cancelled) return;
       setFavorites(saved.favorites);
       setSolves(saved.solves);
@@ -368,7 +370,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
    */
   const startNewSolve = useCallback(
     ({ method = null } = {}) => {
-      const { solves: grown, solve: made } = createSolve(solves, scrambleKey, { method });
+      const { solves: grown, solve: made } = createSolve(solves, scrambleKey, { method }, methods);
       if (!made) return null;
       setSolves(grown);
       setOpenId(made.id);
@@ -468,7 +470,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
   const addAlgorithm = useCallback((fields) => {
     let made = null;
     setAlgorithms((current) => {
-      const { algorithms: grown, algorithm } = createAlgorithm(current, fields);
+      const { algorithms: grown, algorithm } = createAlgorithm(current, fields, methods);
       made = algorithm;
       return grown;
     });
@@ -489,7 +491,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
    * `algorithms.js` stays a pure module with an injectable one.
    */
   const editAlgorithmById = useCallback((id, patch) => {
-    setAlgorithms((current) => editAlgorithm(current, id, patch));
+    setAlgorithms((current) => editAlgorithm(current, id, patch, { catalogue: methods }));
   }, []);
 
   /** Forget an entry. Unlike a solve there is nothing to move on to: the library
@@ -548,6 +550,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
 
   const value = useMemo(
     () => ({
+      methods,
       scramble,
       scrambleKey,
       scrambledCube,
@@ -585,6 +588,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
       startView,
     }),
     [
+      methods,
       scramble,
       scrambleKey,
       scrambledCube,
@@ -637,6 +641,8 @@ export const useCube = () => {
   }
   return context;
 };
+
+export const useMethods = () => useCube().methods;
 
 /**
  * Tell the provider which of the two screens is on top.

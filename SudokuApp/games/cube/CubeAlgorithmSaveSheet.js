@@ -12,10 +12,9 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MAX_ALG_NAME, hasAssignment, toggleAssignment } from './algorithms';
-import { METHODS } from './methods';
 
 /** Shared by the workbench now and solve tagging in Step 3. */
-const CubeAlgorithmSaveSheet = ({ visible, theme, accent, initialName, initialAssignments, error, onClose, onSave }) => {
+const CubeAlgorithmSaveSheet = ({ visible, theme, accent, methods, initialName, initialAssignments, error, onClose, onSave }) => {
   const [name, setName] = useState(initialName);
   const [assignments, setAssignments] = useState(initialAssignments);
   useEffect(() => {
@@ -50,13 +49,13 @@ const CubeAlgorithmSaveSheet = ({ visible, theme, accent, initialName, initialAs
               placeholder="Sune" placeholderTextColor={border}
               style={[styles.input, { color: ink, borderColor: border, backgroundColor: surface }]} />
             <Text style={[styles.label, { color: ink }]}>Used for</Text>
-            {METHODS.map((method) => <View key={method.id} style={styles.method}>
+            {methods.map((method) => <View key={method.id} style={styles.method}>
               <Text style={[styles.methodName, { color: ink }]}>{method.name}</Text>
               <View style={styles.chips}>{method.stages.map((stage) => {
                 const on = hasAssignment(assignments, method.id, stage);
                 return <TouchableOpacity key={stage} style={[styles.chip, { borderColor: on ? accent : border }]}
                   accessibilityRole="checkbox" accessibilityState={{ checked: on }}
-                  onPress={() => setAssignments((current) => toggleAssignment(current, method.id, stage))}>
+                  onPress={() => setAssignments((current) => toggleAssignment(current, method.id, stage, methods))}>
                   <Text style={[styles.chipText, { color: on ? accent : ink }]}>{stage}</Text>
                 </TouchableOpacity>;
               })}</View>

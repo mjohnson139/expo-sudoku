@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { FREEFORM_BLURB, FREEFORM_NAME, METHODS, defaultMethod, stagesOf } from './methods';
+import { FREEFORM_BLURB, FREEFORM_NAME, defaultMethod, stagesOf } from './methods';
 
 /**
  * Which method is this attempt (docs/cube-flow-plan.md §3.4, Step 4).
@@ -48,7 +48,7 @@ import { FREEFORM_BLURB, FREEFORM_NAME, METHODS, defaultMethod, stagesOf } from 
  * `solveList.js` and `CubeContext`, which is the division every other modal on
  * this screen already keeps.
  */
-const CubeNewSolveSheet = ({ visible, theme, accent, mySolves, onStart, onClose }) => {
+const CubeNewSolveSheet = ({ visible, theme, accent, methods, mySolves, onStart, onClose }) => {
   /**
    * The pick, reset every time the sheet opens.
    *
@@ -61,7 +61,7 @@ const CubeNewSolveSheet = ({ visible, theme, accent, mySolves, onStart, onClose 
    */
   const [picked, setPicked] = useState(null);
   useEffect(() => {
-    if (visible) setPicked(defaultMethod(mySolves));
+    if (visible) setPicked(defaultMethod(mySolves, methods));
     // `mySolves` deliberately out of the deps: the default is decided as the
     // sheet opens, and a solve arriving underneath it must not move the
     // operator's pick while they are looking at it.
@@ -71,7 +71,7 @@ const CubeNewSolveSheet = ({ visible, theme, accent, mySolves, onStart, onClose 
   const surface = theme.colors.numberPad.background;
   const border = theme.colors.numberPad.border;
 
-  const stages = stagesOf(picked);
+  const stages = stagesOf(picked, methods);
 
   /** One method to choose. `id` is null for Freeform, which is a real answer and
    *  not the absence of one — so it is a row like the others. */
@@ -117,7 +117,7 @@ const CubeNewSolveSheet = ({ visible, theme, accent, mySolves, onStart, onClose 
           </Text>
 
           <View style={styles.choices} accessibilityRole="radiogroup">
-            {METHODS.map((method) => choice(method.id, method.name))}
+            {methods.map((method) => choice(method.id, method.name))}
             {choice(null, FREEFORM_NAME)}
           </View>
 

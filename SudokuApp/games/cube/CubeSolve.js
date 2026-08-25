@@ -114,6 +114,7 @@ const LEGEND_MIN_HEIGHT = 780;
 const CubeSolve = ({ navigation }) => {
   const { theme } = useAppTheme();
   const {
+    methods,
     scramble,
     scrambledCube,
     openId,
@@ -536,7 +537,7 @@ const CubeSolve = ({ navigation }) => {
       editOpen((current) => ({
         phases: placeMethodBoundary(
           current.phases,
-          stagesOf(current.method),
+          stagesOf(current.method, methods),
           label,
           player.index,
           moveCount(current.alg)
@@ -574,7 +575,7 @@ const CubeSolve = ({ navigation }) => {
   // them — a stored count is a second thing to keep honest on every edit.
   const spans = useMemo(() => phaseSpans(phases, solveCount), [phases, solveCount]);
   const rail = useMemo(
-    () => railStates(shown.method, phases, solve, player.index),
+    () => railStates(shown.method, phases, solve, player.index, methods),
     [shown.method, phases, solve, player.index]
   );
 
@@ -957,6 +958,7 @@ const CubeSolve = ({ navigation }) => {
         onClose={() => setShowTyping(false)}
       />
       <CubeSolveAlgorithmsSheet
+        methods={methods}
         visible={showAlgorithms}
         algorithms={algorithms}
         method={shown.method}
@@ -969,6 +971,7 @@ const CubeSolve = ({ navigation }) => {
         onCreate={() => { setShowAlgorithms(false); navigation.navigate(WORKBENCH_ROUTE, { id: null }); }}
       />
       <CubeAlgorithmSaveSheet
+        methods={methods}
         visible={Boolean(runDraft)}
         theme={theme}
         accent={CUBE_ACCENT}

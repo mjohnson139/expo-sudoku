@@ -256,7 +256,7 @@ export const defaultAlgorithmName = (algorithms) => {
  *
  * Duplicates collapse, the order is the file's, and the list is bounded.
  */
-export const sanitizeAssignments = (raw) => {
+export const sanitizeAssignments = (raw, catalogue) => {
   if (!Array.isArray(raw)) return [];
 
   const seen = new Set();
@@ -264,10 +264,10 @@ export const sanitizeAssignments = (raw) => {
 
   raw.forEach((entry) => {
     if (!entry || typeof entry !== 'object') return;
-    if (!findMethod(entry.method)) return;
+    if (!findMethod(entry.method, catalogue)) return;
 
     const stage = normalizeStage(entry.stage);
-    if (!stagesOf(entry.method).includes(stage)) return;
+    if (!stagesOf(entry.method, catalogue).includes(stage)) return;
 
     // A tab cannot appear in either half — a method id is a slug and a stage has
     // been whitespace-collapsed — so it is a separator neither can forge.
@@ -297,21 +297,21 @@ export const hasAssignment = (assignments, method, stage) =>
  * An unknown method or stage comes back unchanged, so a chip drawn from a
  * catalogue and an assignment written to the file cannot disagree.
  */
-export const toggleAssignment = (assignments, method, stage) => {
+export const toggleAssignment = (assignments, method, stage, catalogue) => {
   const list = assignments || [];
   if (hasAssignment(list, method, stage)) {
     return list.filter((entry) => !(entry.method === method && entry.stage === stage));
   }
 
   if (list.length >= MAX_ASSIGNMENTS) return list;
-  return sanitizeAssignments([...list, { method, stage }]);
+  return sanitizeAssignments([...list, { method, stage }], catalogue);
 };
 
 /** `"Roux · CMLL"` — one assignment on a tag. An assignment always names a
  *  method this build ships, because `sanitizeAssignments` is the only way one
  *  gets into the file. */
-export const describeAssignment = (assignment) => {
-  const method = findMethod(assignment && assignment.method);
+export const describeAssignment = (assignment, catalogue) => {
+  const method = findMethod(assignment && assignment.method, catalogue);
   if (!method) return '';
   return `${method.name} · ${assignment.stage}`;
 };
@@ -339,7 +339,8 @@ export const describeAssignment = (assignment) => {
  */
 export const createAlgorithm = (
   algorithms,
-  { name, moves, setup, assignments, notes, savedAt = Date.now() } = {}
+  { name, moves, setup, assignments, notes, savedAt = Date.now() } = {},
+  catalogue
 ) => {
   const list = algorithms || [];
   const alg = normalizeAlg(moves);
@@ -359,7 +360,7 @@ export const createAlgorithm = (
     // this entry's case, so `algorithmCase` derives it from the moves on every
     // read. A case is only ever stored when a hand has overruled the arithmetic.
     case: null,
-    assignments: sanitizeAssignments(assignments),
+    assignments: sanitizeAssignments(assignments, catalogue),
     notes: normalizeNotes(notes),
     savedAt,
     // An entry nobody has changed yet was last changed when it was written. The
@@ -377,8 +378,8 @@ export const createAlgorithm = (
 const changesAnything = (entry, next) =>
   Object.keys(next).some((key) => {
     if (key !== 'assignments') return entry[key] !== next[key];
-    const before = (entry.assignments || []).map(describeAssignment).join('\n');
-    return before !== next.assignments.map(describeAssignment).join('\n');
+    const before = (entry.assignments || []).map((assignment) => describeAssignment(assignment)).join('\n');
+    return before !== next.assignments.map((assignment) => describeAssignment(assignment)).join('\n');
   });
 
 /**
@@ -414,7 +415,7 @@ const changesAnything = (entry, next) =>
  * to reach `Date.now()` would be a stopwatch race. `CubeContext` reads the real
  * one, in the one place that knows what "now" means.
  */
-export const editAlgorithm = (algorithms, id, patch, { editedAt = Date.now() } = {}) => {
+export const editAlgorithm = (algorithms, id, patch, { editedAt = Date.now(), catalogue } = {}) => {
   const list = algorithms || [];
   const entry = findAlgorithm(list, id);
   if (!entry) return list;
@@ -441,7 +442,7 @@ export const editAlgorithm = (algorithms, id, patch, { editedAt = Date.now() } =
     next.name = wanted.length > 0 ? uniqueName(wanted, namesExcept(list, id)) : entry.name;
   }
 
-  if ('assignments' in fields) next.assignments = sanitizeAssignments(fields.assignments);
+  if ('assignments' in fields) next.assignments = sanitizeAssignments(fields.assignments, catalogue);
   if ('notes' in fields) next.notes = normalizeNotes(fields.notes);
   if ('case' in fields) next.case = sanitizeCase(fields.case);
 
@@ -528,11 +529,11 @@ export const filterAlgorithms = (algorithms, methodId) => {
  *
  * @returns {Array<{id: string|null, label: string, count: number}>}
  */
-export const algorithmFilters = (algorithms) => {
+export const algorithmFilters = (algorithms, catalogue = METHODS) => {
   const list = algorithms || [];
   const chips = [{ id: null, label: ALL_LABEL, count: list.length }];
 
-  METHODS.forEach((method) => {
+  catalogue.forEach((method) => {
     const count = filterAlgorithms(list, method.id).length;
     if (count > 0) chips.push({ id: method.id, label: method.name, count });
   });
@@ -578,7 +579,7 @@ export const describeAlgorithmSize = (algorithm) => {
  * A pre-Step-1 file has no `algorithms` key and this returns `[]`, which is the
  * truth rather than a migration.
  */
-export const sanitizeAlgorithms = (raw) => {
+export const sanitizeAlgorithms = (raw, catalogue) => {
   if (!Array.isArray(raw)) return [];
 
   const clean = [];
@@ -612,7 +613,7 @@ export const sanitizeAlgorithms = (raw) => {
       moves,
       setup: isValidAlg(normalizeAlg(entry.setup)) ? normalizeAlg(entry.setup) : '',
       case: sanitizeCase(entry.case),
-      assignments: sanitizeAssignments(entry.assignments),
+      assignments: sanitizeAssignments(entry.assignments, catalogue),
       notes: normalizeNotes(entry.notes),
       savedAt,
       editedAt: Number.isFinite(entry.editedAt) ? entry.editedAt : savedAt,

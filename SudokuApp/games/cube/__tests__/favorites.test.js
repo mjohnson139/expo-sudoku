@@ -237,3 +237,25 @@ describe('readCubeSave', () => {
     });
   });
 });
+
+describe('catalogue-dependent save sanitization', () => {
+  const catalogue = [{ id: 'petrus', name: 'Petrus', stages: ['Block'] }];
+  const solve = {
+    id: 's1', scramble: ALG, name: 'Solve 1', method: 'petrus', orientation: null,
+    alg: '', phases: [], algorithmRuns: [], savedAt: 1, editedAt: 1,
+  };
+
+  it('preserves solve methods and assignments known only to the supplied catalogue', () => {
+    const read = readCubeSave({
+      solves: [solve],
+      algorithms: [{
+        id: 'a1', name: 'Block alg', moves: 'R', assignments: [{ method: 'petrus', stage: 'Block' }],
+        savedAt: 1, editedAt: 1,
+      }],
+    }, catalogue);
+
+    expect(read.solves[0].method).toBe('petrus');
+    expect(read.algorithms[0].assignments).toEqual([{ method: 'petrus', stage: 'Block' }]);
+    expect(readCubeSave({ solves: [solve] }).solves[0].method).toBeNull();
+  });
+});

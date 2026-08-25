@@ -35,6 +35,7 @@ import { announceCompareCell, comparePhases } from './solveList';
  * solves already is, behind a toggle, and **costs the solve screen nothing.**
  */
 const CubeCompareTable = ({ solves, currentId, theme, accent }) => {
+  const methods = useMethods();
   const titleColor = theme.colors.title;
   const border = theme.colors.numberPad.border;
   // The accent is a *fill* everywhere else on this screen — the flag key, the
@@ -45,7 +46,7 @@ const CubeCompareTable = ({ solves, currentId, theme, accent }) => {
   // see is not a marker.
   const ink = accentInk(theme, accent);
 
-  const { labels, rows } = comparePhases(solves);
+  const { labels, rows } = comparePhases(solves, methods);
   const marked = rows.filter((row) => row.annotated);
   const bare = rows.filter((row) => !row.annotated);
 

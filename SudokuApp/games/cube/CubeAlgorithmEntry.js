@@ -25,7 +25,6 @@ import {
   hasAssignment,
   toggleAssignment,
 } from './algorithms';
-import { METHODS } from './methods';
 import { CUBE_ACCENT, styles as chrome } from './cubeChrome';
 import { WORKBENCH_ROUTE, useCube } from './CubeContext';
 
@@ -78,7 +77,7 @@ const ENTRY_PREVIEW = 112;
  */
 const CubeAlgorithmEntry = ({ navigation, route }) => {
   const { theme } = useAppTheme();
-  const { algorithmById, addAlgorithm, editAlgorithmById, deleteAlgorithm } = useCube();
+  const { methods, algorithmById, addAlgorithm, editAlgorithmById, deleteAlgorithm } = useCube();
 
   const id = (route.params && route.params.id) || null;
   const entry = algorithmById(id);
@@ -284,7 +283,7 @@ const CubeAlgorithmEntry = ({ navigation, route }) => {
               still findable, by search and by the `Unassigned` chip. Nothing here
               is a required field, which is why there is no prompt telling the
               operator to pick something. */}
-          {METHODS.map((method) => (
+          {methods.map((method) => (
             <View key={method.id} style={styles.methodBlock}>
               <Text style={[styles.methodName, { color: titleColor }]}>{method.name}</Text>
               <View style={styles.stages}>
