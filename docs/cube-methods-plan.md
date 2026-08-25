@@ -946,10 +946,11 @@ than a brief. The `closeout` skill covers the sequence.
    screen's action row because the header is full at four controls. The
    alternative — dropping a header control to make room — was rejected without
    asking, and Cube Flow's question 7 says the operator is willing to lose one.
-2. **Does a tagged run want to *replace* its moves in the track, or only be
-   marked?** Step 3 says marked: the stored `alg` is untouched and the chip is
-   presentation. A run that collapsed for real would be an edit, and edits to a
-   written solve are a contract this epic does not hold.
+2. **Answered after the Step 3 operator review: does a tagged run replace its
+   moves in the track, or only get marked?** It is a named presentation capsule
+   over untouched stored moves. Tap it to show the exact notation in place and
+   tap again to show the name. The bounded annotation is persisted, but neither
+   view rewrites the solve's `alg`; undo drops an incomplete capsule whole.
 3. **Answered after Step 2.5: can a saved algorithm be applied to a solve?**
    Yes — Step 3 is reciprocal now. Apply appends the entry's `moves` at the live
    end through the solve edit funnel; it never prepends `setup` and never inserts

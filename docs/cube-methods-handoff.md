@@ -272,6 +272,11 @@ stage rename propagation, ordering and “use for new solves”.
   `editOpen` and `withMoves`. The growing-algorithm handoff in the existing
   player visibly animates the appended tokens rather than introducing a second
   transport.
+- **Operator follow-up: a used algorithm must remain named in the solve.** An
+  applied or newly saved run writes a bounded `algorithmRuns` annotation, never
+  another copy of its moves. The move track renders it as an outlined name
+  capsule; tapping swaps the name for the exact moves in place and tapping again
+  collapses it. Undo drops a capsule whole rather than naming a partial run.
 - Empty and full libraries are deliberately asymmetric: empty offers the
   workbench, full disables only Save a run, and every existing entry remains
   applicable.
@@ -498,8 +503,9 @@ From `docs/cube-methods-plan.md` §6. The new question 3 is answered by this rew
 1. **Is the library's door in the right place?** The scramble header is full at
    four controls, so it is in the action row. Dropping a header control instead
    was rejected without asking.
-2. **Does a tagged run replace its moves in the track, or only get marked?**
-   Step 3 says marked; the stored `alg` is untouched.
+2. **Answered: does a tagged run replace its moves in the track, or only get
+   marked?** It is a named presentation capsule over untouched stored moves.
+   Tap once for the notation and again for the name; collapsing is never an edit.
 3. **Answered: can a saved algorithm be applied to a solve?** Yes. Step 3 now
    appends `entry.moves` at the live end through `editOpen` + `withMoves` and
    visibly plays them. It never prepends `setup` or inserts into reviewed history.

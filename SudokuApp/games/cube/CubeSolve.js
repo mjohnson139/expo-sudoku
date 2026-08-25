@@ -38,6 +38,7 @@ import {
 import {
   phaseSpans,
   placeMethodBoundary,
+  withAlgorithmRun,
   withMoves,
 } from './solveList';
 import { railStates } from './phaseRail';
@@ -256,6 +257,7 @@ const CubeSolve = ({ navigation }) => {
   const orientation = shown ? shown.orientation : null;
   const solve = shown ? shown.alg : '';
   const phases = shown ? shown.phases : NO_PHASES;
+  const algorithmRuns = shown ? shown.algorithmRuns : NO_PHASES;
 
   // The scramble, turned the way the operator chose to hold it — the cube move 1
   // of the solve starts on. A rotation moves the *model*, so after `z2` the move
@@ -590,7 +592,12 @@ const CubeSolve = ({ navigation }) => {
     resetGesture();
     pause();
     seek(solveCount);
-    editOpen((current) => withMoves(current, applyAlgorithm(current.alg, entry)));
+    editOpen((current) => {
+      const start = moveCount(current.alg);
+      const movesPatch = withMoves(current, applyAlgorithm(current.alg, entry));
+      const moved = { ...current, ...movesPatch };
+      return { ...movesPatch, ...withAlgorithmRun(moved, entry, start, moveCount(moved.alg) - 1) };
+    });
   }, [editOpen, pause, resetGesture, seek, solveCount]);
 
   const beginRunSelection = useCallback(() => {
@@ -622,9 +629,10 @@ const CubeSolve = ({ navigation }) => {
       setSaveError('The library is full. Delete an entry before saving this run.');
       return;
     }
+    editOpen((current) => withAlgorithmRun(current, made, runDraft.range.start, runDraft.range.end));
     setRunDraft(null);
     setRunSelection(null);
-  }, [addAlgorithm, runDraft]);
+  }, [addAlgorithm, editOpen, runDraft]);
 
   // The first of this screen's two phases: **find the hold**, then **write the
   // solve**. `orientation` has three states and the `null` one is this
@@ -777,6 +785,7 @@ const CubeSolve = ({ navigation }) => {
             end: runSelection.end == null ? runSelection.start : runSelection.end,
           } : null}
           onSelect={runSelection ? selectRunToken : null}
+          algorithmRuns={algorithmRuns}
         />
       )}
 

@@ -95,6 +95,7 @@ export const MAX_SOLVE_NAME = 40;
  *  hand the screen an unbounded list. A solve with forty groups in it is not a
  *  solve anyone is annotating. */
 export const MAX_PHASES = 40;
+export const MAX_ALGORITHM_RUNS = 100;
 
 /** A name, as it is kept: single-spaced, trimmed, and bounded. */
 export const normalizeName = (name) =>
@@ -198,6 +199,7 @@ export const createSolve = (
     orientation: null,
     alg: '',
     phases: [],
+    algorithmRuns: [],
     savedAt,
     // A page nobody has written on yet was last written to when it was made.
     // The alternative — null until the first move — is a card that says nothing
@@ -771,6 +773,40 @@ export const announceCompareCell = (name, label, cell) => {
 export const withMoves = (solve, alg) => ({
   alg,
   phases: clampPhases(solve && solve.phases, moveCount(alg)),
+  algorithmRuns: sanitizeAlgorithmRuns(solve && solve.algorithmRuns, moveCount(alg)),
+});
+
+/**
+ * Named algorithm ranges are presentation over the move list, never a second
+ * copy of its notation. A range survives only while all of its moves do; undo
+ * must not leave half an algorithm wearing the full algorithm's name.
+ */
+export const sanitizeAlgorithmRuns = (raw, count) => {
+  const limit = Number.isInteger(count) && count > 0 ? count : 0;
+  const clean = [];
+  (Array.isArray(raw) ? raw : []).forEach((run) => {
+    if (!run || typeof run !== 'object') return;
+    if (!Number.isInteger(run.start) || !Number.isInteger(run.end)) return;
+    if (run.start < 0 || run.end < run.start || run.end >= limit) return;
+    const name = normalizeName(run.name);
+    if (!name) return;
+    if (clean.some((kept) => run.start <= kept.end && run.end >= kept.start)) return;
+    clean.push({
+      algorithmId: typeof run.algorithmId === 'string' ? run.algorithmId : '',
+      name,
+      start: run.start,
+      end: run.end,
+    });
+  });
+  return clean.sort((a, b) => a.start - b.start).slice(0, MAX_ALGORITHM_RUNS);
+};
+
+/** Add one named capsule without changing a single move. */
+export const withAlgorithmRun = (solve, entry, start, end) => ({
+  algorithmRuns: sanitizeAlgorithmRuns([
+    ...((solve && solve.algorithmRuns) || []),
+    { algorithmId: entry && entry.id, name: entry && entry.name, start, end },
+  ], moveCount(solve && solve.alg)),
 });
 
 /**
@@ -870,6 +906,7 @@ export const sanitizeSolves = (raw) => {
       orientation: sanitizeOrientation(entry.orientation),
       alg,
       phases: sanitizePhases(entry.phases, moveCount(alg)),
+      algorithmRuns: sanitizeAlgorithmRuns(entry.algorithmRuns, moveCount(alg)),
       savedAt,
       editedAt: Number.isFinite(entry.editedAt) ? entry.editedAt : savedAt,
     });
@@ -958,6 +995,7 @@ export const describeSolveSize = (solve) => {
 export default {
   MAX_SOLVES,
   MAX_PHASES,
+  MAX_ALGORITHM_RUNS,
   createSolve,
   duplicateSolve,
   removeSolve,
@@ -983,4 +1021,6 @@ export default {
   comparePhases,
   announceCompareCell,
   withMoves,
+  withAlgorithmRun,
+  sanitizeAlgorithmRuns,
 };

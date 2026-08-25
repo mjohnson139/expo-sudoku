@@ -26,10 +26,12 @@ import {
   removeSolve,
   renameSolve,
   sanitizeSolves,
+  sanitizeAlgorithmRuns,
   sanitizeWorkspace,
   solvesFor,
   updateSolve,
   withMoves,
+  withAlgorithmRun,
 } from '../solveList';
 
 const SCRAMBLE = "R U2 F' D L B2 R' U";
@@ -52,6 +54,7 @@ describe('createSolve', () => {
       orientation: null,
       alg: '',
       phases: [],
+      algorithmRuns: [],
       savedAt: 1,
       editedAt: 1,
     });
@@ -149,6 +152,7 @@ describe('duplicateSolve', () => {
       orientation: 'z2',
       alg: "r U r'",
       phases: [],
+      algorithmRuns: [],
       savedAt: 9,
       editedAt: 9,
     });
@@ -306,7 +310,7 @@ describe('sanitizeSolves', () => {
 
   it('reads a well-formed list back unchanged, but for the fields Step 4 added', () => {
     expect(sanitizeSolves([stored])).toEqual([
-      { ...stored, method: null, editedAt: 12 },
+      { ...stored, method: null, algorithmRuns: [], editedAt: 12 },
     ]);
   });
 
@@ -413,7 +417,7 @@ describe('sanitizeSolves', () => {
     };
 
     expect(sanitizeSolves([legacy])).toEqual([
-      { ...legacy, method: null, editedAt: 12 },
+      { ...legacy, method: null, algorithmRuns: [], editedAt: 12 },
     ]);
   });
 
@@ -726,6 +730,7 @@ describe('withMoves', () => {
     expect(withMoves(solve, `${EIGHT} M2`)).toEqual({
       alg: `${EIGHT} M2`,
       phases: solve.phases,
+      algorithmRuns: [],
     });
   });
 
@@ -762,8 +767,33 @@ describe('withMoves', () => {
   });
 
   it('survives a solve with no markers at all', () => {
-    expect(withMoves({ alg: '', phases: [] }, 'R')).toEqual({ alg: 'R', phases: [] });
-    expect(withMoves(null, 'R')).toEqual({ alg: 'R', phases: [] });
+    expect(withMoves({ alg: '', phases: [] }, 'R')).toEqual({ alg: 'R', phases: [], algorithmRuns: [] });
+    expect(withMoves(null, 'R')).toEqual({ alg: 'R', phases: [], algorithmRuns: [] });
+  });
+});
+
+describe('algorithm runs', () => {
+  const entry = { id: 'a7', name: 'Sune' };
+
+  it('adds a named range without changing the moves', () => {
+    const solve = { alg: "R U R'", algorithmRuns: [] };
+    expect(withAlgorithmRun(solve, entry, 1, 2)).toEqual({
+      algorithmRuns: [{ algorithmId: 'a7', name: 'Sune', start: 1, end: 2 }],
+    });
+    expect(solve.alg).toBe("R U R'");
+  });
+
+  it('drops a whole capsule rather than naming half an algorithm after undo', () => {
+    const runs = [{ algorithmId: 'a7', name: 'Sune', start: 1, end: 3 }];
+    expect(sanitizeAlgorithmRuns(runs, 3)).toEqual([]);
+    expect(sanitizeAlgorithmRuns(runs, 4)).toEqual(runs);
+  });
+
+  it('refuses overlapping capsules', () => {
+    expect(sanitizeAlgorithmRuns([
+      { algorithmId: 'a1', name: 'First', start: 0, end: 2 },
+      { algorithmId: 'a2', name: 'Second', start: 2, end: 3 },
+    ], 4)).toEqual([{ algorithmId: 'a1', name: 'First', start: 0, end: 2 }]);
   });
 });
 
