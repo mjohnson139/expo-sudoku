@@ -77,6 +77,8 @@ const CubeMoveTrack = ({
   // height rather than to a panel of empty space.
   room = 0,
   onSeek,
+  selection,
+  onSelect,
 }) => {
   const titleColor = theme.colors.title;
   const surface = theme.colors.numberPad.background;
@@ -213,7 +215,7 @@ const CubeMoveTrack = ({
                 <Text style={[styles.mark, { color: accent }]}>|</Text>
               )}
               <TouchableOpacity
-                onPress={() => onSeek(i + 1)}
+                onPress={() => onSelect ? onSelect(i) : onSeek(i + 1)}
                 onLayout={({ nativeEvent }) => noteTop(i, nativeEvent.layout.y)}
                 accessibilityRole="button"
                 // Unchanged from the card this replaced, deliberately: every
@@ -227,13 +229,17 @@ const CubeMoveTrack = ({
                 // rather than the label because the container's padding is
                 // already fixed — a chip that added its own would re-flow the
                 // row under the cursor on every move played.
-                style={[styles.token, i === index - 1 && { backgroundColor: accent }]}
+                style={[
+                  styles.token,
+                  selection && i >= selection.start && i <= selection.end && styles.selectedToken,
+                  i === index - 1 && !selection && { backgroundColor: accent },
+                ]}
               >
                 <Text
                   style={[
                     styles.tokenText,
                     { color: i < index ? titleColor : pendingColor },
-                    i === index - 1 && styles.currentToken,
+                    i === index - 1 && !selection && styles.currentToken,
                   ]}
                 >
                   {token}
@@ -323,6 +329,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     borderRadius: 4,
   },
+  selectedToken: { backgroundColor: 'rgba(214, 71, 82, 0.16)' },
   tokenText: {
     fontFamily: ALG_FONT,
     // 12, from the design (plan §8.8), where Step 7 had 14. `lineHeight` stays

@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LayoutAnimation, Platform, Text, TouchableOpacity, UIManager, View } from 'react-native';
+import { Alert, LayoutAnimation, Platform, Text, TouchableOpacity, UIManager, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
 import CubeView from './CubeView';
 import CubeAlgInputModal from './CubeAlgInputModal';
+import CubeAlgorithmSaveSheet from './CubeAlgorithmSaveSheet';
+import CubeSolveAlgorithmsSheet from './CubeSolveAlgorithmsSheet';
 import CubeCompareModal from './CubeCompareModal';
 import CubeMovePad from './CubeMovePad';
 import CubeMoveTrack from './CubeMoveTrack';
@@ -45,7 +47,8 @@ import useAppBackground from './useAppBackground';
 import useScramblePlayer from './useScramblePlayer';
 import useCubeStage from './useCubeStage';
 import { CUBE_ACCENT, headerAction, styles } from './cubeChrome';
-import { useCube, useReportsSolveRoute } from './CubeContext';
+import { useCube, useReportsSolveRoute, WORKBENCH_ROUTE } from './CubeContext';
+import { applyAlgorithm, tagRun } from './tagRun';
 import { mix } from '../../utils/color';
 import {
   PAD_EVENTS,
@@ -119,6 +122,8 @@ const CubeSolve = ({ navigation }) => {
     yaw,
     pitch,
     editOpen,
+    algorithms,
+    addAlgorithm,
     turnTo,
     rememberView,
     showOtherSide,
@@ -127,6 +132,10 @@ const CubeSolve = ({ navigation }) => {
 
   const [showCompare, setShowCompare] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
+  const [showAlgorithms, setShowAlgorithms] = useState(false);
+  const [runSelection, setRunSelection] = useState(null);
+  const [runDraft, setRunDraft] = useState(null);
+  const [saveError, setSaveError] = useState('');
   // View state, deliberately. Reopening or cold-starting a solve begins with
   // the full pad; backgrounding the still-mounted screen leaves it as it was.
   const [padShown, setPadShown] = useState(initialPadVisibility);
@@ -572,6 +581,51 @@ const CubeSolve = ({ navigation }) => {
   // asks this once per token.
   const marks = useMemo(() => new Set(phases.map((phase) => phase.at)), [phases]);
 
+  const currentStage = rail.find((item) => item.available)?.stage
+    || [...rail].reverse().find((item) => item.state === 'marked')?.stage
+    || null;
+
+  const applySavedAlgorithm = useCallback((entry) => {
+    setShowAlgorithms(false);
+    resetGesture();
+    pause();
+    seek(solveCount);
+    editOpen((current) => withMoves(current, applyAlgorithm(current.alg, entry)));
+  }, [editOpen, pause, resetGesture, seek, solveCount]);
+
+  const beginRunSelection = useCallback(() => {
+    setShowAlgorithms(false);
+    setRunSelection({ start: null, end: null });
+    pause();
+  }, [pause]);
+
+  const selectRunToken = useCallback((tokenIndex) => {
+    if (!runSelection || runSelection.start == null) {
+      setRunSelection({ start: tokenIndex, end: tokenIndex });
+      return;
+    }
+    const draft = tagRun({ alg: solve, phases, method: shown.method, scramble, orientation,
+      first: runSelection.start, last: tokenIndex });
+    const range = { start: Math.min(runSelection.start, tokenIndex), end: Math.max(runSelection.start, tokenIndex) };
+    setRunSelection(range);
+    if (draft.error) {
+      Alert.alert('That run crosses a phase', draft.error);
+      return;
+    }
+    setRunDraft(draft);
+    setSaveError('');
+  }, [runSelection, solve, phases, shown.method, scramble, orientation]);
+
+  const saveRun = useCallback((details) => {
+    const made = addAlgorithm({ ...details, moves: runDraft.moves, setup: runDraft.setup });
+    if (!made) {
+      setSaveError('The library is full. Delete an entry before saving this run.');
+      return;
+    }
+    setRunDraft(null);
+    setRunSelection(null);
+  }, [addAlgorithm, runDraft]);
+
   // The first of this screen's two phases: **find the hold**, then **write the
   // solve**. `orientation` has three states and the `null` one is this
   // (docs/cube-flow-plan.md §5) — nothing here may collapse them to two.
@@ -718,6 +772,11 @@ const CubeSolve = ({ navigation }) => {
           label={`Solve: ${solve || 'nothing yet'}`}
           room={room}
           onSeek={playTo}
+          selection={runSelection && runSelection.start != null ? {
+            start: runSelection.start,
+            end: runSelection.end == null ? runSelection.start : runSelection.end,
+          } : null}
+          onSelect={runSelection ? selectRunToken : null}
         />
       )}
 
@@ -788,6 +847,7 @@ const CubeSolve = ({ navigation }) => {
           onHidePad={() => changePad(PAD_EVENTS.HIDE)}
           canDelete={solveCount > 0}
           onDelete={undoMove}
+          onAlgorithms={() => setShowAlgorithms(true)}
         />
       )}
 
@@ -868,6 +928,28 @@ const CubeSolve = ({ navigation }) => {
         accent={CUBE_ACCENT}
         onAdd={addTyped}
         onClose={() => setShowTyping(false)}
+      />
+      <CubeSolveAlgorithmsSheet
+        visible={showAlgorithms}
+        algorithms={algorithms}
+        method={shown.method}
+        stage={currentStage}
+        theme={theme}
+        accent={CUBE_ACCENT}
+        onClose={() => setShowAlgorithms(false)}
+        onSelectRun={beginRunSelection}
+        onApply={applySavedAlgorithm}
+        onCreate={() => { setShowAlgorithms(false); navigation.navigate(WORKBENCH_ROUTE, { id: null }); }}
+      />
+      <CubeAlgorithmSaveSheet
+        visible={Boolean(runDraft)}
+        theme={theme}
+        accent={CUBE_ACCENT}
+        initialName=""
+        initialAssignments={runDraft ? runDraft.assignments : []}
+        error={saveError}
+        onClose={() => { setRunDraft(null); setRunSelection(null); }}
+        onSave={saveRun}
       />
     </View>
   );
