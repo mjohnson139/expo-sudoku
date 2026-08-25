@@ -25,7 +25,7 @@ import {
   searchAlgorithms,
   toggleAssignment,
 } from '../algorithms';
-import { EMPTY_CASE, caseOfAlgorithm } from '../algCase';
+import { EMPTY_CASE, caseOfAlgorithm, caseOfSetup } from '../algCase';
 import { METHODS } from '../methods';
 
 const SUNE = "R U R' U R U2 R'";
@@ -51,6 +51,7 @@ describe('createAlgorithm', () => {
       id: 'a1',
       name: 'Algorithm 1',
       moves: SUNE,
+      setup: '',
       // Step 2's field, sitting in the file already rather than reshaping it twice.
       case: null,
       assignments: [],
@@ -531,6 +532,7 @@ describe('sanitizeAlgorithms', () => {
       id: 'a1',
       name: 'spaced out',
       moves: 'R U',
+      setup: '',
       case: null,
       assignments: [],
       notes: '',
@@ -569,6 +571,7 @@ describe('sanitizeAlgorithms', () => {
       'name',
       'notes',
       'savedAt',
+      'setup',
     ]);
   });
 
@@ -604,6 +607,12 @@ describe('algorithmCase', () => {
     const { algorithms } = make();
     const changed = editAlgorithm(algorithms, 'a1', { moves: TPERM }, { editedAt: 2 });
     expect(algorithmCase(changed[0])).toBe(caseOfAlgorithm(TPERM));
+  });
+
+  it('uses an authored setup as the starting case', () => {
+    const { algorithm } = make([], { setup: "R U R'" });
+    expect(algorithm.setup).toBe("R U R'");
+    expect(algorithmCase(algorithm)).toBe(caseOfSetup("R U R'"));
   });
 
   it('drops a stored case that is not one, and derives instead', () => {

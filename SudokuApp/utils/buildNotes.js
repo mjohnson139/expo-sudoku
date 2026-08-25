@@ -8,8 +8,10 @@ const BUILD_NOTES = {
     notes: [
       'New on the scramble screen: a button beside New solve and Compare opens your algorithm library',
       'An algorithm is a thing you keep now — a name, its moves, the stages it is for, and notes only you see',
-      'Write one by hand: tap the ＋, type the moves, then name it and say what it is for',
-      'The moves are checked as you type, and anything that is not notation is refused with the token that caused it',
+      'Write one on a solved cube: tap ＋, turn with a finger or the move pad, then name it and say what it is for',
+      'The case tile fills in live while you turn, and Save keeps the moves, name and stages together',
+      'Before writing the algorithm, turn the solved cube into its starting case and choose Use this start',
+      'Prefer notation? Paste an algorithm remains available from an entry',
       'Search the library by name or by moves — and RUR\' finds R U R\' U\', spaces or no spaces',
       'Filter by method with the chips: a chip only appears once there is something behind it, and it says how many',
       'One algorithm can serve more than one stage at once — Roux CMLL and CFOP PLL are two taps, not two entries',

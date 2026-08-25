@@ -26,7 +26,7 @@ import {
 } from './algorithms';
 import { METHODS } from './methods';
 import { CUBE_ACCENT, styles as chrome } from './cubeChrome';
-import { useCube } from './CubeContext';
+import { WORKBENCH_ROUTE, useCube } from './CubeContext';
 
 /** The tile here is bigger than the library card's 40 — this is the screen you
  *  are on when you want to *check* the case rather than recognise it, and 76
@@ -233,6 +233,16 @@ const CubeAlgorithmEntry = ({ navigation, route }) => {
           />
 
           <Text style={[styles.label, { color: titleColor }]}>Moves</Text>
+          <TouchableOpacity
+            style={[styles.cubeEdit, { backgroundColor: CUBE_ACCENT }]}
+            onPress={() => navigation.navigate(WORKBENCH_ROUTE, { id: entry.id })}
+            accessibilityRole="button"
+            accessibilityLabel="Edit on the cube"
+            accessibilityHint="Opens the algorithm workbench with these moves"
+          >
+            <MaterialCommunityIcons name="cube-outline" size={17} color="#ffffff" />
+            <Text style={styles.cubeEditText}>Edit on the cube</Text>
+          </TouchableOpacity>
           {/* A row that opens the validated field rather than a second field.
               `CubeAlgInputModal` already owns the parser's error message, and the
               only thing worth duplicating is nothing. */}
@@ -241,10 +251,10 @@ const CubeAlgorithmEntry = ({ navigation, route }) => {
             onPress={() => setAsking(true)}
             accessibilityRole="button"
             accessibilityLabel={`Moves, ${entry.moves}, ${describeAlgorithmSize(entry)}`}
-            accessibilityHint="Opens the algorithm field to change them"
+            accessibilityHint="Opens a text field to paste an algorithm"
           >
             <Text style={[styles.moves, { color: titleColor }]} numberOfLines={2}>
-              {entry.moves}
+              Paste an algorithm · {entry.moves}
             </Text>
             <MaterialCommunityIcons name="pencil" size={16} color={titleColor} style={styles.pencil} />
           </TouchableOpacity>
@@ -386,6 +396,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 42,
   },
+  cubeEdit: {
+    alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 10, paddingVertical: 10, marginBottom: 7,
+  },
+  cubeEditText: { color: '#ffffff', fontSize: 13, fontWeight: '700', marginLeft: 6 },
   moves: {
     flexGrow: 1,
     flexShrink: 1,

@@ -145,8 +145,8 @@ last descendants; and the assumption baked into every signature in
 | Journey progress | **Derived from the solves, stored nowhere** | The same discipline as `solveCards.js`' "in progress" and `defaultMethod`. A demonstration *is* a locked phase whose exit state checks out, and those are already in the file. Storing a counter alongside would be a second thing to keep honest on every edit, and it would survive the deletion of the solve that earned it. |
 | Exit-state checks for user stages | **Only the shipped presets' stages carry predicates** | Nobody can know what a stage called "my thing" ends in. A user stage with no predicate counts a lock as a lock — the journey says so on the card rather than pretending to check. |
 | **How an algorithm is written** | **On the cube.** Finger turns and the move pad are the primary input, on a workbench screen and on the solve screen; typing notation is the *paste* path, not the front door | **The finding that produced this row came from a device**, on Step 1 (§3.1). Cube Flow spent a whole step making a finger write a move and made it the primary input; a library whose `＋` opens a text keyboard contradicts the app around it. |
-| **What the workbench cube starts as** | **Solved.** No scramble, no hold, no `orientation` | It is what makes the workbench simpler than the solve screen rather than a copy of it, and — see below — it is enough. |
-| **Where a workbench algorithm's case comes from** | **Its own inverse.** `case = captureCase(A⁻¹ applied to a solved cube)` | If `A` solves case `C`, then by definition `A⁻¹(solved) = C`. So the case is *derived from the algorithm*, needs no setup UI, and for a last-layer algorithm — which preserves F2L, so its inverse does too — it is exactly a solved cube with a scrambled top layer. This is the whole answer to "what is the starting state" for the algorithms this epic is scoped to. |
+| **What the workbench cube starts as** | **An authored starting case.** Turn a solved cube into the position where the algorithm begins, then lock that start and write the algorithm | Device feedback on Step 2.5 made the inverse-only assumption concrete: an editor that cannot say where an algorithm begins cannot faithfully record the operator's algorithm. The setup is moves from solved, not a second cube-state format. |
+| **Where a workbench algorithm's case comes from** | **Its authored `setup`, falling back to its inverse for older and pasted entries.** | Existing entries upgrade without migration; workbench entries preserve the position the operator actually chose. A stored hand correction still wins over both. |
 | Entry points | **One door from the scramble screen**, into the library; the library and the journey are one control apart from each other | Measured, not assumed — see below. |
 
 ### What the entry point costs, measured before committing to it
@@ -345,10 +345,9 @@ never has to draw a case by hand.
 - **`caseOfAlgorithm(moves)` is the one that matters.** It is
   `captureCase(cubeFromAlg(invertAlg(moves)))`, and the reasoning is one line:
   **if `A` takes case `C` to solved, then `A⁻¹` takes solved to `C`.** So an
-  algorithm carries its own case and nobody has to specify a starting state.
-  For a last-layer algorithm — one that preserves F2L, so its inverse does too —
-  what comes back is precisely a solved cube with a scrambled top layer, which
-  is the class of algorithm this epic is scoped to (§4).
+  algorithm carries a useful fallback case for older and pasted entries. The
+  workbench additionally stores authored `setup` moves from solved, because the
+  operator must be able to define the position where their algorithm begins.
 - **The tile** is the design's: 40 × 40, a 3 × 3 grid of 2-point-gapped cells on
   a near-black rounded square, yellow for `y` and grey for `.`. It renders on the
   library card and, larger, on the entry screen.
@@ -486,19 +485,17 @@ the front door `＋` should have had.
   for it: seeding the library from something written down elsewhere is real, and
   it is not the common case.
 
-#### Preview — the starting state, answered rather than built
+#### The authored starting state
 
-The operator's own question was whether the workbench needs "some element of a
-scramble, like a starting state". **It does not, and §2 says why**: the case is
-the algorithm's inverse. But there is a real thing underneath the question —
-having written `A`, you want to watch it *solve* something rather than watch it
-scramble a solved cube.
+Device feedback on the first Step 2.5 build found the inverse-only flow's large
+drawback: **the operator could not define where their algorithm begins.** The
+workbench now has two explicit phases. First, turn a solved cube into the
+starting case and choose **Use this start**; then write the algorithm from that
+cube. The setup is stored as notation in `setup`, so the cube remains a pure
+function of text and there is no second facelet-state format to migrate.
 
-So the workbench has a **Preview**: it sets the cube to `A⁻¹(solved)` — the
-derived case — and plays `A` through the existing transport, ending solved. The
-starting state is real, it is computed, and there is no UI for entering one.
-Build the forward path first and Preview second, in the same step if it fits and
-as a follow-on if it does not.
+For older and pasted entries with no setup, `A⁻¹(solved)` remains the lossless
+fallback. Editing one on the cube seeds the starting phase from that inverse.
 
 #### The engineering decision this step actually turns on
 
@@ -758,15 +755,9 @@ than a brief. The `closeout` skill covers the sequence.
   and the library is entirely user-built, and the reason to believe that is
   cheap is that a pack needs **no new screen and no layout change**. Do not
   build a "source" abstraction for one hypothetical second source.
-- **Algorithms that do not start from a state the app can derive.** The
-  workbench answers "what is the starting state" by inverting the algorithm
-  (§2), which is exact for anything that ends solved — the last-layer sets this
-  epic is scoped to, and in fact any algorithm at all, since `A⁻¹(solved)` is by
-  definition the state `A` solves. **What is out is an *authored* starting
-  state**: setup moves typed in to park the cube somewhere before you begin, for
-  drilling a case rather than writing the algorithm for it. §6 question 7 names
-  the mechanism if it is ever wanted; nothing is built for it, and no `setup`
-  field goes on the record on spec.
+- **An independently typed or facelet-authored cube state.** The workbench's
+  starting position is `setup` notation authored by turning a solved cube. It
+  does not introduce a second serialized cube representation or a facelet editor.
 - **Drilling a case against the clock.** Preview (§3.2.5) plays an algorithm
   from its case; that is checking your work, not practice. A practice mode is a
   different feature with a timer in it and it is not in this epic.
@@ -895,12 +886,10 @@ than a brief. The `closeout` skill covers the sequence.
    presets have no equivalent, deliberately, because hiding the track's
    destination is a strange thing to offer on a screen whose whole point is the
    track.
-7. **New in Step 2.5: does the workbench ever need an authored starting state?**
-   §4 says no for this epic and the inverse derivation is why. The mechanism if
-   it is wanted is a `setup` string on the entry — an algorithm applied before
-   the workbench's cube — defaulting to empty, with the derived case as the
-   default value rather than a blank. **Do not build it before a real algorithm
-   fails without it**, and when one does, write down which algorithm it was.
+7. **Answered by Step 2.5 device feedback: yes.** The first build's large
+   drawback was that the operator could not define where an algorithm begins.
+   `setup` is now authored on the cube before the algorithm and stored as moves
+   from solved; inverse derivation remains the fallback for older/pasted entries.
 8. **New in Step 2.5: is a nine-character U face enough of a case?** A T-perm
    captures as nine `y` — every sticker oriented — which is true and useless for
    telling one PLL from another. The design draws the U face and this epic ships

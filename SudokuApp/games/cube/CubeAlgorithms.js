@@ -16,7 +16,7 @@ import {
   searchAlgorithms,
 } from './algorithms';
 import { CUBE_ACCENT, headerAction, styles as chrome } from './cubeChrome';
-import { ENTRY_ROUTE, useCube } from './CubeContext';
+import { ENTRY_ROUTE, WORKBENCH_ROUTE, useCube } from './CubeContext';
 
 /** The case tile the design draws on every card — 40 points square
  *  (docs/cube-methods-plan.md §3.2). Step 1 reserved the square and Step 2 fills
@@ -86,10 +86,10 @@ const CubeAlgorithms = ({ navigation }) => {
     [navigation]
   );
 
-  /** `＋` — a new entry, with no id. The entry screen asks for the moves first
-   *  and creates from the answer; see `CubeAlgorithmEntry`. */
+  /** `＋` opens the cube-first workbench. Pasting notation remains available
+   *  from an entry, but is no longer the library's primary door. */
   const addEntry = useCallback(
-    () => navigation.navigate(ENTRY_ROUTE, { id: null }),
+    () => navigation.navigate(WORKBENCH_ROUTE, { id: null }),
     [navigation]
   );
 
@@ -98,7 +98,7 @@ const CubeAlgorithms = ({ navigation }) => {
     label: full ? `Library full, ${MAX_ALGORITHMS} algorithms` : 'Write a new algorithm',
     hint: full
       ? 'Delete an algorithm before writing another'
-      : 'Opens a fresh entry, starting with the moves',
+      : 'Opens a solved cube where turns write the algorithm',
     onPress: full ? undefined : addEntry,
     color: full ? border : titleColor,
     border,

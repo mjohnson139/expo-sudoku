@@ -86,6 +86,7 @@ export const SOLVE_ROUTE = 'solve';
  */
 export const LIBRARY_ROUTE = 'algorithms';
 export const ENTRY_ROUTE = 'algorithm';
+export const WORKBENCH_ROUTE = 'workbench';
 
 export const CubeProvider = ({ children, fallback = null }) => {
   // Hydration gate. Until the saved scramble is read there is nothing honest to
