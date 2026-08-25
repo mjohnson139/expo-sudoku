@@ -279,6 +279,9 @@ stage rename propagation, ordering and “use for new solves”.
 - Empty and full libraries are deliberately asymmetric: empty offers the
   workbench, full disables only Save a run, and every existing entry remains
   applicable.
+- Device feedback clarified the expanded tag treatment: the name is the start
+  of one boundary, not a standalone badge. The same accent outline continues
+  across every move in the run and survives a wrapped track.
 
 ## What Step 2.5 discovered
 

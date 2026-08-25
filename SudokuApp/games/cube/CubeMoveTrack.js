@@ -253,6 +253,7 @@ const CubeMoveTrack = ({
                 style={[
                   styles.token,
                   selection && i >= selection.start && i <= selection.end && styles.selectedToken,
+                  run && expanded && [styles.runToken, { borderColor: accent }],
                   i === index - 1 && !selection && { backgroundColor: accent },
                 ]}
               >
@@ -353,7 +354,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   selectedToken: { backgroundColor: 'rgba(214, 71, 82, 0.16)' },
-  runChip: { height: LINE, borderWidth: 1, borderRadius: 5, paddingHorizontal: 7, justifyContent: 'center' },
+  // Expanded, the label and every move wear the same touching outline. The
+  // boundary is drawn per token rather than around a parent because this track
+  // flex-wraps: one parent would either stop the moves wrapping or surround
+  // unrelated whitespace at the end of a line.
+  runChip: { height: LINE, borderWidth: 1, borderRadius: 5, paddingHorizontal: 7, justifyContent: 'center', marginRight: -1 },
+  runToken: { borderWidth: 1, marginHorizontal: -1 },
   runName: { fontSize: 11, lineHeight: LINE, fontWeight: '800' },
   tokenText: {
     fontFamily: ALG_FONT,
