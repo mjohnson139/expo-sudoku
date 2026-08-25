@@ -20,7 +20,7 @@
  * ### An entry
  *
  * ```js
- * { id, name, moves, case: null, assignments: [], notes: '', savedAt, editedAt }
+ * { id, name, moves, setup: '', case: null, assignments: [], notes: '', savedAt, editedAt }
  * ```
  *
  * - **`moves`** is the algorithm, as normalized notation, and it is the one
@@ -28,6 +28,10 @@
  *   a typo, and it is refused on the way in and dropped on the way back
  *   (`isValidAlg` from `moves.js`, the same validator the alg input modal
  *   already shows a message from).
+ * - **`setup`** is optional notation from solved to the authored starting
+ *   position. Older and pasted entries keep `''` and derive that position from
+ *   the inverse of `moves`; workbench entries preserve the start the operator
+ *   chose on the cube.
  * - **`id`** is generated and minted by counting — `a1`, `a2`, … — for the
  *   reason `nextSolveId` is: the same sequence of actions produces the same
  *   file, so the tests are deterministic. Two entries with the same moves are
@@ -37,8 +41,8 @@
  *   name is scoped to its scramble: there is one library, and two rows in it
  *   that read the same is a row you cannot ask for.
  * - **`case`** is nine characters of the U face (`algCase.js`), and it is stored
- *   only when a hand has overruled the arithmetic: `null` means *derive it from
- *   the moves*, which is what `algorithmCase` does on every read.
+ *   only when a hand has overruled the arithmetic: `null` means derive it from
+ *   the authored setup, falling back to the moves' inverse for older entries.
  * - **`assignments`** is `[{ method, stage }]` — zero or more, so one entry can
  *   serve Roux CMLL and CFOP OLL at once and an unassigned entry stays findable.
  *   Both halves are checked against the catalogue in `methods.js` on the way in
@@ -69,9 +73,10 @@
  * is the truth: that build could not keep an algorithm.
  */
 
-import { EMPTY_CASE, caseOfAlgorithm, sanitizeCase } from './algCase';
+import { EMPTY_CASE, caseOfAlgorithm, caseOfSetup, sanitizeCase } from './algCase';
+import { cubeFromAlg, solvedCube } from './cubeState';
 import { METHODS, findMethod, stagesOf } from './methods';
-import { isValidAlg, moveCount, normalizeAlg } from './moves';
+import { invertAlg, isValidAlg, moveCount, normalizeAlg } from './moves';
 
 /**
  * Enough algorithms for a full method's worth of drilling without the blob
@@ -156,7 +161,26 @@ const normalizeNotes = (notes) =>
  */
 export const algorithmCase = (algorithm) => {
   if (!algorithm) return EMPTY_CASE;
-  return sanitizeCase(algorithm.case) || caseOfAlgorithm(algorithm.moves) || EMPTY_CASE;
+  return sanitizeCase(algorithm.case) || (algorithm.setup ? caseOfSetup(algorithm.setup) : null) || caseOfAlgorithm(algorithm.moves) || EMPTY_CASE;
+};
+
+/**
+ * The real cube an algorithm begins on, for the three-face preview.
+ *
+ * Authored setup wins. Older and pasted entries have none, so their existing
+ * `A⁻¹(solved)` derivation remains their starting cube without a migration.
+ * A corrupt record has already been sanitized before the UI sees it, but the
+ * fallback keeps this read helper safe for direct callers and tests too.
+ */
+export const algorithmStartingCube = (algorithm) => {
+  if (!algorithm) return solvedCube();
+  const setup = normalizeAlg(algorithm.setup);
+  const start = setup || invertAlg(algorithm.moves || '');
+  try {
+    return cubeFromAlg(start);
+  } catch (error) {
+    return solvedCube();
+  }
 };
 
 /** An entry by id, or null. */
@@ -315,7 +339,7 @@ export const describeAssignment = (assignment) => {
  */
 export const createAlgorithm = (
   algorithms,
-  { name, moves, assignments, notes, savedAt = Date.now() } = {}
+  { name, moves, setup, assignments, notes, savedAt = Date.now() } = {}
 ) => {
   const list = algorithms || [];
   const alg = normalizeAlg(moves);
@@ -330,6 +354,7 @@ export const createAlgorithm = (
     id: nextAlgorithmId(list),
     name: wanted.length > 0 ? uniqueName(wanted, taken) : defaultAlgorithmName(list),
     moves: alg,
+    setup: isValidAlg(normalizeAlg(setup)) ? normalizeAlg(setup) : '',
     // Null, and **that is not a missing value**: it means nobody has corrected
     // this entry's case, so `algorithmCase` derives it from the moves on every
     // read. A case is only ever stored when a hand has overruled the arithmetic.
@@ -403,6 +428,12 @@ export const editAlgorithm = (algorithms, id, patch, { editedAt = Date.now() } =
     const alg = normalizeAlg(fields.moves);
     if (alg.length === 0 || !isValidAlg(alg)) return list;
     next.moves = alg;
+  }
+
+  if ('setup' in fields) {
+    const setup = normalizeAlg(fields.setup);
+    if (setup && !isValidAlg(setup)) return list;
+    next.setup = setup;
   }
 
   if ('name' in fields) {
@@ -579,6 +610,7 @@ export const sanitizeAlgorithms = (raw) => {
       id,
       name,
       moves,
+      setup: isValidAlg(normalizeAlg(entry.setup)) ? normalizeAlg(entry.setup) : '',
       case: sanitizeCase(entry.case),
       assignments: sanitizeAssignments(entry.assignments),
       notes: normalizeNotes(entry.notes),

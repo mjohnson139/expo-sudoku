@@ -1,6 +1,7 @@
 import {
   ALL_LABEL,
   algorithmCase,
+  algorithmStartingCube,
   MAX_ALGORITHMS,
   MAX_ALG_NAME,
   MAX_ALG_NOTES,
@@ -25,8 +26,10 @@ import {
   searchAlgorithms,
   toggleAssignment,
 } from '../algorithms';
-import { EMPTY_CASE, caseOfAlgorithm } from '../algCase';
+import { EMPTY_CASE, caseOfAlgorithm, caseOfSetup } from '../algCase';
 import { METHODS } from '../methods';
+import { cubeFromAlg, facelets } from '../cubeState';
+import { invertAlg } from '../moves';
 
 const SUNE = "R U R' U R U2 R'";
 const TPERM = "R U R' U' R' F R2 U' R' U' R U R' F'";
@@ -51,6 +54,7 @@ describe('createAlgorithm', () => {
       id: 'a1',
       name: 'Algorithm 1',
       moves: SUNE,
+      setup: '',
       // Step 2's field, sitting in the file already rather than reshaping it twice.
       case: null,
       assignments: [],
@@ -531,6 +535,7 @@ describe('sanitizeAlgorithms', () => {
       id: 'a1',
       name: 'spaced out',
       moves: 'R U',
+      setup: '',
       case: null,
       assignments: [],
       notes: '',
@@ -569,6 +574,7 @@ describe('sanitizeAlgorithms', () => {
       'name',
       'notes',
       'savedAt',
+      'setup',
     ]);
   });
 
@@ -606,6 +612,12 @@ describe('algorithmCase', () => {
     expect(algorithmCase(changed[0])).toBe(caseOfAlgorithm(TPERM));
   });
 
+  it('uses an authored setup as the starting case', () => {
+    const { algorithm } = make([], { setup: "R U R'" });
+    expect(algorithm.setup).toBe("R U R'");
+    expect(algorithmCase(algorithm)).toBe(caseOfSetup("R U R'"));
+  });
+
   it('drops a stored case that is not one, and derives instead', () => {
     // `editAlgorithm` cannot write a corrupt case, but a save file can carry one
     // and `sanitizeAlgorithms` nulls it — after which the moves answer.
@@ -617,5 +629,19 @@ describe('algorithmCase', () => {
   it('is an empty case for nothing at all', () => {
     expect(algorithmCase(null)).toBe(EMPTY_CASE);
     expect(algorithmCase(undefined)).toBe(EMPTY_CASE);
+  });
+});
+
+describe('algorithmStartingCube', () => {
+  it('uses the authored setup for the three-face preview', () => {
+    const { algorithm } = make([], { setup: "R U R'" });
+    expect(facelets(algorithmStartingCube(algorithm))).toEqual(facelets(cubeFromAlg("R U R'")));
+  });
+
+  it('keeps inverse-derived previews for older and pasted entries', () => {
+    const { algorithm } = make();
+    expect(facelets(algorithmStartingCube(algorithm))).toEqual(
+      facelets(cubeFromAlg(invertAlg(algorithm.moves)))
+    );
   });
 });

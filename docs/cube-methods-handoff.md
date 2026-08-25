@@ -196,151 +196,126 @@ to change casually. Most of it is Cube Flow's; the last block is Step 1's.
 
 ---
 
-## Next step — Step 2.5: the algorithm workbench
+## Next step — Step 3: tag a run from a solve
 
-Plan **§3.2.5**. **The biggest step of the epic so far, and the one the operator
-is waiting for** — it is the step Step 1's device pass created, and it is what
-turns `＋` from "type notation into a modal" into "write an algorithm on a cube".
-
-A screen that is the solve screen's apparatus over a **solved** cube: you turn
-the cube with a finger or the pad, the moves accumulate, the case tile fills in
-as you write, and you save the result as a library entry.
-
-### Name the extraction decision explicitly, in the PR
-
-**This is what the step turns on, and it is the first thing to decide, not the
-last.** `CubeSolve.js` is 876 lines and most of them are solve-specific — phases,
-the rail, the hold, Compare, persistence through `editOpen`. The stack the
-workbench wants (cube · move track · transport card with scrubber and Backspace ·
-move-pad drawer) is assembled *inside* it. Two paths, and §3.2.5 says pick one
-deliberately and say which:
-
-1. **Extract the shared apparatus** into a component both screens render, with
-   the solve-specific parts passed in. The right end state.
-2. **Extract only what is cheap** — the pad drawer, the transport card,
-   `useCubeStage` — and let the workbench compose the rest itself.
-
-**Do not build it by copying `CubeSolve`.** And if the extraction turns out to be
-more than mechanical, **split the step**: ship the behaviour-neutral extraction
-alone, with `CubeSolve` proving it unchanged, then build the workbench on it.
-That is Cube Flow Step 1's lesson — a dependency change and a design change in
-one PR have two suspects — and `CubeSolve` is the screen this app is about. A
-regression there is not worth a saved session.
+Plan **§3.3**. Let a run of moves already written in a solve become a library
+algorithm without retyping it. This is the smaller mirror of Step 2.5: the
+workbench writes moves and then names them; this step selects moves already on
+the solve and sends them through the same `CubeAlgorithmSaveSheet`.
 
 ### Scope
 
-- **`CubeWorkbench` is a fifth route** on the cube's own stack in
-  `CubeScreen.js`, with its route-name constant beside the others in
-  `CubeContext.js`. It takes an optional algorithm id: no id is a new entry, an
-  id opens that entry's moves for editing. Pushed from the library's `＋` and
-  from an entry's **Edit on the cube**.
-- **Top to bottom it is `CubeSolve`'s stack minus the solve.** Finger turns write
-  moves exactly as they do there — same `useCubeTouch`, same `CubeMovePad`, same
-  `applyPadPress`, same folds and cancels **after the turn settles** (plan §5).
-- **The cube starts solved and there is no hold.** No scramble, no
-  `orientation`, no inspection, no phases, no rail, no Compare. **The list of
-  absences is the specification** — it is what makes this screen smaller than the
-  one it borrows from.
-- **The case is shown live**, as a tile beside the track, recomputed on every
-  move. This is the payoff: for a last-layer algorithm the tile fills in the case
-  as you write, so you see the thing you are writing an algorithm *for* without
-  ever having said what it was. Step 2 built everything this needs — see below.
-- **Save** opens a sheet: a name, the stage-assignment chips the entry screen
-  already has, and Save → `createAlgorithm` (or `editAlgorithm` for an existing
-  id) and back. **The same sheet Step 3 uses** (§3.3).
-- **`＋` in the library stops opening the keyboard.** Typing becomes **Paste an
-  algorithm**, a secondary action on the entry screen — the right weight for it.
-- **Preview, if it fits.** Set the cube to `A⁻¹(solved)` — the derived case — and
-  play `A` through the existing transport, ending solved. The starting state is
-  real, it is computed, and there is no UI for entering one. **Build the forward
-  path first and Preview second**, in the same step if it fits and as a follow-on
-  if it does not.
-- **Rewrite the 3.3.0 build note that says "tap the ＋, type the moves".** It is
-  true today and will not be true after this step. `utils/buildNotes.js`; keep
-  `app.json`'s `expo.version` at 3.3.0.
-
-### What Step 2 left you, and where it is callable from
-
-- **`caseOfAlgorithm(moves)` in `games/cube/algCase.js` takes text and answers
-  nine characters, and it is memoized inside the module.** So the workbench can
-  call it straight from its render on every move — there is nothing to thread
-  through the context and no hook to build. It answers `null` for text that does
-  not parse, which is the state a half-written algorithm is never in (the
-  workbench builds its text from moves it applied) but a **Paste** field is.
-- **`CubeCaseTile` takes `pattern`, `size` and an optional `label`.** Omit
-  `label` and it is hidden from the screen reader — right when the row around it
-  already says the case; pass `describeCase(pattern)` where it stands alone,
-  which is what the workbench wants. The outer box is exactly `size`. 40 and 76
-  are the two sizes in use; both divide evenly into three cells. **40 is
-  device-verified as legible at arm's length on both themes** (Step 2's pass), so
-  the tile beside the track can be that small if the budget in points is tight.
-- **`algorithmCase(entry)` in `algorithms.js`** is the *entry*-shaped read —
-  stored case wins, else derived. The workbench has no entry until Save, so it
-  wants `caseOfAlgorithm` on its own accumulated text, not this.
-- **`invertAlg` and `tryInvertAlg` are in `moves.js`**, and Preview is
-  `cubeFromAlg(invertAlg(text))` as its starting cube. That is the whole of what
-  Preview needs from Step 2.
+- Add an explicit, discoverable selection affordance to `CubeSolve`; do not use
+  an undocumented long press. Selection snaps to token boundaries and identifies
+  a contiguous run. Keep the solve's `alg` unchanged: tagging is presentation
+  and library creation, never a solve edit.
+- Offer **Save as algorithm** for a non-empty run. Open the shared
+  `CubeAlgorithmSaveSheet` from Step 2.5, preassigning the solve's method and the
+  stage whose phase span contains the run when that answer is unambiguous. Store
+  the run's actual starting position as `setup` notation (scramble + orientation
+  + solve prefix), so opening the saved entry in the workbench restores it.
+- Save through `createAlgorithm` / `CubeContext.addAlgorithm`, the one library
+  funnel. Refusal at `MAX_ALGORITHMS` must leave the selection and solve intact
+  and explain how to recover.
+- After saving, mark the run in the solve track with the algorithm name without
+  replacing or collapsing its moves. The marker is derived by matching move
+  text and boundaries; do not add a second representation of the solve.
+- Keep the 3.3.0 build note current and keep `app.json` at 3.3.0.
 
 ### Files to read first
 
-- `CubeSolve.js` **end to end** — the extraction decision cannot be made from a
-  skim, and knowing which of its 876 lines are solve-specific *is* the decision.
-- `useCubeStage.js`, `CubeMovePad.js`, `CubeMoveTrack.js`, `CubeScrubber.js`,
-  `useCubeTouch.js`, `touchTurn.js` — the apparatus itself.
-- `solve.js` and `solveList.js` — how a solve's moves are accumulated and
-  patched, which is the shape the workbench's own move list will echo without
-  being.
-- `algCase.js` and `CubeCaseTile.js` (Step 2's, both small), and
-  `CubeAlgorithmEntry.js` for the Save sheet's chips.
-- Plan §3.2.5 and §3.3, and §5 end to end.
+Read plan §3.3 and §5; `CubeSolve.js`, `CubeMoveTrack.js`, `CubeScrubber.js`,
+`solve.js`, `solveList.js`, `phaseRail.js`, `algorithms.js`, and
+`CubeAlgorithmSaveSheet.js`. Read the Step 2.5 landed code in
+`CubeWorkbench.js` for the create/refusal flow, but do not couple solve storage
+to workbench state.
 
 ### Easy to get wrong
 
-1. **The extraction is the risk, not the workbench.** Anything that changes what
-   `CubeSolve` renders belongs in its own PR with "no visible change" in the
-   title. See above; it is worth the extra round trip.
-2. **Finger turns are orbit-only under `react-native-web`** (§5). A browser pass
-   covers the layout and the case arithmetic and **none of the input**. Say so in
-   the PR — this step genuinely cannot be verified anywhere but a device.
-3. **Folds and cancels happen after the turn settles**, not during. Two of this
-   repo's three device-only bugs were here.
-4. **`createAlgorithm` refuses at the cap rather than evicting.** The workbench's
-   Save can therefore fail with a screenful of work on it — decide what that
-   looks like before it happens, because the library's `＋` dims and this screen
-   has no equivalent moment.
-5. **The workbench must not become a second edit funnel.** `editAlgorithm` and
-   `createAlgorithm` stay the only ways in (plan §5).
-6. **Say what the workbench's rows cost the cube, in points** (V1 §8.6). This is
-   a screen with a cube on it, so unlike Step 2 the answer is not zero, and the
-   case tile beside the track is a row that `CubeSolve` does not pay for.
+1. A tagged run does **not** mutate, replace, or collapse the solve's moves.
+2. Selection must be visible and discoverable. Cube Flow already proved an
+   invisible long press is not a feature the operator can find.
+3. Phase boundaries are markers and spans are derived. Preassignment must use
+   the derived span at the selected run, and ambiguous cross-stage runs stay
+   unassigned. The run's start belongs in `setup`, not only the legacy nine-cell
+   `case`; otherwise the three-face preview and workbench cannot reconstruct it.
+4. A full library refuses rather than evicts. Preserve both the solve and the
+   active selection on refusal.
+5. A pushed screen stays mounted. A saved algorithm must appear in the library
+   immediately when navigating back to it, through `CubeContext`, not a copy.
+6. Say in the PR what the selection row costs the cube in points. Prefer an
+   overlay or an existing row; any new fixed row comes directly out of the cube.
 
 ### What must be visible in Expo Go
 
-Open `＋` from the library onto a solved cube. Write `R U R' U R U2 R'` with a
-finger, and again with the pad. Watch the case tile fill in — and by the last
-move it is the Sune tile, `.y.yyyyy.`, the same one the library card shows.
-Backspace a move. Hide and show the pad. Save it with a name and a stage, find it
-in the library with the right case. Open it again and edit the moves. Background
-and resume mid-write.
+Open a real method solve, select the moves for one phase, save them with a name,
+and see the method/stage already selected. Confirm the solve still shows every
+original move, the run is labelled, and the library card has the correct moves,
+assignment and derived case. Select across a boundary and confirm no stage is
+guessed. Fill/refuse the library without losing the selection. Background and
+resume during selection.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/`. What is new and pure here is small — whether the
-  workbench's alg is saveable, the default name, the edit-versus-create decision
-  — and belongs beside `algorithms.js`. **The input path is already pinned** by
-  `touchTurn.test.js` and `solve.test.js` and must not be re-pinned. If you take
-  the extraction path, `CubeSolve`'s existing suites passing unchanged is the
-  evidence that matters.
-- Browser screenshots at 320 × 568, 375 × 667 and 393 × 852, on a dark theme as
-  well as `classic` — see the note on themes below.
-- **A device pass is the whole verification of this step**, not a confirmation of
-  it.
+- `npm test` from `SudokuApp/`. Put range derivation, stage preassignment and
+  run-marker matching in pure modules with node suites; do not test component
+  internals.
+- Browser screenshots at 320×568, 375×667 and 393×852 in classic and dark
+  themes cover layout and discoverability, not native navigation or finger turns.
+- Device-test the complete selection and save flow, Android back / iOS edge
+  swipe, and background/resume. Re-run Step 1's typing round-trip, filter chips
+  and action row while the same library screens are open.
 
 ### Then rewrite this file
 
-Brief **Step 3 — tag a run from a solve** (plan §3.3) at this level of detail.
-It and the workbench are now the same feature reached from opposite ends, and
-Step 3 is the smaller half; say what the workbench's Save sheet left it.
+Brief **Step 4 — catalogue threading, no visible change** (plan §3.4). It is a
+signature refactor and must stay isolated from Step 5's method builder.
+
+## What Step 2.5 discovered
+
+### The device pass
+
+**Tested on the final `pr-133` Expo Go build, 2026-08-25, and passed.** The
+operator exercised the complete workbench after the authored-start, explicit
+inverse, large-cube synchronization, keyboard avoidance and restored shared 3D
+preview follow-ups. Finger and pad input, post-settle folds/cancels, start
+selection, live preview, save/edit, and the native pushed flow are accepted.
+Those are precisely the paths the browser could not settle.
+
+The pass closes five device findings rather than erasing them: authored `setup`
+was added because inverse-only could not define where an algorithm begins; the
+large cube was separated from continuous inverse derivation; the save modal now
+avoids the iOS keyboard; the 3D preview is shared across all three surfaces; and
+the preview is a visible control that seeks the large cube back to its start.
+
+- **Extraction decision: the cheap path.** The workbench composes the already
+  independent cube renderer, touch hook, player, track, scrubber, move pad and
+  measured-stage hook. It deliberately does not extract `CubeSolve`'s assembled
+  screen: phases, hold, rail, Compare and `editOpen` make that extraction more
+  than mechanical, so combining it with a new screen would give a solve
+  regression and workbench behaviour one suspect.
+- The live 3D case preview and track share one 60-point row. That row costs the cube 60
+  points at constrained heights; the remaining workbench rows replace solve
+  apparatus rather than adding to it.
+- `CubeAlgorithmSaveSheet` is the shared Step 3 seam. It collects only a name
+  and stage assignments; callers still go through `createAlgorithm` or
+  `editAlgorithm`, never write the collection themselves.
+- **Device feedback changed the starting-state decision.** An inverse is a
+  useful fallback, but it is not a substitute for letting the operator define
+  where an algorithm begins. The workbench now authors and persists `setup`
+  moves before the algorithm; older entries derive the same start they did
+  before.
+- **The inverse path is explicit and pinned algebraically.** **Derive later**
+  lets a new entry be written before it has moves to invert; **Use inverse** is
+  the same choice once moves exist. `inverseSetup(A)` is tested by applying
+  `A⁻¹ A` and requiring a solved cube. Confirming either an authored or derived
+  start seeks the transport to 0, because showing the solved end immediately
+  made a correct inverse look as though it had done nothing.
+- Preview was deferred. The complete forward authoring path, edit path, live
+  case and safe full-library refusal shipped first, as the handoff required.
+- Browser input remains orbit-only. Passing layout in a browser does not verify
+  the workbench's primary finger-turn path, folding/cancelling after settle, or
+  native stack behaviour; those require the PR preview on a device.
 
 ## What Step 2 discovered
 
@@ -513,8 +488,7 @@ Two consequences for whoever is reading this:
 
 ## Open questions being carried forward
 
-From `docs/cube-methods-plan.md` §6 — none of them block Step 2.5. **Question 8
-now has its first evidence under it, and question 7 is answered in practice**:
+From `docs/cube-methods-plan.md` §6 — none of them block Step 2.5. **Question 8 now has its first evidence, and question 7 is answered by Step 2.5 device feedback**:
 
 1. **Is the library's door in the right place?** The scramble header is full at
    four controls, so it is in the action row. Dropping a header control instead
@@ -528,14 +502,10 @@ now has its first evidence under it, and question 7 is answered in practice**:
    built.
 6. **Should a preset be hideable?** `forNewSolves` covers user methods; presets
    deliberately have no equivalent.
-7. **Does the workbench ever need an authored starting state?** §4 says no for
-   this epic, and the inverse derivation is why. **Step 2 built the derivation
-   and nothing has needed a setup yet**, across Sune, anti-Sune, the dot OLL, an
-   H-OLL, a T-perm, a J-perm and a Roux LSE alg — every one of them round-trips
-   (`algCase.test.js` runs `A⁻¹ A` and lands on a solved top). The mechanism if
-   it is ever wanted is a `setup` string on the entry, defaulting to empty. **Do
-   not build it before a real algorithm fails without it** — and when one does,
-   write down which algorithm it was.
+7. **Answered: yes.** The first Step 2.5 build exposed the large drawback:
+   there was no way to define where an algorithm begins. The workbench now
+   authors `setup` moves from solved before authoring the algorithm. Existing
+   and pasted entries fall back to `A⁻¹(solved)` and need no migration.
 8. **Is nine characters of the U face enough of a case?** **No, and it is now
    visible rather than predicted**: a library holding a T-perm and a J-perm shows
    two identical all-yellow tiles side by side, which is in Step 2's browser

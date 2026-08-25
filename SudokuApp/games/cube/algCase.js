@@ -13,8 +13,10 @@
  * own case and there is nothing to ask for. For a last-layer algorithm — one
  * that preserves F2L, so its inverse does too — `A⁻¹(solved)` is precisely a
  * solved cube with a scrambled top layer, which is the class this epic is scoped
- * to (§4). That is also why §6's question 7 is answered rather than built: the
- * workbench needs no authored starting state, because the state is derivable.
+ * to (§4). That inverse remains the migration-free fallback for pasted and older entries.
+ * The workbench also supports an authored `setup`, because device feedback made
+ * clear that deriving a possible case is not the same as letting the operator
+ * define where their algorithm begins.
  *
  * ### What a case is
  *
@@ -72,6 +74,18 @@ export const EMPTY_CASE = UNORIENTED.repeat(CASE_CELLS);
 
 /** Every sticker oriented: a solved cube, and also every PLL. */
 export const SOLVED_CASE = ORIENTED.repeat(CASE_CELLS);
+
+/** An explicitly authored starting position. Unlike `caseOfAlgorithm`, this
+ * applies the text forward: these are setup moves from solved. */
+export const caseOfSetup = (setup) => {
+  const alg = normalizeAlg(setup);
+  if (!alg) return SOLVED_CASE;
+  try {
+    return captureCase(cubeFromAlg(alg));
+  } catch (error) {
+    return null;
+  }
+};
 
 /** The one shape a case can have, used by the sanitizer and by nothing else. */
 const CASE_RE = /^[y.]{9}$/;

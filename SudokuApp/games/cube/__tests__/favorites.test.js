@@ -123,6 +123,7 @@ describe('readCubeSave', () => {
     id: 'a1',
     name: 'Sune',
     moves: "R U R' U R U2 R'",
+    setup: '',
     case: null,
     assignments: [{ method: 'roux', stage: 'CMLL' }],
     notes: '',

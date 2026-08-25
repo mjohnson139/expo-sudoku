@@ -13,25 +13,25 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
 import CubeAlgInputModal from './CubeAlgInputModal';
-import CubeCaseTile from './CubeCaseTile';
+import CubeCasePreview from './CubeCasePreview';
 import { describeCase, sanitizeCase } from './algCase';
 import { ALG_FONT } from './algText';
 import {
   MAX_ALG_NAME,
   MAX_ALG_NOTES,
   algorithmCase,
+  algorithmStartingCube,
   describeAlgorithmSize,
   hasAssignment,
   toggleAssignment,
 } from './algorithms';
 import { METHODS } from './methods';
 import { CUBE_ACCENT, styles as chrome } from './cubeChrome';
-import { useCube } from './CubeContext';
+import { WORKBENCH_ROUTE, useCube } from './CubeContext';
 
-/** The tile here is bigger than the library card's 40 — this is the screen you
- *  are on when you want to *check* the case rather than recognise it, and 76
- *  divides into three 22-point stickers with nothing left over. */
-const ENTRY_TILE = 76;
+/** Bigger than the library preview: this is where the starting cube is checked,
+ * not merely recognised while scanning a list. */
+const ENTRY_PREVIEW = 112;
 
 /**
  * One algorithm (docs/cube-methods-plan.md §3.1, Step 1).
@@ -199,6 +199,7 @@ const CubeAlgorithmEntry = ({ navigation, route }) => {
   // previous algorithm's. `algorithmCase` memoizes the arithmetic, so this is a
   // map lookup after the first one.
   const caseTile = algorithmCase(entry);
+  const startingCube = algorithmStartingCube(entry);
   const stored = sanitizeCase(entry.case) !== null;
 
   return (
@@ -233,6 +234,16 @@ const CubeAlgorithmEntry = ({ navigation, route }) => {
           />
 
           <Text style={[styles.label, { color: titleColor }]}>Moves</Text>
+          <TouchableOpacity
+            style={[styles.cubeEdit, { backgroundColor: CUBE_ACCENT }]}
+            onPress={() => navigation.navigate(WORKBENCH_ROUTE, { id: entry.id })}
+            accessibilityRole="button"
+            accessibilityLabel="Edit on the cube"
+            accessibilityHint="Opens the algorithm workbench with these moves"
+          >
+            <MaterialCommunityIcons name="cube-outline" size={17} color="#ffffff" />
+            <Text style={styles.cubeEditText}>Edit on the cube</Text>
+          </TouchableOpacity>
           {/* A row that opens the validated field rather than a second field.
               `CubeAlgInputModal` already owns the parser's error message, and the
               only thing worth duplicating is nothing. */}
@@ -241,27 +252,30 @@ const CubeAlgorithmEntry = ({ navigation, route }) => {
             onPress={() => setAsking(true)}
             accessibilityRole="button"
             accessibilityLabel={`Moves, ${entry.moves}, ${describeAlgorithmSize(entry)}`}
-            accessibilityHint="Opens the algorithm field to change them"
+            accessibilityHint="Opens a text field to paste an algorithm"
           >
             <Text style={[styles.moves, { color: titleColor }]} numberOfLines={2}>
-              {entry.moves}
+              Paste an algorithm · {entry.moves}
             </Text>
             <MaterialCommunityIcons name="pencil" size={16} color={titleColor} style={styles.pencil} />
           </TouchableOpacity>
           <Text style={[styles.hint, { color: titleColor }]}>{describeAlgorithmSize(entry)}</Text>
 
           <Text style={[styles.label, { color: titleColor }]}>Case</Text>
-          {/* Nobody typed this and there is no field to type it into: it is the
-              moves, inverted and applied to a solved cube (`algCase.js`). Which
-              is why it sits under the moves — change them and it follows on the
-              next render, and watching it follow is how you know the entry says
-              what you meant. */}
+          {/* The real starting cube: authored setup when one exists, otherwise
+              the migration-free inverse derived from the moves. */}
           <View style={styles.caseRow}>
-            <CubeCaseTile pattern={caseTile} size={ENTRY_TILE} label={describeCase(caseTile)} />
+            <CubeCasePreview
+              cube={startingCube}
+              size={ENTRY_PREVIEW}
+              label={`Starting cube. ${describeCase(caseTile)}`}
+            />
             <Text style={[styles.caseHint, { color: titleColor }]}>
               {stored
                 ? 'Corrected by hand; the moves no longer change it.'
-                : 'Worked out from the moves — the case these moves solve.'}
+                : entry.setup
+                  ? 'The starting case you set on the cube.'
+                  : 'Worked out from the moves — the case these moves solve.'}
             </Text>
           </View>
 
@@ -386,6 +400,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 42,
   },
+  cubeEdit: {
+    alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderRadius: 10, paddingVertical: 10, marginBottom: 7,
+  },
+  cubeEditText: { color: '#ffffff', fontSize: 13, fontWeight: '700', marginLeft: 6 },
   moves: {
     flexGrow: 1,
     flexShrink: 1,
