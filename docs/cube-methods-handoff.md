@@ -276,7 +276,7 @@ signature refactor and must stay isolated from Step 5's method builder.
   screen: phases, hold, rail, Compare and `editOpen` make that extraction more
   than mechanical, so combining it with a new screen would give a solve
   regression and workbench behaviour one suspect.
-- The live 3D case and track share one 60-point row. That row costs the cube 60
+- The live case and track share one 48-point row. That row costs the cube 48
   points at constrained heights; the remaining workbench rows replace solve
   apparatus rather than adding to it.
 - `CubeAlgorithmSaveSheet` is the shared Step 3 seam. It collects only a name
@@ -287,20 +287,12 @@ signature refactor and must stay isolated from Step 5's method builder.
   where an algorithm begins. The workbench now authors and persists `setup`
   moves before the algorithm; older entries derive the same start they did
   before.
-- **The case preview is the real 3D starting cube everywhere.** A force-push
-  accidentally dropped the three-face preview after the 21:41 device build and
-  restored the old flat tile in the library, entry, and workbench. The 3D
-  preview is now a shared static component over the same scene builder as the
-  large cube, so those three surfaces cannot drift independently again. After
-  moves are written the large cube naturally stands at the algorithm's end, which made
-  the authored starting position feel lost even though the scrubber could seek
-  to zero. The tile is now an explicit button that puts the large cube back on
-  the starting case; its cube badge makes that action visible.
-- **The first save-sheet device pass found the iOS keyboard covering the name
-  field.** A modal sits outside the workbench screen's keyboard avoidance, so
-  the shared save sheet owns its own `KeyboardAvoidingView` and a bounded
-  `ScrollView`. The whole sheet now rises above the keyboard; on a short phone,
-  the chips and actions scroll instead of pushing the field behind it.
+- **The inverse path is explicit and pinned algebraically.** **Derive later**
+  lets a new entry be written before it has moves to invert; **Use inverse** is
+  the same choice once moves exist. `inverseSetup(A)` is tested by applying
+  `A⁻¹ A` and requiring a solved cube. Confirming either an authored or derived
+  start seeks the transport to 0, because showing the solved end immediately
+  made a correct inverse look as though it had done nothing.
 - Preview was deferred. The complete forward authoring path, edit path, live
   case and safe full-library refusal shipped first, as the handoff required.
 - Browser input remains orbit-only. Passing layout in a browser does not verify

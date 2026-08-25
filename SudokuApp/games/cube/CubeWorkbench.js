@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutAnimation, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
@@ -9,7 +9,7 @@ import CubeMovePad from './CubeMovePad';
 import CubeMoveTrack from './CubeMoveTrack';
 import CubeScrubber from './CubeScrubber';
 import CubeView from './CubeView';
-import { caseOfSetup, describeCase } from './algCase';
+import { caseOfAlgorithm, caseOfSetup, describeCase } from './algCase';
 import { cubeFromAlg, solvedCube } from './cubeState';
 import { CUBE_ACCENT, headerAction, styles as chrome } from './cubeChrome';
 import { useCube } from './CubeContext';
@@ -24,7 +24,7 @@ import { PAD_EVENTS, initialPadVisibility, reducePadVisibility } from './swipeMo
 import useAppBackground from './useAppBackground';
 import useCubeStage from './useCubeStage';
 import useScramblePlayer from './useScramblePlayer';
-import { setupAt, workbenchDraft, workbenchSave } from './workbench';
+import { inverseSetup, setupAt, workbenchDraft, workbenchSave } from './workbench';
 
 const START = solvedCube();
 const NO_MARKS = new Set();
@@ -52,6 +52,8 @@ const CubeWorkbench = ({ navigation, route }) => {
   const [moves, setMoves] = useState(initial.moves);
   const [setup, setSetup] = useState(initial.setup);
   const [selectingStart, setSelectingStart] = useState(id === null);
+  const [openAtStart, setOpenAtStart] = useState(false);
+  const [deriveFromMoves, setDeriveFromMoves] = useState(false);
   const [name, setName] = useState(initial.name);
   const [assignments, setAssignments] = useState(initial.assignments);
   const [saving, setSaving] = useState(false);
@@ -70,6 +72,15 @@ const CubeWorkbench = ({ navigation, route }) => {
   const activeMoves = selectingStart ? setup : moves;
   const player = useScramblePlayer(activeMoves, startingCube);
   const { pause, handoff, afterSettle, retract, playTo, seek } = player;
+
+  // Confirming a start promises to show that start. A changed player normally
+  // opens at its end, which would immediately show the solved result and make
+  // both "Use this start" and "Use inverse" look as though they did nothing.
+  useEffect(() => {
+    if (selectingStart || !openAtStart) return;
+    seek(0);
+    setOpenAtStart(false);
+  }, [selectingStart, openAtStart, seek]);
 
   const armPromotion = useCallback((key) => {
     if (promoteTimer.current) clearTimeout(promoteTimer.current);
@@ -129,10 +140,11 @@ const CubeWorkbench = ({ navigation, route }) => {
     navigation.goBack();
   }, [id, moves, setup, algorithms.length, editAlgorithmById, addAlgorithm, navigation]);
 
-  const pattern = caseOfSetup(setup);
+  const previewSetup = deriveFromMoves ? inverseSetup(moves) : setup;
+  const pattern = deriveFromMoves ? caseOfAlgorithm(moves) : caseOfSetup(setup);
   const previewCube = useMemo(() => {
-    try { return cubeFromAlg(setup); } catch (error) { return START; }
-  }, [setup]);
+    try { return cubeFromAlg(previewSetup); } catch (error) { return START; }
+  }, [previewSetup]);
   const ink = theme.colors.title;
   const border = theme.colors.numberPad.border;
   const pending = mix(ink, theme.colors.background, 0.55);
@@ -183,6 +195,18 @@ const CubeWorkbench = ({ navigation, route }) => {
     {padShown && <CubeMovePad canUndo={count > 0} promoteKey={promoteKey} primed={primed} accent={CUBE_ACCENT}
       theme={theme} onKey={tapKey} onPrime={() => setPrimed((value) => !value)} onUndo={undo} />}
     <View style={styles.actions}>
+    {selectingStart && <TouchableOpacity style={[styles.secondaryButton, { borderColor: CUBE_ACCENT }]}
+      onPress={() => {
+        pause();
+        setSetup(inverseSetup(moves));
+        setDeriveFromMoves(!moves);
+        setOpenAtStart(true);
+        setSelectingStart(false);
+      }} accessibilityRole="button"
+      accessibilityLabel={moves ? 'Use the inverse as the starting case' : 'Derive the starting case after writing the algorithm'}>
+      <MaterialCommunityIcons name="history" size={18} color={CUBE_ACCENT} />
+      <Text style={[styles.secondaryText, { color: CUBE_ACCENT }]}>{moves ? 'Use inverse' : 'Derive later'}</Text>
+    </TouchableOpacity>}
     <TouchableOpacity style={[styles.saveButton, { backgroundColor: CUBE_ACCENT }]}
       onPress={() => {
         resetGesture();
@@ -192,9 +216,11 @@ const CubeWorkbench = ({ navigation, route }) => {
           // was scrubbed backward, keep only the prefix currently displayed
           // rather than silently restoring the later moves when authoring starts.
           setSetup(setupAt(player.tokens, player.index));
+          setDeriveFromMoves(false);
+          setOpenAtStart(true);
           setSelectingStart(false);
         }
-        else { setSetup(''); setSelectingStart(true); }
+        else { setSetup(''); setDeriveFromMoves(false); setSelectingStart(true); }
       }} accessibilityRole="button" accessibilityLabel={selectingStart ? 'Use this starting case' : 'Change the starting case'}>
       <MaterialCommunityIcons name={selectingStart ? 'check' : 'cube-scan'} size={18} color="#fff" />
       <Text style={styles.saveText}>{selectingStart ? 'Use this start' : 'Change start'}</Text>
@@ -216,6 +242,8 @@ const styles = StyleSheet.create({
   track: { flex: 1, minWidth: 0 },
   actions: { alignSelf: 'stretch', flexDirection: 'row', gap: 8, marginTop: 7 },
   saveButton: { flex: 1, minHeight: 40, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  secondaryButton: { flex: 1, minHeight: 40, borderWidth: 1, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
+  secondaryText: { fontWeight: '800', marginLeft: 6 },
   saveText: { color: '#fff', fontWeight: '800', marginLeft: 6 },
 });
 export default CubeWorkbench;

@@ -23,3 +23,12 @@ export const workbenchSave = ({ id, moves, setup, name, assignments }, librarySi
 /** The authored start is the cube actually visible at confirmation time, not
  * moves later in the setup track that the operator scrubbed behind. */
 export const setupAt = (tokens, index) => (tokens || []).slice(0, Math.max(0, index)).join(' ');
+
+/** Migration-free/default start: applying this setup and then the algorithm is
+ * always the identity. It is offered explicitly rather than implied by an
+ * empty setup, so the operator can choose between a real authored start and a
+ * mathematically derived one. */
+export const inverseSetup = (moves) => {
+  const alg = normalizeAlg(moves);
+  return alg && isValidAlg(alg) ? invertAlg(alg) : '';
+};

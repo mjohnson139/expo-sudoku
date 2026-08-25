@@ -1,4 +1,5 @@
-import { setupAt, workbenchDraft, workbenchSave } from '../workbench';
+import { inverseSetup, setupAt, workbenchDraft, workbenchSave } from '../workbench';
+import { cubeFromAlg, isSolved } from '../cubeState';
 
 describe('algorithm workbench decisions', () => {
   test('a new draft receives the library default name', () => {
@@ -18,5 +19,16 @@ describe('algorithm workbench decisions', () => {
 
   test('the confirmed setup is the position visible at the scrubber', () => {
     expect(setupAt(['R', 'U', "R'"], 2)).toBe('R U');
+  });
+
+  test('an inverse-derived start followed by its algorithm ends solved', () => {
+    const moves = "R U R' U R U2 R'";
+    const setup = inverseSetup(moves);
+    expect(setup).toBe("R U2 R' U' R U' R'");
+    expect(isSolved(cubeFromAlg(`${setup} ${moves}`))).toBe(true);
+  });
+
+  test('derive later has no premature setup when there are no moves', () => {
+    expect(inverseSetup('')).toBe('');
   });
 });

@@ -497,6 +497,11 @@ function of text and there is no second facelet-state format to migrate.
 
 For older and pasted entries with no setup, `A⁻¹(solved)` remains the lossless
 fallback. Editing one on the cube seeds the starting phase from that inverse.
+The choice is visible: **Derive later** before a new algorithm has moves, and
+**Use inverse** once it does. The invariant is executable, not assumed:
+`A⁻¹ A` must leave `isSolved` true. After either start is confirmed, the
+transport seeks to 0 so the cube visibly shows the chosen starting state rather
+than the solved end of the algorithm.
 
 #### The engineering decision this step actually turns on
 
