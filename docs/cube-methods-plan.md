@@ -195,7 +195,7 @@ each of them, and it changes §3.3 most.
 | 1 | The library, stored and shown | `algorithms.js`, the save slot, the list screen — *landed, with one finding* |
 | 2 | The case, and where it comes from | `algCase.js`: capture, invert, derive; the 3×3 tile |
 | 2.5 | The algorithm workbench | a solved cube you write an algorithm on with your finger — *added after Step 1's device pass* |
-| 3 | Tag a run from a solve | the same save, reached from the other end |
+| 3 | Use or tag an algorithm in a solve | apply a library entry to the live solve; keep a run as a new entry |
 | 4 | Methods as a catalogue | behaviour-neutral; the catalogue becomes a parameter; LBL joins the presets |
 | 5 | The method builder | user methods, duplicate-to-edit, stages, "use for new solves" |
 | 6 | Stage → algorithms | the assignment, from both ends; the meta line becomes true |
@@ -553,58 +553,114 @@ What the preview builds found, and the brief did not:
 
 **Layout, in points (§8.6).** The shared case-preview/track row is 60 points and costs the workbench cube **60 points** on constrained screens. The Change start / Save actions share one existing row, and making the preview tappable adds no row. Library-card (56) and entry-screen (112) previews are on screens without the main cube.
 
-### 3.3 Step 3 — tag a run from a solve
+### 3.3 Step 3 — use or tag an algorithm in a solve
 
-**What Step 2.5 changed about this step:** the two are now the same feature
-reached from opposite ends, and this one is the smaller half. The workbench is
-*write an algorithm on a cube with nothing on it*; this is *keep the one you
-just did in a real solve*. **They must end in the same sheet** — the same name
-field, the same assignment chips, the same `createAlgorithm` — and a second
-naming surface for the same object is how two of them come to drift apart.
+**The library and a solve become reciprocal here.** The workbench writes an
+algorithm in isolation; Step 3 makes the library useful during a real solve in
+both directions:
 
-The step that makes the library worth having, and the one with the most ways to
-be wrong on a phone.
+1. **library → solve:** choose a saved algorithm and apply its moves to the live
+   end of the open solve;
+2. **solve → library:** select a run already performed and keep it as a new
+   library entry.
 
-- **Selection is a visible control, not a gesture.** Cube Flow's open question 3
-  is settled law here (§5): *the test is not "will they find it if they look", it
-  is "is anything giving them a reason to look"*. The affordance is a **button on
-  the transport card** — the row that survives with the move pad hidden and
-  already carries Backspace (`CubeSolve.js`, Cube Flow Step 9) — which arms
-  selection; the move track then takes a first and a last token; a confirm row
-  names the run. Read `CubeMoveTrack.js` before designing the selection
-  rendering, and state the row's cost in points in the PR.
-- **A run is tagged inside one locked phase.** The phase is what supplies the
-  default assignment (`{ method, stage }`), and a run that straddles a boundary
-  has no honest answer to "which stage is this". Refuse it in the UI rather than
-  guessing.
-- **The starting cube is captured as `setup` moves from solved** — the scramble,
-  then the solve's `orientation` prefix, then the solve's moves up to the first
-  selected token. That is the state the algorithm recognises, and the shared
-  three-face preview derives from it. Do not store only the old nine-cell `case`;
-  `setup` is what lets the workbench reopen the real position.
-- **Two ways of getting a case, and both are right.** Here the cube really was
-  in that state, so read it. On the workbench there is no such moment, so the
-  algorithm's own inverse supplies it (§3.2). Where a tagged run happens to be a
-  clean last-layer algorithm the two agree, and **a test should say so** — a run
-  tagged out of a real solve and the same moves written on the workbench produce
-  the same nine characters. Where they disagree, the run's own state wins: it is
-  a measurement, not a derivation.
-- **Tagging does not touch the stored `alg`.** The moves stay exactly as
-  written; the tag is a library entry plus, at most, presentation in the track.
-  Anything else would make the tag an edit, and edits to a written solve are
-  Cube Flow's `withMoves` contract, not this feature's.
-- The run collapses to a chip in the move track, as the design describes.
-- **A tagged run can be opened in the workbench** to correct or extend it, which
-  is the third door into the same screen and costs nothing but the navigate.
+Both directions use the records and funnels Step 2.5 landed. There is no second
+algorithm shape, no component-owned library, and no shortcut around `editOpen`,
+`withMoves`, `createAlgorithm` or `editAlgorithm`.
 
-**Tests:** the pure part — which is *which run, from where, to where, in which
-phase, with what case* — lives in a module (`tagRun.js` or an addition to
-`algorithms.js`) with its own suite. Nothing that could be wrong belongs inside
-the component (§5).
+#### The Algorithms control
 
-**Operator tests, on a device:** tag a run mid-solve and find it in the library
-with the right case and assignment; try to tag across a boundary and be refused;
-tag with the pad hidden and with it shown; background mid-selection.
+- Add one explicit, labelled **Algorithms** control to the transport card — the
+  row that survives with the move pad hidden and already carries Backspace.
+  **One door serves both directions** so Apply and Save a run do not consume two
+  permanent controls or two rows from the cube.
+- It opens a solve-side algorithm sheet. The first action is **Save a run from
+  this solve**; below it is the library picker. Search stays available, and
+  entries assigned to the solve's current method · open stage are shown first,
+  followed by the rest of the library. Do not hide unassigned entries: the
+  operator may know the algorithm better than the catalogue does.
+- Reuse `CubeCasePreview`, the algorithm name, moves and assignment labels. A
+  row must say what will be applied before a tap changes the solve; a bare case
+  picture is not a sufficient picker.
+- State the transport-control and sheet layout cost in points in the PR. The
+  target is **zero points from the cube**: add a control to the existing
+  transport row and put the list in a modal sheet, not a new fixed row.
+
+#### Apply a saved algorithm — library → solve
+
+- Tapping **Apply** appends **only `entry.moves`** to the open solve, through
+  `editOpen(current => withMoves(...))`. `entry.setup` describes the position the
+  algorithm expects; it is never prepended to the solve and never turns the
+  solve into the workbench's authored case.
+- Apply at the **live end** of the solve, matching every pad press and typed
+  algorithm today. If the scrubber is reviewing an earlier position, applying
+  first returns to the end; it does not insert into history. Mid-solve insertion
+  would change every later cube state and phase index and is a different edit
+  contract, not a convenience hidden inside Apply.
+- The appended moves visibly play through the existing transport from the cube
+  the solve is actually on. They must not appear instantly, and the whole
+  algorithm is one authored action even though playback lands one move at a
+  time.
+- Applying respects the solve's notation exactly as the library stores it and
+  uses `withMoves` so phase markers remain clamped. It does **not** create a
+  second solve, change the solve's method, or write a tag automatically.
+- Do not automatically refuse a case mismatch in this step. Exact recognition
+  of "this algorithm fits the cube now" is still out of scope (§4), and a
+  setup can be useful as instruction without being an equality gate. The picker
+  supplies preview, moves and assignment; the operator chooses.
+- Empty library: say **No algorithms yet** and offer the existing workbench
+  route. A library at `MAX_ALGORITHMS` can still apply entries; the cap only
+  refuses creating another one.
+
+#### Keep a run — solve → library
+
+- **Selection is visible after Save a run is chosen, not an invisible gesture.**
+  The move track takes a first and last token, snaps to token boundaries and
+  draws the range before confirmation. Cube Flow's discoverability lesson still
+  applies: nothing relies on a long press.
+- **A run is tagged inside one locked phase.** The phase supplies the default
+  `{ method, stage }`. A run that straddles a boundary has no honest assignment;
+  refuse it rather than guessing.
+- Capture the run's actual starting cube as `setup` moves from solved — scramble,
+  solve `orientation`, then the solve prefix up to the first selected token.
+  That is what lets `CubeCasePreview` and the workbench reopen the real position;
+  storing only the legacy nine-cell `case` loses it.
+- Open the same `CubeAlgorithmSaveSheet` Step 2.5 uses, prefilled with the stage
+  assignment. Save through `CubeContext.addAlgorithm`; a full-library refusal
+  leaves the range selected and the solve untouched.
+- **Tagging does not touch the solve's stored `alg`.** The moves remain exactly
+  as performed. After save, the range may read as an algorithm chip in the
+  track, and that chip can open the entry/workbench, but presentation is not a
+  move-list edit.
+
+#### Pure logic and tests
+
+Put the derivation in `tagRun.js` or a similarly focused pure module:
+
+- range normalization and refusal across a phase boundary;
+- default assignment from the containing method stage;
+- `setup` at the run's first token;
+- the exact move string represented by the range;
+- the apply decision: append `moves`, never `setup`, at the live end;
+- phase-marker clamping through the existing `withMoves` contract;
+- library ordering for current stage first without dropping unassigned entries;
+- empty and full-library behavior (full refuses Save, not Apply).
+
+The input path is already covered by `touchTurn.test.js` / `solve.test.js`; do
+not duplicate those suites. What is new is the selection, derivation and
+apply-versus-setup boundary.
+
+**What must be visible in Expo Go:** in a method solve, open Algorithms, apply a
+saved entry while the pad is shown and hidden, and watch every move play onto the
+large cube and remain in the solve. Scrub backward, apply another, and confirm it
+returns to the live end rather than inserting into history. Confirm the setup was
+not written. Then save a run within one phase, find it in the library with the
+right start and assignment, and open it in the workbench. Try a cross-boundary
+run and a full library. Background during selection and during apply playback.
+
+**Device pass required.** Browser input is orbit-only and cannot settle the
+animation handoff, pad/transport reachability, native sheet navigation or resume
+behavior.
 
 ### 3.4 Step 4 — methods as a catalogue (behaviour-neutral)
 
@@ -890,33 +946,36 @@ than a brief. The `closeout` skill covers the sequence.
    marked?** Step 3 says marked: the stored `alg` is untouched and the chip is
    presentation. A run that collapsed for real would be an edit, and edits to a
    written solve are a contract this epic does not hold.
-3. **Three demonstrations — is three right?** `DEMOS_REQUIRED = 3` is the
+3. **Answered after Step 2.5: can a saved algorithm be applied to a solve?**
+   Yes — Step 3 is reciprocal now. Apply appends the entry's `moves` at the live
+   end through the solve edit funnel; it never prepends `setup` and never inserts
+   into reviewed history.
+4. **Three demonstrations — is three right?** `DEMOS_REQUIRED = 3` is the
    design's default and nothing but a drilling session can confirm it. It is one
    constant.
-4. **Should deleting a solve roll the journey back?** It does, by construction —
+5. **Should deleting a solve roll the journey back?** It does, by construction —
    the count is derived. The alternative is a stored counter, which survives the
    deletion of its own evidence. Worth stating on the screen if it surprises.
-5. **Does the journey want to be reachable from the solve screen too?** The
+6. **Does the journey want to be reachable from the solve screen too?** The
    design does not draw it and the solve header is nearly as full as the
    scramble's. Left out until asked for.
-6. **Should a preset be hideable?** An operator who will never drill CFOP still
+7. **Should a preset be hideable?** An operator who will never drill CFOP still
    sees it on the journey and in the sheet. `forNewSolves` covers user methods;
    presets have no equivalent, deliberately, because hiding the track's
    destination is a strange thing to offer on a screen whose whole point is the
    track.
-7. **Answered by Step 2.5 device feedback: yes.** The first build's large
+8. **Answered by Step 2.5 device feedback: yes.** The first build's large
    drawback was that the operator could not define where an algorithm begins.
    `setup` is now authored on the cube before the algorithm and stored as moves
    from solved; inverse derivation remains the fallback for older/pasted entries.
-8. **New in Step 2.5: is a nine-character U face enough of a case?** A T-perm
-   captures as nine `y` — every sticker oriented — which is true and useless for
-   telling one PLL from another. The design draws the U face and this epic ships
-   it; the honest answer is probably a second row of side stickers, and the
-   evidence for it is the first time two entries show the same tile.
-9. **New in Step 2.5: should `＋` still offer typing at all?** It moves to
+9. **Answered by Step 2.5 device feedback: is a nine-character U face enough
+   of a case?** No. A T-perm and J-perm both capture as nine `y`, so the shared
+   `CubeCasePreview` now renders the real starting cube from a fixed three-face
+   view. The nine-cell pattern remains compact description/correction data.
+10. **New in Step 2.5: should `＋` still offer typing at all?** It moves to
    **Paste an algorithm** on the entry screen. If a fortnight goes by without it
    being reached for, it can go — the library will have been seeded by then.
-10. **Carried from Cube Flow, unanswered:** does the phase-split tick track come
+11. **Carried from Cube Flow, unanswered:** does the phase-split tick track come
    back now the rail exists (its q5), and where do the preferences live (its
    q13)? Neither is this epic's to answer, and §4 says this epic must not answer
    the second one by accident.
