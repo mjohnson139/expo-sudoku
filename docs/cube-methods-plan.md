@@ -469,15 +469,14 @@ the front door `＋` should have had.
   pad drawer. Finger turns write moves exactly as they do on the solve screen —
   same `useCubeTouch`, same `CubeMovePad`, same `applyPadPress`, same folds and
   cancels **after the turn settles** (§5).
-- **The cube starts solved and there is no hold.** No scramble, no
-  `orientation`, no inspection phase, no phases, no rail, no Compare. That is
-  what makes this screen smaller than the one it borrows from, and the list of
-  absences is worth reading as a specification.
-- **The case it solves is shown live**, as a tile beside the track, recomputed
-  from `caseOfAlgorithm` (§3.2) on every move. **This is the payoff of the whole
-  step**: for a last-layer algorithm the tile fills in the top-layer case as you
-  write, so you can see the thing you are writing an algorithm *for* without ever
-  having said what it was.
+- **The setup phase starts solved and there is no hold.** The operator either
+  turns that cube into an authored start or chooses Derive later / Use inverse;
+  then the algorithm phase starts from that position. There is no scramble,
+  `orientation`, solve inspection, phases, rail or Compare.
+- **The case it solves is shown live** as a shared three-face
+  `CubeCasePreview` beside the track. An authored `setup` supplies the cube;
+  otherwise `A⁻¹(solved)` follows the moves. Top and side stickers stay visible,
+  so PLLs do not collapse into the same all-yellow U-face picture.
 - **Save** opens a sheet: a name, the stage assignment chips the entry screen
   already has, and Save → `createAlgorithm` (or `editAlgorithm` for an existing
   id) and back. **The same sheet Step 3 uses** — see §3.3.
