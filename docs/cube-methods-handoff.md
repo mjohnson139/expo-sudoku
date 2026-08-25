@@ -196,80 +196,89 @@ to change casually. Most of it is Cube Flow's; the last block is Step 1's.
 
 ---
 
-## Next step — Step 3: tag a run from a solve
+## Next step — Step 3: use or tag an algorithm in a solve
 
-Plan **§3.3**. Let a run of moves already written in a solve become a library
-algorithm without retyping it. This is the smaller mirror of Step 2.5: the
-workbench writes moves and then names them; this step selects moves already on
-the solve and sends them through the same `CubeAlgorithmSaveSheet`.
+Plan **§3.3**, rewritten after the operator accepted Step 2.5. The library and a
+solve become reciprocal: apply a saved algorithm to the open solve, or select a
+run already performed and keep it as a new entry.
 
 ### Scope
 
-- Add an explicit, discoverable selection affordance to `CubeSolve`; do not use
-  an undocumented long press. Selection snaps to token boundaries and identifies
-  a contiguous run. Keep the solve's `alg` unchanged: tagging is presentation
-  and library creation, never a solve edit.
-- Offer **Save as algorithm** for a non-empty run. Open the shared
-  `CubeAlgorithmSaveSheet` from Step 2.5, preassigning the solve's method and the
-  stage whose phase span contains the run when that answer is unambiguous. Store
-  the run's actual starting position as `setup` notation (scramble + orientation
-  + solve prefix), so opening the saved entry in the workbench restores it.
-- Save through `createAlgorithm` / `CubeContext.addAlgorithm`, the one library
-  funnel. Refusal at `MAX_ALGORITHMS` must leave the selection and solve intact
-  and explain how to recover.
-- After saving, mark the run in the solve track with the algorithm name without
-  replacing or collapsing its moves. The marker is derived by matching move
-  text and boundaries; do not add a second representation of the solve.
-- Keep the 3.3.0 build note current and keep `app.json` at 3.3.0.
+- Add one labelled **Algorithms** control to `CubeSolve`'s transport card. It
+  opens a solve-side sheet with **Save a run from this solve** plus the library
+  picker. Current method · stage assignments sort first; search and unassigned
+  entries remain available.
+- **Apply:** append only `entry.moves` at the solve's live end through
+  `editOpen` + `withMoves`, and visibly play the appended moves through the
+  existing transport. Never prepend `entry.setup`; it describes the case the
+  algorithm expects, not moves the operator performed in this solve.
+- Applying while scrubbed back returns to the live end and appends there. It
+  never inserts into history. Do not gate on automatic case recognition.
+- **Save a run:** arm visible first/last-token selection in `CubeMoveTrack`,
+  refuse a range across a phase boundary, and open the shared
+  `CubeAlgorithmSaveSheet` with the containing method · stage preselected.
+- Store the run's real starting position as `setup` notation (scramble +
+  orientation + solve prefix) and its selected moves as `moves`. Save through
+  `CubeContext.addAlgorithm`; a full library preserves the selection and solve.
+- Keep the solve's moves unchanged when tagging. A saved range may render as a
+  chip and open its entry/workbench, but collapsing presentation is not an edit.
+- Empty library offers the workbench. A full library still permits Apply.
+- Extend the 3.3.0 build note; keep `app.json` at 3.3.0.
 
 ### Files to read first
 
-Read plan §3.3 and §5; `CubeSolve.js`, `CubeMoveTrack.js`, `CubeScrubber.js`,
-`solve.js`, `solveList.js`, `phaseRail.js`, `algorithms.js`, and
-`CubeAlgorithmSaveSheet.js`. Read the Step 2.5 landed code in
-`CubeWorkbench.js` for the create/refusal flow, but do not couple solve storage
-to workbench state.
+Read plan §3.3 and §5; `CubeSolve.js` end to end, `CubeMoveTrack.js`,
+`CubeScrubber.js`, `useScramblePlayer.js`, `solve.js`, `solveList.js`,
+`phaseRail.js`, `algorithms.js`, `CubeAlgorithms.js`, `CubeCasePreview.js`, and
+`CubeAlgorithmSaveSheet.js`. The workbench's `setup`/`moves` separation is the
+contract Apply must preserve.
 
 ### Easy to get wrong
 
-1. A tagged run does **not** mutate, replace, or collapse the solve's moves.
-2. Selection must be visible and discoverable. Cube Flow already proved an
-   invisible long press is not a feature the operator can find.
-3. Phase boundaries are markers and spans are derived. Preassignment must use
-   the derived span at the selected run, and ambiguous cross-stage runs stay
-   unassigned. The run's start belongs in `setup`, not only the legacy nine-cell
-   `case`; otherwise the three-face preview and workbench cannot reconstruct it.
-4. A full library refuses rather than evicts. Preserve both the solve and the
-   active selection on refusal.
-5. A pushed screen stays mounted. A saved algorithm must appear in the library
-   immediately when navigating back to it, through `CubeContext`, not a copy.
-6. Say in the PR what the selection row costs the cube in points. Prefer an
-   overlay or an existing row; any new fixed row comes directly out of the cube.
+1. **Apply writes `moves`, never `setup`.** Setup is an expected starting case;
+   prepending it would manufacture moves the operator did not perform.
+2. **Apply is append-only at the live end.** Insertion under a scrubber cursor
+   changes every later state and marker. Return to the end rather than hiding a
+   new edit contract under a library button.
+3. The appended algorithm must visibly animate from the solve's actual cube.
+   It cannot jump to the result or continually recompute its animation base.
+4. Applying is allowed when the library is full; only creating another entry is
+   refused. Empty/full are different answers in the reciprocal sheet.
+5. Selection is visible and token-bounded. No long press. A cross-stage run is
+   refused, and tagging never mutates the solve's `alg`.
+6. A tagged run's start belongs in `setup`, not only the legacy nine-cell
+   `case`, or the three-face preview and workbench cannot restore it.
+7. All solve writes still go through `editOpen` + `withMoves`; all library
+   creates still go through `addAlgorithm`. Sharing UI is not permission for a
+   shared persistence shortcut.
+8. One transport control and a modal sheet should cost the cube **zero points**.
+   If implementation needs a row, stop and state the measured cost before
+   taking it.
 
 ### What must be visible in Expo Go
 
-Open a real method solve, select the moves for one phase, save them with a name,
-and see the method/stage already selected. Confirm the solve still shows every
-original move, the run is labelled, and the library card has the correct moves,
-assignment and derived case. Select across a boundary and confirm no stage is
-guessed. Fill/refuse the library without losing the selection. Background and
-resume during selection.
+Apply a saved Sune during a real solve with the pad open and closed; watch every
+move play and remain in the track. Scrub backward and apply again: it returns to
+the end, does not insert, and never writes setup moves. Save a run within one
+phase, see the default assignment and real three-face start, then open it in the
+workbench. Refuse a cross-boundary run and a new save at the cap while Apply
+continues to work. Background during selection and apply playback.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/`. Put range derivation, stage preassignment and
-  run-marker matching in pure modules with node suites; do not test component
-  internals.
-- Browser screenshots at 320×568, 375×667 and 393×852 in classic and dark
-  themes cover layout and discoverability, not native navigation or finger turns.
-- Device-test the complete selection and save flow, Android back / iOS edge
-  swipe, and background/resume. Re-run Step 1's typing round-trip, filter chips
-  and action row while the same library screens are open.
+- `npm test` from `SudokuApp/`. Add a pure `tagRun.js` (or equivalent) suite for
+  range/phase/setup derivation, apply-at-end, moves-not-setup, picker ordering,
+  and empty/full behavior. Reuse existing movement suites.
+- Browser screenshots at 320×568, 375×667 and 393×852 in classic and dark cover
+  the transport control, sheet and selection layout—not finger input or native
+  sheet behavior.
+- Device-test animation handoff, pad shown/hidden reachability, scrubbed-back
+  Apply, background/resume, and the complete reciprocal round trip.
 
 ### Then rewrite this file
 
-Brief **Step 4 — catalogue threading, no visible change** (plan §3.4). It is a
-signature refactor and must stay isolated from Step 5's method builder.
+Brief **Step 4 — catalogue threading, no visible change** (plan §3.4). Keep that
+signature refactor isolated from Step 5's builder.
 
 ## What Step 2.5 discovered
 
@@ -488,41 +497,35 @@ Two consequences for whoever is reading this:
 
 ## Open questions being carried forward
 
-From `docs/cube-methods-plan.md` §6 — none of them block Step 2.5. **Question 8 now has its first evidence, and question 7 is answered by Step 2.5 device feedback**:
+From `docs/cube-methods-plan.md` §6. The new question 3 is answered by this rewrite: applying a saved algorithm belongs in Step 3 alongside tagging a run.
 
 1. **Is the library's door in the right place?** The scramble header is full at
    four controls, so it is in the action row. Dropping a header control instead
    was rejected without asking.
 2. **Does a tagged run replace its moves in the track, or only get marked?**
    Step 3 says marked; the stored `alg` is untouched.
-3. **Three demonstrations — is three right?** The design's default; one
+3. **Answered: can a saved algorithm be applied to a solve?** Yes. Step 3 now
+   appends `entry.moves` at the live end through `editOpen` + `withMoves` and
+   visibly plays them. It never prepends `setup` or inserts into reviewed history.
+4. **Three demonstrations — is three right?** The design's default; one
    constant in `journey.js`; only a drilling session can say.
-4. **Should deleting a solve roll the journey back?** It does, by construction.
-5. **Does the journey want a door on the solve screen too?** Not drawn, not
+5. **Should deleting a solve roll the journey back?** It does, by construction.
+6. **Does the journey want a door on the solve screen too?** Not drawn, not
    built.
-6. **Should a preset be hideable?** `forNewSolves` covers user methods; presets
+7. **Should a preset be hideable?** `forNewSolves` covers user methods; presets
    deliberately have no equivalent.
-7. **Answered: yes.** The first Step 2.5 build exposed the large drawback:
-   there was no way to define where an algorithm begins. The workbench now
-   authors `setup` moves from solved before authoring the algorithm. Existing
-   and pasted entries fall back to `A⁻¹(solved)` and need no migration.
-8. **Is nine characters of the U face enough of a case?** **No, and it is now
-   visible rather than predicted**: a library holding a T-perm and a J-perm shows
-   two identical all-yellow tiles side by side, which is in Step 2's browser
-   screenshots. It is still what the design draws and what this epic ships, and
-   the tests pin it so nobody "fixes" it by accident. The evidence for going
-   further is now in hand; **what is missing is a decision about what a richer
-   case would be** — a second row for the side stickers is the obvious answer and
-   is a design question, not an arithmetic one. Worth putting to the operator
-   before the drilling steps (7 and 8) lean on the tile to tell cases apart.
-9. **Should `＋` still offer typing at all?** After Step 2.5 it becomes **Paste
-   an algorithm** on the entry screen. If a fortnight goes by without it being
-   reached for, it can go — the library will have been seeded by then.
-10. **Should the case tile be tappable to correct it?** New in Step 2.
-   `toggleCaseCell` exists and is tested; no screen calls it, because derivation
-   removed the editor's main use and §3.2 says build it when the tile turns out
-   to be wrong for something real. **Nothing has been wrong yet.** If the answer
-   to question 8 is "a richer case", this question probably dissolves into it.
+8. **Answered: does the workbench need an authored starting state?** Yes. It
+   authors `setup` moves from solved; older/pasted entries fall back to
+   `A⁻¹(solved)` without migration.
+9. **Is nine characters of the U face enough of a case?** No: the shared
+   three-face `CubeCasePreview` now preserves the side stickers that distinguish
+   PLLs. The nine-cell pattern remains only as compact description/correction data.
+10. **Should `＋` still offer typing at all?** It is **Paste an algorithm** on
+   the entry screen. If it is never reached for after the library is seeded, it
+   can go.
+11. **Should the case preview be tappable to correct it?** `toggleCaseCell`
+   exists and is tested, but the preview currently uses its tap to seek the large
+   cube to the starting position. Build correction only for a real wrong case.
 
 Carried from `docs/cube-flow-plan.md` §6 and still open there: whether the
 phase-split tick track comes back now the rail exists (q5), and where the app's
