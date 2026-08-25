@@ -276,7 +276,7 @@ signature refactor and must stay isolated from Step 5's method builder.
   screen: phases, hold, rail, Compare and `editOpen` make that extraction more
   than mechanical, so combining it with a new screen would give a solve
   regression and workbench behaviour one suspect.
-- The live case and track share one 48-point row. That row costs the cube 48
+- The live 3D case and track share one 60-point row. That row costs the cube 60
   points at constrained heights; the remaining workbench rows replace solve
   apparatus rather than adding to it.
 - `CubeAlgorithmSaveSheet` is the shared Step 3 seam. It collects only a name
@@ -287,8 +287,12 @@ signature refactor and must stay isolated from Step 5's method builder.
   where an algorithm begins. The workbench now authors and persists `setup`
   moves before the algorithm; older entries derive the same start they did
   before.
-- **The 2D case tile must remain a door to the 3D case.** After moves are
-  written the large cube naturally stands at the algorithm's end, which made
+- **The case preview is the real 3D starting cube everywhere.** A force-push
+  accidentally dropped the three-face preview after the 21:41 device build and
+  restored the old flat tile in the library, entry, and workbench. The 3D
+  preview is now a shared static component over the same scene builder as the
+  large cube, so those three surfaces cannot drift independently again. After
+  moves are written the large cube naturally stands at the algorithm's end, which made
   the authored starting position feel lost even though the scrubber could seek
   to zero. The tile is now an explicit button that puts the large cube back on
   the starting case; its cube badge makes that action visible.

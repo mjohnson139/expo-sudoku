@@ -13,13 +13,14 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
 import CubeAlgInputModal from './CubeAlgInputModal';
-import CubeCaseTile from './CubeCaseTile';
+import CubeCasePreview from './CubeCasePreview';
 import { describeCase, sanitizeCase } from './algCase';
 import { ALG_FONT } from './algText';
 import {
   MAX_ALG_NAME,
   MAX_ALG_NOTES,
   algorithmCase,
+  algorithmStartingCube,
   describeAlgorithmSize,
   hasAssignment,
   toggleAssignment,
@@ -28,10 +29,9 @@ import { METHODS } from './methods';
 import { CUBE_ACCENT, styles as chrome } from './cubeChrome';
 import { WORKBENCH_ROUTE, useCube } from './CubeContext';
 
-/** The tile here is bigger than the library card's 40 — this is the screen you
- *  are on when you want to *check* the case rather than recognise it, and 76
- *  divides into three 22-point stickers with nothing left over. */
-const ENTRY_TILE = 76;
+/** Bigger than the library preview: this is where the starting cube is checked,
+ * not merely recognised while scanning a list. */
+const ENTRY_PREVIEW = 112;
 
 /**
  * One algorithm (docs/cube-methods-plan.md §3.1, Step 1).
@@ -199,6 +199,7 @@ const CubeAlgorithmEntry = ({ navigation, route }) => {
   // previous algorithm's. `algorithmCase` memoizes the arithmetic, so this is a
   // map lookup after the first one.
   const caseTile = algorithmCase(entry);
+  const startingCube = algorithmStartingCube(entry);
   const stored = sanitizeCase(entry.case) !== null;
 
   return (
@@ -261,17 +262,20 @@ const CubeAlgorithmEntry = ({ navigation, route }) => {
           <Text style={[styles.hint, { color: titleColor }]}>{describeAlgorithmSize(entry)}</Text>
 
           <Text style={[styles.label, { color: titleColor }]}>Case</Text>
-          {/* Nobody typed this and there is no field to type it into: it is the
-              moves, inverted and applied to a solved cube (`algCase.js`). Which
-              is why it sits under the moves — change them and it follows on the
-              next render, and watching it follow is how you know the entry says
-              what you meant. */}
+          {/* The real starting cube: authored setup when one exists, otherwise
+              the migration-free inverse derived from the moves. */}
           <View style={styles.caseRow}>
-            <CubeCaseTile pattern={caseTile} size={ENTRY_TILE} label={describeCase(caseTile)} />
+            <CubeCasePreview
+              cube={startingCube}
+              size={ENTRY_PREVIEW}
+              label={`Starting cube. ${describeCase(caseTile)}`}
+            />
             <Text style={[styles.caseHint, { color: titleColor }]}>
               {stored
                 ? 'Corrected by hand; the moves no longer change it.'
-                : 'Worked out from the moves — the case these moves solve.'}
+                : entry.setup
+                  ? 'The starting case you set on the cube.'
+                  : 'Worked out from the moves — the case these moves solve.'}
             </Text>
           </View>
 

@@ -3,12 +3,13 @@ import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import ScreenHeader from '../../components/ScreenHeader';
 import useAppTheme from '../../hooks/useAppTheme';
-import CubeCaseTile from './CubeCaseTile';
+import CubeCasePreview from './CubeCasePreview';
 import { describeCase } from './algCase';
 import { ALG_FONT } from './algText';
 import {
   MAX_ALGORITHMS,
   algorithmCase,
+  algorithmStartingCube,
   algorithmFilters,
   describeAssignment,
   filterAlgorithms,
@@ -18,11 +19,9 @@ import {
 import { CUBE_ACCENT, headerAction, styles as chrome } from './cubeChrome';
 import { ENTRY_ROUTE, WORKBENCH_ROUTE, useCube } from './CubeContext';
 
-/** The case tile the design draws on every card — 40 points square
- *  (docs/cube-methods-plan.md §3.2). Step 1 reserved the square and Step 2 fills
- *  it, which is why filling it moved nothing: the name and the moves have been
- *  sitting 40 points in since the day the cards were written. */
-const CASE_TILE = 40;
+/** A legible three-face starting cube. Device evidence on PR #133 showed the
+ * flat U tile losing the side stickers that distinguish real cases. */
+const CASE_PREVIEW = 56;
 
 /**
  * The algorithm library — the list (docs/cube-methods-plan.md §3.1, Step 1).
@@ -203,10 +202,11 @@ const CubeAlgorithms = ({ navigation }) => {
         >
           {shown.map((entry) => {
             const tags = entry.assignments.map(describeAssignment).filter(Boolean);
-            // The tile itself is silent (`CubeCaseTile`) and the case is said
+            // The preview itself is silent and the case is said
             // here instead, in the row's own label — one stop on the screen
             // reader rather than two, and never a colour on its own.
             const pattern = algorithmCase(entry);
+            const startingCube = algorithmStartingCube(entry);
             const said = [
               entry.name,
               entry.moves,
@@ -226,10 +226,8 @@ const CubeAlgorithms = ({ navigation }) => {
                 accessibilityLabel={said}
                 accessibilityHint="Opens this algorithm"
               >
-                {/* Derived from the moves unless a hand has corrected it —
-                    `algorithmCase` — so every entry written before this build
-                    shows one without having been re-saved. */}
-                <CubeCaseTile pattern={pattern} size={CASE_TILE} />
+                {/* The real authored or inverse-derived starting cube. */}
+                <CubeCasePreview cube={startingCube} size={CASE_PREVIEW} />
 
                 <View style={styles.cardText}>
                   <View style={styles.cardTitle}>

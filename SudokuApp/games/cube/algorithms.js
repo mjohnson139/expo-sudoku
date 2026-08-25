@@ -74,8 +74,9 @@
  */
 
 import { EMPTY_CASE, caseOfAlgorithm, caseOfSetup, sanitizeCase } from './algCase';
+import { cubeFromAlg, solvedCube } from './cubeState';
 import { METHODS, findMethod, stagesOf } from './methods';
-import { isValidAlg, moveCount, normalizeAlg } from './moves';
+import { invertAlg, isValidAlg, moveCount, normalizeAlg } from './moves';
 
 /**
  * Enough algorithms for a full method's worth of drilling without the blob
@@ -161,6 +162,25 @@ const normalizeNotes = (notes) =>
 export const algorithmCase = (algorithm) => {
   if (!algorithm) return EMPTY_CASE;
   return sanitizeCase(algorithm.case) || (algorithm.setup ? caseOfSetup(algorithm.setup) : null) || caseOfAlgorithm(algorithm.moves) || EMPTY_CASE;
+};
+
+/**
+ * The real cube an algorithm begins on, for the three-face preview.
+ *
+ * Authored setup wins. Older and pasted entries have none, so their existing
+ * `A⁻¹(solved)` derivation remains their starting cube without a migration.
+ * A corrupt record has already been sanitized before the UI sees it, but the
+ * fallback keeps this read helper safe for direct callers and tests too.
+ */
+export const algorithmStartingCube = (algorithm) => {
+  if (!algorithm) return solvedCube();
+  const setup = normalizeAlg(algorithm.setup);
+  const start = setup || invertAlg(algorithm.moves || '');
+  try {
+    return cubeFromAlg(start);
+  } catch (error) {
+    return solvedCube();
+  }
 };
 
 /** An entry by id, or null. */

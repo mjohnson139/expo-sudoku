@@ -1,6 +1,7 @@
 import {
   ALL_LABEL,
   algorithmCase,
+  algorithmStartingCube,
   MAX_ALGORITHMS,
   MAX_ALG_NAME,
   MAX_ALG_NOTES,
@@ -27,6 +28,8 @@ import {
 } from '../algorithms';
 import { EMPTY_CASE, caseOfAlgorithm, caseOfSetup } from '../algCase';
 import { METHODS } from '../methods';
+import { cubeFromAlg, facelets } from '../cubeState';
+import { invertAlg } from '../moves';
 
 const SUNE = "R U R' U R U2 R'";
 const TPERM = "R U R' U' R' F R2 U' R' U' R U R' F'";
@@ -626,5 +629,19 @@ describe('algorithmCase', () => {
   it('is an empty case for nothing at all', () => {
     expect(algorithmCase(null)).toBe(EMPTY_CASE);
     expect(algorithmCase(undefined)).toBe(EMPTY_CASE);
+  });
+});
+
+describe('algorithmStartingCube', () => {
+  it('uses the authored setup for the three-face preview', () => {
+    const { algorithm } = make([], { setup: "R U R'" });
+    expect(facelets(algorithmStartingCube(algorithm))).toEqual(facelets(cubeFromAlg("R U R'")));
+  });
+
+  it('keeps inverse-derived previews for older and pasted entries', () => {
+    const { algorithm } = make();
+    expect(facelets(algorithmStartingCube(algorithm))).toEqual(
+      facelets(cubeFromAlg(invertAlg(algorithm.moves)))
+    );
   });
 });

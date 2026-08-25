@@ -141,7 +141,7 @@ last descendants; and the assumption baked into every signature in
 | How a variant is made | **Duplicate, then edit** | The design's own panel. It is also the cheap answer: a duplicate is a new id, so no existing solve references it and no marker in anybody's file is disturbed. |
 | Stage identity | **A stage is still a plain string, and it is still the marker's label** | `phases[].label` is the file format and `railStates` matches spans to stages by that string (`phaseRail.js`). Giving user stages ids would mean a second matching rule and a migration. The cost is §5's rename trap, which is paid once, in one tested function. |
 | Deleting a method that solves use | **Refused.** A method any solve references cannot be deleted; the *"Use for new solves"* toggle is how it leaves the picker | The alternative is a solve pointing at a method that no longer exists, which `sanitizeMethodId` would quietly turn into Freeform — silently discarding a rail the operator built. |
-| The case | **Nine characters of the U face**, `y` for "matches the U centre" and `.` for "does not" | It is what the design draws. Richer cases — side stickers, PLL headlights — are a later refinement of one pure function and one 40-point tile. **A case is derived, not drawn**: from the cube at a tagged run's start, or from the algorithm's own inverse on the workbench. The design's tap-a-sticker editor is the correction path, not the entry path. |
+| The case | **Stored/corrected as nine characters of the U face; presented as the real three-face starting cube** | Device comparison on PR #133 settled the visual: the flat tile hides side stickers and makes every PLL look identical, while the 3D preview shows the actual authored or inverse-derived start. The compact pattern remains useful for descriptions and a future correction editor, but is not the library artwork. |
 | Journey progress | **Derived from the solves, stored nowhere** | The same discipline as `solveCards.js`' "in progress" and `defaultMethod`. A demonstration *is* a locked phase whose exit state checks out, and those are already in the file. Storing a counter alongside would be a second thing to keep honest on every edit, and it would survive the deletion of the solve that earned it. |
 | Exit-state checks for user stages | **Only the shipped presets' stages carry predicates** | Nobody can know what a stage called "my thing" ends in. A user stage with no predicate counts a lock as a lock — the journey says so on the card rather than pretending to check. |
 | **How an algorithm is written** | **On the cube.** Finger turns and the move pad are the primary input, on a workbench screen and on the solve screen; typing notation is the *paste* path, not the front door | **The finding that produced this row came from a device**, on Step 1 (§3.1). Cube Flow spent a whole step making a finger write a move and made it the primary input; a library whose `＋` opens a text keyboard contradicts the app around it. |
@@ -348,9 +348,10 @@ never has to draw a case by hand.
   algorithm carries a useful fallback case for older and pasted entries. The
   workbench additionally stores authored `setup` moves from solved, because the
   operator must be able to define the position where their algorithm begins.
-- **The tile** is the design's: 40 × 40, a 3 × 3 grid of 2-point-gapped cells on
-  a near-black rounded square, yellow for `y` and grey for `.`. It renders on the
-  library card and, larger, on the entry screen.
+- **The compact tile** remains the correction/description representation. The
+  visible library and entry preview is the real starting cube at a fixed
+  three-face angle, derived from authored `setup` or `A⁻¹(solved)` for older
+  entries. This preserves side stickers and distinguishes PLLs.
 - **Every entry that has moves gets a case on this step**, derived — including
   the ones Step 1 already stored with `case: null`. Derive on read rather than
   migrating the file: a stored `case` wins, and a null one is computed from the
