@@ -32,6 +32,10 @@ stage when the current one is demonstrated in real solves.
   workflow publishes its `pr-<N>` preview build, and **prompt the operator to
   test after each step**, against that build. Close the step out with the
   `closeout` skill (`.claude/skills/closeout/`).
+  Code sessions have authenticated `gh`; the session that writes the step must
+  push it and create its own PR against `epic/cube-methods` (after checking for
+  an existing PR with `gh pr view`), then report its number and URL. Creating a
+  PR is not an operator handoff and must never be left for the operator.
 - **The design:** `Cube Methods & Algorithms.dc.html` in the Claude Design
   project `2acc14f2-7f7e-434f-a29d-e0fe29fa876a` ("Expo Sudoku design system"),
   settled 2026-08-16. That project's `design-decisions.md` carries the settled
