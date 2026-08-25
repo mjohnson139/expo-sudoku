@@ -52,6 +52,7 @@ describe('createSolve', () => {
       orientation: null,
       alg: '',
       phases: [],
+      algorithmRuns: [],
       savedAt: 1,
       editedAt: 1,
     });
@@ -149,6 +150,7 @@ describe('duplicateSolve', () => {
       orientation: 'z2',
       alg: "r U r'",
       phases: [],
+      algorithmRuns: [],
       savedAt: 9,
       editedAt: 9,
     });
@@ -306,7 +308,7 @@ describe('sanitizeSolves', () => {
 
   it('reads a well-formed list back unchanged, but for the fields Step 4 added', () => {
     expect(sanitizeSolves([stored])).toEqual([
-      { ...stored, method: null, editedAt: 12 },
+      { ...stored, method: null, algorithmRuns: [], editedAt: 12 },
     ]);
   });
 
@@ -413,7 +415,7 @@ describe('sanitizeSolves', () => {
     };
 
     expect(sanitizeSolves([legacy])).toEqual([
-      { ...legacy, method: null, editedAt: 12 },
+      { ...legacy, method: null, algorithmRuns: [], editedAt: 12 },
     ]);
   });
 
@@ -726,6 +728,7 @@ describe('withMoves', () => {
     expect(withMoves(solve, `${EIGHT} M2`)).toEqual({
       alg: `${EIGHT} M2`,
       phases: solve.phases,
+      algorithmRuns: [],
     });
   });
 
@@ -762,8 +765,14 @@ describe('withMoves', () => {
   });
 
   it('survives a solve with no markers at all', () => {
-    expect(withMoves({ alg: '', phases: [] }, 'R')).toEqual({ alg: 'R', phases: [] });
-    expect(withMoves(null, 'R')).toEqual({ alg: 'R', phases: [] });
+    expect(withMoves({ alg: '', phases: [] }, 'R')).toEqual({ alg: 'R', phases: [], algorithmRuns: [] });
+    expect(withMoves(null, 'R')).toEqual({ alg: 'R', phases: [], algorithmRuns: [] });
+  });
+
+  it('keeps a complete named algorithm span and drops it when undo enters it', () => {
+    const solve = { alg: 'R U F', phases: [], algorithmRuns: [{ at: 1, end: 3, algorithmId: 'a1', name: 'Sune' }] };
+    expect(withMoves(solve, 'R U F D').algorithmRuns).toEqual(solve.algorithmRuns);
+    expect(withMoves(solve, 'R U').algorithmRuns).toEqual([]);
   });
 });
 

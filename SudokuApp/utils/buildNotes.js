@@ -25,6 +25,11 @@ const BUILD_NOTES = {
       'The case reads out in words for a screen reader — which stickers are facing up, never a colour on its own',
       'The library is kept with everything else the cube remembers: background the app, or close it, and it is all still there',
       'Nothing about the scramble screen moved to make room — the library shares the row Compare already sits in',
+      'Algorithms now lives on the solve transport: apply saved moves at the live end, or select a performed run and keep it in the library',
+      'A used algorithm is named inside the solve track; tap its outlined capsule to swap the name for its moves, and tap again to collapse it',
+      'Applying plays every saved move from the cube you are actually holding; setup moves are instructions and are never added to the solve',
+      'Saving a run preserves its real scramble, hold and prefix as the starting case, and preselects the containing method stage',
+      'Used algorithms are named in the solve track: tap the name to fold its moves away, and tap again to show them',
     ]
   },
   '3.2.0': {

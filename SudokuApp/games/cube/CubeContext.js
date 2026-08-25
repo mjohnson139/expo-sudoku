@@ -447,7 +447,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
    * describing a solve that no longer exists.
    */
   const clearSolveById = useCallback((id) => {
-    setSolves((current) => editSolve(current, id, { alg: '', phases: [] }));
+    setSolves((current) => editSolve(current, id, { alg: '', phases: [], algorithmRuns: [] }));
   }, []);
 
   // ——— The algorithm library (docs/cube-methods-plan.md §3.1) ———————————

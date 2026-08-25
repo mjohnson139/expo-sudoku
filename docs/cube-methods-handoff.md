@@ -55,6 +55,11 @@ the words you would have wanted to read.
   `pr-<N>` and comments the QR code, and that build is what the operator tests.
   Holding the PR back leaves them nothing to open. Close the step out with the
   `closeout` skill.
+- **The code session owns the PR.** GitHub CLI is authenticated in these
+  sessions. Push the feature branch, run `gh pr view` to avoid duplicating an
+  existing PR, and, when none exists, create it with `gh pr create --base
+  epic/cube-methods`. Report the PR number and URL, then ask for the device pass.
+  Never hand PR creation to the operator; it is part of the delivery step.
 
 ### Branching
 
@@ -132,7 +137,7 @@ to change casually. Most of it is Cube Flow's; the last block is Step 1's.
   should have to.** Only authored text is stored; the cube itself is a pure
   function of the algorithm.
 - **A solve** is `{ id, scramble, name, method, orientation, alg, phases,
-  savedAt, editedAt }`. `phases` are **markers** — `{ at, label }` — and the
+  algorithmRuns, savedAt, editedAt }`. `phases` are **markers** — `{ at, label }` — and the
   spans and counts are derived every render by `phaseSpans`, never stored.
   `orientation` has three states (`null`, `''`, notation) and `null` is
   "inspecting".
@@ -196,89 +201,96 @@ to change casually. Most of it is Cube Flow's; the last block is Step 1's.
 
 ---
 
-## Next step — Step 3: use or tag an algorithm in a solve
+## Next step — Step 4: catalogue threading, no visible change
 
-Plan **§3.3**, rewritten after the operator accepted Step 2.5. The library and a
-solve become reciprocal: apply a saved algorithm to the open solve, or select a
-run already performed and keep it as a new entry.
+Plan **§3.4**. Isolate the behaviour-neutral signature refactor that lets the
+shipped presets and future user methods travel as one catalogue.
 
 ### Scope
 
-- Add one labelled **Algorithms** control to `CubeSolve`'s transport card. It
-  opens a solve-side sheet with **Save a run from this solve** plus the library
-  picker. Current method · stage assignments sort first; search and unassigned
-  entries remain available.
-- **Apply:** append only `entry.moves` at the solve's live end through
-  `editOpen` + `withMoves`, and visibly play the appended moves through the
-  existing transport. Never prepend `entry.setup`; it describes the case the
-  algorithm expects, not moves the operator performed in this solve.
-- Applying while scrubbed back returns to the live end and appends there. It
-  never inserts into history. Do not gate on automatic case recognition.
-- **Save a run:** arm visible first/last-token selection in `CubeMoveTrack`,
-  refuse a range across a phase boundary, and open the shared
-  `CubeAlgorithmSaveSheet` with the containing method · stage preselected.
-- Store the run's real starting position as `setup` notation (scramble +
-  orientation + solve prefix) and its selected moves as `moves`. Save through
-  `CubeContext.addAlgorithm`; a full library preserves the selection and solve.
-- Keep the solve's moves unchanged when tagging. A saved range may render as a
-  chip and open its entry/workbench, but collapsing presentation is not an edit.
-- Empty library offers the workbench. A full library still permits Apply.
+- Give every helper in `methods.js` an optional catalogue parameter, defaulting
+  to the shipped presets: `findMethod`, `stagesOf`, `methodName`,
+  `sanitizeMethodId`, and `defaultMethod`.
+- Add Beginner LBL to the frozen presets with `Cross`, `F2L basic`, `OLL 2-look`
+  and `PLL 2-look`.
+- Thread the catalogue from `CubeContext` through solve creation, rails, method
+  labels, the new-solve sheet, algorithm assignments and storage sanitization.
+  Storage must sanitize methods before solves.
+- Keep the catalogue a parameter, never mutable module state. Do not start Step
+  5's method builder or persistence UI.
 - Extend the 3.3.0 build note; keep `app.json` at 3.3.0.
 
 ### Files to read first
 
-Read plan §3.3 and §5; `CubeSolve.js` end to end, `CubeMoveTrack.js`,
-`CubeScrubber.js`, `useScramblePlayer.js`, `solve.js`, `solveList.js`,
-`phaseRail.js`, `algorithms.js`, `CubeAlgorithms.js`, `CubeCasePreview.js`, and
-`CubeAlgorithmSaveSheet.js`. The workbench's `setup`/`moves` separation is the
-contract Apply must preserve.
+Read plan §3.4 and §5; `methods.js`, `CubeContext.js`, `favorites.js`,
+`solveList.js`, `phaseRail.js`, `algorithms.js`, `CubeSolve.js`,
+`CubeSolveList.js`, and `CubeNewSolveSheet.js`, plus their tests.
 
 ### Easy to get wrong
 
-1. **Apply writes `moves`, never `setup`.** Setup is an expected starting case;
-   prepending it would manufacture moves the operator did not perform.
-2. **Apply is append-only at the live end.** Insertion under a scrubber cursor
-   changes every later state and marker. Return to the end rather than hiding a
-   new edit contract under a library button.
-3. The appended algorithm must visibly animate from the solve's actual cube.
-   It cannot jump to the result or continually recompute its animation base.
-4. Applying is allowed when the library is full; only creating another entry is
-   refused. Empty/full are different answers in the reciprocal sheet.
-5. Selection is visible and token-bounded. No long press. A cross-stage run is
-   refused, and tagging never mutates the solve's `alg`.
-6. A tagged run's start belongs in `setup`, not only the legacy nine-cell
-   `case`, or the three-face preview and workbench cannot restore it.
-7. All solve writes still go through `editOpen` + `withMoves`; all library
-   creates still go through `addAlgorithm`. Sharing UI is not permission for a
-   shared persistence shortcut.
-8. One transport control and a modal sheet should cost the cube **zero points**.
-   If implementation needs a row, stop and state the measured cost before
-   taking it.
+1. Default parameters preserve every existing caller while the catalogue is
+   threaded. A module-global mutable catalogue makes node tests order-dependent.
+2. Read and sanitize stored methods before sanitizing solves and assignments;
+   doing it in the opposite order silently degrades user method ids to Freeform.
+3. Stage identity remains its label string. This step adds no ids and performs
+   no rename migration.
+4. Beginner LBL is the only visible delta; any builder, edit control or storage
+   writer for user methods belongs to Step 5.
+5. Step 3 established that solve-side picker ordering depends on the same
+   catalogue used to validate assignments. Do not leave it consulting presets
+   while the rest of the app consults the combined catalogue.
 
 ### What must be visible in Expo Go
 
-Apply a saved Sune during a real solve with the pad open and closed; watch every
-move play and remain in the track. Scrub backward and apply again: it returns to
-the end, does not insert, and never writes setup moves. Save a run within one
-phase, see the default assignment and real three-face start, then open it in the
-workbench. Refuse a cross-boundary run and a new save at the cap while Apply
-continues to work. Background during selection and apply playback.
+The new-solve sheet offers Beginner LBL and creates a rail with its four stages.
+Roux, CFOP, Freeform, the algorithm picker and existing saved solves behave
+unchanged. This step adds no row and costs the cube zero points.
 
 ### How to verify
 
-- `npm test` from `SudokuApp/`. Add a pure `tagRun.js` (or equivalent) suite for
-  range/phase/setup derivation, apply-at-end, moves-not-setup, picker ordering,
-  and empty/full behavior. Reuse existing movement suites.
-- Browser screenshots at 320×568, 375×667 and 393×852 in classic and dark cover
-  the transport control, sheet and selection layout—not finger input or native
-  sheet behavior.
-- Device-test animation handoff, pad shown/hidden reachability, scrubbed-back
-  Apply, background/resume, and the complete reciprocal round trip.
+- Run `npm test` from `SudokuApp/`; expand `methods.test.js` and storage/solve
+  suites for explicit catalogues, defaults, unknown ids and sanitize ordering.
+- Browser-check the new-solve sheet and all three preset rails at 320×568 and
+  393×852 in classic and dark.
+- Device-smoke creation and reopening of each preset, then background/resume.
 
 ### Then rewrite this file
 
-Brief **Step 4 — catalogue threading, no visible change** (plan §3.4). Keep that
-signature refactor isolated from Step 5's builder.
+Brief **Step 5 — the method builder** (plan §3.5), including duplicate-to-edit,
+stage rename propagation, ordering and “use for new solves”.
+
+## What Step 3 discovered
+
+### The device pass
+
+**Tested on the final `pr-138` Expo Go build, 2026-08-25, and passed cleanly.**
+The operator accepted the reciprocal solve workflow and the follow-up boundary
+shape on a device. This retires the device-only questions around reaching
+Algorithms with the pad open or closed, applying through the native sheet and
+existing playback handoff, selecting and saving a performed run, and reading a
+named run after the move track wraps.
+
+- The solve-side Algorithms control shares the transport card's existing
+  44-point handle row and the picker is modal, so it costs the cube **zero
+  points** with the pad shown or hidden.
+- A tapped selection is token-bounded and painted in the move track. A second
+  tap derives the selected moves, real setup and containing assignment in the
+  pure `tagRun.js`; a cross-boundary choice is refused without editing the
+  solve.
+- Applying seeks to the live end, then writes only `entry.moves` through
+  `editOpen` and `withMoves`. The growing-algorithm handoff in the existing
+  player visibly animates the appended tokens rather than introducing a second
+  transport.
+- Applied and saved runs now persist a named, end-exclusive `algorithmRuns`
+  annotation beside the solve's unchanged notation. The track draws the name as
+  a boundary; tapping it folds the underlying moves to a chip and tapping again
+  restores them. Applied runs begin expanded so playback remains visible.
+- Empty and full libraries are deliberately asymmetric: empty offers the
+  workbench, full disables only Save a run, and every existing entry remains
+  applicable.
+- Device feedback clarified the expanded tag treatment: the name is the start
+  of one boundary, not a standalone badge. The same accent outline continues
+  across every move in the run and survives a wrapped track.
 
 ## What Step 2.5 discovered
 

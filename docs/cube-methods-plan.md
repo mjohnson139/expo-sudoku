@@ -32,6 +32,10 @@ stage when the current one is demonstrated in real solves.
   workflow publishes its `pr-<N>` preview build, and **prompt the operator to
   test after each step**, against that build. Close the step out with the
   `closeout` skill (`.claude/skills/closeout/`).
+  Code sessions have authenticated `gh`; the session that writes the step must
+  push it and create its own PR against `epic/cube-methods` (after checking for
+  an existing PR with `gh pr view`), then report its number and URL. Creating a
+  PR is not an operator handoff and must never be left for the operator.
 - **The design:** `Cube Methods & Algorithms.dc.html` in the Claude Design
   project `2acc14f2-7f7e-434f-a29d-e0fe29fa876a` ("Expo Sudoku design system"),
   settled 2026-08-16. That project's `design-decisions.md` carries the settled
@@ -632,6 +636,12 @@ algorithm shape, no component-owned library, and no shortcut around `editOpen`,
   as performed. After save, the range may read as an algorithm chip in the
   track, and that chip can open the entry/workbench, but presentation is not a
   move-list edit.
+- **A used algorithm is named in the track without replacing its notation.** A
+  persisted, end-exclusive `algorithmRuns` annotation identifies the range and
+  keeps a name fallback if its library entry is later deleted. The name toggles
+  between a compact chip and the complete underlying moves. A newly applied run
+  starts expanded so its existing transport animation stays visible; folding it
+  later is presentation only and never rewrites `alg`.
 
 #### Pure logic and tests
 
@@ -661,6 +671,32 @@ run and a full library. Background during selection and during apply playback.
 **Device pass required.** Browser input is orbit-only and cannot settle the
 animation handoff, pad/transport reachability, native sheet navigation or resume
 behavior.
+
+**Landed 2026-08-25** (PR #138, merged to `epic/cube-methods`; **device pass
+clean**). The solve transport now opens one Algorithms sheet for both directions:
+saved entries append only their performed moves at the live end and play through
+the existing transport, while a visible token selection can be saved with its
+real starting setup and containing stage assignment. Saved and applied runs keep
+the solve notation intact and add a named, end-exclusive annotation whose accent
+boundary continues across the complete run, including wrapped track rows.
+
+What the final device-tested shape added beyond the original brief:
+
+- **A run name is an annotation over moves, not a replacement for them.** The
+  compact name toggles to the underlying notation and back; a newly applied run
+  begins expanded so its transport animation remains visible.
+- **The label boundary has to encompass the moves it names.** Device feedback on
+  the first preview made a standalone badge read as detached metadata. The final
+  preview extends the same accent outline across every move recovered from the
+  entry's exact setup and move sequence, including across wraps.
+- **Recovery matches setup as well as notation.** Identical move sequences can
+  occur more than once in a solve, so matching only the moves would annotate the
+  wrong occurrence. The pure derivation verifies the run's real starting setup
+  before painting it.
+
+**Layout, in points (§8.6).** The labelled control shares the transport card's
+existing 44-point handle row and the picker is modal, so Step 3 costs the cube
+**zero points** with the pad either shown or hidden.
 
 ### 3.4 Step 4 — methods as a catalogue (behaviour-neutral)
 
@@ -942,10 +978,11 @@ than a brief. The `closeout` skill covers the sequence.
    screen's action row because the header is full at four controls. The
    alternative — dropping a header control to make room — was rejected without
    asking, and Cube Flow's question 7 says the operator is willing to lose one.
-2. **Does a tagged run want to *replace* its moves in the track, or only be
-   marked?** Step 3 says marked: the stored `alg` is untouched and the chip is
-   presentation. A run that collapsed for real would be an edit, and edits to a
-   written solve are a contract this epic does not hold.
+2. **Answered after the Step 3 operator review: does a tagged run replace its
+   moves in the track, or only get marked?** It is a named presentation capsule
+   over untouched stored moves. Tap it to show the exact notation in place and
+   tap again to show the name. The bounded annotation is persisted, but neither
+   view rewrites the solve's `alg`; undo drops an incomplete capsule whole.
 3. **Answered after Step 2.5: can a saved algorithm be applied to a solve?**
    Yes — Step 3 is reciprocal now. Apply appends the entry's `moves` at the live
    end through the solve edit funnel; it never prepends `setup` and never inserts
