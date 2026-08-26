@@ -45,7 +45,7 @@ const NO_MARKS = new Set();
  */
 const CubeWorkbench = ({ navigation, route }) => {
   const { theme } = useAppTheme();
-  const { algorithms, algorithmById, addAlgorithm, editAlgorithmById, yaw, pitch, turnTo, showOtherSide } = useCube();
+  const { methods, algorithms, algorithmById, addAlgorithm, editAlgorithmById, yaw, pitch, turnTo, showOtherSide } = useCube();
   const id = route.params?.id || null;
   const entry = algorithmById(id);
   const initial = useRef(workbenchDraft(algorithms, entry)).current;

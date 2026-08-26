@@ -57,11 +57,11 @@ export { readCubeSave };
  *   that object, so the two failure paths and the happy one agree by
  *   construction.
  */
-export const loadCubeState = async () => {
+export const loadCubeState = async (catalogue) => {
   try {
     const serialized = await AsyncStorage.getItem(CUBE_STORAGE_KEY);
     if (serialized === null) return readCubeSave(null);
-    return readCubeSave(JSON.parse(serialized));
+    return readCubeSave(JSON.parse(serialized), catalogue);
   } catch (error) {
     console.error('Error loading cube state:', error);
     return readCubeSave(null);

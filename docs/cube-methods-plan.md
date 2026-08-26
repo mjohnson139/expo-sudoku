@@ -732,6 +732,15 @@ exists in neither (still `null`), and the sanitizing order over a whole save.
 method, place and move boundaries on the rail, Compare two attempts, open a
 pre-existing solve, cold start. The step passes when nothing is different.
 
+**Landed 2026-08-26** (PR #139, merged to `epic/cube-methods`; **device pass
+clean**). The frozen presets now travel through the app as an explicit
+catalogue rather than mutable module state. The same catalogue validates solve
+methods, rails, comparison ordering, labels, new-solve choices, algorithm
+assignments and whole-save reads. Beginner LBL is the third shipped preset,
+with the four stages named above. The operator accepted the final Expo Go
+preview with no follow-up findings; the step added no row to a cube screen and
+cost the cube zero points.
+
 ### 3.5 Step 5 — the method builder
 
 - **User methods join the save** as a top-level `methods` array of

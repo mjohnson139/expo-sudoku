@@ -201,63 +201,49 @@ to change casually. Most of it is Cube Flow's; the last block is Step 1's.
 
 ---
 
-## Next step — Step 4: catalogue threading, no visible change
+## Next step — Step 5: the method builder
 
-Plan **§3.4**. Isolate the behaviour-neutral signature refactor that lets the
-shipped presets and future user methods travel as one catalogue.
+Plan **§3.5**. Build user-authored methods on top of Step 4's catalogue without mutating the frozen presets.
 
 ### Scope
 
-- Give every helper in `methods.js` an optional catalogue parameter, defaulting
-  to the shipped presets: `findMethod`, `stagesOf`, `methodName`,
-  `sanitizeMethodId`, and `defaultMethod`.
-- Add Beginner LBL to the frozen presets with `Cross`, `F2L basic`, `OLL 2-look`
-  and `PLL 2-look`.
-- Thread the catalogue from `CubeContext` through solve creation, rails, method
-  labels, the new-solve sheet, algorithm assignments and storage sanitization.
-  Storage must sanitize methods before solves.
-- Keep the catalogue a parameter, never mutable module state. Do not start Step
-  5's method builder or persistence UI.
-- Extend the 3.3.0 build note; keep `app.json` at 3.3.0.
-
-### Files to read first
-
-Read plan §3.4 and §5; `methods.js`, `CubeContext.js`, `favorites.js`,
-`solveList.js`, `phaseRail.js`, `algorithms.js`, `CubeSolve.js`,
-`CubeSolveList.js`, and `CubeNewSolveSheet.js`, plus their tests.
-
-### Easy to get wrong
-
-1. Default parameters preserve every existing caller while the catalogue is
-   threaded. A module-global mutable catalogue makes node tests order-dependent.
-2. Read and sanitize stored methods before sanitizing solves and assignments;
-   doing it in the opposite order silently degrades user method ids to Freeform.
-3. Stage identity remains its label string. This step adds no ids and performs
-   no rename migration.
-4. Beginner LBL is the only visible delta; any builder, edit control or storage
-   writer for user methods belongs to Step 5.
-5. Step 3 established that solve-side picker ordering depends on the same
-   catalogue used to validate assignments. Do not leave it consulting presets
-   while the rest of the app consults the combined catalogue.
+- Add a top-level `methods` save collection of `{ id, name, stages, forNewSolves, from, savedAt, editedAt }`; mint ids outside the preset namespace and keep `UNASSIGNED` reserved.
+- Add the pure method collection module and its single `editMethod` funnel. Sanitize user methods before solves and assignments, then expose `PRESETS.concat(userMethods)` through `useMethods()`.
+- Build the settled method screen: name, ordered stages, add stage, explicit reorder controls, and **Use for new solves**. Stage names are unique within a method.
+- Presets open read-only with **Duplicate to edit**. User methods support duplicate, rename and delete; refuse deletion while a solve references the method and explain why.
+- Duplicating deep-copies `stages`, preserves `from`, and produces an independent record.
+- Renaming a stage atomically propagates through matching solve markers and algorithm assignments via `CubeContext`'s single writer.
+- The new-solve sheet includes presets plus user methods whose `forNewSolves` is true. Existing solves retain methods toggled off.
+- Do not start Step 6's stage-to-algorithm navigation or Step 7's cube-state checks.
 
 ### What must be visible in Expo Go
 
-The new-solve sheet offers Beginner LBL and creates a rail with its four stages.
-Roux, CFOP, Freeform, the algorithm picker and existing saved solves behave
-unchanged. This step adds no row and costs the cube zero points.
+A preset can be opened and duplicated, its copy edited and reordered, and the copy enabled or disabled in the new-solve sheet. Existing solves and assignments survive stage renames. The builder adds no row to a cube screen and costs the cube zero points.
 
 ### How to verify
 
-- Run `npm test` from `SudokuApp/`; expand `methods.test.js` and storage/solve
-  suites for explicit catalogues, defaults, unknown ids and sanitize ordering.
-- Browser-check the new-solve sheet and all three preset rails at 320×568 and
-  393×852 in classic and dark.
-- Device-smoke creation and reopening of each preset, then background/resume.
+- Run `npm test` from `SudokuApp/`; cover sanitize/create/edit/duplicate/delete, id collisions, deep copies, unique names, catalogue ordering, save ordering and rename propagation.
+- Browser-check the builder and new-solve sheet at 320×568 and 393×852 in classic and dark.
+- Device-smoke duplicate-to-edit, stage add/rename/delete/reorder, the toggle, deletion refusal, persistence, background/resume and reopening after a stage rename.
 
 ### Then rewrite this file
 
-Brief **Step 5 — the method builder** (plan §3.5), including duplicate-to-edit,
-stage rename propagation, ordering and “use for new solves”.
+Brief **Step 6 — stage → algorithms** (plan §3.6), including assignment edits from both ends, user-method filter chips and empty-stage copy.
+
+## What Step 4 discovered
+
+### The device pass
+
+**Tested on the final `pr-139` Expo Go build, 2026-08-26, and passed cleanly.**
+The operator accepted the catalogue refactor and Beginner LBL preset with no
+follow-up findings. The required Cube Flow regression therefore remains
+unchanged on a real device: preset solve creation and reopening, rails,
+boundaries, comparisons, algorithm assignments, saved solves and resume all
+retain their existing behaviour.
+
+- The catalogue remains an ordinary parameter. `CubeContext` currently supplies the frozen presets as the whole catalogue; Step 5 adds sanitized user methods without changing helper signatures or mutable module state.
+- Beginner LBL is a preset with `Cross`, `F2L basic`, `OLL 2-look` and `PLL 2-look`. It is the only visible delta and costs the cube zero points.
+- Whole-save reads pass the same catalogue to solves and algorithm assignments, pinning the ordering seam Step 5 will use after sanitizing `methods` first.
 
 ## What Step 3 discovered
 

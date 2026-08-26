@@ -15,6 +15,7 @@ const BUILD_NOTES = {
       'Prefer notation? Paste an algorithm remains available from an entry',
       'Search the library by name or by moves — and RUR\' finds R U R\' U\', spaces or no spaces',
       'Filter by method with the chips: a chip only appears once there is something behind it, and it says how many',
+      'Starting a solve now also offers Beginner LBL, with Cross, basic F2L, and two-look last-layer stages',
       'One algorithm can serve more than one stage at once — Roux CMLL and CFOP PLL are two taps, not two entries',
       'An algorithm with nothing assigned to it is still findable, under Unassigned',
       'Notes are for finger tricks and cues, and are never shown while you are solving',

@@ -60,7 +60,7 @@ const CASE_PREVIEW = 56;
  */
 const CubeAlgorithms = ({ navigation }) => {
   const { theme } = useAppTheme();
-  const { algorithms } = useCube();
+  const { algorithms, methods } = useCube();
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState(null);
@@ -69,7 +69,7 @@ const CubeAlgorithms = ({ navigation }) => {
   const border = theme.colors.numberPad.border;
   const surface = theme.colors.numberPad.background;
 
-  const chips = useMemo(() => algorithmFilters(algorithms), [algorithms]);
+  const chips = useMemo(() => algorithmFilters(algorithms, methods), [algorithms, methods]);
   // The chip the screen is holding may have stopped existing under it.
   const active = liveFilter(chips, filter);
 

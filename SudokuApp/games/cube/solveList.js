@@ -182,7 +182,8 @@ export const defaultSolveName = (solves, scramble) => {
 export const createSolve = (
   solves,
   scramble,
-  { name, method = null, savedAt = Date.now() } = {}
+  { name, method = null, savedAt = Date.now() } = {},
+  catalogue
 ) => {
   const key = normalizeAlg(scramble);
   const list = solves || [];
@@ -195,7 +196,7 @@ export const createSolve = (
     id: nextSolveId(list),
     scramble: key,
     name: wanted.length > 0 ? uniqueName(wanted, taken) : defaultSolveName(list, key),
-    method: sanitizeMethodId(method),
+    method: sanitizeMethodId(method, catalogue),
     orientation: null,
     alg: '',
     phases: [],
@@ -669,7 +670,7 @@ const countByLabel = (spans) => {
  * method's order instead of in whichever order the attempts happened to be
  * written.
  */
-const methodOrders = (counted, used) => {
+const methodOrders = (counted, used, catalogue) => {
   const seen = [];
 
   counted.forEach(({ solve }) => {
@@ -678,7 +679,7 @@ const methodOrders = (counted, used) => {
   });
 
   return seen
-    .map((id) => stagesOf(id).filter((stage) => used.has(stage)))
+    .map((id) => stagesOf(id, catalogue).filter((stage) => used.has(stage)))
     .filter((stages) => stages.length > 0);
 };
 
@@ -711,7 +712,7 @@ const methodOrders = (counted, used) => {
  *   fewest. **Nothing is averaged** — a mean over four attempts, one of them
  *   abandoned half way, is a number that lies (plan §8.10).
  */
-export const comparePhases = (solves) => {
+export const comparePhases = (solves, catalogue) => {
   const list = [...(solves || [])].reverse();
 
   const counted = list.map((solve) => ({
@@ -725,7 +726,7 @@ export const comparePhases = (solves) => {
   counted.forEach(({ totals }) => totals.forEach((_value, label) => used.add(label)));
 
   const labels = mergeLabelOrder([
-    ...methodOrders(counted, used),
+    ...methodOrders(counted, used, catalogue),
     ...counted.map(({ totals }) => [...totals.keys()]),
   ]);
 
@@ -855,7 +856,7 @@ const sanitizeOrientation = (raw) => {
  * ways to get one are a clock that was set forward and a file carried between
  * devices, and `describeRecency` already reads a future date as "just now".
  */
-export const sanitizeSolves = (raw) => {
+export const sanitizeSolves = (raw, catalogue) => {
   if (!Array.isArray(raw)) return [];
 
   const clean = [];
@@ -893,7 +894,7 @@ export const sanitizeSolves = (raw) => {
       id,
       scramble,
       name,
-      method: sanitizeMethodId(entry.method),
+      method: sanitizeMethodId(entry.method, catalogue),
       orientation: sanitizeOrientation(entry.orientation),
       alg,
       phases: sanitizePhases(entry.phases, moveCount(alg)),

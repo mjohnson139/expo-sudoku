@@ -6,7 +6,8 @@ import { algorithmStartingCube, searchAlgorithms } from './algorithms';
 import { methodName } from './methods';
 import { libraryState, orderAlgorithmPicker } from './tagRun';
 
-const CubeSolveAlgorithmsSheet = ({ visible, algorithms, method, stage, theme, accent, onClose, onSelectRun, onApply, onCreate }) => {
+const CubeSolveAlgorithmsSheet = ({
+  methods, visible, algorithms, method, stage, theme, accent, onClose, onSelectRun, onApply, onCreate }) => {
   const [query, setQuery] = useState('');
   const state = libraryState(algorithms);
   const entries = useMemo(
@@ -37,7 +38,7 @@ const CubeSolveAlgorithmsSheet = ({ visible, algorithms, method, stage, theme, a
             <CubeCasePreview cube={algorithmStartingCube(entry)} size={54} />
             <View style={styles.copy}><Text style={[styles.name, { color: ink }]}>{entry.name}</Text>
               <Text numberOfLines={1} style={[styles.moves, { color: ink }]}>{entry.moves}</Text>
-              <Text numberOfLines={1} style={[styles.meta, { color: border }]}>{(entry.assignments || []).map((a) => `${methodName(a.method)} · ${a.stage}`).join(' · ') || 'Unassigned'}</Text></View>
+              <Text numberOfLines={1} style={[styles.meta, { color: border }]}>{(entry.assignments || []).map((a) => `${methodName(a.method, methods)} · ${a.stage}`).join(' · ') || 'Unassigned'}</Text></View>
             <TouchableOpacity style={[styles.apply, { backgroundColor: accent }]} onPress={() => onApply(entry)} accessibilityRole="button" accessibilityLabel={`Apply ${entry.name}`}><Text style={styles.applyText}>Apply</Text></TouchableOpacity>
           </View>)}
         </ScrollView>

@@ -69,6 +69,7 @@ const NO_MARKS = new Set();
 const CubeHome = ({ navigation, onExitToHub }) => {
   const { theme } = useAppTheme();
   const {
+    methods,
     scramble,
     saved,
     favorites,
@@ -506,6 +507,7 @@ const CubeHome = ({ navigation, onExitToHub }) => {
         visible={showNewSolve}
         theme={theme}
         accent={CUBE_ACCENT}
+        methods={methods}
         mySolves={mySolves}
         onStart={startSolveWith}
         onClose={() => setShowNewSolve(false)}

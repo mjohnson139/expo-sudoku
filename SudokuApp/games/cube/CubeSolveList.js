@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { methodName } from './methods';
+import { useMethods } from './CubeContext';
 import { describeSolveSize, lastTouched } from './solveList';
 import { describeRecency } from './recency';
 import {
@@ -96,6 +97,7 @@ const CubeSolveList = ({
   onCompare,
   onLibrary,
 }) => {
+  const methods = useMethods();
   const titleColor = theme.colors.title;
   const border = theme.colors.numberPad.border;
 
@@ -133,7 +135,7 @@ const CubeSolveList = ({
             // they are the same value, and a card that labelled every legacy
             // record "Freeform" would be making a claim about them nothing here
             // can support (`methods.js`). No method, no segment.
-            const method = methodName(solve.method);
+            const method = methodName(solve.method, methods);
             const meta = [size, method, when].filter(Boolean).join(' · ');
 
             return (
