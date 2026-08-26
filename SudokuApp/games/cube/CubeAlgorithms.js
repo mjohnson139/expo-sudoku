@@ -17,7 +17,7 @@ import {
   searchAlgorithms,
 } from './algorithms';
 import { CUBE_ACCENT, headerAction, styles as chrome } from './cubeChrome';
-import { ENTRY_ROUTE, WORKBENCH_ROUTE, useCube } from './CubeContext';
+import { ENTRY_ROUTE, METHODS_ROUTE, WORKBENCH_ROUTE, useCube } from './CubeContext';
 
 /** A legible three-face starting cube. Device evidence on PR #133 showed the
  * flat U tile losing the side stickers that distinguish real cases. */
@@ -92,16 +92,26 @@ const CubeAlgorithms = ({ navigation }) => {
     [navigation]
   );
 
-  const headerActions = headerAction({
-    name: 'plus',
-    label: full ? `Library full, ${MAX_ALGORITHMS} algorithms` : 'Write a new algorithm',
-    hint: full
-      ? 'Delete an algorithm before writing another'
-      : 'Opens a solved cube where turns write the algorithm',
-    onPress: full ? undefined : addEntry,
-    color: full ? border : titleColor,
-    border,
-  });
+  const headerActions = [
+    headerAction({
+      name: 'plus',
+      label: full ? `Library full, ${MAX_ALGORITHMS} algorithms` : 'Write a new algorithm',
+      hint: full
+        ? 'Delete an algorithm before writing another'
+        : 'Opens a solved cube where turns write the algorithm',
+      onPress: full ? undefined : addEntry,
+      color: full ? border : titleColor,
+      border,
+    }),
+    headerAction({
+      name: 'format-list-numbered',
+      label: 'Methods',
+      hint: 'Opens the method catalogue and builder',
+      onPress: () => navigation.navigate(METHODS_ROUTE),
+      color: titleColor,
+      border,
+    }),
+  ];
 
   return (
     <View style={[chrome.container, { backgroundColor: theme.colors.background }]}>

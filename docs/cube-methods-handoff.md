@@ -201,34 +201,42 @@ to change casually. Most of it is Cube Flow's; the last block is Step 1's.
 
 ---
 
-## Next step — Step 5: the method builder
+## Next step — Step 6: stage → algorithms
 
-Plan **§3.5**. Build user-authored methods on top of Step 4's catalogue without mutating the frozen presets.
+Plan **§3.6**. Make every method stage lead to the algorithms assigned to it, and make the same assignment editable from both the method and library ends.
 
 ### Scope
 
-- Add a top-level `methods` save collection of `{ id, name, stages, forNewSolves, from, savedAt, editedAt }`; mint ids outside the preset namespace and keep `UNASSIGNED` reserved.
-- Add the pure method collection module and its single `editMethod` funnel. Sanitize user methods before solves and assignments, then expose `PRESETS.concat(userMethods)` through `useMethods()`.
-- Build the settled method screen: name, ordered stages, add stage, explicit reorder controls, and **Use for new solves**. Stage names are unique within a method.
-- Presets open read-only with **Duplicate to edit**. User methods support duplicate, rename and delete; refuse deletion while a solve references the method and explain why.
-- Duplicating deep-copies `stages`, preserves `from`, and produces an independent record.
-- Renaming a stage atomically propagates through matching solve markers and algorithm assignments via `CubeContext`'s single writer.
-- The new-solve sheet includes presets plus user methods whose `forNewSolves` is true. Existing solves retain methods toggled off.
-- Do not start Step 6's stage-to-algorithm navigation or Step 7's cube-state checks.
+- A stage row opens a filtered algorithm list for that exact `{ method, stage }`. It shows the number linked, or the settled empty copy **no algorithms · intuitive**.
+- From the stage list, assign or unassign existing library entries and create a new algorithm already assigned to the stage. Both directions must call the existing `editAlgorithm` funnel; do not introduce a second assignments writer.
+- Keep assignment editing on the algorithm-entry screen, now covering user methods as well as presets. User-method filter chips must appear and disappear safely through the existing `algorithmFilters` / `liveFilter` derivation.
+- A renamed stage already propagates its assignments atomically in Step 5; do not duplicate or work around that rule in either screen.
+- Do not start Step 7's cube-state predicates or Step 8's journey.
+
+### Files to read
+
+Read `userMethods.js`, `algorithms.js`, `CubeMethods.js`, `CubeAlgorithms.js`, `CubeAlgorithmEntry.js`, `CubeAlgorithmSaveSheet.js`, and the catalogue/state wiring in `CubeContext.js`. Re-read plan §3.6 and §5's edit-funnel and label identity traps.
 
 ### What must be visible in Expo Go
 
-A preset can be opened and duplicated, its copy edited and reordered, and the copy enabled or disabled in the new-solve sheet. Existing solves and assignments survive stage renames. The builder adds no row to a cube screen and costs the cube zero points.
+Every preset and user-method stage says how many algorithms it has and opens its own list. An empty stage explains that it is intuitive; an assigned stage can add, remove, open, and create entries without losing its filter. The builder still adds no row to a cube screen and costs the cube zero points.
 
 ### How to verify
 
-- Run `npm test` from `SudokuApp/`; cover sanitize/create/edit/duplicate/delete, id collisions, deep copies, unique names, catalogue ordering, save ordering and rename propagation.
-- Browser-check the builder and new-solve sheet at 320×568 and 393×852 in classic and dark.
-- Device-smoke duplicate-to-edit, stage add/rename/delete/reorder, the toggle, deletion refusal, persistence, background/resume and reopening after a stage rename.
+- Run `npm test` from `SudokuApp/`; cover filtering by exact stage, toggling from both ends, pre-assigned creation, empty-stage copy, user-method chips, and the disappearing-active-chip fallback.
+- Browser-check at 320×568 and 393×852 in classic and dark, especially long method/stage names and a chip row wider than the phone.
+- Device-smoke both assignment directions, create-from-stage, back navigation, persistence, background/resume, and stage rename followed by reopening the stage list.
 
 ### Then rewrite this file
 
-Brief **Step 6 — stage → algorithms** (plan §3.6), including assignment edits from both ends, user-method filter chips and empty-stage copy.
+Brief **Step 7 — exit-state checks** (plan §3.7), including preset-only predicates, replay at marker indices, and the unverified treatment for user stages.
+
+## What Step 5 discovered
+
+- User methods are sanitized before solves and algorithm assignments, then appended after frozen presets. Picker visibility is a projection only: toggling a user method off never removes it from the catalogue that validates existing work.
+- Stage identity remains its label. Renaming therefore updates the user method, matching solve markers and matching algorithm assignments as one context action; accepting duplicate stage labels would make one rail position unreachable.
+- Explicit up/down controls make ordering usable on native and web without introducing a gesture dependency. The builder is a route from the library, adds no row to a screen containing the cube, and costs the cube zero points.
+- Device feel, persistence and resume still require the PR preview pass.
 
 ## What Step 4 discovered
 

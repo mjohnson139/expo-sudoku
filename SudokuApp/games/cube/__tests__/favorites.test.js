@@ -145,6 +145,7 @@ describe('readCubeSave', () => {
       favorites: [{ alg: OTHER, savedAt: 7 }],
       solves: [UPGRADED],
       algorithms: [ENTRY],
+      methods: [],
       workspace: { solveId: 's1', view: null },
     });
   });
@@ -159,6 +160,7 @@ describe('readCubeSave', () => {
       favorites: [],
       solves: [],
       algorithms: [],
+      methods: [],
       workspace: { solveId: null, view: null },
     };
     expect(readCubeSave(null)).toEqual(empty);
@@ -179,6 +181,7 @@ describe('readCubeSave', () => {
         favorites: [{ alg: ALG, savedAt: 3 }],
         solves: [],
         algorithms: [],
+        methods: [],
         workspace: { solveId: null, view: null },
       });
     });
