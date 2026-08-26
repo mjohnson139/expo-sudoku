@@ -232,6 +232,15 @@ Brief **Step 6 — stage → algorithms** (plan §3.6), including assignment edi
 
 ## What Step 4 discovered
 
+### The device pass
+
+**Tested on the final `pr-139` Expo Go build, 2026-08-26, and passed cleanly.**
+The operator accepted the catalogue refactor and Beginner LBL preset with no
+follow-up findings. The required Cube Flow regression therefore remains
+unchanged on a real device: preset solve creation and reopening, rails,
+boundaries, comparisons, algorithm assignments, saved solves and resume all
+retain their existing behaviour.
+
 - The catalogue remains an ordinary parameter. `CubeContext` currently supplies the frozen presets as the whole catalogue; Step 5 adds sanitized user methods without changing helper signatures or mutable module state.
 - Beginner LBL is a preset with `Cross`, `F2L basic`, `OLL 2-look` and `PLL 2-look`. It is the only visible delta and costs the cube zero points.
 - Whole-save reads pass the same catalogue to solves and algorithm assignments, pinning the ordering seam Step 5 will use after sanitizing `methods` first.
