@@ -1,5 +1,10 @@
-import { UNASSIGNED } from './algorithms';
 import { METHODS } from './methods';
+
+// Kept in sync with algorithms.js's public filter id without importing the
+// algorithm collection back into the method collection. Both pure modules are
+// imported while CubeContext initializes; making them import one another turns
+// a reserved string into a module cycle on native.
+const UNASSIGNED = 'unassigned';
 
 export const MAX_USER_METHODS = 30;
 export const MAX_METHOD_NAME = 40;
@@ -112,6 +117,14 @@ export const renameStageReferences = ({ methods, solves, algorithms }, methodId,
   return {
     methods: nextMethods,
     solves: (solves || []).map((solve) => solve.method !== methodId ? solve : { ...solve, phases: (solve.phases || []).map((phase) => phase.label === from ? { ...phase, label: stage } : phase), editedAt }),
-    algorithms: (algorithms || []).map((algorithm) => ({ ...algorithm, assignments: (algorithm.assignments || []).map((assignment) => assignment.method === methodId && assignment.stage === from ? { ...assignment, stage } : assignment) })),
+    algorithms: (algorithms || []).map((algorithm) => {
+      const assignments = (algorithm.assignments || []).map((assignment) =>
+        assignment.method === methodId && assignment.stage === from
+          ? { ...assignment, stage }
+          : assignment
+      );
+      const changed = assignments.some((assignment, index) => assignment !== algorithm.assignments[index]);
+      return changed ? { ...algorithm, assignments, editedAt } : algorithm;
+    }),
   };
 };

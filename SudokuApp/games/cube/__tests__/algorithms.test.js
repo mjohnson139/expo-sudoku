@@ -35,8 +35,8 @@ const SUNE = "R U R' U R U2 R'";
 const TPERM = "R U R' U' R' F R2 U' R' U' R U R' F'";
 
 /** One entry, made the way the screen makes them. */
-const make = (list = [], options = {}) =>
-  createAlgorithm(list, { moves: SUNE, savedAt: 1, ...options });
+const make = (list = [], options = {}, catalogue) =>
+  createAlgorithm(list, { moves: SUNE, savedAt: 1, ...options }, catalogue);
 
 /** A library of `n` entries, each with distinct moves so nothing collides. */
 const library = (n) => {
@@ -242,6 +242,19 @@ describe('describeAssignment', () => {
     expect(describeAssignment({ method: 'roux', stage: 'CMLL' })).toBe('Roux · CMLL');
     expect(describeAssignment({ method: 'petrus', stage: 'Block' })).toBe('');
   });
+
+  it('names assignments from an injected user-method catalogue', () => {
+    const catalogue = [
+      ...METHODS,
+      { id: 'user-method-1', name: 'Roux 2-look', stages: ['CMLL 2-look'] },
+    ];
+    expect(
+      describeAssignment(
+        { method: 'user-method-1', stage: 'CMLL 2-look' },
+        catalogue
+      )
+    ).toBe('Roux 2-look · CMLL 2-look');
+  });
 });
 
 describe('editAlgorithm — the one edit funnel', () => {
@@ -266,6 +279,24 @@ describe('editAlgorithm — the one edit funnel', () => {
 
   it('normalizes the moves it does take', () => {
     expect(editAlgorithm(one, 'a1', { moves: "  R   U " }, { editedAt: 9 })[0].moves).toBe('R U');
+  });
+
+  it('detects assignment edits against an injected user-method catalogue', () => {
+    const catalogue = [
+      ...METHODS,
+      { id: 'user-method-1', name: 'Roux 2-look', stages: ['CMLL', 'LSE'] },
+    ];
+    const assigned = make([], {
+      assignments: [{ method: 'user-method-1', stage: 'CMLL' }],
+    }, catalogue).algorithms;
+    const next = editAlgorithm(
+      assigned,
+      'a1',
+      { assignments: [{ method: 'user-method-1', stage: 'LSE' }] },
+      { editedAt: 9, catalogue }
+    );
+    expect(next[0].assignments).toEqual([{ method: 'user-method-1', stage: 'LSE' }]);
+    expect(next[0].editedAt).toBe(9);
   });
 
   it('keeps the current name when the patch clears it', () => {

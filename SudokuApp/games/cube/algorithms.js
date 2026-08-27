@@ -375,11 +375,15 @@ export const createAlgorithm = (
 /** Whether a sanitized patch would actually change the entry. `assignments` is
  *  the only field that is not a scalar, and comparing it by its rendered form is
  *  enough: the sanitizer has already put both sides in the same shape. */
-const changesAnything = (entry, next) =>
+const changesAnything = (entry, next, catalogue) =>
   Object.keys(next).some((key) => {
     if (key !== 'assignments') return entry[key] !== next[key];
-    const before = (entry.assignments || []).map((assignment) => describeAssignment(assignment)).join('\n');
-    return before !== next.assignments.map((assignment) => describeAssignment(assignment)).join('\n');
+    const before = (entry.assignments || [])
+      .map((assignment) => describeAssignment(assignment, catalogue))
+      .join('\n');
+    return before !== next.assignments
+      .map((assignment) => describeAssignment(assignment, catalogue))
+      .join('\n');
   });
 
 /**
@@ -446,7 +450,7 @@ export const editAlgorithm = (algorithms, id, patch, { editedAt = Date.now(), ca
   if ('notes' in fields) next.notes = normalizeNotes(fields.notes);
   if ('case' in fields) next.case = sanitizeCase(fields.case);
 
-  if (!changesAnything(entry, next)) return list;
+  if (!changesAnything(entry, next, catalogue)) return list;
 
   return list.map((one) => (one.id === id ? { ...one, ...next, editedAt } : one));
 };

@@ -211,7 +211,13 @@ const CubeAlgorithms = ({ navigation }) => {
           keyboardShouldPersistTaps="handled"
         >
           {shown.map((entry) => {
-            const tags = entry.assignments.map(describeAssignment).filter(Boolean);
+            // Pass the catalogue explicitly. Passing `describeAssignment`
+            // directly to `map` makes the array index its second argument;
+            // with two assignments that index is `1`, not a catalogue, and the
+            // native screen throws while opening the library.
+            const tags = entry.assignments
+              .map((assignment) => describeAssignment(assignment, methods))
+              .filter(Boolean);
             // The preview itself is silent and the case is said
             // here instead, in the row's own label — one stop on the screen
             // reader rather than two, and never a colour on its own.

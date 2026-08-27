@@ -455,7 +455,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
    */
   const clearSolveById = useCallback((id) => {
     setSolves((current) => editSolve(current, id, { alg: '', phases: [], algorithmRuns: [] }));
-  }, [methods]);
+  }, []);
 
   // ——— The algorithm library (docs/cube-methods-plan.md §3.1) ———————————
 

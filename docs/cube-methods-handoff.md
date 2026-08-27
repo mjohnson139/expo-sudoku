@@ -233,6 +233,12 @@ Brief **Step 7 — exit-state checks** (plan §3.7), including preset-only predi
 
 ## What Step 5 discovered
 
+- **The first device pass found the library blanking on open when an entry had
+  multiple assignments.** `entry.assignments.map(describeAssignment)` was
+  accidentally passing the array index as `describeAssignment`'s catalogue
+  argument; index 1 then reached `findMethod` as a number and threw during the
+  native render. The library now closes over the real catalogue explicitly,
+  and the assignment edit comparison does the same for user methods.
 - User methods are sanitized before solves and algorithm assignments, then appended after frozen presets. Picker visibility is a projection only: toggling a user method off never removes it from the catalogue that validates existing work.
 - Stage identity remains its label. Renaming therefore updates the user method, matching solve markers and matching algorithm assignments as one context action; accepting duplicate stage labels would make one rail position unreachable.
 - Explicit up/down controls make ordering usable on native and web without introducing a gesture dependency. The builder is a route from the library, adds no row to a screen containing the cube, and costs the cube zero points.
