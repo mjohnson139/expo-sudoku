@@ -77,8 +77,11 @@ const CubeNewSolveSheet = ({ visible, theme, accent, methods, mySolves, onStart,
 
   /** One method to choose. `id` is null for Freeform, which is a real answer and
    *  not the absence of one — so it is a row like the others. */
-  const choice = (id, name) => {
+  const choice = (id, name, methodStages = []) => {
     const current = picked === id;
+    const summary = methodStages.length > 0
+      ? `${methodStages.length} stages · ${methodStages.join(' · ')}`
+      : FREEFORM_BLURB;
     return (
       <TouchableOpacity
         key={id || 'freeform'}
@@ -93,9 +96,19 @@ const CubeNewSolveSheet = ({ visible, theme, accent, methods, mySolves, onStart,
         }
         accessibilityState={{ selected: current, checked: current }}
       >
-        <Text style={[styles.choiceText, { color: current ? accent : titleColor }]}>
-          {name}
-        </Text>
+        <View style={styles.choiceCopy}>
+          <Text style={[styles.choiceText, { color: current ? accent : titleColor }]}>
+            {name}
+          </Text>
+          <Text style={[styles.choiceSummary, { color: titleColor }]} numberOfLines={1}>
+            {summary}
+          </Text>
+        </View>
+        <MaterialCommunityIcons
+          name={current ? 'radiobox-marked' : 'radiobox-blank'}
+          size={21}
+          color={current ? accent : border}
+        />
       </TouchableOpacity>
     );
   };
@@ -118,10 +131,15 @@ const CubeNewSolveSheet = ({ visible, theme, accent, methods, mySolves, onStart,
             Which method are you drilling?
           </Text>
 
-          <View style={styles.choices} accessibilityRole="radiogroup">
-            {availableMethods.map((method) => choice(method.id, method.name))}
+          <ScrollView
+            style={styles.choices}
+            contentContainerStyle={styles.choicesBody}
+            showsVerticalScrollIndicator={false}
+            accessibilityRole="radiogroup"
+          >
+            {availableMethods.map((method) => choice(method.id, method.name, method.stages))}
             {choice(null, FREEFORM_NAME)}
-          </View>
+          </ScrollView>
 
           {/* Fixed height, so picking a four-stage method and then Freeform does
               not resize the sheet under the thumb that is about to press Start
@@ -203,29 +221,36 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   choices: {
-    flexDirection: 'row',
-    gap: 6,
+    maxHeight: 208,
   },
-  // Even thirds, so the three read as one control rather than as three buttons
-  // that happen to be adjacent.
-  // The pick is carried by **colour alone**: the border is 2 on all three
-  // whether picked or not, for the reason `solveCards.js` gives about the card —
-  // a border that changes width moves everything beside it, and here that would
-  // be the other two choices twitching as the thumb moved between them.
+  choicesBody: {
+    gap: 5,
+  },
+  // A vertical list keeps every method name readable and stays usable as user
+  // methods join the three presets. The bounded scroll keeps the Start action
+  // reachable on short phones.
   choice: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-    minWidth: 0,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 2,
     borderRadius: 10,
-    paddingVertical: 9,
+    paddingVertical: 8,
+    paddingHorizontal: 11,
+    minHeight: 48,
+  },
+  choiceCopy: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
   },
   choiceText: {
     fontSize: 14,
     fontWeight: '700',
+  },
+  choiceSummary: {
+    fontSize: 11,
+    opacity: 0.6,
+    marginTop: 2,
   },
   stages: {
     height: 108,
