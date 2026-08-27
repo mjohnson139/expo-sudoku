@@ -71,9 +71,7 @@ const CubeNewSolveSheet = ({ visible, theme, accent, methods, onStart, onClose }
         }
       >
         <View style={styles.choiceCopy}>
-          <Text style={[styles.choiceText, { color: titleColor }]}> 
-            {name}
-          </Text>
+          <Text style={[styles.choiceText, { color: titleColor }]}>{name}</Text>
           <Text style={[styles.choiceSummary, { color: titleColor }]} numberOfLines={1}>
             {summary}
           </Text>
@@ -167,8 +165,8 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   // A vertical list keeps every method name readable and stays usable as user
-  // methods join the three presets. The bounded scroll keeps the Start action
-  // reachable on short phones.
+  // methods join the three presets. The bounded scroll keeps the list and close
+  // action reachable on short phones.
   choice: {
     flexDirection: 'row',
     alignItems: 'center',
