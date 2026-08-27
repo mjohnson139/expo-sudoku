@@ -17,7 +17,7 @@ import {
   searchAlgorithms,
 } from './algorithms';
 import { CUBE_ACCENT, headerAction, styles as chrome } from './cubeChrome';
-import { ENTRY_ROUTE, WORKBENCH_ROUTE, useCube } from './CubeContext';
+import { ENTRY_ROUTE, METHODS_ROUTE, WORKBENCH_ROUTE, useCube } from './CubeContext';
 
 /** A legible three-face starting cube. Device evidence on PR #133 showed the
  * flat U tile losing the side stickers that distinguish real cases. */
@@ -92,16 +92,26 @@ const CubeAlgorithms = ({ navigation }) => {
     [navigation]
   );
 
-  const headerActions = headerAction({
-    name: 'plus',
-    label: full ? `Library full, ${MAX_ALGORITHMS} algorithms` : 'Write a new algorithm',
-    hint: full
-      ? 'Delete an algorithm before writing another'
-      : 'Opens a solved cube where turns write the algorithm',
-    onPress: full ? undefined : addEntry,
-    color: full ? border : titleColor,
-    border,
-  });
+  const headerActions = [
+    headerAction({
+      name: 'plus',
+      label: full ? `Library full, ${MAX_ALGORITHMS} algorithms` : 'Write a new algorithm',
+      hint: full
+        ? 'Delete an algorithm before writing another'
+        : 'Opens a solved cube where turns write the algorithm',
+      onPress: full ? undefined : addEntry,
+      color: full ? border : titleColor,
+      border,
+    }),
+    headerAction({
+      name: 'format-list-numbered',
+      label: 'Methods',
+      hint: 'Opens the method catalogue and builder',
+      onPress: () => navigation.navigate(METHODS_ROUTE),
+      color: titleColor,
+      border,
+    }),
+  ];
 
   return (
     <View style={[chrome.container, { backgroundColor: theme.colors.background }]}>
@@ -201,7 +211,13 @@ const CubeAlgorithms = ({ navigation }) => {
           keyboardShouldPersistTaps="handled"
         >
           {shown.map((entry) => {
-            const tags = entry.assignments.map(describeAssignment).filter(Boolean);
+            // Pass the catalogue explicitly. Passing `describeAssignment`
+            // directly to `map` makes the array index its second argument;
+            // with two assignments that index is `1`, not a catalogue, and the
+            // native screen throws while opening the library.
+            const tags = entry.assignments
+              .map((assignment) => describeAssignment(assignment, methods))
+              .filter(Boolean);
             // The preview itself is silent and the case is said
             // here instead, in the row's own label — one stop on the screen
             // reader rather than two, and never a colour on its own.

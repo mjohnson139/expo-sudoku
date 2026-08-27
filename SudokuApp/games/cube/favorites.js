@@ -15,6 +15,7 @@
 import { sanitizeAlgorithms } from './algorithms';
 import { isValidAlg, normalizeAlg } from './moves';
 import { sanitizeSolves, sanitizeWorkspace } from './solveList';
+import { methodCatalogue, sanitizeUserMethods } from './userMethods';
 
 /** Enough to keep a practice session's worth without the list becoming an
  *  archive nobody scrolls. Oldest fall off the end. */
@@ -99,6 +100,7 @@ const EMPTY_SAVE = () => ({
   favorites: [],
   solves: [],
   algorithms: [],
+  methods: [],
   workspace: { solveId: null, view: null },
 });
 
@@ -142,14 +144,16 @@ export const readCubeSave = (raw, catalogue) => {
   const savedScramble = normalizeAlg(raw.scramble);
   const scramble =
     savedScramble.length > 0 && isValidAlg(savedScramble) ? savedScramble : '';
-  // User methods will be sanitized here before these dependent collections in Step 5.
-  const solves = sanitizeSolves(raw.solves, catalogue);
+  const methods = sanitizeUserMethods(raw.methods, catalogue);
+  const fullCatalogue = methodCatalogue(methods, catalogue);
+  const solves = sanitizeSolves(raw.solves, fullCatalogue);
 
   return {
     scramble,
     favorites: sanitizeFavorites(raw.favorites),
     solves,
-    algorithms: sanitizeAlgorithms(raw.algorithms, catalogue),
+    algorithms: sanitizeAlgorithms(raw.algorithms, fullCatalogue),
+    methods,
     workspace: sanitizeWorkspace(raw.workspace, { solves, scramble }),
   };
 };

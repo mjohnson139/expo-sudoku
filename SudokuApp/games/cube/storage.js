@@ -85,7 +85,7 @@ const sanitizeSavedView = (view) =>
  * left it, where the scrub position and the turn speed are still not.
  */
 export const saveCubeState = debounce(
-  async ({ scramble, favorites, solves, algorithms, workspace }) => {
+  async ({ scramble, favorites, solves, algorithms, methods, workspace }) => {
     try {
       await AsyncStorage.setItem(
         CUBE_STORAGE_KEY,
@@ -99,6 +99,7 @@ export const saveCubeState = debounce(
           // change together — tagging a run writes both — and because there is
           // exactly one debounced writer for everything the operator authored.
           algorithms: algorithms || [],
+          methods: methods || [],
           workspace: {
             // **No `solving` any more** (docs/cube-flow-plan.md §3.2). The solve
             // is a route, and the id is written only while that route is on the

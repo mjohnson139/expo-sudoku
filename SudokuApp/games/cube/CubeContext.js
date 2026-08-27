@@ -10,6 +10,7 @@ import { cubeFromAlg, solvedCube } from './cubeState';
 import { DEFAULT_PITCH, DEFAULT_YAW, wrapAngle } from './geometry';
 import { normalizeAlg } from './moves';
 import { METHODS } from './methods';
+import { addMethodStage, duplicateMethod, editMethod, methodCatalogue, removeMethod, renameStageReferences } from './userMethods';
 import { randomScramble } from './scramble';
 import {
   createSolve,
@@ -88,9 +89,11 @@ export const SOLVE_ROUTE = 'solve';
 export const LIBRARY_ROUTE = 'algorithms';
 export const ENTRY_ROUTE = 'algorithm';
 export const WORKBENCH_ROUTE = 'workbench';
+export const METHODS_ROUTE = 'methods';
 
 export const CubeProvider = ({ children, fallback = null }) => {
-  const methods = METHODS;
+  const [userMethods, setUserMethods] = useState([]);
+  const methods = useMemo(() => methodCatalogue(userMethods, METHODS), [userMethods]);
   // Hydration gate. Until the saved scramble is read there is nothing honest to
   // draw: generating one immediately would flash a scramble the player never
   // asked for and then replace it with theirs. It also gates the *writer* —
@@ -188,6 +191,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
       setFavorites(saved.favorites);
       setSolves(saved.solves);
       setAlgorithms(saved.algorithms);
+      setUserMethods(saved.methods);
       // First ever visit: there should be a cube to look at, not an empty screen
       // with a button on it.
       const alg = saved.scramble || randomScramble();
@@ -231,9 +235,10 @@ export const CubeProvider = ({ children, fallback = null }) => {
       favorites,
       solves,
       algorithms,
+      methods: userMethods,
       workspace: { solveId: solveOpen ? openId : null, view: { yaw, pitch } },
     });
-  }, [hydrated, scramble, favorites, solves, algorithms, solveOpen, openId, yaw, pitch]);
+  }, [hydrated, scramble, favorites, solves, algorithms, userMethods, solveOpen, openId, yaw, pitch]);
 
   // Leaving for the hub unmounts this provider, and a debounced write that has
   // not fired yet is a write that never happens. **It belongs to the provider's
@@ -376,7 +381,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
       setOpenId(made.id);
       return made;
     },
-    [solves, scrambleKey]
+    [solves, scrambleKey, methods]
   );
 
   /**
@@ -475,7 +480,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
       return grown;
     });
     return made;
-  }, []);
+  }, [methods]);
 
   /**
    * **The library's one edit funnel** (plan §5), and the mirror of `editOpen`.
@@ -492,7 +497,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
    */
   const editAlgorithmById = useCallback((id, patch) => {
     setAlgorithms((current) => editAlgorithm(current, id, patch, { catalogue: methods }));
-  }, []);
+  }, [methods]);
 
   /** Forget an entry. Unlike a solve there is nothing to move on to: the library
    *  is one list with no notion of which entry is open, so the screen that
@@ -505,6 +510,29 @@ export const CubeProvider = ({ children, fallback = null }) => {
    *  because the entry screen stays mounted under nothing and the library stays
    *  mounted under it. */
   const algorithmById = useCallback((id) => findAlgorithm(algorithms, id), [algorithms]);
+
+  const duplicateMethodById = useCallback((id) => {
+    const source = methods.find((method) => method.id === id);
+    let made = null;
+    setUserMethods((current) => {
+      const result = duplicateMethod(current, source);
+      made = result.method;
+      return result.methods;
+    });
+    return made;
+  }, [methods]);
+
+  const editMethodById = useCallback((id, patch) => setUserMethods((current) => editMethod(current, id, patch)), []);
+  const addMethodStageById = useCallback((id, name) => setUserMethods((current) => addMethodStage(current, id, name)), []);
+  const renameMethodStage = useCallback((id, from, to) => {
+    const changed = renameStageReferences({ methods: userMethods, solves, algorithms }, id, from, to);
+    setUserMethods(changed.methods); setSolves(changed.solves); setAlgorithms(changed.algorithms);
+  }, [userMethods, solves, algorithms]);
+  const deleteMethodById = useCallback((id) => {
+    const result = removeMethod(userMethods, id, solves);
+    if (!result.reason) setUserMethods(result.methods);
+    return result.reason;
+  }, [userMethods, solves]);
 
   // ——— The view (docs/cube-plan.md §7.1) ————————————————————————————————
 
@@ -580,6 +608,12 @@ export const CubeProvider = ({ children, fallback = null }) => {
       editAlgorithmById,
       deleteAlgorithm,
       algorithmById,
+      userMethods,
+      duplicateMethodById,
+      editMethodById,
+      addMethodStageById,
+      renameMethodStage,
+      deleteMethodById,
       setSolveOpen,
       turnTo,
       resetView,
@@ -618,6 +652,12 @@ export const CubeProvider = ({ children, fallback = null }) => {
       editAlgorithmById,
       deleteAlgorithm,
       algorithmById,
+      userMethods,
+      duplicateMethodById,
+      editMethodById,
+      addMethodStageById,
+      renameMethodStage,
+      deleteMethodById,
       turnTo,
       resetView,
       showOtherSide,
