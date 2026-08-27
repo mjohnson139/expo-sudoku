@@ -96,7 +96,7 @@ const CubeHome = ({ navigation, onExitToHub }) => {
   const [showFavorites, setShowFavorites] = useState(false);
   const [showCompare, setShowCompare] = useState(false);
   // Step 4's sheet: `+ New solve` opens this rather than creating a solve, and
-  // `Start solve` is what creates and pushes.
+  // tapping one method row creates and pushes.
   const [showNewSolve, setShowNewSolve] = useState(false);
   // The solve a long-press opened the menu for, and the one being renamed —
   // separately, because the two modals are opened one at a time rather than
@@ -227,7 +227,7 @@ const CubeHome = ({ navigation, onExitToHub }) => {
     setShowNewSolve(true);
   }, [pause]);
 
-  /** `Start solve` — create with the method that was picked, and push.
+  /** A method row — create with that method and push.
    *  `startNewSolve` returns null when there is no scramble to write one
    *  against, and then there is nothing to push to. */
   const startSolveWith = useCallback(
@@ -508,7 +508,6 @@ const CubeHome = ({ navigation, onExitToHub }) => {
         theme={theme}
         accent={CUBE_ACCENT}
         methods={methods}
-        mySolves={mySolves}
         onStart={startSolveWith}
         onClose={() => setShowNewSolve(false)}
       />
