@@ -1,6 +1,6 @@
 import { METHODS } from '../methods';
 import {
-  duplicateMethod, editMethod, methodCatalogue, methodsForNewSolves,
+  addMethodStage, duplicateMethod, editMethod, methodCatalogue, methodsForNewSolves,
   nextMethodId, removeMethod, renameStageReferences, sanitizeUserMethods,
 } from '../userMethods';
 
@@ -26,6 +26,14 @@ describe('user methods', () => {
     expect(renamed[0].stages).toEqual(['Cross', 'OLL']);
     expect(renamed[0].forNewSolves).toBe(false);
     expect(renamed[0].editedAt).toBe(9);
+  });
+
+  it('adds only a non-empty, unique named stage', () => {
+    const made = duplicateMethod([], METHODS[0], 1).method;
+    const added = addMethodStage([made], made.id, '  EO then LR  ', 4);
+    expect(added[0].stages.at(-1)).toBe('EO then LR');
+    expect(addMethodStage(added, made.id, 'eo THEN lr', 5)).toBe(added);
+    expect(addMethodStage(added, made.id, '   ', 5)).toBe(added);
   });
 
   it('sanitizes independently, then appends users after frozen presets', () => {

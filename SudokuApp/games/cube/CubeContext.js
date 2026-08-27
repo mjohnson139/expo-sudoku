@@ -10,7 +10,7 @@ import { cubeFromAlg, solvedCube } from './cubeState';
 import { DEFAULT_PITCH, DEFAULT_YAW, wrapAngle } from './geometry';
 import { normalizeAlg } from './moves';
 import { METHODS } from './methods';
-import { duplicateMethod, editMethod, methodCatalogue, removeMethod, renameStageReferences } from './userMethods';
+import { addMethodStage, duplicateMethod, editMethod, methodCatalogue, removeMethod, renameStageReferences } from './userMethods';
 import { randomScramble } from './scramble';
 import {
   createSolve,
@@ -523,6 +523,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
   }, [methods]);
 
   const editMethodById = useCallback((id, patch) => setUserMethods((current) => editMethod(current, id, patch)), []);
+  const addMethodStageById = useCallback((id, name) => setUserMethods((current) => addMethodStage(current, id, name)), []);
   const renameMethodStage = useCallback((id, from, to) => {
     const changed = renameStageReferences({ methods: userMethods, solves, algorithms }, id, from, to);
     setUserMethods(changed.methods); setSolves(changed.solves); setAlgorithms(changed.algorithms);
@@ -610,6 +611,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
       userMethods,
       duplicateMethodById,
       editMethodById,
+      addMethodStageById,
       renameMethodStage,
       deleteMethodById,
       setSolveOpen,
@@ -653,6 +655,7 @@ export const CubeProvider = ({ children, fallback = null }) => {
       userMethods,
       duplicateMethodById,
       editMethodById,
+      addMethodStageById,
       renameMethodStage,
       deleteMethodById,
       turnTo,

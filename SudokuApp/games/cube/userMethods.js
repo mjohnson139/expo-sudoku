@@ -100,6 +100,14 @@ export const editMethod = (methods, id, patch, editedAt = Date.now(), presets = 
   return list.map((method) => method.id === id ? { ...method, ...next, editedAt } : method);
 };
 
+export const addMethodStage = (methods, id, name, editedAt = Date.now(), presets = METHODS) => {
+  const method = (methods || []).find((entry) => entry.id === id);
+  const stage = normalizeStageName(name);
+  if (!method || !stage || method.stages.length >= MAX_STAGES) return methods || [];
+  if (method.stages.some((entry) => entry.toLowerCase() === stage.toLowerCase())) return methods || [];
+  return editMethod(methods, id, { stages: [...method.stages, stage] }, editedAt, presets);
+};
+
 export const removeMethod = (methods, id, solves) => {
   const list = methods || [];
   if ((solves || []).some((solve) => solve.method === id)) return { methods: list, reason: 'This method is used by a saved solve.' };
