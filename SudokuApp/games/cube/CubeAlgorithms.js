@@ -11,10 +11,13 @@ import {
   algorithmCase,
   algorithmStartingCube,
   algorithmFilters,
+  algorithmsForStage,
   describeAssignment,
   filterAlgorithms,
   liveFilter,
   searchAlgorithms,
+  hasAssignment,
+  toggleAssignment,
 } from './algorithms';
 import { CUBE_ACCENT, headerAction, styles as chrome } from './cubeChrome';
 import { ENTRY_ROUTE, METHODS_ROUTE, WORKBENCH_ROUTE, useCube } from './CubeContext';
@@ -58,12 +61,19 @@ const CASE_PREVIEW = 56;
  * and the chip is gone — so the filter falls back to `All` rather than leaving
  * the library looking empty with no way out.
  */
-const CubeAlgorithms = ({ navigation }) => {
+const CubeAlgorithms = ({ navigation, route }) => {
   const { theme } = useAppTheme();
-  const { algorithms, methods } = useCube();
+  const { algorithms, methods, editAlgorithmById } = useCube();
+
+  const requestedMethod = route.params?.method || null;
+  const requestedStage = route.params?.stage || null;
+  const stageMethod = methods.find((method) => method.id === requestedMethod);
+  const stage = stageMethod?.stages.includes(requestedStage) ? requestedStage : null;
+  const stageView = !!stage;
 
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState(null);
+  const [choosingForStage, setChoosingForStage] = useState(false);
 
   const titleColor = theme.colors.title;
   const border = theme.colors.numberPad.border;
@@ -74,8 +84,10 @@ const CubeAlgorithms = ({ navigation }) => {
   const active = liveFilter(chips, filter);
 
   const shown = useMemo(
-    () => searchAlgorithms(filterAlgorithms(algorithms, active), query),
-    [algorithms, active, query]
+    () => searchAlgorithms(stageView
+      ? (choosingForStage ? algorithms : algorithmsForStage(algorithms, requestedMethod, stage))
+      : filterAlgorithms(algorithms, active), query),
+    [algorithms, active, query, stageView, choosingForStage, requestedMethod, stage]
   );
 
   const full = algorithms.length >= MAX_ALGORITHMS;
@@ -88,8 +100,11 @@ const CubeAlgorithms = ({ navigation }) => {
   /** `＋` opens the cube-first workbench. Pasting notation remains available
    *  from an entry, but is no longer the library's primary door. */
   const addEntry = useCallback(
-    () => navigation.navigate(WORKBENCH_ROUTE, { id: null }),
-    [navigation]
+    () => navigation.navigate(WORKBENCH_ROUTE, {
+      id: null,
+      assignment: stageView ? { method: requestedMethod, stage } : null,
+    }),
+    [navigation, stageView, requestedMethod, stage]
   );
 
   const headerActions = [
@@ -116,11 +131,11 @@ const CubeAlgorithms = ({ navigation }) => {
   return (
     <View style={[chrome.container, { backgroundColor: theme.colors.background }]}>
       <ScreenHeader
-        title="Algorithms"
+        title={stageView ? stage : 'Algorithms'}
         theme={theme}
         onHomePress={navigation.goBack}
         homeIcon="chevron-left"
-        homeLabel="Back to the scramble"
+        homeLabel={stageView ? `Back to ${stageMethod.name}` : 'Back to the scramble'}
         homeHint="Leaves the library and shows the scramble again"
         dense
         actions={headerActions}
@@ -156,10 +171,17 @@ const CubeAlgorithms = ({ navigation }) => {
         )}
       </View>
 
+      {stageView && algorithms.length > 0 && (
+        <TouchableOpacity style={styles.manageStage} onPress={() => setChoosingForStage((value) => !value)}>
+          <MaterialCommunityIcons name={choosingForStage ? 'check' : 'link-variant-plus'} size={17} color={CUBE_ACCENT} />
+          <Text style={[styles.manageStageText, { color: CUBE_ACCENT }]}>{choosingForStage ? 'Done assigning' : 'Assign existing'}</Text>
+        </TouchableOpacity>
+      )}
+
       {/* A horizontal scroll rather than a wrap: the chips grow with the number
           of methods (Step 5 adds the operator's own), and a wrapping row would
           change the screen's height as they arrived. */}
-      {algorithms.length > 0 && (
+      {!stageView && algorithms.length > 0 && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -201,6 +223,8 @@ const CubeAlgorithms = ({ navigation }) => {
         <Text style={[styles.empty, { color: titleColor }]}>
           {algorithms.length === 0
             ? 'No algorithms yet. Tap ＋ to write one.'
+            : stageView && !choosingForStage
+              ? 'No algorithms · intuitive. Assign one from the library or tap ＋ to create one.'
             : 'Nothing matches.'}
         </Text>
       ) : (
@@ -286,6 +310,19 @@ const CubeAlgorithms = ({ navigation }) => {
                   color={titleColor}
                   style={styles.chevron}
                 />
+                {stageView && choosingForStage && (
+                  <TouchableOpacity
+                    style={[styles.assignment, { borderColor: CUBE_ACCENT }]}
+                    onPress={() => editAlgorithmById(entry.id, {
+                      assignments: toggleAssignment(entry.assignments, requestedMethod, stage, methods),
+                    })}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: hasAssignment(entry.assignments, requestedMethod, stage) }}
+                    accessibilityLabel={`${hasAssignment(entry.assignments, requestedMethod, stage) ? 'Unassign' : 'Assign'} ${entry.name} ${hasAssignment(entry.assignments, requestedMethod, stage) ? 'from' : 'to'} ${stage}`}
+                  >
+                    <MaterialCommunityIcons name={hasAssignment(entry.assignments, requestedMethod, stage) ? 'check' : 'plus'} size={17} color={CUBE_ACCENT} />
+                  </TouchableOpacity>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -329,6 +366,9 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     marginTop: 8,
   },
+  manageStage: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-end', gap: 5, paddingVertical: 8 },
+  manageStageText: { fontSize: 12, fontWeight: '800' },
+  assignment: { borderWidth: 1, borderRadius: 14, padding: 4, marginLeft: 6 },
   chipsBody: {
     alignItems: 'center',
     gap: 6,

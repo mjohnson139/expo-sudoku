@@ -201,35 +201,43 @@ to change casually. Most of it is Cube Flow's; the last block is Step 1's.
 
 ---
 
-## Next step — Step 6: stage → algorithms
+## Next step — Step 7: exit-state checks
 
-Plan **§3.6**. Make every method stage lead to the algorithms assigned to it, and make the same assignment editable from both the method and library ends.
+Plan **§3.7**. Add pure, preset-only checks for whether the cube at each phase marker has reached that stage’s exit state, then show the result quietly on the existing rail.
 
 ### Scope
 
-- A stage row opens a filtered algorithm list for that exact `{ method, stage }`. It shows the number linked, or the settled empty copy **no algorithms · intuitive**.
-- From the stage list, assign or unassign existing library entries and create a new algorithm already assigned to the stage. Both directions must call the existing `editAlgorithm` funnel; do not introduce a second assignments writer.
-- Keep assignment editing on the algorithm-entry screen, now covering user methods as well as presets. User-method filter chips must appear and disappear safely through the existing `algorithmFilters` / `liveFilter` derivation.
-- A renamed stage already propagates its assignments atomically in Step 5; do not duplicate or work around that rule in either screen.
-- Do not start Step 7's cube-state predicates or Step 8's journey.
+- Add `games/cube/stageChecks.js`: one facelet predicate for every Roux, CFOP and Beginner LBL stage described in plan §3.7. Checks must be relative to the cube’s centres so whole-cube rotations cannot change the answer.
+- Replay the solve’s scramble, three-state orientation/hold, and moves only through `phase.at`; the check belongs to the marker index, not the live scrubber cursor.
+- Return `null` for user-method stages and any stage without a shipped predicate. This means unverified/no opinion, never failure; do not infer predicates from labels, including labels copied from a preset.
+- Decorate existing rail locks with a quiet filled/outlined distinction and an accessibility label. Do not add a row, score, journey state, stored field, or automatic boundary.
+- Do not start Step 8’s journey or demonstration counting.
 
 ### Files to read
 
-Read `userMethods.js`, `algorithms.js`, `CubeMethods.js`, `CubeAlgorithms.js`, `CubeAlgorithmEntry.js`, `CubeAlgorithmSaveSheet.js`, and the catalogue/state wiring in `CubeContext.js`. Re-read plan §3.6 and §5's edit-funnel and label identity traps.
+Read `cubeState.js`, `moves.js`, `orientation.js`, `phaseRail.js`, `CubePhaseRail.js`, `CubeSolve.js`, `methods.js`, and the solve replay/hold tests. Re-read plan §3.7 and §5’s three-state orientation warning, plus `docs/cube-flow-plan.md`’s marker-index rules.
 
 ### What must be visible in Expo Go
 
-Every preset and user-method stage says how many algorithms it has and opens its own list. An empty stage explains that it is intuitive; an assigned stage can add, remove, open, and create entries without losing its filter. The builder still adds no row to a cube screen and costs the cube zero points.
+A correctly placed preset-stage lock is visibly checked; a deliberately early or incorrect one remains outlined. User stages retain an unverified treatment rather than looking failed. The rail remains the same height, so the step costs the cube zero points.
 
 ### How to verify
 
-- Run `npm test` from `SudokuApp/`; cover filtering by exact stage, toggling from both ends, pre-assigned creation, empty-stage copy, user-method chips, and the disappearing-active-chip fallback.
-- Browser-check at 320×568 and 393×852 in classic and dark, especially long method/stage names and a chip row wider than the phone.
-- Device-smoke both assignment directions, create-from-stage, back navigation, persistence, background/resume, and stage rename followed by reopening the stage list.
+- Run `npm test` from `SudokuApp/`; add `stageChecks.test.js` with known-good and near-miss states for every preset stage, whole-cube rotations, replay at exact marker indices, all three orientation values, and `null` for user stages.
+- Browser-check the rail at 320×568 and 393×852 in classic and dark, including a long user-stage label and mixed passed/failed/unverified locks.
+- Device-smoke a real Roux solve, a deliberately misplaced boundary, playback/scrubbing, persistence, and background/resume. Finger turns and navigation feel still require the device.
 
 ### Then rewrite this file
 
-Brief **Step 7 — exit-state checks** (plan §3.7), including preset-only predicates, replay at marker indices, and the unverified treatment for user stages.
+Brief **Step 8 — the journey** (plan §3.8), including derived demonstration counts, ordering user variants after `from`, three stage states, the gate line, rollback after solve deletion, and memoizing replay once at the screen.
+
+## What Step 6 discovered
+
+- The stage list is the ordinary algorithm-library route with an exact `{ method, stage }` projection, so back navigation returns to the builder and edits remain live through `CubeContext`; no new route or collection writer was needed.
+- Stage rows derive `no algorithms · intuitive` / linked counts from the library. Assignment mode temporarily shows the whole library, while the normal view stays exact-stage filtered; both ends still call `editAlgorithmById` and therefore the existing pure funnel.
+- New workbench entries accept a route-provided initial assignment. The shared save sheet still exposes every preset and user method, so the operator can adjust it before saving.
+- User-method assignment chips must pass the live catalogue to `toggleAssignment`. Its default catalogue contains presets only; omitting the argument makes a perfectly visible user chip silently refuse to write.
+- The method builder and stage library add no row to a cube-bearing screen and cost the cube zero points.
 
 ## What Step 5 discovered
 

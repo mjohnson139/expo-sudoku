@@ -148,10 +148,10 @@ const CubeAlgorithmEntry = ({ navigation, route }) => {
     (method, stage) => {
       if (!entry) return;
       editAlgorithmById(entry.id, {
-        assignments: toggleAssignment(entry.assignments, method, stage),
+        assignments: toggleAssignment(entry.assignments, method, stage, methods),
       });
     },
-    [entry, editAlgorithmById]
+    [entry, editAlgorithmById, methods]
   );
 
   const removeEntry = useCallback(() => {

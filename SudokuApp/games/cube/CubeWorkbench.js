@@ -55,7 +55,9 @@ const CubeWorkbench = ({ navigation, route }) => {
   const [openAtStart, setOpenAtStart] = useState(false);
   const [deriveFromMoves, setDeriveFromMoves] = useState(false);
   const [name, setName] = useState(initial.name);
-  const [assignments, setAssignments] = useState(initial.assignments);
+  const [assignments, setAssignments] = useState(
+    initial.assignments.length ? initial.assignments : (route.params?.assignment ? [route.params.assignment] : [])
+  );
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [padShown, setPadShown] = useState(initialPadVisibility);
