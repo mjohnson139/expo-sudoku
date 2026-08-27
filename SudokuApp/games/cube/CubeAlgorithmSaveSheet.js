@@ -14,7 +14,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { MAX_ALG_NAME, hasAssignment, toggleAssignment } from './algorithms';
 
 /** Shared by the workbench now and solve tagging in Step 3. */
-const CubeAlgorithmSaveSheet = ({ visible, theme, accent, methods, initialName, initialAssignments, error, onClose, onSave }) => {
+const CubeAlgorithmSaveSheet = ({ visible, theme, accent, methods = [], initialName, initialAssignments, error, onClose, onSave }) => {
   const [name, setName] = useState(initialName);
   const [assignments, setAssignments] = useState(initialAssignments);
   useEffect(() => {

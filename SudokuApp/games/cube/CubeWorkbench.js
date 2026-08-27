@@ -230,7 +230,7 @@ const CubeWorkbench = ({ navigation, route }) => {
       <MaterialCommunityIcons name="content-save" size={18} color="#fff" /><Text style={styles.saveText}>Save algorithm</Text>
     </TouchableOpacity>}
     </View>
-    <CubeAlgorithmSaveSheet visible={saving} theme={theme} accent={CUBE_ACCENT} initialName={name}
+    <CubeAlgorithmSaveSheet methods={methods} visible={saving} theme={theme} accent={CUBE_ACCENT} initialName={name}
       initialAssignments={assignments} error={saveError} onClose={() => setSaving(false)} onSave={(details) => { setName(details.name); setAssignments(details.assignments); save(details); }} />
   </View>;
 };
