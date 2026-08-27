@@ -65,12 +65,19 @@ const CubeMethods = ({ navigation, route }) => {
         {preset && <Text style={[styles.readonly, { color }]}>Preset methods are read-only. Duplicate this method to edit it.</Text>}
         <View style={styles.heading}><Text style={[styles.section, { color }]}>Stages · in solve order</Text>{!preset && <Text style={[styles.meta, { color }]}>Reorder</Text>}</View>
         {method.stages.map((stage, index) => (
-          <View key={`${stage}-${index}`} style={[styles.stage, { borderColor: border, backgroundColor: surface }]}>
+          <TouchableOpacity
+            key={`${stage}-${index}`}
+            style={[styles.stage, { borderColor: border, backgroundColor: surface }]}
+            onPress={() => navigation.navigate(LIBRARY_ROUTE, { method: method.id, stage })}
+            accessibilityRole="button"
+            accessibilityLabel={`${method.name}, ${stage}, ${describeStageAlgorithms(algorithms, method.id, stage)}`}
+            accessibilityHint="Opens the algorithms linked to this stage"
+          >
             <Text style={[styles.number, { color: CUBE_ACCENT }]}>{index + 1}</Text>
             <View style={styles.stageText}><TextInput style={[styles.stageInput, { color }]} editable={!preset} value={stageDrafts[stage] ?? stage} onChangeText={(value) => setStageDrafts((current) => ({ ...current, [stage]: value }))} onBlur={() => { const value = stageDrafts[stage]; if (value != null) renameMethodStage(method.id, stage, value); setStageDrafts((current) => { const next = { ...current }; delete next[stage]; return next; }); }} /><Text style={[styles.stageMeta, { color }]} numberOfLines={1}>{describeStageAlgorithms(algorithms, method.id, stage)}</Text></View>
             {!preset && <><TouchableOpacity onPress={() => move(index, -1)} disabled={index === 0}><MaterialCommunityIcons name="chevron-up" size={22} color={index === 0 ? border : color} /></TouchableOpacity><TouchableOpacity onPress={() => move(index, 1)} disabled={index === method.stages.length - 1}><MaterialCommunityIcons name="chevron-down" size={22} color={index === method.stages.length - 1 ? border : color} /></TouchableOpacity><TouchableOpacity onPress={() => removeStage(stage)} disabled={method.stages.length === 1}><MaterialCommunityIcons name="close" size={20} color={method.stages.length === 1 ? border : color} /></TouchableOpacity></>}
-            <TouchableOpacity onPress={() => navigation.navigate(LIBRARY_ROUTE, { method: method.id, stage })} accessibilityLabel={`Open algorithms for ${method.name}, ${stage}`}><MaterialCommunityIcons name="chevron-right" size={22} color={color} /></TouchableOpacity>
-          </View>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={color} />
+          </TouchableOpacity>
         ))}
         {preset ? <TouchableOpacity style={styles.primary} onPress={duplicate}><Text style={styles.primaryText}>Duplicate to edit</Text></TouchableOpacity> : <>
           <TouchableOpacity style={[styles.add, { borderColor: border }]} disabled={method.stages.length >= MAX_STAGES} onPress={() => setAddingStage(true)}><Text style={[styles.addText, { color }]}>＋ Add stage</Text></TouchableOpacity>

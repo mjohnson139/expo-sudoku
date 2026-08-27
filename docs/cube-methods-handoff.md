@@ -237,6 +237,7 @@ Brief **Step 8 — the journey** (plan §3.8), including derived demonstration c
 - Stage rows derive `no algorithms · intuitive` / linked counts from the library. Assignment mode temporarily shows the whole library, while the normal view stays exact-stage filtered; both ends still call `editAlgorithmById` and therefore the existing pure funnel.
 - New workbench entries accept a route-provided initial assignment. The shared save sheet still exposes every preset and user method, so the operator can adjust it before saving.
 - User-method assignment chips must pass the live catalogue to `toggleAssignment`. Its default catalogue contains presets only; omitting the argument makes a perfectly visible user chip silently refuse to write.
+- **Device feedback made the stage row, not only its chevron, the navigation target.** The chevron is now a visual cue inside one accessible button; user-method text fields and reorder/delete controls remain their own nested interactions.
 - The method builder and stage library add no row to a cube-bearing screen and cost the cube zero points.
 
 ## What Step 5 discovered
