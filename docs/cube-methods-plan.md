@@ -743,6 +743,23 @@ cost the cube zero points.
 
 ### 3.5 Step 5 — the method builder
 
+**Landed 2026-08-27** (PR #140, merged to `epic/cube-methods`; **device pass
+clean after three device-found follow-ups**). User methods now live beside the
+solves and algorithms, sanitized before either dependent collection and appended
+after the frozen presets as one catalogue. Presets duplicate into independent
+editable records; user stages can be named, reordered, renamed and removed;
+picker visibility is a projection rather than deletion; and stage renames update
+matching solve markers and algorithm assignments in one context action.
+
+The device pass found three seams the static build could not: assignment labels
+blanked the library because `Array.map` supplied an index where
+`describeAssignment` expected a catalogue; the workbench's always-mounted save
+sheet blanked the `＋` route because its catalogue prop was missing; and the
+horizontal new-solve choices stopped scaling as the catalogue grew. The final
+sheet is a scrollable list—each method row summarizes its stages and starts the
+solve directly. The builder adds no row to a cube screen and costs the cube zero
+points.
+
 - **User methods join the save** as a top-level `methods` array of
   `{ id, name, stages, forNewSolves, from, savedAt, editedAt }` — `from` being
   the id this was duplicated from, which is what places it on the journey's

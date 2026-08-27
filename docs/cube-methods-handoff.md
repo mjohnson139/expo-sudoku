@@ -233,6 +233,14 @@ Brief **Step 7 — exit-state checks** (plan §3.7), including preset-only predi
 
 ## What Step 5 discovered
 
+### The device pass
+
+**Tested on the final `pr-140` Expo Go build, 2026-08-27, and passed after the
+device-found follow-ups.** The operator accepted the method catalogue, preset
+duplication, editing and ordering, picker visibility, persistence, rename
+propagation and the final direct-start method list. The builder remains off the
+cube-bearing screens and costs the cube zero points.
+
 - **The first device pass found the library blanking on open when an entry had
   multiple assignments.** `entry.assignments.map(describeAssignment)` was
   accidentally passing the array index as `describeAssignment`'s catalogue
@@ -242,7 +250,15 @@ Brief **Step 7 — exit-state checks** (plan §3.7), including preset-only predi
 - User methods are sanitized before solves and algorithm assignments, then appended after frozen presets. Picker visibility is a projection only: toggling a user method off never removes it from the catalogue that validates existing work.
 - Stage identity remains its label. Renaming therefore updates the user method, matching solve markers and matching algorithm assignments as one context action; accepting duplicate stage labels would make one rail position unreachable.
 - Explicit up/down controls make ordering usable on native and web without introducing a gesture dependency. The builder is a route from the library, adds no row to a screen containing the cube, and costs the cube zero points.
-- Device feel, persistence and resume still require the PR preview pass.
+- **The second blank screen was a different route.** The library's top `＋`
+  opens `CubeWorkbench`, whose hidden `CubeAlgorithmSaveSheet` still renders and
+  immediately maps its methods. The workbench had not supplied that prop; pass
+  the live catalogue there, and retain the sheet's empty-array default as a
+  defensive floor.
+- The new-solve picker is now only a scrollable list. A method row includes its
+  compact stage summary and starts the solve immediately; there is deliberately
+  no radio state, repeated stage block or confirmation button for Step 6 to
+  preserve.
 
 ## What Step 4 discovered
 
