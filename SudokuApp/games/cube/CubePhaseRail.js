@@ -16,6 +16,7 @@ const CubePhaseRail = ({ states, accent, theme, onPlace }) => (
   >
     {states.map((item) => {
       const marked = item.state === 'marked';
+      const passed = marked && item.verified === true;
       const color = marked
         ? LOCKED
         : item.available
@@ -27,6 +28,7 @@ const CubePhaseRail = ({ states, accent, theme, onPlace }) => (
           style={[
             styles.pill,
             { borderColor: color },
+            passed && { backgroundColor: mix(LOCKED, theme.colors.background, 0.18) },
             !item.available && styles.unavailable,
             item.atCursor && { backgroundColor: mix(accent, theme.colors.background, 0.82) },
           ]}
@@ -34,10 +36,10 @@ const CubePhaseRail = ({ states, accent, theme, onPlace }) => (
           disabled={!item.available}
           accessibilityRole="button"
           accessibilityState={{ disabled: !item.available, selected: item.atCursor }}
-          accessibilityLabel={`${item.stage}, ${item.state}${item.atCursor ? ', boundary at scrubber' : ''}${item.count == null ? '' : `, ${item.count} moves`}`}
+          accessibilityLabel={`${item.stage}, ${item.state}${marked ? item.verified === true ? ', exit state verified' : item.verified === false ? ', exit state not reached' : ', exit state unverified' : ''}${item.atCursor ? ', boundary at scrubber' : ''}${item.count == null ? '' : `, ${item.count} moves`}`}
           accessibilityHint={item.available ? 'Places this stage ending at the scrubber position' : 'Move the scrubber between the neighbouring stage boundaries first'}
         >
-          {marked && <MaterialCommunityIcons name={item.atCursor ? 'map-marker' : 'check'} size={12} color={color} />}
+          {marked && <MaterialCommunityIcons name={item.atCursor ? 'map-marker' : passed ? 'check-circle' : 'check-circle-outline'} size={12} color={color} />}
           <Text style={[styles.text, { color }]} numberOfLines={1}>
             {item.stage}{item.count == null ? '' : ` · ${item.count}`}
           </Text>

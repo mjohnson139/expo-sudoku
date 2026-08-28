@@ -41,6 +41,7 @@ import {
   withMoves,
 } from './solveList';
 import { railStates } from './phaseRail';
+import { stageResults } from './stageChecks';
 import { stagesOf } from './methods';
 import { moveCount, parseAlg } from './moves';
 import useAppBackground from './useAppBackground';
@@ -574,9 +575,10 @@ const CubeSolve = ({ navigation }) => {
   // to be a subtraction over the boundaries rather than a number kept alongside
   // them — a stored count is a second thing to keep honest on every edit.
   const spans = useMemo(() => phaseSpans(phases, solveCount), [phases, solveCount]);
+  const checks = useMemo(() => stageResults(shown), [shown]);
   const rail = useMemo(
-    () => railStates(shown.method, phases, solve, player.index, methods),
-    [shown.method, phases, solve, player.index]
+    () => railStates(shown.method, phases, solve, player.index, methods, checks),
+    [shown.method, phases, solve, player.index, methods, checks]
   );
 
   // The boundaries, for the dividers in the move track. A set, because the track
