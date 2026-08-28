@@ -19,6 +19,8 @@ const BUILD_NOTES = {
       'Build your own method by opening Methods, duplicating a preset, and naming or reordering its stages',
       'Choose whether a method appears for new solves without changing the solves already using it',
       'Starting a solve is one tap from the method list; each row previews its stages and opens the solve directly',
+      'Every method stage now says how many algorithms are linked — or says when the stage is intentionally intuitive',
+      'Tap a stage row to see its exact algorithms, assign existing entries, or write a new one already linked there',
       'One algorithm can serve more than one stage at once — Roux CMLL and CFOP PLL are two taps, not two entries',
       'An algorithm with nothing assigned to it is still findable, under Unassigned',
       'Notes are for finger tricks and cues, and are never shown while you are solving',

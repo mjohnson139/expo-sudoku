@@ -813,6 +813,22 @@ sheet drops it while existing solves keep it.
 lists; rename a stage and confirm its assignments follow (the same relabelling
 as Step 5, now with a second reader).
 
+**Landed 2026-08-28** (PR #141, merged to `epic/cube-methods`; **device pass
+accepted after two device-found follow-ups**). Every preset and user-method
+stage now derives its exact linked count, opens an exact-stage library, assigns
+or unassigns existing entries through the one algorithm edit funnel, and creates
+new workbench entries with that stage preselected. The solve-side picker retains
+the earlier Step 3 rule: current-stage matches come first without hiding the
+rest of the library.
+
+The device pass changed two interaction details that the browser could not
+settle. The whole stage row became the navigation target rather than only its
+chevron, and the solve Algorithms modal gained its own keyboard avoidance after
+iOS covered the query field. A source-level guard now refuses any cube modal
+that combines `Modal` and `TextInput` without `KeyboardAvoidingView`. The method
+builder and stage library remain off cube-bearing screens and cost the cube zero
+points.
+
 ### 3.7 Step 7 — exit-state checks
 
 The only step whose correctness is a cube question. It ships **no new screen**.
