@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import CubeCasePreview from './CubeCasePreview';
 import { algorithmStartingCube, searchAlgorithms } from './algorithms';
@@ -19,7 +19,14 @@ const CubeSolveAlgorithmsSheet = ({
   const surface = theme.colors.numberPad.background;
 
   return <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-    <View style={styles.backdrop}><View style={[styles.sheet, { backgroundColor: theme.colors.background, borderColor: border }]}>
+    {/* Guard rail: a React Native Modal is outside any keyboard avoider owned by
+        CubeSolve. Every modal sheet containing a TextInput must therefore own
+        this wrapper; otherwise iOS can cover the field and the typed query. */}
+    <KeyboardAvoidingView
+      style={styles.backdrop}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <View style={[styles.sheet, { backgroundColor: theme.colors.background, borderColor: border }]}>
       <View style={styles.heading}>
         <Text style={[styles.title, { color: ink }]}>Algorithms</Text>
         <TouchableOpacity onPress={onClose} accessibilityRole="button" accessibilityLabel="Close algorithms"><MaterialCommunityIcons name="close" size={22} color={ink} /></TouchableOpacity>
@@ -43,7 +50,8 @@ const CubeSolveAlgorithmsSheet = ({
           </View>)}
         </ScrollView>
       </>}
-    </View></View>
+      </View>
+    </KeyboardAvoidingView>
   </Modal>;
 };
 
