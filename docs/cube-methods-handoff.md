@@ -233,6 +233,15 @@ Brief **Step 8 — the journey** (plan §3.8), including derived demonstration c
 
 ## What Step 6 discovered
 
+### The device pass
+
+**Tested on the final `pr-141` Expo Go build, 2026-08-28, and accepted after two
+device-found follow-ups.** The operator accepted exact-stage counts and lists,
+assignment from both ends, preassigned creation, user-method handling and the
+solve-side ordering. The follow-ups made the full stage row tappable and kept
+the solve Algorithms search above the iOS keyboard. The builder and library
+remain off cube-bearing screens and cost the cube zero points.
+
 - The stage list is the ordinary algorithm-library route with an exact `{ method, stage }` projection, so back navigation returns to the builder and edits remain live through `CubeContext`; no new route or collection writer was needed.
 - Stage rows derive `no algorithms · intuitive` / linked counts from the library. Assignment mode temporarily shows the whole library, while the normal view stays exact-stage filtered; both ends still call `editAlgorithmById` and therefore the existing pure funnel.
 - New workbench entries accept a route-provided initial assignment. The shared save sheet still exposes every preset and user method, so the operator can adjust it before saving.
