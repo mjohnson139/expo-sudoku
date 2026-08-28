@@ -6,11 +6,12 @@ import useAppTheme from '../../hooks/useAppTheme';
 import { METHODS } from './methods';
 import { CUBE_ACCENT, styles as chrome } from './cubeChrome';
 import { MAX_STAGES, normalizeStageName } from './userMethods';
-import { useCube } from './CubeContext';
+import { describeStageAlgorithms } from './algorithms';
+import { LIBRARY_ROUTE, useCube } from './CubeContext';
 
 const CubeMethods = ({ navigation, route }) => {
   const { theme } = useAppTheme();
-  const { methods, userMethods, duplicateMethodById, editMethodById, addMethodStageById, renameMethodStage, deleteMethodById } = useCube();
+  const { algorithms, methods, userMethods, duplicateMethodById, editMethodById, addMethodStageById, renameMethodStage, deleteMethodById } = useCube();
   const [stageDrafts, setStageDrafts] = useState({});
   const [addingStage, setAddingStage] = useState(false);
   const [newStage, setNewStage] = useState('');
@@ -64,11 +65,19 @@ const CubeMethods = ({ navigation, route }) => {
         {preset && <Text style={[styles.readonly, { color }]}>Preset methods are read-only. Duplicate this method to edit it.</Text>}
         <View style={styles.heading}><Text style={[styles.section, { color }]}>Stages · in solve order</Text>{!preset && <Text style={[styles.meta, { color }]}>Reorder</Text>}</View>
         {method.stages.map((stage, index) => (
-          <View key={`${stage}-${index}`} style={[styles.stage, { borderColor: border, backgroundColor: surface }]}>
+          <TouchableOpacity
+            key={`${stage}-${index}`}
+            style={[styles.stage, { borderColor: border, backgroundColor: surface }]}
+            onPress={() => navigation.navigate(LIBRARY_ROUTE, { method: method.id, stage })}
+            accessibilityRole="button"
+            accessibilityLabel={`${method.name}, ${stage}, ${describeStageAlgorithms(algorithms, method.id, stage)}`}
+            accessibilityHint="Opens the algorithms linked to this stage"
+          >
             <Text style={[styles.number, { color: CUBE_ACCENT }]}>{index + 1}</Text>
-            <TextInput style={[styles.stageInput, { color }]} editable={!preset} value={stageDrafts[stage] ?? stage} onChangeText={(value) => setStageDrafts((current) => ({ ...current, [stage]: value }))} onBlur={() => { const value = stageDrafts[stage]; if (value != null) renameMethodStage(method.id, stage, value); setStageDrafts((current) => { const next = { ...current }; delete next[stage]; return next; }); }} />
+            <View style={styles.stageText}><TextInput style={[styles.stageInput, { color }]} editable={!preset} value={stageDrafts[stage] ?? stage} onChangeText={(value) => setStageDrafts((current) => ({ ...current, [stage]: value }))} onBlur={() => { const value = stageDrafts[stage]; if (value != null) renameMethodStage(method.id, stage, value); setStageDrafts((current) => { const next = { ...current }; delete next[stage]; return next; }); }} /><Text style={[styles.stageMeta, { color }]} numberOfLines={1}>{describeStageAlgorithms(algorithms, method.id, stage)}</Text></View>
             {!preset && <><TouchableOpacity onPress={() => move(index, -1)} disabled={index === 0}><MaterialCommunityIcons name="chevron-up" size={22} color={index === 0 ? border : color} /></TouchableOpacity><TouchableOpacity onPress={() => move(index, 1)} disabled={index === method.stages.length - 1}><MaterialCommunityIcons name="chevron-down" size={22} color={index === method.stages.length - 1 ? border : color} /></TouchableOpacity><TouchableOpacity onPress={() => removeStage(stage)} disabled={method.stages.length === 1}><MaterialCommunityIcons name="close" size={20} color={method.stages.length === 1 ? border : color} /></TouchableOpacity></>}
-          </View>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={color} />
+          </TouchableOpacity>
         ))}
         {preset ? <TouchableOpacity style={styles.primary} onPress={duplicate}><Text style={styles.primaryText}>Duplicate to edit</Text></TouchableOpacity> : <>
           <TouchableOpacity style={[styles.add, { borderColor: border }]} disabled={method.stages.length >= MAX_STAGES} onPress={() => setAddingStage(true)}><Text style={[styles.addText, { color }]}>＋ Add stage</Text></TouchableOpacity>
@@ -93,5 +102,5 @@ const CubeMethods = ({ navigation, route }) => {
   );
 };
 
-const styles = StyleSheet.create({ list: { padding: 14, paddingBottom: 30, gap: 10 }, section: { fontSize: 14, fontWeight: '800' }, heading: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }, card: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, padding: 13 }, grow: { flex: 1 }, name: { fontSize: 15, fontWeight: '700' }, meta: { fontSize: 12, opacity: .6, marginTop: 2 }, empty: { opacity: .65, lineHeight: 20 }, label: { fontSize: 12, fontWeight: '700' }, input: { borderWidth: 1, borderRadius: 9, padding: 11, fontSize: 16 }, readonly: { fontSize: 12, opacity: .65 }, stage: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 9, paddingHorizontal: 8, minHeight: 48 }, number: { width: 24, fontWeight: '800' }, stageInput: { flex: 1, paddingVertical: 10 }, primary: { backgroundColor: CUBE_ACCENT, borderRadius: 9, padding: 13, alignItems: 'center', marginTop: 8 }, primaryText: { color: '#fff', fontWeight: '800' }, add: { borderWidth: 1, borderRadius: 9, padding: 12, alignItems: 'center' }, addText: { fontWeight: '700' }, toggle: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }, secondary: { alignItems: 'center', padding: 11 }, secondaryText: { fontWeight: '700' }, delete: { alignItems: 'center', padding: 11 }, deleteText: { color: '#c43b3b', fontWeight: '700' }, overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center' }, modal: { width: 300, maxWidth: '92%', borderWidth: 1, borderRadius: 12, padding: 16 }, modalTitle: { fontSize: 18, fontWeight: '800', textAlign: 'center', marginBottom: 12 }, modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 8 }, modalButton: { minWidth: 80, padding: 11, alignItems: 'center' }, modalPrimary: { borderRadius: 8 } });
+const styles = StyleSheet.create({ list: { padding: 14, paddingBottom: 30, gap: 10 }, section: { fontSize: 14, fontWeight: '800' }, heading: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }, card: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 10, padding: 13 }, grow: { flex: 1 }, name: { fontSize: 15, fontWeight: '700' }, meta: { fontSize: 12, opacity: .6, marginTop: 2 }, empty: { opacity: .65, lineHeight: 20 }, label: { fontSize: 12, fontWeight: '700' }, input: { borderWidth: 1, borderRadius: 9, padding: 11, fontSize: 16 }, readonly: { fontSize: 12, opacity: .65 }, stage: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 9, paddingHorizontal: 8, minHeight: 58 }, number: { width: 24, fontWeight: '800' }, stageText: { flex: 1, minWidth: 0 }, stageInput: { paddingVertical: 4 }, stageMeta: { fontSize: 11, opacity: .6, paddingBottom: 5 }, primary: { backgroundColor: CUBE_ACCENT, borderRadius: 9, padding: 13, alignItems: 'center', marginTop: 8 }, primaryText: { color: '#fff', fontWeight: '800' }, add: { borderWidth: 1, borderRadius: 9, padding: 12, alignItems: 'center' }, addText: { fontWeight: '700' }, toggle: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }, secondary: { alignItems: 'center', padding: 11 }, secondaryText: { fontWeight: '700' }, delete: { alignItems: 'center', padding: 11 }, deleteText: { color: '#c43b3b', fontWeight: '700' }, overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.35)', justifyContent: 'center', alignItems: 'center' }, modal: { width: 300, maxWidth: '92%', borderWidth: 1, borderRadius: 12, padding: 16 }, modalTitle: { fontSize: 18, fontWeight: '800', textAlign: 'center', marginBottom: 12 }, modalActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 8 }, modalButton: { minWidth: 80, padding: 11, alignItems: 'center' }, modalPrimary: { borderRadius: 8 } });
 export default CubeMethods;

@@ -9,10 +9,12 @@ import {
   UNASSIGNED,
   UNASSIGNED_LABEL,
   algorithmFilters,
+  algorithmsForStage,
   createAlgorithm,
   defaultAlgorithmName,
   describeAlgorithmSize,
   describeAssignment,
+  describeStageAlgorithms,
   editAlgorithm,
   filterAlgorithms,
   findAlgorithm,
@@ -46,6 +48,50 @@ const library = (n) => {
   }
   return list;
 };
+
+describe('stage algorithm views', () => {
+  const catalogue = [...METHODS, { id: 'mine', name: 'My long method', stages: ['First idea'] }];
+  let algorithms;
+
+  beforeEach(() => {
+    algorithms = make([], {
+      assignments: [{ method: 'roux', stage: 'CMLL' }, { method: 'mine', stage: 'First idea' }],
+    }, catalogue).algorithms;
+    algorithms = make(algorithms, {
+      moves: 'U',
+      assignments: [{ method: 'roux', stage: 'LSE' }],
+    }, catalogue).algorithms;
+  });
+
+  it('filters by the exact method and stage and describes linked counts', () => {
+    expect(algorithmsForStage(algorithms, 'roux', 'CMLL').map((entry) => entry.id)).toEqual(['a1']);
+    expect(algorithmsForStage(algorithms, 'roux', 'LSE').map((entry) => entry.id)).toEqual(['a2']);
+    expect(describeStageAlgorithms(algorithms, 'roux', 'CMLL')).toBe('1 algorithm linked');
+    expect(describeStageAlgorithms(algorithms, 'cfop', 'OLL')).toBe('no algorithms · intuitive');
+  });
+
+  it('includes user methods in filters and falls back when their last chip disappears', () => {
+    const chips = algorithmFilters(algorithms, catalogue);
+    expect(chips.some((chip) => chip.id === 'mine' && chip.count === 1)).toBe(true);
+    const mine = findAlgorithm(algorithms, 'a1');
+    const withoutMine = editAlgorithm(algorithms, 'a1', {
+      assignments: toggleAssignment(mine.assignments, 'mine', 'First idea', catalogue),
+    }, { catalogue });
+    expect(liveFilter(algorithmFilters(withoutMine, catalogue), 'mine')).toBeNull();
+  });
+
+  it('adds and removes a stage assignment idempotently through editAlgorithm', () => {
+    const second = findAlgorithm(algorithms, 'a2');
+    const added = editAlgorithm(algorithms, 'a2', {
+      assignments: toggleAssignment(second.assignments, 'mine', 'First idea', catalogue),
+    }, { catalogue });
+    expect(algorithmsForStage(added, 'mine', 'First idea')).toHaveLength(2);
+    const removed = editAlgorithm(added, 'a2', {
+      assignments: toggleAssignment(findAlgorithm(added, 'a2').assignments, 'mine', 'First idea', catalogue),
+    }, { catalogue });
+    expect(algorithmsForStage(removed, 'mine', 'First idea')).toHaveLength(1);
+  });
+});
 
 describe('createAlgorithm', () => {
   it('writes an entry with the shape the plan settled on', () => {

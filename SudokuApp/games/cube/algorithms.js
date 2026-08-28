@@ -515,6 +515,19 @@ export const filterAlgorithms = (algorithms, methodId) => {
   );
 };
 
+/** Entries assigned to one exact stage. Unlike the library's method chip this
+ * never broadens to the method's other stages: it is the stage builder's view. */
+export const algorithmsForStage = (algorithms, methodId, stage) =>
+  (algorithms || []).filter((entry) => hasAssignment(entry.assignments, methodId, stage));
+
+/** The settled stage-row copy, kept pure so counts and empty language cannot
+ * drift between preset and user-method builders. */
+export const describeStageAlgorithms = (algorithms, methodId, stage) => {
+  const count = algorithmsForStage(algorithms, methodId, stage).length;
+  if (count === 0) return 'no algorithms · intuitive';
+  return count === 1 ? '1 algorithm linked' : `${count} algorithms linked`;
+};
+
 /**
  * The chips over a library: `All · N`, one per method that has anything assigned
  * to it, and `Unassigned` when there is anything unassigned.
@@ -647,6 +660,8 @@ export default {
   removeAlgorithm,
   searchAlgorithms,
   filterAlgorithms,
+  algorithmsForStage,
+  describeStageAlgorithms,
   algorithmFilters,
   liveFilter,
   describeAlgorithmSize,
