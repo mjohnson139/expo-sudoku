@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { NAME_WIDTH, ROW_RULE, cellWidth, tableScrolls } from './compareLayout';
 import { accentInk } from './padPalette';
 import { announceCompareCell, comparePhases } from './solveList';
+import { useMethods } from './CubeContext';
 
 /**
  * The attempts at one scramble, side by side (docs/cube-plan.md §8.10, Step 9).
