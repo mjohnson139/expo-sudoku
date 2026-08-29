@@ -201,35 +201,70 @@ to change casually. Most of it is Cube Flow's; the last block is Step 1's.
 
 ---
 
-## Next step — Step 7: exit-state checks
+## Next step — Step 8: the journey
 
-Plan **§3.7**. Add pure, preset-only checks for whether the cube at each phase marker has reached that stage’s exit state, then show the result quietly on the existing rail.
+Plan **§3.8**. Build the derived beginner-to-advanced journey over the preset and user-method catalogue. This step consumes Step 7's exit-state results; it must not add another stored progress field or another cube replay path.
 
 ### Scope
 
-- Add `games/cube/stageChecks.js`: one facelet predicate for every Roux, CFOP and Beginner LBL stage described in plan §3.7. Checks must be relative to the cube’s centres so whole-cube rotations cannot change the answer.
-- Replay the solve’s scramble, three-state orientation/hold, and moves only through `phase.at`; the check belongs to the marker index, not the live scrubber cursor.
-- Return `null` for user-method stages and any stage without a shipped predicate. This means unverified/no opinion, never failure; do not infer predicates from labels, including labels copied from a preset.
-- Decorate existing rail locks with a quiet filled/outlined distinction and an accessibility label. Do not add a row, score, journey state, stored field, or automatic boundary.
-- Do not start Step 8’s journey or demonstration counting.
+- Add `games/cube/journey.js`, pure, with `DEMOS_REQUIRED = 3`. Derive demonstrations from solves whose locked stage boundary passes its shipped exit-state predicate. For user-method stages, Step 7 returns `null`; a real lock counts without pretending it was verified.
+- Order the shipped presets by their settled level, and place each user variant immediately after the method named by its `from` field. Preserve stable catalogue order among variants with the same source and handle a missing/corrupt `from` honestly.
+- Derive all three stage states — `done`, `open`, `locked` — plus each method's state and the gate line (for example, `LSE unlocks after 2 more CMLL locks — 1 of 3 done`). Stages unlock in order, and later methods remain gated by the method before them.
+- Counts are demonstrations, not solve totals: at most one qualifying lock per stage per solve. Deleting or editing a solve must roll progress back immediately because the journey is derived and stored nowhere.
+- Add the journey route and the one-control-away navigation described in §2: the Algorithms header opens Journey and Journey returns to Algorithms. Do not add a door or row to the solve screen.
+- Memoize solve replay once at the journey screen. Do not call `stageResults` repeatedly per card or per stage; derive the check matrix once, then pass it into pure journey projection.
 
 ### Files to read
 
-Read `cubeState.js`, `moves.js`, `orientation.js`, `phaseRail.js`, `CubePhaseRail.js`, `CubeSolve.js`, `methods.js`, and the solve replay/hold tests. Re-read plan §3.7 and §5’s three-state orientation warning, plus `docs/cube-flow-plan.md`’s marker-index rules.
+Read `stageChecks.js` and its tests first, then `userMethods.js`, `methods.js`, `CubeAlgorithms.js`, `CubeScreen.js`, `CubeContext.js`, and the catalogue/save tests. Re-read plan §2's journey decisions, §3.8 in full, §5's derived-state and three-state warnings, and `docs/cube-flow-plan.md`'s marker semantics.
+
+### Easy to get wrong
+
+- A labelled phase marker is the **start** of its span; the exit check belongs to `phaseSpans(...).end`. Step 7's `stageResults` already makes that conversion. Never check at the live scrubber or at the labelled marker's `at`.
+- `false` and `null` are different. A failed shipped predicate does not demonstrate a stage; an unverified user stage does count a genuine lock. Do not use truthiness to combine them.
+- Preset identity, not a copied label, selects a shipped predicate. A user method containing `Cross` remains unverified.
+- Whole-cube holds are replayed between scramble and moves, including the meaningful distinction between `orientation: null`, `''`, and notation. Journey derivation must consume Step 7 rather than rebuilding that sequence.
+- Variants follow `from`; they do not replace, mutate, or sort ahead of their preset. A variant's own stages and demonstrations remain independent.
+- Progress must fall when its supporting solve is deleted, a marker moves, or the notation changes. Any cached result must depend on the complete live solves collection.
 
 ### What must be visible in Expo Go
 
-A correctly placed preset-stage lock is visibly checked; a deliberately early or incorrect one remains outlined. User stages retain an unverified treatment rather than looking failed. The rail remains the same height, so the step costs the cube zero points.
+The Algorithms and Journey screens are one control apart. The journey shows preset methods in beginner-to-advanced order, user variants directly after their source, three visibly distinct stage states, current demonstration counts, and a readable gate line. Deleting a supporting solve and returning to Journey visibly rolls the count/state back. No new row appears on a cube-bearing screen, so Step 8 costs the cube zero points.
 
 ### How to verify
 
-- Run `npm test` from `SudokuApp/`; add `stageChecks.test.js` with known-good and near-miss states for every preset stage, whole-cube rotations, replay at exact marker indices, all three orientation values, and `null` for user stages.
-- Browser-check the rail at 320×568 and 393×852 in classic and dark, including a long user-stage label and mixed passed/failed/unverified locks.
-- Device-smoke a real Roux solve, a deliberately misplaced boundary, playback/scrubbing, persistence, and background/resume. Finger turns and navigation feel still require the device.
+- Run `npm test` from `SudokuApp/`; add `journey.test.js` for ordering, same-source variant stability, the three states, exact three-demonstration threshold, duplicate locks in one solve, failed versus unverified checks, gate copy, and rollback after solve deletion/editing.
+- Browser-check Algorithms ↔ Journey at 320×568 and 393×852 in classic and dark. Seed enough methods and solves to show long names, multiple variants, all states, wrapping gate copy, and a scrollable full track.
+- On the PR preview, device-smoke navigation/edge-back, a three-solve unlock, user-stage lock counting, failed preset boundaries, deletion rollback, persistence, cold start, and background/resume. Report these as operator instructions; do not claim the device pass yourself.
 
 ### Then rewrite this file
 
-Brief **Step 8 — the journey** (plan §3.8), including derived demonstration counts, ordering user variants after `from`, three stage states, the gate line, rollback after solve deletion, and memoizing replay once at the screen.
+Brief **Step 9 — epic closeout** (plan §3.9): accumulated Cube Methods regression, release/build notes and version, standalone native-dependency debt, final epic preview, operator device acceptance, and the eventual epic-to-main merge. Do not merge it during Step 8.
+
+## What Step 7 discovered
+
+### The device pass
+
+**Tested on the final `pr-143` Expo Go build, 2026-08-29, and accepted after one
+device-found regression fix.** The operator confirmed preset exit states,
+deliberately incorrect boundaries, the quiet filled/outlined rail treatment,
+scrubbing, persistence and resume behaved as expected. The operator also
+retested and accepted Compare after the follow-up below. Step 7 changed only
+paint inside the existing rail and cost the cube zero points.
+
+- A labelled phase marker starts a span; its exit is `phaseSpans(...).end`.
+  `stageResults` owns that conversion and attaches checks to the ending marker,
+  never to the live scrubber.
+- Replay order is scramble → orientation/hold → the solve prefix through the
+  marker. `orientation: null`, `''` and notation remain distinct inputs even
+  though the first two apply no rotation.
+- Preset identity selects a predicate. A user method with a stage copied or
+  named `Cross` receives `null`, not a borrowed CFOP check and not `false`.
+- **The device pass found Compare opening to a white screen.** Step 4 had added
+  `useMethods()` to `CubeCompareTable` without importing it; the missing binding
+  existed unnoticed until the modal rendered. The final preview imports the
+  context hook, and the operator confirmed Compare works again. Any component
+  that gains a context hook must import it even when its pure helper tests pass.
 
 ## What Step 6 discovered
 
