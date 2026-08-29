@@ -241,6 +241,31 @@ The Algorithms and Journey screens are one control apart. The journey shows pres
 
 Brief **Step 9 — epic closeout** (plan §3.9): accumulated Cube Methods regression, release/build notes and version, standalone native-dependency debt, final epic preview, operator device acceptance, and the eventual epic-to-main merge. Do not merge it during Step 8.
 
+## What Step 7 discovered
+
+### The device pass
+
+**Tested on the final `pr-143` Expo Go build, 2026-08-29, and accepted after one
+device-found regression fix.** The operator confirmed preset exit states,
+deliberately incorrect boundaries, the quiet filled/outlined rail treatment,
+scrubbing, persistence and resume behaved as expected. The operator also
+retested and accepted Compare after the follow-up below. Step 7 changed only
+paint inside the existing rail and cost the cube zero points.
+
+- A labelled phase marker starts a span; its exit is `phaseSpans(...).end`.
+  `stageResults` owns that conversion and attaches checks to the ending marker,
+  never to the live scrubber.
+- Replay order is scramble → orientation/hold → the solve prefix through the
+  marker. `orientation: null`, `''` and notation remain distinct inputs even
+  though the first two apply no rotation.
+- Preset identity selects a predicate. A user method with a stage copied or
+  named `Cross` receives `null`, not a borrowed CFOP check and not `false`.
+- **The device pass found Compare opening to a white screen.** Step 4 had added
+  `useMethods()` to `CubeCompareTable` without importing it; the missing binding
+  existed unnoticed until the modal rendered. The final preview imports the
+  context hook, and the operator confirmed Compare works again. Any component
+  that gains a context hook must import it even when its pure helper tests pass.
+
 ## What Step 6 discovered
 
 ### The device pass

@@ -862,6 +862,19 @@ against the hold that Roux is actually drilled in.
 **Operator tests:** write a real Roux solve and confirm each lock is recognised;
 deliberately mark a boundary in the wrong place and confirm it is not.
 
+**Landed 2026-08-29** (PR #143, merged to `epic/cube-methods`; **device pass
+after one device-found regression fix**). Preset locks now replay the scramble,
+three-state hold and exact stage-ending move prefix through centre-relative
+facelet predicates; the existing rail distinguishes verified, failed and
+unverified locks without adding height or stored progress. The operator accepted
+the stage checks and rail treatment on a physical device.
+
+The same device pass found Compare opening to a white screen. Step 4 had begun
+calling `useMethods()` inside `CubeCompareTable` without importing the hook, so
+the modal threw only when rendered. Importing the existing context hook restored
+Compare from both the solve list and open solve, and the operator confirmed the
+fix on the final preview. Step 7 still adds no row and costs the cube zero points.
+
 ### 3.8 Step 8 — the journey
 
 - **`games/cube/journey.js` is new and pure.** It takes the catalogue, the

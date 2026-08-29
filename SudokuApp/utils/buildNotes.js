@@ -36,6 +36,7 @@ const BUILD_NOTES = {
       'Applying plays every saved move from the cube you are actually holding; setup moves are instructions and are never added to the solve',
       'Saving a run preserves its real scramble, hold and prefix as the starting case, and preselects the containing method stage',
       'Used algorithms are named in the solve track: tap the name to fold its moves away, and tap again to show them',
+      'Method locks now quietly show whether the cube actually reached that stage — filled when verified, outlined when it did not or when a personal stage has no automatic check',
     ]
   },
   '3.2.0': {
