@@ -2,16 +2,20 @@ import {
   algError,
   axisOf,
   formatAlg,
+  invertAlg,
   isValidAlg,
   moveCount,
+  normalizeAlg,
   parseAlg,
   parseMove,
   scanAlg,
   tokenize,
+  tryInvertAlg,
   tryParseAlg,
   tryTokenize,
 } from '../moves';
 import { AXIS } from '../geometry';
+import { cubeFromAlg, isSolved } from '../cubeState';
 
 describe('parseMove', () => {
   it('reads a plain face turn', () => {
@@ -168,5 +172,70 @@ describe('axisOf', () => {
     expect(axisOf('L')).toBe(axisOf('R'));
     expect(axisOf('F')).toBe(axisOf('B'));
     expect(axisOf('U')).not.toBe(axisOf('R'));
+  });
+});
+
+describe('invertAlg', () => {
+  /** Real algorithms, in the notation their own methods are written in. */
+  const CORPUS = [
+    "R U R' U R U2 R'",
+    "R U2 R' U' R U' R'",
+    "R U R' U' R' F R2 U' R' U' R U R' F'",
+    "M' U' M U2 M' U' M",
+    "r U R' U' r' F R F'",
+    "F R U R' U' F' f R U R' U' f'",
+    "x R' U R' D2 R U' R' D2 R2",
+    "R2 D R' U2 R D' R' U2 R'",
+  ];
+
+  it('reverses the order and flips each turn', () => {
+    expect(invertAlg("R U R' U R U2 R'")).toBe("R U2 R' U' R U' R'");
+    expect(invertAlg('R')).toBe("R'");
+    expect(invertAlg("R'")).toBe('R');
+  });
+
+  it('leaves half turns alone — a half turn undoes itself', () => {
+    expect(invertAlg('R2')).toBe('R2');
+    expect(invertAlg("R2 U2")).toBe('U2 R2');
+  });
+
+  it('keeps the notation it was given, rather than the parser\'s', () => {
+    // The trap this function exists to avoid (plan §3.2, `scanAlg`'s comment):
+    // `parseMove` normalizes `r` to `Rw`, so inverting through the moves would
+    // answer a Roux user in notation their method does not use.
+    expect(invertAlg("r U r'")).toBe("r U' r'");
+    expect(invertAlg("Rw U Rw'")).toBe("Rw U' Rw'");
+    expect(invertAlg("M' U M")).toBe("M' U' M");
+  });
+
+  it('is its own inverse over real algorithms', () => {
+    CORPUS.forEach((alg) => {
+      expect(invertAlg(invertAlg(alg))).toBe(normalizeAlg(alg));
+    });
+  });
+
+  it('actually undoes the cube, not just the text', () => {
+    CORPUS.forEach((alg) => {
+      expect(isSolved(cubeFromAlg(`${alg} ${invertAlg(alg)}`))).toBe(true);
+      expect(isSolved(cubeFromAlg(`${invertAlg(alg)} ${alg}`))).toBe(true);
+    });
+  });
+
+  it('undoes the solved cube into the solved cube', () => {
+    expect(invertAlg('')).toBe('');
+    expect(invertAlg('   ')).toBe('');
+  });
+
+  it('reads the curly apostrophe a phone produces, and answers with a straight one', () => {
+    // The one input it is not character-for-character its own inverse over. It
+    // is still its own inverse over the cube, which is what it is for.
+    expect(invertAlg('R\u2019 U')).toBe("U' R");
+    expect(isSolved(cubeFromAlg(`R\u2019 U ${invertAlg('R\u2019 U')}`))).toBe(true);
+  });
+
+  it('refuses text that is not an algorithm', () => {
+    expect(() => invertAlg('R Q U')).toThrow(/Q/);
+    expect(tryInvertAlg('R Q U')).toBeNull();
+    expect(tryInvertAlg("R U R'")).toBe("R U' R'");
   });
 });

@@ -77,6 +77,11 @@ const CubeMoveTrack = ({
   // height rather than to a panel of empty space.
   room = 0,
   onSeek,
+  selection,
+  onSelect,
+  algorithmRuns = [],
+  expandedRuns = new Set(),
+  onToggleRun,
 }) => {
   const titleColor = theme.colors.title;
   const surface = theme.colors.numberPad.background;
@@ -203,7 +208,12 @@ const CubeMoveTrack = ({
         {tokens.length === 0 ? (
           <Text style={[styles.placeholder, { color: pendingColor }]}>{placeholder}</Text>
         ) : (
-          tokens.map((token, i) => (
+          tokens.map((token, i) => {
+            const run = algorithmRuns.find((candidate) => i >= candidate.at && i < candidate.end);
+            const runKey = run ? `${run.at}:${run.end}` : null;
+            const expanded = Boolean(selection || (runKey && expandedRuns.has(runKey)));
+            if (run && !expanded && i > run.at) return null;
+            return (
             <React.Fragment key={`${token}-${i}`}>
               {/* The gap between two tokens is where a phase boundary shows, and
                   it is its own element rather than part of the token: the token
@@ -212,8 +222,21 @@ const CubeMoveTrack = ({
               {i > 0 && marks.has(i) && (
                 <Text style={[styles.mark, { color: accent }]}>|</Text>
               )}
+              {run && i === run.at && (
+                <TouchableOpacity
+                  onPress={() => onToggleRun?.(runKey)}
+                  style={[styles.runChip, { borderColor: accent }, !expanded && { backgroundColor: accent }]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${run.name}, moves ${run.at + 1} to ${run.end}`}
+                  accessibilityHint={expanded ? 'Collapses these moves to the algorithm name' : 'Shows every move in this algorithm'}
+                  accessibilityState={{ expanded }}
+                >
+                  <Text style={[styles.runName, { color: expanded ? accent : '#fff' }]}>{run.name}</Text>
+                </TouchableOpacity>
+              )}
+              {(!run || expanded) && (
               <TouchableOpacity
-                onPress={() => onSeek(i + 1)}
+                onPress={() => onSelect ? onSelect(i) : onSeek(i + 1)}
                 onLayout={({ nativeEvent }) => noteTop(i, nativeEvent.layout.y)}
                 accessibilityRole="button"
                 // Unchanged from the card this replaced, deliberately: every
@@ -227,20 +250,27 @@ const CubeMoveTrack = ({
                 // rather than the label because the container's padding is
                 // already fixed — a chip that added its own would re-flow the
                 // row under the cursor on every move played.
-                style={[styles.token, i === index - 1 && { backgroundColor: accent }]}
+                style={[
+                  styles.token,
+                  selection && i >= selection.start && i <= selection.end && styles.selectedToken,
+                  run && expanded && [styles.runToken, { borderColor: accent }],
+                  i === index - 1 && !selection && { backgroundColor: accent },
+                ]}
               >
                 <Text
                   style={[
                     styles.tokenText,
                     { color: i < index ? titleColor : pendingColor },
-                    i === index - 1 && styles.currentToken,
+                    i === index - 1 && !selection && styles.currentToken,
                   ]}
                 >
                   {token}
                 </Text>
               </TouchableOpacity>
+              )}
             </React.Fragment>
-          ))
+            );
+          })
         )}
       </ScrollView>
 
@@ -323,6 +353,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     borderRadius: 4,
   },
+  selectedToken: { backgroundColor: 'rgba(214, 71, 82, 0.16)' },
+  // Expanded, the label and every move wear the same touching outline. The
+  // boundary is drawn per token rather than around a parent because this track
+  // flex-wraps: one parent would either stop the moves wrapping or surround
+  // unrelated whitespace at the end of a line.
+  runChip: { height: LINE, borderWidth: 1, borderRadius: 5, paddingHorizontal: 7, justifyContent: 'center', marginRight: -1 },
+  runToken: { borderWidth: 1, marginHorizontal: -1 },
+  runName: { fontSize: 11, lineHeight: LINE, fontWeight: '800' },
   tokenText: {
     fontFamily: ALG_FONT,
     // 12, from the design (plan §8.8), where Step 7 had 14. `lineHeight` stays

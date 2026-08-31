@@ -3,10 +3,11 @@
  * (docs/cube-plan.md §7).
  *
  * One blob holds the scramble on screen, the favorites list, every solve the
- * operator has written, and which of them was open. They are written together
- * because they change together — saving a favorite is a tap on the scramble
- * that is already showing — and splitting them would buy four AsyncStorage
- * round trips and four ways for them to disagree.
+ * operator has written, the algorithm library, and which solve was open. They
+ * are written together because they change together — saving a favorite is a tap
+ * on the scramble that is already showing, and tagging a run from a solve will
+ * write a solve and a library entry in one action — and splitting them would buy
+ * five AsyncStorage round trips and five ways for them to disagree.
  *
  * Only the **algorithm text** is stored, never the cube. The cube is a pure
  * function of the algorithm, so storing it would be a second, staler copy of
@@ -27,33 +28,40 @@ import { describeCubeProgress } from '../../utils/gameProgress';
 export const CUBE_STORAGE_KEY = '@CubeScramble';
 
 /**
- * 2 since Step 4, which added `solves` and `workspace`.
+ * 3 since Cube Methods Step 1, which added `algorithms`. (2 was Cube Step 4,
+ * which added `solves` and `workspace`.)
  *
- * Nothing branches on it and nothing should have to: `readCubeSave` reads every
- * version by shape, because a key that is absent and a key that is corrupt want
- * the same answer anyway. The number is here so a file can say what wrote it.
+ * **It is a label, not a branch.** Nothing branches on it and nothing should
+ * have to: `readCubeSave` reads every version by shape, because a key that is
+ * absent and a key that is corrupt want the same answer anyway. The number is
+ * here so a file can say what wrote it — which is worth something when an
+ * operator's file turns up in a bug report, and worth nothing at all to the
+ * reader. A pre-library file has no `algorithms` key and sanitizes to `[]`,
+ * which is the truth about the build that wrote it; a library file opened by an
+ * older build reads its scramble and solves and ignores the rest.
  */
-export const CUBE_STORAGE_VERSION = 2;
+export const CUBE_STORAGE_VERSION = 3;
 
 // The blob's shape rules live in ./favorites.js, which imports nothing from
 // React Native and is therefore testable. Re-exported so callers have one import.
 export { readCubeSave };
 
 /**
- * Load the scramble, the favorites, the solves and the workspace.
+ * Load the scramble, the favorites, the solves, the algorithm library and the
+ * workspace.
  *
  * @returns {Promise<{scramble: string, favorites: Array, solves: Array,
- *   workspace: {solveId: string|null}}>} always a usable
+ *   algorithms: Array, workspace: {solveId: string|null}}>} always a usable
  *   object — "nothing saved" is an empty scramble and empty lists, not null,
  *   because the screen has the same job either way. `readCubeSave(null)` is
  *   that object, so the two failure paths and the happy one agree by
  *   construction.
  */
-export const loadCubeState = async () => {
+export const loadCubeState = async (catalogue) => {
   try {
     const serialized = await AsyncStorage.getItem(CUBE_STORAGE_KEY);
     if (serialized === null) return readCubeSave(null);
-    return readCubeSave(JSON.parse(serialized));
+    return readCubeSave(JSON.parse(serialized), catalogue);
   } catch (error) {
     console.error('Error loading cube state:', error);
     return readCubeSave(null);
@@ -77,7 +85,7 @@ const sanitizeSavedView = (view) =>
  * left it, where the scrub position and the turn speed are still not.
  */
 export const saveCubeState = debounce(
-  async ({ scramble, favorites, solves, workspace }) => {
+  async ({ scramble, favorites, solves, algorithms, methods, workspace }) => {
     try {
       await AsyncStorage.setItem(
         CUBE_STORAGE_KEY,
@@ -86,6 +94,12 @@ export const saveCubeState = debounce(
           scramble: normalizeAlg(scramble),
           favorites: favorites || [],
           solves: solves || [],
+          // The algorithm library (docs/cube-methods-plan.md §3.1). Written
+          // beside the solves rather than under its own key because the two
+          // change together — tagging a run writes both — and because there is
+          // exactly one debounced writer for everything the operator authored.
+          algorithms: algorithms || [],
+          methods: methods || [],
           workspace: {
             // **No `solving` any more** (docs/cube-flow-plan.md §3.2). The solve
             // is a route, and the id is written only while that route is on the

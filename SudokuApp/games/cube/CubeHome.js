@@ -18,7 +18,13 @@ import { findSolve } from './solveList';
 import useScramblePlayer from './useScramblePlayer';
 import useCubeStage from './useCubeStage';
 import { CUBE_ACCENT, CubeLoading, headerAction, styles } from './cubeChrome';
-import { HOME_ROUTE, SOLVE_ROUTE, useCube, useReportsSolveRoute } from './CubeContext';
+import {
+  HOME_ROUTE,
+  LIBRARY_ROUTE,
+  SOLVE_ROUTE,
+  useCube,
+  useReportsSolveRoute,
+} from './CubeContext';
 import { mix } from '../../utils/color';
 
 /**
@@ -63,6 +69,7 @@ const NO_MARKS = new Set();
 const CubeHome = ({ navigation, onExitToHub }) => {
   const { theme } = useAppTheme();
   const {
+    methods,
     scramble,
     saved,
     favorites,
@@ -89,7 +96,7 @@ const CubeHome = ({ navigation, onExitToHub }) => {
   const [showFavorites, setShowFavorites] = useState(false);
   const [showCompare, setShowCompare] = useState(false);
   // Step 4's sheet: `+ New solve` opens this rather than creating a solve, and
-  // `Start solve` is what creates and pushes.
+  // tapping one method row creates and pushes.
   const [showNewSolve, setShowNewSolve] = useState(false);
   // The solve a long-press opened the menu for, and the one being renamed —
   // separately, because the two modals are opened one at a time rather than
@@ -220,7 +227,7 @@ const CubeHome = ({ navigation, onExitToHub }) => {
     setShowNewSolve(true);
   }, [pause]);
 
-  /** `Start solve` — create with the method that was picked, and push.
+  /** A method row — create with that method and push.
    *  `startNewSolve` returns null when there is no scramble to write one
    *  against, and then there is nothing to push to. */
   const startSolveWith = useCallback(
@@ -313,6 +320,20 @@ const CubeHome = ({ navigation, onExitToHub }) => {
     pause();
     newScramble();
   }, [pause, newScramble]);
+
+  /**
+   * The algorithm library, from the action row under the list
+   * (docs/cube-methods-plan.md §2 and §3.1).
+   *
+   * The pause is the same rule the new-solve sheet follows: the scramble should
+   * stop playing the moment the operator's attention leaves it. This one is a
+   * push rather than a sheet, so the screen is gone entirely — a cube turning
+   * behind a route nobody is looking at is a frame loop for nothing.
+   */
+  const openLibrary = useCallback(() => {
+    pause();
+    navigation.navigate(LIBRARY_ROUTE);
+  }, [pause, navigation]);
 
   const titleColor = theme.colors.title;
   const border = theme.colors.numberPad.border;
@@ -475,6 +496,7 @@ const CubeHome = ({ navigation, onExitToHub }) => {
         onNew={openNewSolve}
         onManage={setManagingId}
         onCompare={() => setShowCompare(true)}
+        onLibrary={openLibrary}
       />
 
       {/* The fifth modal on this screen, and the fifth opened one at a time on
@@ -485,7 +507,7 @@ const CubeHome = ({ navigation, onExitToHub }) => {
         visible={showNewSolve}
         theme={theme}
         accent={CUBE_ACCENT}
-        mySolves={mySolves}
+        methods={methods}
         onStart={startSolveWith}
         onClose={() => setShowNewSolve(false)}
       />

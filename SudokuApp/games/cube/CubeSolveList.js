@@ -2,6 +2,7 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { methodName } from './methods';
+import { useMethods } from './CubeContext';
 import { describeSolveSize, lastTouched } from './solveList';
 import { describeRecency } from './recency';
 import {
@@ -45,6 +46,31 @@ import {
  * nothing beside it, which is exactly the rule `CubeSolvesModal` already applied
  * to its own toggle.
  *
+ * ### And the algorithm library's door is the third of them
+ *
+ * **The scramble screen's header is full at four controls, measured**
+ * (`CubeHome.js`, the comment above `headerActions`): at 320 points the header
+ * has 300, the home button takes 38, the right end 4 of padding, and each
+ * control is 34 of button with 5 of margin. Four leave 94 for the title; five
+ * leave 55 and it ellipsizes. So the library gets a door here instead, which is
+ * the same trade Compare took (docs/cube-methods-plan.md §2).
+ *
+ * **It costs the cube nothing**, which is the number §8.6 asks for: no new row,
+ * and the button is `ACTION_HEIGHT` like everything else in this one. What it
+ * costs is *width*, off the card that flexes — the 34-point button plus the
+ * row's 6-point gap take 40 points from `New solve`.
+ *
+ * **Measured in a browser rather than trusted**, at 320 × 568 with all three
+ * controls up: the row is 300 wide, the button is 34, Compare is 105, and
+ * `New solve` gets the remaining **149** — against the 87 its icon and label
+ * need, so it still reads whole on the narrowest phone. 222 at 393. No
+ * horizontal overflow at 320, 375 or 393.
+ *
+ * **It is the right-hand control rather than the middle one**, and that is not
+ * cosmetic: Compare comes and goes with the number of attempts, so a library
+ * button sitting between the two would jump 111 points sideways the first time
+ * a second solve was written. Last in the row, it never moves.
+ *
  * ### Rename, duplicate, clear and delete are behind a `⋯`
  *
  * Step 3 shipped them on a **long-press** alone, on the argument that the design
@@ -69,7 +95,9 @@ const CubeSolveList = ({
   onNew,
   onManage,
   onCompare,
+  onLibrary,
 }) => {
+  const methods = useMethods();
   const titleColor = theme.colors.title;
   const border = theme.colors.numberPad.border;
 
@@ -107,7 +135,7 @@ const CubeSolveList = ({
             // they are the same value, and a card that labelled every legacy
             // record "Freeform" would be making a claim about them nothing here
             // can support (`methods.js`). No method, no segment.
-            const method = methodName(solve.method);
+            const method = methodName(solve.method, methods);
             const meta = [size, method, when].filter(Boolean).join(' · ');
 
             return (
@@ -226,6 +254,22 @@ const CubeSolveList = ({
             <Text style={[styles.actionText, { color: titleColor }]}>Compare</Text>
           </TouchableOpacity>
         )}
+
+        {/* Icon-only, and 34 points wide by construction: 7 of padding either
+            side of a 16-point glyph inside a 2-point border. That is the same 34
+            the header's controls are, which is what makes the arithmetic above
+            comparable to `CubeHome`'s. A label would be a word you read once
+            where an icon is a target you hit every time — and there is no width
+            here for both. */}
+        <TouchableOpacity
+          style={[styles.libraryAction, { borderColor: border }]}
+          onPress={onLibrary}
+          accessibilityRole="button"
+          accessibilityLabel="Algorithms"
+          accessibilityHint="Opens the algorithm library"
+        >
+          <MaterialCommunityIcons name="format-list-bulleted" size={16} color={titleColor} />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -342,6 +386,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     height: ACTION_HEIGHT,
     paddingHorizontal: 12,
+    borderWidth: CARD_BORDER,
+    borderRadius: 10,
+  },
+  // 34 points, the same as a header control — 7 of padding either side of the
+  // 16-point glyph, inside the 2-point border every card on this screen wears.
+  // No `flexGrow`, so the width it takes is exactly that and `newAction` absorbs
+  // the rest.
+  libraryAction: {
+    flexGrow: 0,
+    flexShrink: 0,
+    flexBasis: 'auto',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: ACTION_HEIGHT,
+    paddingHorizontal: 7,
     borderWidth: CARD_BORDER,
     borderRadius: 10,
   },

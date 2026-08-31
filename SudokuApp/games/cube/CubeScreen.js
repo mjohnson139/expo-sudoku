@@ -1,9 +1,23 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import CubeAlgorithmEntry from './CubeAlgorithmEntry';
+import CubeAlgorithms from './CubeAlgorithms';
 import CubeHome from './CubeHome';
 import CubeSolve from './CubeSolve';
+import CubeWorkbench from './CubeWorkbench';
+import CubeMethods from './CubeMethods';
+import CubeJourney from './CubeJourney';
 import { CUBE_ACCENT, CubeLoading } from './cubeChrome';
-import { CubeProvider, HOME_ROUTE, SOLVE_ROUTE } from './CubeContext';
+import {
+  CubeProvider,
+  ENTRY_ROUTE,
+  HOME_ROUTE,
+  LIBRARY_ROUTE,
+  SOLVE_ROUTE,
+  WORKBENCH_ROUTE,
+  METHODS_ROUTE,
+  JOURNEY_ROUTE,
+} from './CubeContext';
 
 export { CUBE_ACCENT };
 
@@ -18,10 +32,22 @@ export { CUBE_ACCENT };
  * owner and a stack of two screens — and everything it used to do lives in one
  * of three places:
  *
- *  - `CubeContext.js` — the scramble, the favorites, the solves, which one is
- *    open, the view angle, and the single debounced writer for all of it;
+ *  - `CubeContext.js` — the scramble, the favorites, the solves, the algorithm
+ *    library, which solve is open, the view angle, and the single debounced
+ *    writer for all of it;
  *  - `CubeHome.js` — the scramble;
  *  - `CubeSolve.js` — the solve, pushed on top of it.
+ *
+ * ### Four routes since Cube Methods Step 1
+ *
+ * `CubeAlgorithms` and `CubeAlgorithmEntry` join them (docs/cube-methods-plan.md
+ * §3.1). **The epic's golden rule is that every screen it adds is a route
+ * here**, so nothing outside `games/cube/` is edited to make room for one — and
+ * a library that is a route rather than a modal gets Android's back and the iOS
+ * edge swipe at both of its levels for free, exactly as the solve did.
+ *
+ * They hang off the same navigator the solve does rather than a second one, so
+ * the whole cube is one stack the operator backs out of a level at a time.
  *
  * ### Why a nested stack
  *
@@ -51,6 +77,11 @@ const CubeScreen = ({ onExitToHub }) => (
         {({ navigation }) => <CubeHome navigation={navigation} onExitToHub={onExitToHub} />}
       </Stack.Screen>
       <Stack.Screen name={SOLVE_ROUTE} component={CubeSolve} />
+      <Stack.Screen name={LIBRARY_ROUTE} component={CubeAlgorithms} />
+      <Stack.Screen name={ENTRY_ROUTE} component={CubeAlgorithmEntry} />
+      <Stack.Screen name={WORKBENCH_ROUTE} component={CubeWorkbench} />
+      <Stack.Screen name={METHODS_ROUTE} component={CubeMethods} />
+      <Stack.Screen name={JOURNEY_ROUTE} component={CubeJourney} />
     </Stack.Navigator>
   </CubeProvider>
 );

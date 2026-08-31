@@ -25,6 +25,22 @@ describe('railStates', () => {
     expect(railStates('roux', phases, 'R F2', 2)[0].count).toBe(1);
   });
 
+  it('keeps passed, failed, and unverified locks as three values', () => {
+    const phases = [
+      { at: 0, label: 'First block' },
+      { at: 1, label: 'Second block' },
+      { at: 2, label: 'CMLL' },
+      { at: 3, label: '' },
+    ];
+    const checks = [
+      { at: 1, label: 'First block', result: true },
+      { at: 2, label: 'Second block', result: false },
+      { at: 3, label: 'CMLL', result: null },
+    ];
+    expect(railStates('roux', phases, 'R U F', 3, undefined, checks).map((item) => item.verified))
+      .toEqual([true, false, null, null]);
+  });
+
   it('has no rail for legacy, Freeform, or unknown methods', () => {
     expect(railStates(null, [{ at: 0, label: 'First block' }], 'R', 1)).toEqual([]);
     expect(railStates('unknown', [], 'R', 1)).toEqual([]);

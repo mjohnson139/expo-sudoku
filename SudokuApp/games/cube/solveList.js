@@ -95,6 +95,7 @@ export const MAX_SOLVE_NAME = 40;
  *  hand the screen an unbounded list. A solve with forty groups in it is not a
  *  solve anyone is annotating. */
 export const MAX_PHASES = 40;
+export const MAX_ALGORITHM_RUNS = 40;
 
 /** A name, as it is kept: single-spaced, trimmed, and bounded. */
 export const normalizeName = (name) =>
@@ -181,7 +182,8 @@ export const defaultSolveName = (solves, scramble) => {
 export const createSolve = (
   solves,
   scramble,
-  { name, method = null, savedAt = Date.now() } = {}
+  { name, method = null, savedAt = Date.now() } = {},
+  catalogue
 ) => {
   const key = normalizeAlg(scramble);
   const list = solves || [];
@@ -194,10 +196,11 @@ export const createSolve = (
     id: nextSolveId(list),
     scramble: key,
     name: wanted.length > 0 ? uniqueName(wanted, taken) : defaultSolveName(list, key),
-    method: sanitizeMethodId(method),
+    method: sanitizeMethodId(method, catalogue),
     orientation: null,
     alg: '',
     phases: [],
+    algorithmRuns: [],
     savedAt,
     // A page nobody has written on yet was last written to when it was made.
     // The alternative — null until the first move — is a card that says nothing
@@ -237,6 +240,7 @@ export const duplicateSolve = (solves, id, { savedAt = Date.now() } = {}) => {
     id: nextSolveId(list),
     name: uniqueName(normalizeName(`${source.name} copy`), taken),
     phases: [...source.phases],
+    algorithmRuns: [...(source.algorithmRuns || [])],
     savedAt,
     editedAt: savedAt,
   };
@@ -666,7 +670,7 @@ const countByLabel = (spans) => {
  * method's order instead of in whichever order the attempts happened to be
  * written.
  */
-const methodOrders = (counted, used) => {
+const methodOrders = (counted, used, catalogue) => {
   const seen = [];
 
   counted.forEach(({ solve }) => {
@@ -675,7 +679,7 @@ const methodOrders = (counted, used) => {
   });
 
   return seen
-    .map((id) => stagesOf(id).filter((stage) => used.has(stage)))
+    .map((id) => stagesOf(id, catalogue).filter((stage) => used.has(stage)))
     .filter((stages) => stages.length > 0);
 };
 
@@ -708,7 +712,7 @@ const methodOrders = (counted, used) => {
  *   fewest. **Nothing is averaged** — a mean over four attempts, one of them
  *   abandoned half way, is a number that lies (plan §8.10).
  */
-export const comparePhases = (solves) => {
+export const comparePhases = (solves, catalogue) => {
   const list = [...(solves || [])].reverse();
 
   const counted = list.map((solve) => ({
@@ -722,7 +726,7 @@ export const comparePhases = (solves) => {
   counted.forEach(({ totals }) => totals.forEach((_value, label) => used.add(label)));
 
   const labels = mergeLabelOrder([
-    ...methodOrders(counted, used),
+    ...methodOrders(counted, used, catalogue),
     ...counted.map(({ totals }) => [...totals.keys()]),
   ]);
 
@@ -771,7 +775,31 @@ export const announceCompareCell = (name, label, cell) => {
 export const withMoves = (solve, alg) => ({
   alg,
   phases: clampPhases(solve && solve.phases, moveCount(alg)),
+  algorithmRuns: clampAlgorithmRuns(solve && solve.algorithmRuns, moveCount(alg)),
 });
+
+/** Named algorithm spans use zero-based, end-exclusive token indexes. They are
+ * annotations, not replacement notation: undo merely drops a span once its end
+ * no longer exists, while its underlying moves remain the solve's source of
+ * truth. */
+export const clampAlgorithmRuns = (runs, count) => {
+  const limit = Number.isInteger(count) && count > 0 ? count : 0;
+  const clean = [];
+  (Array.isArray(runs) ? runs : []).forEach((run) => {
+    if (!run || !Number.isInteger(run.at) || !Number.isInteger(run.end)) return;
+    if (run.at < 0 || run.end <= run.at || run.end > limit) return;
+    const name = normalizeName(run.name);
+    if (!name) return;
+    if (clean.some((kept) => run.at < kept.end && run.end > kept.at)) return;
+    clean.push({
+      at: run.at,
+      end: run.end,
+      algorithmId: typeof run.algorithmId === 'string' ? run.algorithmId : null,
+      name,
+    });
+  });
+  return clean.sort((a, b) => a.at - b.at).slice(0, MAX_ALGORITHM_RUNS);
+};
 
 /**
  * A stored phase list, brought into shape (plan §8.5).
@@ -828,7 +856,7 @@ const sanitizeOrientation = (raw) => {
  * ways to get one are a clock that was set forward and a file carried between
  * devices, and `describeRecency` already reads a future date as "just now".
  */
-export const sanitizeSolves = (raw) => {
+export const sanitizeSolves = (raw, catalogue) => {
   if (!Array.isArray(raw)) return [];
 
   const clean = [];
@@ -866,10 +894,11 @@ export const sanitizeSolves = (raw) => {
       id,
       scramble,
       name,
-      method: sanitizeMethodId(entry.method),
+      method: sanitizeMethodId(entry.method, catalogue),
       orientation: sanitizeOrientation(entry.orientation),
       alg,
       phases: sanitizePhases(entry.phases, moveCount(alg)),
+      algorithmRuns: clampAlgorithmRuns(entry.algorithmRuns, moveCount(alg)),
       savedAt,
       editedAt: Number.isFinite(entry.editedAt) ? entry.editedAt : savedAt,
     });

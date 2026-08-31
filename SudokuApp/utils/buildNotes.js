@@ -2,6 +2,43 @@
 // Each version's notes are stored in this file
 
 const BUILD_NOTES = {
+  '3.3.0': {
+    title: 'Cube Methods & Algorithms — one library',
+    date: '2026-08-24',
+    notes: [
+      'New on the scramble screen: a button beside New solve and Compare opens your algorithm library',
+      'An algorithm is a thing you keep now — a name, its moves, the stages it is for, and notes only you see',
+      'Write one on a solved cube: tap ＋, turn with a finger or the move pad, then name it and say what it is for',
+      'A three-face preview shows the real starting cube live while you turn, and tapping it returns the large cube to that start',
+      'Before writing the algorithm, turn the solved cube into its starting case and choose Use this start',
+      'Or choose Derive later — once the moves exist, their inverse is the starting state that they return to solved',
+      'Prefer notation? Paste an algorithm remains available from an entry',
+      'Search the library by name or by moves — and RUR\' finds R U R\' U\', spaces or no spaces',
+      'Filter by method with the chips: a chip only appears once there is something behind it, and it says how many',
+      'Starting a solve now also offers Beginner LBL, with Cross, basic F2L, and two-look last-layer stages',
+      'Build your own method by opening Methods, duplicating a preset, and naming or reordering its stages',
+      'Choose whether a method appears for new solves without changing the solves already using it',
+      'Starting a solve is one tap from the method list; each row previews its stages and opens the solve directly',
+      'Every method stage now says how many algorithms are linked — or says when the stage is intentionally intuitive',
+      'Tap a stage row to see its exact algorithms, assign existing entries, or write a new one already linked there',
+      'One algorithm can serve more than one stage at once — Roux CMLL and CFOP PLL are two taps, not two entries',
+      'An algorithm with nothing assigned to it is still findable, under Unassigned',
+      'Notes are for finger tricks and cues, and are never shown while you are solving',
+      'Every algorithm now shows the case it solves as a three-face cube, including the side stickers that distinguish PLLs',
+      'Choose the starting case on the cube, or derive it from the moves because an algorithm run backwards from solved is its inverse start',
+      'That means every algorithm you had already written has a case today, without you touching it',
+      'Change an algorithm\'s moves and its case follows on the way back to the library',
+      'The case reads out in words for a screen reader — which stickers are facing up, never a colour on its own',
+      'The library is kept with everything else the cube remembers: background the app, or close it, and it is all still there',
+      'Nothing about the scramble screen moved to make room — the library shares the row Compare already sits in',
+      'Algorithms now lives on the solve transport: apply saved moves at the live end, or select a performed run and keep it in the library',
+      'A used algorithm is named inside the solve track; tap its outlined capsule to swap the name for its moves, and tap again to collapse it',
+      'Applying plays every saved move from the cube you are actually holding; setup moves are instructions and are never added to the solve',
+      'Saving a run preserves its real scramble, hold and prefix as the starting case, and preselects the containing method stage',
+      'Used algorithms are named in the solve track: tap the name to fold its moves away, and tap again to show them',
+      'Method locks now quietly show whether the cube actually reached that stage — filled when verified, outlined when it did not or when a personal stage has no automatic check',
+    ]
+  },
   '3.2.0': {
     title: 'Cube Flow — the scramble is home',
     date: '2026-08-23',

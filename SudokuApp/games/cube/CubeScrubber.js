@@ -53,6 +53,7 @@ const CubeScrubber = ({
   onHidePad,
   canDelete = false,
   onDelete,
+  onAlgorithms,
 }) => {
   const palette = padPalette(theme, accent);
   const surface = theme.colors.numberPad.background;
@@ -138,6 +139,18 @@ const CubeScrubber = ({
             the gesture to a Pressable before PanResponder sees it. */}
         {typeof padShown === 'boolean' && (
           <View style={styles.drawerTop}>
+            {!!onAlgorithms && (
+              <Pressable
+                style={[styles.algorithms, { borderColor: border }]}
+                onPress={onAlgorithms}
+                accessibilityRole="button"
+                accessibilityLabel="Algorithms"
+                accessibilityHint="Apply a saved algorithm or save moves from this solve"
+              >
+                <CubeGlyph name="book" size={17} color={palette.ink} />
+                <Text style={[styles.algorithmsText, { color: palette.ink }]}>Algorithms</Text>
+              </Pressable>
+            )}
             <View style={styles.drawerHandleTarget} {...drawerPan.panHandlers}>
               <Pressable
                 style={styles.drawerHandlePress}
@@ -325,6 +338,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  algorithms: {
+    height: 36,
+    paddingHorizontal: 9,
+    borderWidth: 1,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  algorithmsText: { fontSize: 11, fontWeight: '700' },
 });
 
 export default CubeScrubber;

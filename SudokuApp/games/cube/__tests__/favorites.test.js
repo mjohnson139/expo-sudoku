@@ -116,7 +116,20 @@ describe('readCubeSave', () => {
   /** The same solve as this build stores it: no method, and last written to when
    *  it was started — which is the most that can honestly be said about a record
    *  that never carried the field. */
-  const UPGRADED = { ...SOLVE, method: null, editedAt: 7 };
+  const UPGRADED = { ...SOLVE, method: null, algorithmRuns: [], editedAt: 7 };
+
+  /** One library entry, as this build stores it (Cube Methods Step 1). */
+  const ENTRY = {
+    id: 'a1',
+    name: 'Sune',
+    moves: "R U R' U R U2 R'",
+    setup: '',
+    case: null,
+    assignments: [{ method: 'roux', stage: 'CMLL' }],
+    notes: '',
+    savedAt: 7,
+    editedAt: 7,
+  };
 
   it('reads a well-formed save', () => {
     expect(
@@ -124,12 +137,15 @@ describe('readCubeSave', () => {
         scramble: ALG,
         favorites: [{ alg: OTHER, savedAt: 7 }],
         solves: [SOLVE],
+        algorithms: [ENTRY],
         workspace: { solveId: 's1', view: null },
       })
     ).toEqual({
       scramble: ALG,
       favorites: [{ alg: OTHER, savedAt: 7 }],
       solves: [UPGRADED],
+      algorithms: [ENTRY],
+      methods: [],
       workspace: { solveId: 's1', view: null },
     });
   });
@@ -143,6 +159,8 @@ describe('readCubeSave', () => {
       scramble: '',
       favorites: [],
       solves: [],
+      algorithms: [],
+      methods: [],
       workspace: { solveId: null, view: null },
     };
     expect(readCubeSave(null)).toEqual(empty);
@@ -162,8 +180,30 @@ describe('readCubeSave', () => {
         scramble: ALG,
         favorites: [{ alg: ALG, savedAt: 3 }],
         solves: [],
+        algorithms: [],
+        methods: [],
         workspace: { solveId: null, view: null },
       });
+    });
+
+    it('reads a pre-library save as an empty library, which is the truth about it', () => {
+      // `_v: 2` is Cube Flow's file: no `algorithms` key, because that build
+      // could not keep an algorithm. No migration, and no branch on `_v` —
+      // `sanitizeAlgorithms(undefined)` is the whole of it.
+      const step4 = { _v: 2, scramble: ALG, favorites: [], solves: [SOLVE] };
+      expect(readCubeSave(step4).algorithms).toEqual([]);
+    });
+
+    it('drops a library entry whose moves no longer parse and keeps the rest of the file', () => {
+      const read = readCubeSave({
+        _v: 3,
+        scramble: ALG,
+        favorites: [],
+        solves: [SOLVE],
+        algorithms: [ENTRY, { id: 'a2', name: 'bad', moves: 'R Q U', savedAt: 1 }],
+      });
+      expect(read.algorithms).toEqual([ENTRY]);
+      expect(read.solves).toEqual([UPGRADED]);
     });
 
     it('leaves a Step 4 save readable by a Step 5 build — the two old keys are untouched', () => {
@@ -198,5 +238,27 @@ describe('readCubeSave', () => {
         readCubeSave({ scramble: ALG, favorites: [], solves: [SOLVE] }).solves
       ).toEqual([UPGRADED]);
     });
+  });
+});
+
+describe('catalogue-dependent save sanitization', () => {
+  const catalogue = [{ id: 'petrus', name: 'Petrus', stages: ['Block'] }];
+  const solve = {
+    id: 's1', scramble: ALG, name: 'Solve 1', method: 'petrus', orientation: null,
+    alg: '', phases: [], algorithmRuns: [], savedAt: 1, editedAt: 1,
+  };
+
+  it('preserves solve methods and assignments known only to the supplied catalogue', () => {
+    const read = readCubeSave({
+      solves: [solve],
+      algorithms: [{
+        id: 'a1', name: 'Block alg', moves: 'R', assignments: [{ method: 'petrus', stage: 'Block' }],
+        savedAt: 1, editedAt: 1,
+      }],
+    }, catalogue);
+
+    expect(read.solves[0].method).toBe('petrus');
+    expect(read.algorithms[0].assignments).toEqual([{ method: 'petrus', stage: 'Block' }]);
+    expect(readCubeSave({ solves: [solve] }).solves[0].method).toBeNull();
   });
 });

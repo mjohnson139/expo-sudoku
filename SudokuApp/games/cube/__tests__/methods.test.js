@@ -173,3 +173,30 @@ describe('defaultMethod', () => {
     expect(defaultMethod([solve('petrus')])).toBeNull();
   });
 });
+
+describe('an explicit catalogue', () => {
+  const catalogue = [
+    { id: 'petrus', name: 'Petrus', stages: ['2×2×2', '2×2×3'] },
+  ];
+  const solve = (method) => ({ id: 's1', method });
+
+  it('is consulted by every helper without changing the shipped defaults', () => {
+    expect(findMethod('petrus', catalogue)).toBe(catalogue[0]);
+    expect(stagesOf('petrus', catalogue)).toBe(catalogue[0].stages);
+    expect(methodName('petrus', catalogue)).toBe('Petrus');
+    expect(sanitizeMethodId('petrus', catalogue)).toBe('petrus');
+    expect(defaultMethod([], catalogue)).toBe('petrus');
+    expect(defaultMethod([solve('petrus')], catalogue)).toBe('petrus');
+
+    expect(findMethod('petrus')).toBeNull();
+    expect(stagesOf('petrus')).toEqual([]);
+    expect(methodName('petrus')).toBeNull();
+    expect(sanitizeMethodId('petrus')).toBeNull();
+  });
+
+  it('still rejects ids absent from the explicit catalogue and handles an empty one', () => {
+    expect(findMethod('roux', catalogue)).toBeNull();
+    expect(sanitizeMethodId('unknown', catalogue)).toBeNull();
+    expect(defaultMethod([], [])).toBeNull();
+  });
+});
