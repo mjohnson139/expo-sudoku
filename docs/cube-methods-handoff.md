@@ -201,13 +201,21 @@ to change casually. Most of it is Cube Flow's; the last block is Step 1's.
 
 ---
 
-## Next step — Step 9: epic closeout
+## Next step — product and design pause before Step 9
 
-Plan **§3.9**. Close the accumulated Cube Methods & Algorithms epic; do not add
-new product behaviour. Step 8 has implemented the final feature. The closeout
-must prove the whole 3.3.0 slice together, reconcile release metadata, retire or
-explicitly carry native debt, and prepare the epic-to-main PR without merging it
-until the operator accepts the final preview.
+**Do not begin Step 9 yet.** On 2026-08-31 the product and design team paused
+the Cube Methods epic while they reconsider Puzzle Box's purpose and redesign
+its information architecture. The current-functionality packets in
+`docs/product-review/` are the working inventory for that discussion. Wait for
+an explicit product decision; it may preserve, reshape or retire parts of the
+scope below.
+
+If the team explicitly resumes the existing epic, Plan **§3.9** remains the
+closeout brief: do not add new product behaviour. Step 8 has implemented the
+final planned feature. The closeout must prove the whole 3.3.0 slice together,
+reconcile release metadata, retire or explicitly carry native debt, and prepare
+the epic-to-main PR without merging it until the operator accepts the final
+preview.
 
 ### Scope
 
