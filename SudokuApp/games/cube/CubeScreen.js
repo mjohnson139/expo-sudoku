@@ -6,6 +6,7 @@ import CubeHome from './CubeHome';
 import CubeSolve from './CubeSolve';
 import CubeWorkbench from './CubeWorkbench';
 import CubeMethods from './CubeMethods';
+import CubeJourney from './CubeJourney';
 import { CUBE_ACCENT, CubeLoading } from './cubeChrome';
 import {
   CubeProvider,
@@ -15,6 +16,7 @@ import {
   SOLVE_ROUTE,
   WORKBENCH_ROUTE,
   METHODS_ROUTE,
+  JOURNEY_ROUTE,
 } from './CubeContext';
 
 export { CUBE_ACCENT };
@@ -79,6 +81,7 @@ const CubeScreen = ({ onExitToHub }) => (
       <Stack.Screen name={ENTRY_ROUTE} component={CubeAlgorithmEntry} />
       <Stack.Screen name={WORKBENCH_ROUTE} component={CubeWorkbench} />
       <Stack.Screen name={METHODS_ROUTE} component={CubeMethods} />
+      <Stack.Screen name={JOURNEY_ROUTE} component={CubeJourney} />
     </Stack.Navigator>
   </CubeProvider>
 );

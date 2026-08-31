@@ -20,7 +20,7 @@ import {
   toggleAssignment,
 } from './algorithms';
 import { CUBE_ACCENT, headerAction, styles as chrome } from './cubeChrome';
-import { ENTRY_ROUTE, METHODS_ROUTE, WORKBENCH_ROUTE, useCube } from './CubeContext';
+import { ENTRY_ROUTE, JOURNEY_ROUTE, METHODS_ROUTE, WORKBENCH_ROUTE, useCube } from './CubeContext';
 
 /** A legible three-face starting cube. Device evidence on PR #133 showed the
  * flat U tile losing the side stickers that distinguish real cases. */
@@ -108,6 +108,14 @@ const CubeAlgorithms = ({ navigation, route }) => {
   );
 
   const headerActions = [
+    headerAction({
+      name: 'map-marker-path',
+      label: 'Journey',
+      hint: 'Shows your method journey and stage progress',
+      onPress: () => navigation.navigate(JOURNEY_ROUTE),
+      color: titleColor,
+      border,
+    }),
     headerAction({
       name: 'plus',
       label: full ? `Library full, ${MAX_ALGORITHMS} algorithms` : 'Write a new algorithm',

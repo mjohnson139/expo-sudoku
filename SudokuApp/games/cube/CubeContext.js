@@ -90,6 +90,7 @@ export const LIBRARY_ROUTE = 'algorithms';
 export const ENTRY_ROUTE = 'algorithm';
 export const WORKBENCH_ROUTE = 'workbench';
 export const METHODS_ROUTE = 'methods';
+export const JOURNEY_ROUTE = 'journey';
 
 export const CubeProvider = ({ children, fallback = null }) => {
   const [userMethods, setUserMethods] = useState([]);

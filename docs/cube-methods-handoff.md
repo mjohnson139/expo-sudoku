@@ -201,45 +201,112 @@ to change casually. Most of it is Cube Flow's; the last block is Step 1's.
 
 ---
 
-## Next step — Step 8: the journey
+## Next step — product and design pause before Step 9
 
-Plan **§3.8**. Build the derived beginner-to-advanced journey over the preset and user-method catalogue. This step consumes Step 7's exit-state results; it must not add another stored progress field or another cube replay path.
+**Do not begin Step 9 yet.** On 2026-08-31 the product and design team paused
+the Cube Methods epic while they reconsider Puzzle Box's purpose and redesign
+its information architecture. The current-functionality packets in
+`docs/product-review/` are the working inventory for that discussion. Wait for
+an explicit product decision; it may preserve, reshape or retire parts of the
+scope below.
+
+If the team explicitly resumes the existing epic, Plan **§3.9** remains the
+closeout brief: do not add new product behaviour. Step 8 has implemented the
+final planned feature. The closeout must prove the whole 3.3.0 slice together,
+reconcile release metadata, retire or explicitly carry native debt, and prepare
+the epic-to-main PR without merging it until the operator accepts the final
+preview.
 
 ### Scope
 
-- Add `games/cube/journey.js`, pure, with `DEMOS_REQUIRED = 3`. Derive demonstrations from solves whose locked stage boundary passes its shipped exit-state predicate. For user-method stages, Step 7 returns `null`; a real lock counts without pretending it was verified.
-- Order the shipped presets by their settled level, and place each user variant immediately after the method named by its `from` field. Preserve stable catalogue order among variants with the same source and handle a missing/corrupt `from` honestly.
-- Derive all three stage states — `done`, `open`, `locked` — plus each method's state and the gate line (for example, `LSE unlocks after 2 more CMLL locks — 1 of 3 done`). Stages unlock in order, and later methods remain gated by the method before them.
-- Counts are demonstrations, not solve totals: at most one qualifying lock per stage per solve. Deleting or editing a solve must roll progress back immediately because the journey is derived and stored nowhere.
-- Add the journey route and the one-control-away navigation described in §2: the Algorithms header opens Journey and Journey returns to Algorithms. Do not add a door or row to the solve screen.
-- Memoize solve replay once at the journey screen. Do not call `stageResults` repeatedly per card or per stage; derive the check matrix once, then pass it into pure journey projection.
+- Re-read every discovery below and run the accumulated Cube Methods regression:
+  library creation/edit/search/filter, case previews and workbench authoring,
+  solve-side apply/tag/fold, user-method builder and reciprocal assignments,
+  preset and user rails, verified exit states, Compare, and the journey.
+- Reconcile `SudokuApp/app.json`'s Expo version and `utils/buildNotes.js` at
+  **3.3.0**. Describe the final operator-facing workflow, not the doors that
+  existed in Step 1 before the workbench moved them.
+- Resolve the standalone `preview`/`production` native-dependency rebuild debt
+  from `react-native-screens`, or carry it in the final PR with an exact owner and
+  action. Expo Go/EAS Update success does not prove an old standalone binary.
+- Publish the final epic preview, obtain explicit operator device acceptance,
+  update issue #126, and rewrite this handoff as a completed-epic record. Only
+  after acceptance should the epic-to-main PR be prepared. Do not merge it on
+  the operator's behalf.
 
 ### Files to read
 
-Read `stageChecks.js` and its tests first, then `userMethods.js`, `methods.js`, `CubeAlgorithms.js`, `CubeScreen.js`, `CubeContext.js`, and the catalogue/save tests. Re-read plan §2's journey decisions, §3.8 in full, §5's derived-state and three-state warnings, and `docs/cube-flow-plan.md`'s marker semantics.
+Read this handoff end to end, `docs/cube-methods-plan.md` §3.9 and §5–§6,
+`.github/dev-process.md`, `SudokuApp/app.json`, `SudokuApp/utils/buildNotes.js`,
+`SudokuApp/eas.json`, and `.github/workflows/eas-publish.yml`. Review every file
+changed between the Cube Flow closeout commit and `epic/cube-methods`, with
+special attention to `CubeContext.js`, save sanitizers, the route stack, and the
+pure suites under `games/cube/__tests__/`.
 
 ### Easy to get wrong
 
-- A labelled phase marker is the **start** of its span; the exit check belongs to `phaseSpans(...).end`. Step 7's `stageResults` already makes that conversion. Never check at the live scrubber or at the labelled marker's `at`.
-- `false` and `null` are different. A failed shipped predicate does not demonstrate a stage; an unverified user stage does count a genuine lock. Do not use truthiness to combine them.
-- Preset identity, not a copied label, selects a shipped predicate. A user method containing `Cross` remains unverified.
-- Whole-cube holds are replayed between scramble and moves, including the meaningful distinction between `orientation: null`, `''`, and notation. Journey derivation must consume Step 7 rather than rebuilding that sequence.
-- Variants follow `from`; they do not replace, mutate, or sort ahead of their preset. A variant's own stages and demonstrations remain independent.
-- Progress must fall when its supporting solve is deleted, a marker moves, or the notation changes. Any cached result must depend on the complete live solves collection.
+- Closeout is regression and release work, not a chance to start packs or add a
+  Journey door to the solve screen.
+- Journey progress is a projection of the complete live solves array. `null`
+  user-stage checks count real locks, `false` preset checks do not, and one solve
+  counts no more than once for a stage. Deletion, marker edits and notation edits
+  must immediately roll it back.
+- The journey replays all solves once in one screen memo. Do not move replay into
+  cards or cache it independently of the full solves collection.
+- Variants are placed after `from` in stable catalogue order. Missing/corrupt
+  ancestry remains visible at the end rather than being dropped or attached to a
+  guessed preset.
+- The Step 7 device pass found a missing hook import only when Compare rendered.
+  Exercise every pushed screen and modal; pure tests cannot catch an unvisited
+  component binding.
+- EAS Update and Expo Go do not pay the old standalone binary's native-module
+  debt. Say exactly which artifact was tested and never claim a physical-device
+  pass that the operator has not reported.
 
-### What must be visible in Expo Go
+### What must be visible in the final preview
 
-The Algorithms and Journey screens are one control apart. The journey shows preset methods in beginner-to-advanced order, user variants directly after their source, three visibly distinct stage states, current demonstration counts, and a readable gate line. Deleting a supporting solve and returning to Journey visibly rolls the count/state back. No new row appears on a cube-bearing screen, so Step 8 costs the cube zero points.
+The full library/workbench/method/solve flow remains intact. Algorithms and
+Journey are one control apart; the journey is scrollable at compact and tall
+sizes, orders Beginner LBL → CFOP → Roux with variants beside their sources,
+shows visibly distinct done/open/locked stages and honest gate copy, and rolls
+back when supporting solve evidence changes. Step 8 added no row to a
+cube-bearing screen and costs the cube zero points.
 
 ### How to verify
 
-- Run `npm test` from `SudokuApp/`; add `journey.test.js` for ordering, same-source variant stability, the three states, exact three-demonstration threshold, duplicate locks in one solve, failed versus unverified checks, gate copy, and rollback after solve deletion/editing.
-- Browser-check Algorithms ↔ Journey at 320×568 and 393×852 in classic and dark. Seed enough methods and solves to show long names, multiple variants, all states, wrapping gate copy, and a scrollable full track.
-- On the PR preview, device-smoke navigation/edge-back, a three-solve unlock, user-stage lock counting, failed preset boundaries, deletion rollback, persistence, cold start, and background/resume. Report these as operator instructions; do not claim the device pass yourself.
+- Run `npm test` from `SudokuApp/` and a production web export.
+- Browser-regress 320×568 and 393×852 in classic and dark, including long method
+  names, multiple same-source variants, all journey states, wrapped gate copy,
+  scrolling, Algorithms ↔ Journey, every epic route, and Compare.
+- On the final preview, have the operator run the complete Cube Methods device
+  regression on iOS or Android: navigation and edge/hardware back; author/paste,
+  edit and persist an algorithm; apply and tag it in a solve; build/rename/reorder
+  a user variant; assign algorithms from both directions; verify preset and user
+  rails; verify passing and deliberately failing preset boundaries; earn exactly
+  three locks; verify a user-stage lock counts; delete/edit supporting evidence
+  and see rollback; then cold-start and background/resume. Also regress Sudoku
+  and Fungiku launch/resume. Record the operator's words and artifact identity;
+  do not infer a pass.
 
-### Then rewrite this file
+## What Step 8 discovered
 
-Brief **Step 9 — epic closeout** (plan §3.9): accumulated Cube Methods regression, release/build notes and version, standalone native-dependency debt, final epic preview, operator device acceptance, and the eventual epic-to-main merge. Do not merge it during Step 8.
+- Journey progress needs no save field: `stageResults` is projected once for
+  every live solve and pure journey logic counts qualifying marker locks. Editing
+  or deleting the evidence therefore changes progress on the next render.
+- `false` and `null` must be compared explicitly. A failed shipped predicate is
+  not evidence; a real user-method lock has no predicate and does count.
+- Duplicate markers in one solve are defensive input, not multiple practice:
+  demonstration counting de-duplicates by method/stage within that solve.
+- Beginner-to-advanced is authored order (`Beginner LBL`, `CFOP`, `Roux`), not
+  the solve picker's preset order. Variant insertion follows `from` recursively,
+  preserves catalogue order among siblings, and leaves ancestry orphans visible
+  at the end.
+- The screen memo depends on the complete `solves` collection. Memoizing by id or
+  solve count would leave notation and marker edits stale.
+- Algorithms ↔ Journey is route navigation in the cube's existing stack. No
+  solve-screen row changed, so the cube cost is zero points.
+- Step 8's physical-device checks are intentionally still pending on its PR
+  preview; browser evidence must not be rewritten as a device pass.
 
 ## What Step 7 discovered
 
